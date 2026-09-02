@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
@@ -62,6 +63,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -87,11 +90,13 @@ import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.AddEditAccountGroupOrCategoryDialog
 import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
+import com.example.ui.dialogs.AutofillSettingsDialog
 import com.example.ui.dialogs.ThemeFontSettingsDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidTransfer
 import com.example.ui.viewmodel.BudgetViewModel
+import com.example.util.AutofillPreferences
 import com.example.util.LanguageHelper
 import kotlinx.coroutines.launch
 
@@ -148,6 +153,7 @@ fun MainAppContainer(
 
     var showGlobalCalculator by remember { mutableStateOf(false) }
     var showThemeFontSettings by remember { mutableStateOf(false) }
+    var showAutofillSettingsDialog by remember { mutableStateOf(false) }
 
     val bottomNavItems = listOf(
         Triple(LanguageHelper.getString("main", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
@@ -189,6 +195,10 @@ fun MainAppContainer(
                                 },
                                 onOpenThemeFontSettings = {
                                     showThemeFontSettings = true
+                                    scope.launch { drawerState.close() }
+                                },
+                                onOpenAutofillSettings = {
+                                    showAutofillSettingsDialog = true
                                     scope.launch { drawerState.close() }
                                 },
                                 accountsCount = allAccounts.size,
@@ -483,6 +493,7 @@ fun MainAppContainer(
                                 onSelectView = { currentView = it },
                                 onOpenCalculator = { showGlobalCalculator = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
+                                onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 accountsCount = allAccounts.size,
                                 expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
                                 incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
@@ -595,11 +606,14 @@ fun MainAppContainer(
         AddEditTransactionSheet(
             accounts = allAccounts,
             categories = allCategories,
+            allTransactions = transactionsWithDetails,
             languageMode = languageMode,
             existingTransaction = editingTransaction,
             onDismiss = { showAddTransactionSheet = false },
             onSave = { tx -> viewModel.saveTransaction(tx) },
-            onDelete = { tx -> viewModel.deleteTransaction(tx) }
+            onDelete = { tx -> viewModel.deleteTransaction(tx) },
+            onAddNewCategory = { cat -> viewModel.saveCategory(cat) },
+            onAddNewAccount = { acc -> viewModel.saveAccount(acc) }
         )
     }
 
@@ -647,6 +661,18 @@ fun MainAppContainer(
             onDynamicColorToggled = { viewModel.setDynamicColor(it) },
             onFontPresetSelected = { viewModel.setFontPreset(it) },
             onDismiss = { showThemeFontSettings = false }
+        )
+    }
+
+    if (showAutofillSettingsDialog) {
+        val currentContext = LocalContext.current
+        val autofillPrefs = remember { AutofillPreferences.getInstance(currentContext) }
+        val autofillConfig by autofillPrefs.config.collectAsState()
+        AutofillSettingsDialog(
+            config = autofillConfig,
+            languageMode = languageMode,
+            onConfigChange = { autofillPrefs.updateConfig(it) },
+            onDismiss = { showAutofillSettingsDialog = false }
         )
     }
 }
@@ -699,6 +725,7 @@ private fun DrawerContent(
     onSelectView: (AppView) -> Unit,
     onOpenCalculator: () -> Unit,
     onOpenThemeFontSettings: () -> Unit,
+    onOpenAutofillSettings: () -> Unit,
     accountsCount: Int,
     expensesCount: Int,
     incomeCount: Int,
@@ -736,7 +763,7 @@ private fun DrawerContent(
                         color = Color.White.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = "v2.4",
+                            text = "v2.5",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -867,6 +894,15 @@ private fun DrawerContent(
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = false,
             onClick = onOpenThemeFontSettings
+        )
+
+        // Autofill Settings
+        DrawerItemRow(
+            title = LanguageHelper.getString("autofill_settings", languageMode),
+            icon = Icons.Default.AutoAwesome,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = false,
+            onClick = onOpenAutofillSettings
         )
 
         // Backup & Sync

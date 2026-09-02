@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,7 +28,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -107,20 +105,20 @@ fun PopupCalculatorDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
+            tonalElevation = 4.dp,
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(0.95f)
                 .testTag("popup_calculator_dialog")
         ) {
             Column(
                 modifier = Modifier
-                    .padding(20.dp)
+                    .padding(14.dp)
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header
+                // Compact Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -131,190 +129,208 @@ fun PopupCalculatorDialog(
                             imageVector = Icons.Default.Calculate,
                             contentDescription = "Calculator",
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = LanguageHelper.getString("quick_calc", languageMode),
-                            style = MaterialTheme.typography.titleMedium,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Display Area
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                // Compact Expression & Result Display Box
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.End
                     ) {
                         Text(
-                            text = if (expression.isEmpty()) "0" else {
-                                if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(expression) else expression
-                            },
-                            style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+                            text = if (expression.isEmpty()) "0" else expression,
+                            fontSize = 16.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Normal,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        val displayResult = previewResult ?: 0.0
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = LanguageHelper.formatCurrency(displayResult, languageMode),
-                            style = MaterialTheme.typography.headlineMedium,
+                            text = if (hasError) "Error" else LanguageHelper.formatCurrency(previewResult ?: 0.0, languageMode),
+                            fontSize = 20.sp,
+                            fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
                             color = if (hasError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Quick Add Chips (+50, +100, +500, +1000)
+                // Quick Add Presets Row
+                val presets = listOf(10.0, 50.0, 100.0, 500.0, 1000.0)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    val presets = listOf(50.0, 100.0, 500.0, 1000.0, 5000.0)
                     items(presets) { preset ->
-                        val presetText = "+${LanguageHelper.formatNumber(preset, languageMode, includeDecimals = false)}"
                         AssistChip(
                             onClick = { addPreset(preset) },
                             label = {
                                 Text(
-                                    text = presetText,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    text = "+${preset.toInt()}",
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             },
                             colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                labelColor = MaterialTheme.colorScheme.primary
                             ),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(26.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Keypad Layout (4 rows x 4 cols)
-                val buttonRows = listOf(
-                    listOf("C", "÷", "×", "⌫"),
+                // Compact Keypad Grid (4 Rows x 4 Columns)
+                val keyRows = listOf(
+                    listOf("C", "÷", "×", "DEL"),
                     listOf("7", "8", "9", "-"),
                     listOf("4", "5", "6", "+"),
-                    listOf("1", "2", "3", "="),
-                    listOf("0", "00", ".", "DONE")
+                    listOf("1", "2", "3", ".")
                 )
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    buttonRows.forEach { row ->
+                    keyRows.forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             row.forEach { key ->
-                                val isOperator = key in listOf("+", "-", "×", "÷", "=")
-                                val isAction = key in listOf("C", "⌫", "DONE")
-                                val isDone = key == "DONE"
-
-                                val flexModifier = if (isDone) {
-                                    Modifier.weight(1f)
-                                } else {
-                                    Modifier.weight(1f)
-                                }
-
-                                val displayKey = when {
-                                    key == "DONE" -> LanguageHelper.getString("done", languageMode)
-                                    languageMode == LanguageMode.BANGLA && key in "0".."9" -> LanguageHelper.toBanglaDigits(key)
-                                    languageMode == LanguageMode.BANGLA && key == "00" -> "০০"
-                                    else -> key
-                                }
-
-                                val containerColor = when {
-                                    isDone -> MaterialTheme.colorScheme.primary
-                                    isOperator -> MaterialTheme.colorScheme.primaryContainer
-                                    isAction -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
-                                    else -> MaterialTheme.colorScheme.surfaceVariant
-                                }
-
-                                val contentColor = when {
-                                    isDone -> MaterialTheme.colorScheme.onPrimary
-                                    isOperator -> MaterialTheme.colorScheme.onPrimaryContainer
-                                    isAction -> MaterialTheme.colorScheme.onErrorContainer
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                }
-
-                                Box(
-                                    modifier = flexModifier
-                                        .height(46.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(containerColor)
-                                        .clickable {
-                                            when (key) {
-                                                "C" -> clear()
-                                                "⌫" -> backspace()
-                                                "=" -> {
-                                                    val eval = CalculatorEvaluator.evaluate(expression)
-                                                    if (eval.isSuccess) {
-                                                        val res = eval.getOrNull() ?: 0.0
-                                                        updateExpression(
-                                                            String.format("%.2f", res).trimEnd('0').trimEnd('.')
-                                                        )
-                                                    }
-                                                }
-                                                "DONE" -> {
-                                                    val finalVal = previewResult ?: 0.0
-                                                    onValueConfirmed(finalVal)
-                                                    onDismiss()
-                                                }
-                                                else -> append(key)
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (key == "⌫") {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
-                                            contentDescription = "Backspace",
-                                            tint = contentColor,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    } else {
-                                        Text(
-                                            text = displayKey,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = if (isOperator || isDone) FontWeight.Bold else FontWeight.Medium,
-                                            color = contentColor,
-                                            textAlign = TextAlign.Center
-                                        )
+                                CompactCalcButton(
+                                    key = key,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        when (key) {
+                                            "C" -> clear()
+                                            "DEL" -> backspace()
+                                            else -> append(key)
+                                        }
                                     }
-                                }
+                                )
                             }
+                        }
+                    }
+
+                    // Bottom Row: "0", "00" and OK Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CompactCalcButton(
+                            key = "0",
+                            modifier = Modifier.weight(1f),
+                            onClick = { append("0") }
+                        )
+                        CompactCalcButton(
+                            key = "00",
+                            modifier = Modifier.weight(1f),
+                            onClick = { append("00") }
+                        )
+                        Button(
+                            onClick = {
+                                val finalVal = previewResult ?: 0.0
+                                onValueConfirmed(finalVal)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .weight(2f)
+                                .height(38.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = "OK", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "OK", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CompactCalcButton(
+    key: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val isOperator = key in listOf("+", "-", "×", "÷")
+    val isAction = key in listOf("C", "DEL")
+
+    val bg = when {
+        isAction -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        isOperator -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    }
+
+    val textColor = when {
+        isAction -> MaterialTheme.colorScheme.error
+        isOperator -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    Box(
+        modifier = modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (key == "DEL") {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Backspace,
+                contentDescription = "Backspace",
+                tint = textColor,
+                modifier = Modifier.size(16.dp)
+            )
+        } else {
+            Text(
+                text = key,
+                fontSize = 15.sp,
+                fontWeight = if (isOperator || isAction) FontWeight.Bold else FontWeight.Medium,
+                color = textColor,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

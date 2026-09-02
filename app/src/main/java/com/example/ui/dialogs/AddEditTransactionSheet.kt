@@ -1,5 +1,8 @@
 package com.example.ui.dialogs
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,7 +14,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,14 +23,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
@@ -38,14 +39,17 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -58,12 +62,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -74,19 +80,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import com.example.data.model.Account
+import com.example.data.model.AccountType
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
+import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.DatePickerModal
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.theme.SolidExpense
@@ -96,6 +107,8 @@ import com.example.ui.theme.SolidIncomeContainer
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidPrimaryContainer
 import com.example.ui.theme.SolidTransfer
+import com.example.util.AutofillConfig
+import com.example.util.AutofillPreferences
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
@@ -111,12 +124,19 @@ enum class TransactionStatus {
 fun AddEditTransactionSheet(
     accounts: List<Account>,
     categories: List<Category>,
+    allTransactions: List<TransactionWithDetails> = emptyList(),
     languageMode: LanguageMode,
     existingTransaction: Transaction? = null,
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
-    onDelete: ((Transaction) -> Unit)? = null
+    onDelete: ((Transaction) -> Unit)? = null,
+    onAddNewCategory: ((Category) -> Unit)? = null,
+    onAddNewAccount: ((Account) -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val autofillPrefs = remember { AutofillPreferences.getInstance(context) }
+    val autofillConfig by autofillPrefs.config.collectAsState()
+
     var txType by remember {
         mutableStateOf(existingTransaction?.type ?: TransactionType.EXPENSE)
     }
@@ -139,6 +159,10 @@ fun AddEditTransactionSheet(
 
     var labelTag by remember {
         mutableStateOf(existingTransaction?.referenceNo ?: "")
+    }
+
+    var attachmentUri by remember {
+        mutableStateOf(existingTransaction?.attachmentUri ?: "")
     }
 
     var status by remember {
@@ -171,7 +195,31 @@ fun AddEditTransactionSheet(
     var showCategoryPickerModal by remember { mutableStateOf(false) }
     var showAccountPickerModal by remember { mutableStateOf(false) }
     var showLabelDialog by remember { mutableStateOf(false) }
+    var showAutofillSettingsDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    // Attachment Picker
+    val attachmentPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            attachmentUri = uri.toString()
+        }
+    }
+
+    // Payee suggestions from previous entries
+    val pastPayees = remember(allTransactions) {
+        allTransactions.mapNotNull { it.transaction.payeeOrPayer.takeIf { p -> p.isNotBlank() } }.distinct()
+    }
+    val payeeSuggestions = remember(payee, pastPayees) {
+        if (payee.isBlank()) {
+            pastPayees.take(5)
+        } else {
+            pastPayees.filter {
+                it.contains(payee, ignoreCase = true) && !it.equals(payee, ignoreCase = true)
+            }.take(5)
+        }
+    }
 
     // Usable Accounts
     val usableAccounts = remember(accounts) {
@@ -180,7 +228,7 @@ fun AddEditTransactionSheet(
         activeList.filter { it.id !in parentsWithChildren }
     }
 
-    // Auto-select defaults
+    // Auto-select default accounts if empty
     if (usableAccounts.isNotEmpty()) {
         if (txType == TransactionType.EXPENSE && creditAccountId == null) {
             creditAccountId = usableAccounts.firstOrNull()?.id
@@ -234,6 +282,41 @@ fun AddEditTransactionSheet(
         TransactionType.TRANSFER -> SolidPrimaryContainer
     }
 
+    // Function to apply autofill when a payee suggestion is tapped
+    fun onSelectPayeeSuggestion(suggestedPayee: String) {
+        payee = suggestedPayee
+        val latestMatch = allTransactions.firstOrNull {
+            it.transaction.payeeOrPayer.equals(suggestedPayee, ignoreCase = true)
+        }?.transaction
+
+        if (latestMatch != null) {
+            if (autofillConfig.autofillCategory && latestMatch.categoryId != null) {
+                txType = latestMatch.type
+                selectedCategoryId = latestMatch.categoryId
+                selectedSubCategoryId = latestMatch.subCategoryId
+            }
+            if (autofillConfig.autofillAccount) {
+                when (latestMatch.type) {
+                    TransactionType.EXPENSE -> creditAccountId = latestMatch.creditAccountId
+                    TransactionType.INCOME -> debitAccountId = latestMatch.debitAccountId
+                    TransactionType.TRANSFER -> {
+                        creditAccountId = latestMatch.creditAccountId
+                        debitAccountId = latestMatch.debitAccountId
+                    }
+                }
+            }
+            if (autofillConfig.autofillAmount && latestMatch.amount > 0) {
+                amount = latestMatch.amount
+            }
+            if (autofillConfig.autofillNotes && latestMatch.note.isNotBlank()) {
+                note = latestMatch.note
+            }
+            if (autofillConfig.autofillLabel && latestMatch.referenceNo.isNotBlank()) {
+                labelTag = latestMatch.referenceNo
+            }
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -244,11 +327,8 @@ fun AddEditTransactionSheet(
                 .testTag("add_transaction_dialog"),
             color = MaterialTheme.colorScheme.background
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
-                // Top App Bar (Matching Bluecoins screenshot)
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Top App Bar
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 2.dp
@@ -256,7 +336,7 @@ fun AddEditTransactionSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -278,7 +358,22 @@ fun AddEditTransactionSheet(
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // "+1" consecutive entry mode toggle button
+                            // Autofill Settings Shortcut Icon
+                            IconButton(
+                                onClick = { showAutofillSettingsDialog = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "Autofill Settings",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            // "+1" consecutive entry mode button
                             Surface(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
@@ -286,14 +381,12 @@ fun AddEditTransactionSheet(
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                 color = if (keepFormOpen) SolidPrimaryContainer else Color.Transparent
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "+1",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = if (keepFormOpen) SolidPrimary else MaterialTheme.colorScheme.outline
-                                    )
-                                }
+                                Text(
+                                    text = "+1",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = if (keepFormOpen) SolidPrimary else MaterialTheme.colorScheme.outline
+                                )
                             }
 
                             if (existingTransaction != null && onDelete != null) {
@@ -314,9 +407,9 @@ fun AddEditTransactionSheet(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    // 1. Title / Payee Name Field with Attachment Icon on Right
+                    // 1. Title / Payee Name Field with Attachment & Autofill Affordance
                     OutlinedTextField(
                         value = payee,
                         onValueChange = { payee = it },
@@ -325,18 +418,20 @@ fun AddEditTransactionSheet(
                             .testTag("tx_payee_input"),
                         placeholder = {
                             Text(
-                                text = "Name",
-                                fontSize = 16.sp,
+                                text = "Name / Payee",
+                                fontSize = 15.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
                         },
                         trailingIcon = {
-                            IconButton(onClick = { /* optional attachment indicator */ }) {
-                                Icon(
-                                    Icons.Default.AttachFile,
-                                    contentDescription = "Attach",
-                                    tint = MaterialTheme.colorScheme.outline
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { attachmentPickerLauncher.launch("*/*") }) {
+                                    Icon(
+                                        Icons.Default.AttachFile,
+                                        contentDescription = "Attach File/Image",
+                                        tint = if (attachmentUri.isNotBlank()) SolidPrimary else MaterialTheme.colorScheme.outline
+                                    )
+                                }
                             }
                         },
                         singleLine = true,
@@ -347,13 +442,102 @@ fun AddEditTransactionSheet(
                         shape = RoundedCornerShape(12.dp)
                     )
 
+                    // Past Entry Suggestions Chips Row
+                    if (payeeSuggestions.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "💡",
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(end = 4.dp)
+                            )
+                            FlowRow(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                payeeSuggestions.forEach { suggestion ->
+                                    AssistChip(
+                                        onClick = { onSelectPayeeSuggestion(suggestion) },
+                                        label = {
+                                            Text(
+                                                text = suggestion,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        },
+                                        colors = AssistChipDefaults.assistChipColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(26.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Attachment Preview Bar if present
+                    if (attachmentUri.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = LanguageHelper.getString("attachment", languageMode) + ": " + attachmentUri.substringAfterLast('/'),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { attachmentUri = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // 2. Date, Time & Schedule Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -362,7 +546,7 @@ fun AddEditTransactionSheet(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { showDatePicker = true }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                .padding(horizontal = 4.dp, vertical = 4.dp)
                         ) {
                             Icon(
                                 Icons.Default.CalendarMonth,
@@ -390,7 +574,7 @@ fun AddEditTransactionSheet(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { showDatePicker = true }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                .padding(horizontal = 4.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = "|  ${LanguageHelper.getString("schedule", languageMode)}",
@@ -408,28 +592,28 @@ fun AddEditTransactionSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // 3. Amount Container Card (Matching Screenshot)
+                    // 3. Amount Container Card
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .border(1.5.dp, typePrimaryColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
                             .clickable { showCalculator = true },
-                        color = typeContainerColor.copy(alpha = 0.4f)
+                        color = typeContainerColor.copy(alpha = 0.35f)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             // Type sign circular indicator
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(32.dp)
                                     .clip(CircleShape)
                                     .background(typePrimaryColor),
                                 contentAlignment = Alignment.Center
@@ -452,7 +636,7 @@ fun AddEditTransactionSheet(
                             // Large Numeric Amount Display
                             Text(
                                 text = LanguageHelper.formatNumber(amount, languageMode),
-                                fontSize = 28.sp,
+                                fontSize = 26.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = typePrimaryColor,
                                 modifier = Modifier.weight(1f)
@@ -461,23 +645,22 @@ fun AddEditTransactionSheet(
                             // Calculator Icon Button
                             IconButton(
                                 onClick = { showCalculator = true },
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(34.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Calculate,
                                     contentDescription = "Calculator",
                                     tint = typePrimaryColor,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
 
                             // Currency Badge Pill
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = typePrimaryColor.copy(alpha = 0.15f),
-                                modifier = Modifier.padding(2.dp)
+                                color = typePrimaryColor.copy(alpha = 0.15f)
                             ) {
                                 Text(
                                     text = "BDT",
@@ -490,7 +673,7 @@ fun AddEditTransactionSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 4. Selector Rows (Category, Account, Split, Status, Label)
                     Card(
@@ -578,7 +761,7 @@ fun AddEditTransactionSheet(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
 
-                            // Row D: Status (Cleared / Uncleared)
+                            // Row D: Status (Cleared / Uncleared / Reconciled)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -649,7 +832,7 @@ fun AddEditTransactionSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 5. Note Card Box
                     Card(
@@ -746,6 +929,7 @@ fun AddEditTransactionSheet(
                                         note = note.trim(),
                                         referenceNo = labelTag.trim(),
                                         payeeOrPayer = payee.trim(),
+                                        attachmentUri = attachmentUri.trim(),
                                         debitAccountId = when (txType) {
                                             TransactionType.EXPENSE -> null
                                             TransactionType.INCOME -> debitAccountId
@@ -761,10 +945,10 @@ fun AddEditTransactionSheet(
                                     )
                                     onSave(tx)
                                     if (keepFormOpen && existingTransaction == null) {
-                                        // Reset amount and notes for rapid sequential entry
                                         amount = 0.0
                                         note = ""
                                         payee = ""
+                                        attachmentUri = ""
                                     } else {
                                         onDismiss()
                                     }
@@ -822,6 +1006,12 @@ fun AddEditTransactionSheet(
                 selectedSubCategoryId = subCatId
                 showCategoryPickerModal = false
             },
+            onAddNewCategory = { newCat ->
+                onAddNewCategory?.invoke(newCat)
+                selectedCategoryId = newCat.parentId ?: newCat.id
+                selectedSubCategoryId = if (newCat.parentId != null) newCat.id else null
+                showCategoryPickerModal = false
+            },
             onDismiss = { showCategoryPickerModal = false }
         )
     }
@@ -829,6 +1019,7 @@ fun AddEditTransactionSheet(
     if (showAccountPickerModal) {
         AccountPickerModalDialog(
             accounts = usableAccounts,
+            allAccounts = accounts,
             txType = txType,
             creditAccountId = creditAccountId,
             debitAccountId = debitAccountId,
@@ -838,37 +1029,38 @@ fun AddEditTransactionSheet(
                 debitAccountId = destId
                 showAccountPickerModal = false
             },
+            onAddNewAccount = { newAcc ->
+                onAddNewAccount?.invoke(newAcc)
+                if (txType == TransactionType.EXPENSE) creditAccountId = newAcc.id
+                else debitAccountId = newAcc.id
+                showAccountPickerModal = false
+            },
             onDismiss = { showAccountPickerModal = false }
         )
     }
 
     if (showLabelDialog) {
-        var tempLabel by remember { mutableStateOf(labelTag) }
-        AlertDialog(
-            onDismissRequest = { showLabelDialog = false },
-            title = { Text(LanguageHelper.getString("label", languageMode)) },
-            text = {
-                OutlinedTextField(
-                    value = tempLabel,
-                    onValueChange = { tempLabel = it },
-                    label = { Text("Label / Tag") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+        val existingLabels = remember(allTransactions) {
+            allTransactions.mapNotNull { it.transaction.referenceNo.takeIf { s -> s.isNotBlank() } }.distinct()
+        }
+        LabelPickerModalDialog(
+            currentLabel = labelTag,
+            existingLabels = existingLabels,
+            languageMode = languageMode,
+            onLabelSelected = {
+                labelTag = it
+                showLabelDialog = false
             },
-            confirmButton = {
-                Button(onClick = {
-                    labelTag = tempLabel
-                    showLabelDialog = false
-                }) {
-                    Text(LanguageHelper.getString("save", languageMode))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLabelDialog = false }) {
-                    Text(LanguageHelper.getString("cancel", languageMode))
-                }
-            }
+            onDismiss = { showLabelDialog = false }
+        )
+    }
+
+    if (showAutofillSettingsDialog) {
+        AutofillSettingsDialog(
+            config = autofillConfig,
+            languageMode = languageMode,
+            onConfigChange = { autofillPrefs.updateConfig(it) },
+            onDismiss = { showAutofillSettingsDialog = false }
         )
     }
 
@@ -944,6 +1136,7 @@ private fun CategoryPickerModalDialog(
     selectedSubCategoryId: Long?,
     languageMode: LanguageMode,
     onCategorySelected: (Long, Long?) -> Unit,
+    onAddNewCategory: (Category) -> Unit,
     onDismiss: () -> Unit
 ) {
     val targetType = when (txType) {
@@ -953,10 +1146,46 @@ private fun CategoryPickerModalDialog(
     }
     val parentCategories = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
     var expandedParentId by remember { mutableStateOf(selectedCategoryId ?: parentCategories.firstOrNull()?.id) }
+    var showInlineCreateCategory by remember { mutableStateOf(false) }
+
+    if (showInlineCreateCategory) {
+        QuickCreateCategoryDialog(
+            parentCategories = parentCategories,
+            targetType = targetType,
+            languageMode = languageMode,
+            onDismiss = { showInlineCreateCategory = false },
+            onCategoryCreated = {
+                onAddNewCategory(it)
+                showInlineCreateCategory = false
+            }
+        )
+        return
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(LanguageHelper.getString("select_category_dialog", languageMode), fontWeight = FontWeight.Bold) },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = LanguageHelper.getString("select_category_dialog", languageMode),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                OutlinedButton(
+                    onClick = { showInlineCreateCategory = true },
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(LanguageHelper.getString("add_new_category", languageMode), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -1048,21 +1277,148 @@ private fun CategoryPickerModalDialog(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun QuickCreateCategoryDialog(
+    parentCategories: List<Category>,
+    targetType: CategoryType,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onCategoryCreated: (Category) -> Unit
+) {
+    var nameEn by remember { mutableStateOf("") }
+    var nameBn by remember { mutableStateOf("") }
+    var selectedParentId by remember { mutableStateOf<Long?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(LanguageHelper.getString("add_new_category", languageMode), fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = nameEn,
+                    onValueChange = { nameEn = it },
+                    label = { Text("Name (English)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = nameBn,
+                    onValueChange = { nameBn = it },
+                    label = { Text("Name (Bangla - Optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (parentCategories.isNotEmpty()) {
+                    Text("Parent Category (Optional):", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedParentId == null,
+                            onClick = { selectedParentId = null },
+                            label = { Text("None (New Parent)", fontSize = 11.sp) }
+                        )
+                        parentCategories.forEach { parent ->
+                            FilterChip(
+                                selected = selectedParentId == parent.id,
+                                onClick = { selectedParentId = parent.id },
+                                label = { Text(parent.localizedName(languageMode), fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (nameEn.isNotBlank()) {
+                        val newCat = Category(
+                            nameEn = nameEn.trim(),
+                            nameBn = nameBn.trim().ifEmpty { nameEn.trim() },
+                            type = targetType,
+                            parentId = selectedParentId,
+                            iconName = "Category",
+                            colorHex = "#2563EB"
+                        )
+                        onCategoryCreated(newCat)
+                    }
+                },
+                enabled = nameEn.isNotBlank()
+            ) {
+                Text(LanguageHelper.getString("save", languageMode))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(LanguageHelper.getString("cancel", languageMode))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun AccountPickerModalDialog(
     accounts: List<Account>,
+    allAccounts: List<Account>,
     txType: TransactionType,
     creditAccountId: Long?,
     debitAccountId: Long?,
     languageMode: LanguageMode,
     onAccountSelected: (Long?, Long?) -> Unit,
+    onAddNewAccount: (Account) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedCredit by remember { mutableStateOf(creditAccountId) }
     var selectedDebit by remember { mutableStateOf(debitAccountId) }
+    var showInlineCreateAccount by remember { mutableStateOf(false) }
+
+    if (showInlineCreateAccount) {
+        val parentAccounts = allAccounts.filter { it.parentId == null }
+        QuickCreateAccountDialog(
+            parentAccounts = parentAccounts,
+            languageMode = languageMode,
+            onDismiss = { showInlineCreateAccount = false },
+            onAccountCreated = {
+                onAddNewAccount(it)
+                showInlineCreateAccount = false
+            }
+        )
+        return
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(LanguageHelper.getString("select_account_dialog", languageMode), fontWeight = FontWeight.Bold) },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = LanguageHelper.getString("select_account_dialog", languageMode),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                OutlinedButton(
+                    onClick = { showInlineCreateAccount = true },
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(LanguageHelper.getString("add_new_account", languageMode), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -1081,7 +1437,14 @@ private fun AccountPickerModalDialog(
                             FilterChip(
                                 selected = selectedCredit == acc.id,
                                 onClick = { selectedCredit = acc.id },
-                                label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) }
+                                label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
+                                leadingIcon = {
+                                    Icon(
+                                        IconHelper.getIconByName(acc.iconName),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
                             )
                         }
                     }
@@ -1097,38 +1460,91 @@ private fun AccountPickerModalDialog(
                             FilterChip(
                                 selected = selectedDebit == acc.id,
                                 onClick = { selectedDebit = acc.id },
-                                label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) }
-                            )
-                        }
-                    }
-                } else {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        accounts.forEach { acc ->
-                            val isSelected = if (txType == TransactionType.EXPENSE) selectedCredit == acc.id else selectedDebit == acc.id
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    if (txType == TransactionType.EXPENSE) {
-                                        selectedCredit = acc.id
-                                        onAccountSelected(acc.id, null)
-                                    } else {
-                                        selectedDebit = acc.id
-                                        onAccountSelected(null, acc.id)
-                                    }
-                                },
                                 label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
                                 leadingIcon = {
                                     Icon(
                                         IconHelper.getIconByName(acc.iconName),
                                         contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(14.dp)
                                     )
                                 }
                             )
+                        }
+                    }
+                } else {
+                    // Grouped by parent accounts
+                    val parentAccounts = allAccounts.filter { it.parentId == null }
+                    if (parentAccounts.isNotEmpty()) {
+                        parentAccounts.forEach { parent ->
+                            val childAccounts = accounts.filter { it.parentId == parent.id }
+                            if (childAccounts.isNotEmpty()) {
+                                Text(
+                                    text = parent.localizedName(languageMode),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidPrimary
+                                )
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    childAccounts.forEach { acc ->
+                                        val isSelected = if (txType == TransactionType.EXPENSE) selectedCredit == acc.id else selectedDebit == acc.id
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                if (txType == TransactionType.EXPENSE) {
+                                                    selectedCredit = acc.id
+                                                    onAccountSelected(acc.id, null)
+                                                } else {
+                                                    selectedDebit = acc.id
+                                                    onAccountSelected(null, acc.id)
+                                                }
+                                            },
+                                            label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    IconHelper.getIconByName(acc.iconName),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                        }
+                    } else {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            accounts.forEach { acc ->
+                                val isSelected = if (txType == TransactionType.EXPENSE) selectedCredit == acc.id else selectedDebit == acc.id
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        if (txType == TransactionType.EXPENSE) {
+                                            selectedCredit = acc.id
+                                            onAccountSelected(acc.id, null)
+                                        } else {
+                                            selectedDebit = acc.id
+                                            onAccountSelected(null, acc.id)
+                                        }
+                                    },
+                                    label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            IconHelper.getIconByName(acc.iconName),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -1140,6 +1556,179 @@ private fun AccountPickerModalDialog(
                     onAccountSelected(selectedCredit, selectedDebit)
                 }) {
                     Text(LanguageHelper.getString("done", languageMode))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(LanguageHelper.getString("cancel", languageMode))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun QuickCreateAccountDialog(
+    parentAccounts: List<Account>,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onAccountCreated: (Account) -> Unit
+) {
+    var nameEn by remember { mutableStateOf("") }
+    var nameBn by remember { mutableStateOf("") }
+    var selectedParentId by remember { mutableStateOf<Long?>(parentAccounts.firstOrNull()?.id) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(LanguageHelper.getString("add_new_account", languageMode), fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = nameEn,
+                    onValueChange = { nameEn = it },
+                    label = { Text("Account Name (English)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = nameBn,
+                    onValueChange = { nameBn = it },
+                    label = { Text("Account Name (Bangla - Optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (parentAccounts.isNotEmpty()) {
+                    Text("Account Group / Type:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        parentAccounts.forEach { parent ->
+                            FilterChip(
+                                selected = selectedParentId == parent.id,
+                                onClick = { selectedParentId = parent.id },
+                                label = { Text(parent.localizedName(languageMode), fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (nameEn.isNotBlank()) {
+                        val parentAcc = parentAccounts.firstOrNull { it.id == selectedParentId }
+                        val newAcc = Account(
+                            nameEn = nameEn.trim(),
+                            nameBn = nameBn.trim().ifEmpty { nameEn.trim() },
+                            type = parentAcc?.type ?: AccountType.ASSET,
+                            parentId = selectedParentId,
+                            iconName = parentAcc?.iconName ?: "AccountBalance",
+                            colorHex = parentAcc?.colorHex ?: "#2563EB"
+                        )
+                        onAccountCreated(newAcc)
+                    }
+                },
+                enabled = nameEn.isNotBlank()
+            ) {
+                Text(LanguageHelper.getString("save", languageMode))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(LanguageHelper.getString("cancel", languageMode))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LabelPickerModalDialog(
+    currentLabel: String,
+    existingLabels: List<String>,
+    languageMode: LanguageMode,
+    onLabelSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newLabelInput by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(LanguageHelper.getString("label", languageMode), fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // New Label input row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = newLabelInput,
+                        onValueChange = { newLabelInput = it },
+                        placeholder = { Text("Type new label/tag...") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Button(
+                        onClick = {
+                            if (newLabelInput.isNotBlank()) {
+                                onLabelSelected(newLabelInput.trim())
+                            }
+                        },
+                        enabled = newLabelInput.isNotBlank()
+                    ) {
+                        Text(LanguageHelper.getString("add", languageMode).ifEmpty { "Add" })
+                    }
+                }
+
+                // Existing Labels Section
+                if (existingLabels.isNotEmpty()) {
+                    Text(
+                        text = LanguageHelper.getString("suggestions", languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        existingLabels.forEach { label ->
+                            val isSelected = currentLabel.equals(label, ignoreCase = true)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { onLabelSelected(label) },
+                                label = { Text(label, fontSize = 12.sp) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Label, contentDescription = null, modifier = Modifier.size(14.dp))
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (currentLabel.isNotBlank()) {
+                TextButton(onClick = { onLabelSelected("") }) {
+                    Text(LanguageHelper.getString("clear", languageMode).ifEmpty { "Clear Label" }, color = MaterialTheme.colorScheme.error)
                 }
             }
         },

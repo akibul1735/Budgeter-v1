@@ -62,6 +62,7 @@ data class Transaction(
     val categoryId: Long? = null,
     val subCategoryId: Long? = null,
     val payeeOrPayer: String = "",
+    val attachmentUri: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 
