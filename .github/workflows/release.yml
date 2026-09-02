@@ -38,10 +38,20 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
       - name: Grant Execute Permission for Gradle Wrapper
-        run: chmod +x gradlew || true
+        run: |
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+          else
+            gradle wrapper --gradle-version 9.3.1 || true
+            chmod +x gradlew || true
+          fi
 
       - name: Configure Keystore from Secrets
         env:
