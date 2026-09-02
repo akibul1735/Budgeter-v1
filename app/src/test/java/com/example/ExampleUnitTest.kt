@@ -29,5 +29,14 @@ class ExampleUnitTest {
     val bn = LanguageHelper.toBanglaDigits("12345")
     assertEquals("১২৩৪৫", bn)
   }
+
+  @Test
+  fun languageHelper_currencyFormatting() {
+    val formattedEn = LanguageHelper.formatCurrency(12500.5, LanguageMode.ENGLISH)
+    assertTrue(formattedEn.contains("12,500.50") || formattedEn.contains("12500.50") || formattedEn.contains("৳"))
+
+    val formattedBn = LanguageHelper.formatCurrency(12500.5, LanguageMode.BANGLA)
+    assertTrue(formattedBn.contains("৳"))
+  }
 }
 
