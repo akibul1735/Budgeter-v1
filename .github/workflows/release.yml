@@ -101,14 +101,17 @@ jobs:
           retention-days: 14
 
       - name: Publish GitHub Release
-        if: (startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true')
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: budgeter_release
+          name: budgeter_release
           files: |
             build_output/*.apk
             build_output/*.aab
           generate_release_notes: true
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
