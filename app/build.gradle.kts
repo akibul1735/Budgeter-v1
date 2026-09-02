@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -23,25 +24,48 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  val storePasswordEnv = System.getenv("STORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
+  val hasReleaseSecret = !storePasswordEnv.isNullOrBlank()
+
   signingConfigs {
+    val debugKeystoreFile = file("${rootDir}/debug.keystore")
+    val debugBase64File = file("${rootDir}/debug.keystore.base64")
+    if (!debugKeystoreFile.exists() && debugBase64File.exists()) {
+      try {
+        val decoded = Base64.getDecoder().decode(debugBase64File.readText().trim())
+        debugKeystoreFile.writeBytes(decoded)
+      } catch (_: Exception) {}
+    }
+
+    val releaseKeystoreFile = file("${rootDir}/release.keystore")
+    val releaseBase64File = file("${rootDir}/release.keystore.base64")
+    if (!releaseKeystoreFile.exists() && releaseBase64File.exists()) {
+      try {
+        val decoded = Base64.getDecoder().decode(releaseBase64File.readText().trim())
+        releaseKeystoreFile.writeBytes(decoded)
+      } catch (_: Exception) {}
+    }
+
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH")
         ?: (if (file("${rootDir}/release.keystore").exists()) "${rootDir}/release.keystore"
             else if (file("${rootDir}/budgeter-release.jks").exists()) "${rootDir}/budgeter-release.jks"
             else "${rootDir}/release.jks")
       val keystoreFile = file(keystorePath)
-      if (keystoreFile.exists()) {
+      if (keystoreFile.exists() && hasReleaseSecret) {
         storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD") ?: ""
+        storePassword = storePasswordEnv
         keyAlias = System.getenv("KEY_ALIAS") ?: "budgeter"
-        keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("STORE_PASSWORD") ?: ""
+        keyPassword = System.getenv("KEY_PASSWORD") ?: storePasswordEnv
       }
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    if (debugKeystoreFile.exists()) {
+      create("debugConfig") {
+        storeFile = debugKeystoreFile
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -50,14 +74,22 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      val releaseKeystore = signingConfigs.getByName("release").storeFile
-      if (releaseKeystore != null && releaseKeystore.exists()) {
+      val releaseKeystore = signingConfigs.findByName("release")?.storeFile
+      if (releaseKeystore != null && releaseKeystore.exists() && hasReleaseSecret) {
         signingConfig = signingConfigs.getByName("release")
       } else {
-        signingConfig = signingConfigs.getByName("debugConfig")
+        val debugConfig = signingConfigs.findByName("debugConfig")
+        if (debugConfig != null && debugConfig.storeFile?.exists() == true) {
+          signingConfig = debugConfig
+        }
       }
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      val debugConfig = signingConfigs.findByName("debugConfig")
+      if (debugConfig != null && debugConfig.storeFile?.exists() == true) {
+        signingConfig = debugConfig
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

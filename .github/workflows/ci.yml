@@ -5,6 +5,11 @@ on:
     branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master, develop ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test-and-build:
@@ -33,6 +38,17 @@ jobs:
           else
             gradle wrapper --gradle-version 9.3.1 || true
             chmod +x gradlew || true
+          fi
+
+      - name: Restore Keystores from Base64
+        run: |
+          if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
+            echo "Decoding debug keystore from repository base64 file..."
+            base64 --decode debug.keystore.base64 > debug.keystore || true
+          fi
+          if [ -f "release.keystore.base64" ] && [ ! -f "release.keystore" ]; then
+            echo "Decoding release keystore from repository base64 file..."
+            base64 --decode release.keystore.base64 > release.keystore || true
           fi
 
       - name: Run Unit Tests
