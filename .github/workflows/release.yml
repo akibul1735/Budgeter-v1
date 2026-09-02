@@ -81,7 +81,7 @@ jobs:
         run: |
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Prepare Release Artifacts (APK & Source Zip)
+      - name: Prepare Release Artifacts (APK)
         id: prepare-artifacts
         run: |
           mkdir -p build_output
@@ -94,8 +94,6 @@ jobs:
             FALLBACK_APK=$(find app/build/outputs/apk -name "*release*.apk" | head -n 1)
             [ -n "$FALLBACK_APK" ] && cp "$FALLBACK_APK" build_output/Budgeter-release.apk
           fi
-          # Create source zip archive
-          zip -r build_output/Budgeter-source-code.zip . -x "app/build/*" ".gradle/*" ".git/*" "build_output/*" "*.apk" "*.aab" "*.keystore" || true
           echo "Release artifacts ready:"
           ls -la build_output/
 
@@ -110,11 +108,10 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v2.0.{0}', github.run_number) }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v2.4.{0}', github.run_number) }}
           name: "Budgeter-release"
           files: |
             build_output/Budgeter-release.apk
-            build_output/Budgeter-source-code.zip
           generate_release_notes: true
           draft: false
           prerelease: false

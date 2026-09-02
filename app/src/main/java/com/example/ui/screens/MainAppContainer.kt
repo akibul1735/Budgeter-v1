@@ -150,9 +150,10 @@ fun MainAppContainer(
     var showThemeFontSettings by remember { mutableStateOf(false) }
 
     val bottomNavItems = listOf(
-        Triple(LanguageHelper.getString("dashboard", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
-        Triple(LanguageHelper.getString("ledger", languageMode), Icons.Default.ReceiptLong, AppView.LEDGER),
-        Triple(LanguageHelper.getString("reports", languageMode), Icons.Default.Assessment, AppView.REPORTS)
+        Triple(LanguageHelper.getString("main", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
+        Triple(LanguageHelper.getString("transactions", languageMode), Icons.Default.ReceiptLong, AppView.LEDGER),
+        Triple(LanguageHelper.getString("balance_sheet", languageMode), Icons.Default.AccountBalance, AppView.ACCOUNTS),
+        Triple(LanguageHelper.getString("budget", languageMode), Icons.Default.Assessment, AppView.REPORTS)
     )
 
     val isSubView = currentView in listOf(AppView.ACCOUNTS, AppView.EXPENSES, AppView.INCOME, AppView.RECURRING_BILLS, AppView.BACKUP_SYNC)
@@ -735,7 +736,7 @@ private fun DrawerContent(
                         color = Color.White.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = "v2.3",
+                            text = "v2.4",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -798,7 +799,7 @@ private fun DrawerContent(
         )
 
         DrawerItemRow(
-            title = LanguageHelper.getString("ledger", languageMode),
+            title = LanguageHelper.getString("transactions", languageMode),
             icon = Icons.Default.ReceiptLong,
             iconTint = SolidTransfer,
             isSelected = currentView == AppView.LEDGER,
@@ -999,6 +1000,7 @@ private fun ScreenRouter(
         AppView.LEDGER -> LedgerScreen(
             transactions = transactionsWithDetails,
             languageMode = languageMode,
+            accountsWithBalances = accountsWithBalances,
             onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
             onTransactionClick = onEditTransaction
         )
@@ -1053,9 +1055,9 @@ private fun ScreenRouter(
 private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
     return when (view) {
         AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
-        AppView.LEDGER -> LanguageHelper.getString("ledger", languageMode)
+        AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
         AppView.REPORTS -> LanguageHelper.getString("reports", languageMode)
-        AppView.ACCOUNTS -> LanguageHelper.getString("accounts", languageMode)
+        AppView.ACCOUNTS -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
         AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
         AppView.RECURRING_BILLS -> "Recurring Bills"

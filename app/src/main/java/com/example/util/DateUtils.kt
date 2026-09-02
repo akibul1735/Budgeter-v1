@@ -13,6 +13,65 @@ object DateUtils {
         "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
     )
 
+    private val banglaDaysOfWeek = arrayOf(
+        "রবি", "সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র", "শনি"
+    )
+
+    fun formatDayHeader(epochMs: Long, mode: LanguageMode): String {
+        val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
+        val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 1 = Sunday ... 7 = Saturday
+        val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+        val monthIdx = cal.get(Calendar.MONTH)
+        val year = cal.get(Calendar.YEAR)
+
+        return when (mode) {
+            LanguageMode.BANGLA -> {
+                val dayNameBn = banglaDaysOfWeek[dayOfWeek - 1]
+                val dayBn = LanguageHelper.toBanglaDigits(dayOfMonth.toString())
+                val monthBn = banglaMonths[monthIdx]
+                val yearBn = LanguageHelper.toBanglaDigits(year.toString())
+                "$dayNameBn $dayBn $monthBn, $yearBn"
+            }
+            LanguageMode.ENGLISH -> {
+                val sdf = SimpleDateFormat("EEE MMMM d, yyyy", Locale.US)
+                sdf.format(Date(epochMs)).uppercase(Locale.US)
+            }
+            LanguageMode.BILINGUAL -> {
+                val sdf = SimpleDateFormat("EEE MMMM d, yyyy", Locale.US)
+                val dayNameBn = banglaDaysOfWeek[dayOfWeek - 1]
+                val dayBn = LanguageHelper.toBanglaDigits(dayOfMonth.toString())
+                val monthBn = banglaMonths[monthIdx]
+                "${sdf.format(Date(epochMs)).uppercase(Locale.US)} ($dayNameBn $dayBn $monthBn)"
+            }
+        }
+    }
+
+    fun formatTime(epochMs: Long, mode: LanguageMode): String {
+        val sdf = SimpleDateFormat("h:mm a", Locale.US)
+        val formatted = sdf.format(Date(epochMs))
+        return if (mode == LanguageMode.BANGLA) {
+            LanguageHelper.toBanglaDigits(formatted)
+        } else {
+            formatted
+        }
+    }
+
+    fun formatDateFull(epochMs: Long, mode: LanguageMode): String {
+        return when (mode) {
+            LanguageMode.BANGLA -> {
+                val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
+                val dayBn = LanguageHelper.toBanglaDigits(cal.get(Calendar.DAY_OF_MONTH).toString())
+                val monthBn = banglaMonths[cal.get(Calendar.MONTH)]
+                val yearBn = LanguageHelper.toBanglaDigits(cal.get(Calendar.YEAR).toString())
+                "$monthBn $dayBn, $yearBn"
+            }
+            else -> {
+                val sdf = SimpleDateFormat("MMMM d, yyyy", Locale.US)
+                sdf.format(Date(epochMs))
+            }
+        }
+    }
+
     fun formatDate(epochMs: Long, mode: LanguageMode): String {
         val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
         val day = cal.get(Calendar.DAY_OF_MONTH)
