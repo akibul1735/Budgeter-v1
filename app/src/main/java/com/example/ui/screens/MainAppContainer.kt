@@ -4,17 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
@@ -27,6 +31,7 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Translate
@@ -45,6 +50,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,7 +63,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -78,9 +87,9 @@ import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.AddEditAccountGroupOrCategoryDialog
 import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
+import com.example.ui.dialogs.ThemeFontSettingsDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
-import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidTransfer
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.LanguageHelper
@@ -97,12 +106,19 @@ enum class AppView {
     BACKUP_SYNC
 }
 
+enum class WindowSizeClassType {
+    COMPACT,
+    MEDIUM,
+    EXPANDED
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainAppContainer(
     viewModel: BudgetViewModel
 ) {
     val languageMode by viewModel.languageMode.collectAsStateWithLifecycle()
+    val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val overview by viewModel.financialOverview.collectAsStateWithLifecycle()
     val accountsWithBalances by viewModel.accountsWithBalances.collectAsStateWithLifecycle()
     val allAccounts by viewModel.allAccounts.collectAsStateWithLifecycle()
@@ -131,6 +147,7 @@ fun MainAppContainer(
     var presetCategoryParentId by remember { mutableStateOf<Long?>(null) }
 
     var showGlobalCalculator by remember { mutableStateOf(false) }
+    var showThemeFontSettings by remember { mutableStateOf(false) }
 
     val bottomNavItems = listOf(
         Triple(LanguageHelper.getString("dashboard", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
@@ -140,539 +157,433 @@ fun MainAppContainer(
 
     val isSubView = currentView in listOf(AppView.ACCOUNTS, AppView.EXPENSES, AppView.INCOME, AppView.RECURRING_BILLS, AppView.BACKUP_SYNC)
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                drawerContainerColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.width(300.dp)
-            ) {
-                // Modern Solid Drawer Header
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(SolidPrimary)
-                        .padding(20.dp)
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+    // Window Width Adaptive Layout Container
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val windowSizeClass = when {
+            maxWidth < 600.dp -> WindowSizeClassType.COMPACT
+            maxWidth < 840.dp -> WindowSizeClassType.MEDIUM
+            else -> WindowSizeClassType.EXPANDED
+        }
+
+        when (windowSizeClass) {
+            WindowSizeClassType.COMPACT -> {
+                // PHONE LAYOUT: Modal Navigation Drawer + Scaffold + Bottom Nav
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet(
+                            drawerContainerColor = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.width(300.dp)
                         ) {
-                            Text(
-                                text = LanguageHelper.getString("app_name", languageMode),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
+                            DrawerContent(
+                                viewModel = viewModel,
+                                currentView = currentView,
+                                onSelectView = {
+                                    currentView = it
+                                    scope.launch { drawerState.close() }
+                                },
+                                onOpenCalculator = {
+                                    showGlobalCalculator = true
+                                    scope.launch { drawerState.close() }
+                                },
+                                onOpenThemeFontSettings = {
+                                    showThemeFontSettings = true
+                                    scope.launch { drawerState.close() }
+                                },
+                                accountsCount = allAccounts.size,
+                                expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
+                                incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
+                                recurringCount = recurringBills.size,
+                                netWorth = overview.netWorth,
+                                isBalanced = overview.isLedgerBalanced,
+                                languageMode = languageMode
                             )
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color.White.copy(alpha = 0.2f)
-                            ) {
-                                Text(
-                                    text = "v2.1",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = LanguageHelper.getString("net_worth", languageMode),
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                        Text(
-                            text = LanguageHelper.formatCurrency(overview.netWorth, languageMode),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Double entry balance status
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = if (overview.isLedgerBalanced) Icons.Default.CheckCircle else Icons.Default.Warning,
-                                contentDescription = null,
-                                tint = if (overview.isLedgerBalanced) SolidIncome else SolidExpense,
-                                modifier = Modifier.size(14.dp)
+                    }
+                ) {
+                    Scaffold(
+                        topBar = {
+                            TopAppBar(
+                                title = {
+                                    Text(
+                                        text = getViewTitle(currentView, languageMode),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                },
+                                navigationIcon = {
+                                    if (isSubView) {
+                                        IconButton(onClick = { currentView = AppView.DASHBOARD }) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                        }
+                                    } else {
+                                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                                        }
+                                    }
+                                },
+                                actions = {
+                                    IconButton(onClick = { showThemeFontSettings = true }) {
+                                        Icon(
+                                            Icons.Default.Palette,
+                                            contentDescription = "Theme & Fonts",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    LanguageSelector(
+                                        currentMode = languageMode,
+                                        onModeSelected = { viewModel.setLanguageMode(it) }
+                                    )
+                                },
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                )
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (overview.isLedgerBalanced) "Dr = Cr Balanced" else "Unbalanced",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontWeight = FontWeight.Medium
+                        },
+                        bottomBar = {
+                            if (!isSubView) {
+                                NavigationBar(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 4.dp
+                                ) {
+                                    bottomNavItems.forEach { (label, icon, view) ->
+                                        val isSelected = currentView == view
+                                        NavigationBarItem(
+                                            selected = isSelected,
+                                            onClick = { currentView = view },
+                                            icon = { Icon(icon, contentDescription = label) },
+                                            label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                                indicatorColor = MaterialTheme.colorScheme.primary
+                                            ),
+                                            modifier = Modifier.testTag("nav_${view.name.lowercase()}")
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        floatingActionButton = {
+                            AppFab(
+                                currentView = currentView,
+                                onAddTransaction = {
+                                    editingTransaction = null
+                                    presetTxType = TransactionType.EXPENSE
+                                    showAddTransactionSheet = true
+                                },
+                                onAddAccount = {
+                                    editingAccount = null
+                                    presetAccountParentId = null
+                                    showAddAccountDialog = true
+                                },
+                                onAddCategory = { type ->
+                                    editingCategory = null
+                                    presetCategoryType = type
+                                    presetCategoryParentId = null
+                                    showAddCategoryDialog = true
+                                }
+                            )
+                        }
+                    ) { paddingValues ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues)
+                        ) {
+                            ScreenRouter(
+                                currentView = currentView,
+                                viewModel = viewModel,
+                                overview = overview,
+                                accountsWithBalances = accountsWithBalances,
+                                allAccounts = allAccounts,
+                                allCategories = allCategories,
+                                transactionsWithDetails = transactionsWithDetails,
+                                recurringBills = recurringBills,
+                                languageMode = languageMode,
+                                backupUiState = backupUiState,
+                                onNavigate = { currentView = it },
+                                onEditTransaction = { tx ->
+                                    editingTransaction = tx
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithType = { type ->
+                                    presetTxType = type
+                                    editingTransaction = null
+                                    showAddTransactionSheet = true
+                                },
+                                onAddAccount = { parentId ->
+                                    editingAccount = null
+                                    presetAccountParentId = parentId
+                                    showAddAccountDialog = true
+                                },
+                                onEditAccount = { acc ->
+                                    editingAccount = acc
+                                    presetAccountParentId = acc.parentId
+                                    showAddAccountDialog = true
+                                },
+                                onAddCategory = { type, parentId ->
+                                    editingCategory = null
+                                    presetCategoryType = type
+                                    presetCategoryParentId = parentId
+                                    showAddCategoryDialog = true
+                                },
+                                onEditCategory = { cat ->
+                                    editingCategory = cat
+                                    presetCategoryType = cat.type
+                                    presetCategoryParentId = cat.parentId
+                                    showAddCategoryDialog = true
+                                }
                             )
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Menu Section: Management (Expenses, Income, Accounts)
-                Text(
-                    text = "MENU & MANAGEMENT",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-
-                // 1. Accounts
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = LanguageHelper.getString("accounts", languageMode),
-                                fontWeight = if (currentView == AppView.ACCOUNTS) FontWeight.Bold else FontWeight.Medium
-                            )
-                            Text(
-                                text = "${allAccounts.size}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    },
-                    icon = { Icon(Icons.Default.AccountBalance, contentDescription = null, tint = SolidPrimary) },
-                    selected = currentView == AppView.ACCOUNTS,
-                    onClick = {
-                        currentView = AppView.ACCOUNTS
-                        scope.launch { drawerState.close() }
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = SolidPrimary.copy(alpha = 0.12f),
-                        selectedTextColor = SolidPrimary
-                    ),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                // 2. Expenses
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = LanguageHelper.getString("expenses", languageMode),
-                                fontWeight = if (currentView == AppView.EXPENSES) FontWeight.Bold else FontWeight.Medium
-                            )
-                            Text(
-                                text = "${allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null }}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Category, contentDescription = null, tint = SolidExpense) },
-                    selected = currentView == AppView.EXPENSES,
-                    onClick = {
-                        currentView = AppView.EXPENSES
-                        scope.launch { drawerState.close() }
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = SolidExpense.copy(alpha = 0.12f),
-                        selectedTextColor = SolidExpense
-                    ),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                // 3. Income
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = LanguageHelper.getString("incomes", languageMode),
-                                fontWeight = if (currentView == AppView.INCOME) FontWeight.Bold else FontWeight.Medium
-                            )
-                            Text(
-                                text = "${allCategories.count { it.type == CategoryType.INCOME && it.parentId == null }}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Payments, contentDescription = null, tint = SolidIncome) },
-                    selected = currentView == AppView.INCOME,
-                    onClick = {
-                        currentView = AppView.INCOME
-                        scope.launch { drawerState.close() }
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = SolidIncome.copy(alpha = 0.12f),
-                        selectedTextColor = SolidIncome
-                    ),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                // 4. Recurring Bills
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Recurring & Bills",
-                                fontWeight = if (currentView == AppView.RECURRING_BILLS) FontWeight.Bold else FontWeight.Medium
-                            )
-                            Text(
-                                text = "${recurringBills.size}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    },
-                    icon = { Icon(Icons.Default.EventRepeat, contentDescription = null, tint = SolidPrimary) },
-                    selected = currentView == AppView.RECURRING_BILLS,
-                    onClick = {
-                        currentView = AppView.RECURRING_BILLS
-                        scope.launch { drawerState.close() }
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = SolidPrimary.copy(alpha = 0.12f),
-                        selectedTextColor = SolidPrimary
-                    ),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
-
-                // Menu Section: Tools & Preferences
-                Text(
-                    text = "TOOLS & SETTINGS",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-
-                // Google Drive / Local Backup & Sync
-                NavigationDrawerItem(
-                    label = { Text("Backup & Sync (Drive / Local)", fontWeight = FontWeight.Medium) },
-                    icon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = SolidPrimary) },
-                    selected = currentView == AppView.BACKUP_SYNC,
-                    onClick = {
-                        currentView = AppView.BACKUP_SYNC
-                        scope.launch { drawerState.close() }
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = SolidPrimary.copy(alpha = 0.12f),
-                        selectedTextColor = SolidPrimary
-                    ),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                // Quick Calculator
-                NavigationDrawerItem(
-                    label = { Text(LanguageHelper.getString("calculator", languageMode), fontWeight = FontWeight.Medium) },
-                    icon = { Icon(Icons.Default.Calculate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    selected = false,
-                    onClick = {
-                        showGlobalCalculator = true
-                        scope.launch { drawerState.close() }
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
-
-                // Language quick toggle
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(LanguageHelper.getString("language", languageMode), fontWeight = FontWeight.Medium)
-                            Text(
-                                text = when (languageMode) {
-                                    LanguageMode.ENGLISH -> "EN"
-                                    LanguageMode.BANGLA -> "বাং"
-                                    LanguageMode.BILINGUAL -> "EN/বাং"
-                                },
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidPrimary
-                            )
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Translate, contentDescription = null) },
-                    selected = false,
-                    onClick = {
-                        val nextMode = when (languageMode) {
-                            LanguageMode.ENGLISH -> LanguageMode.BANGLA
-                            LanguageMode.BANGLA -> LanguageMode.BILINGUAL
-                            LanguageMode.BILINGUAL -> LanguageMode.ENGLISH
-                        }
-                        viewModel.setLanguageMode(nextMode)
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                )
             }
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = when (currentView) {
-                                AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
-                                AppView.LEDGER -> LanguageHelper.getString("ledger", languageMode)
-                                AppView.REPORTS -> LanguageHelper.getString("reports", languageMode)
-                                AppView.ACCOUNTS -> LanguageHelper.getString("accounts", languageMode)
-                                AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
-                                AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
-                                AppView.RECURRING_BILLS -> "Recurring Bills"
-                                AppView.BACKUP_SYNC -> "Backup & Sync"
-                            },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                    },
-                    navigationIcon = {
-                        if (isSubView) {
-                            IconButton(onClick = { currentView = AppView.DASHBOARD }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                            }
-                        } else {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu")
-                            }
-                        }
-                    },
-                    actions = {
-                        LanguageSelector(
-                            currentMode = languageMode,
-                            onModeSelected = { viewModel.setLanguageMode(it) }
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                )
-            },
-            bottomBar = {
-                if (!isSubView) {
-                    NavigationBar(
+
+            WindowSizeClassType.MEDIUM -> {
+                // FOLDABLE / SMALL TABLET LAYOUT: Navigation Rail + Main Content Area
+                Row(modifier = Modifier.fillMaxSize()) {
+                    NavigationRail(
                         containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 4.dp
+                        header = {
+                            IconButton(onClick = { showThemeFontSettings = true }) {
+                                Icon(Icons.Default.Palette, contentDescription = "Theme", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        modifier = Modifier.fillMaxHeight()
                     ) {
-                        bottomNavItems.forEach { (label, icon, view) ->
+                        AppView.values().forEach { view ->
                             val isSelected = currentView == view
-                            NavigationBarItem(
+                            val icon = when (view) {
+                                AppView.DASHBOARD -> Icons.Default.Dashboard
+                                AppView.LEDGER -> Icons.Default.ReceiptLong
+                                AppView.REPORTS -> Icons.Default.Assessment
+                                AppView.ACCOUNTS -> Icons.Default.AccountBalance
+                                AppView.EXPENSES -> Icons.Default.Category
+                                AppView.INCOME -> Icons.Default.Payments
+                                AppView.RECURRING_BILLS -> Icons.Default.EventRepeat
+                                AppView.BACKUP_SYNC -> Icons.Default.CloudSync
+                            }
+                            NavigationRailItem(
                                 selected = isSelected,
                                 onClick = { currentView = view },
-                                icon = { Icon(icon, contentDescription = label) },
-                                label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = Color.White,
-                                    selectedTextColor = SolidPrimary,
-                                    indicatorColor = SolidPrimary
-                                ),
-                                modifier = Modifier.testTag("nav_${view.name.lowercase()}")
+                                icon = { Icon(icon, contentDescription = view.name) },
+                                label = { Text(view.name.take(4), fontSize = 10.sp) },
+                                colors = NavigationRailItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                                    indicatorColor = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                    }
+
+                    Scaffold(
+                        topBar = {
+                            TopAppBar(
+                                title = { Text(getViewTitle(currentView, languageMode), fontWeight = FontWeight.Bold) },
+                                actions = {
+                                    IconButton(onClick = { showGlobalCalculator = true }) {
+                                        Icon(Icons.Default.Calculate, contentDescription = "Calculator")
+                                    }
+                                    LanguageSelector(
+                                        currentMode = languageMode,
+                                        onModeSelected = { viewModel.setLanguageMode(it) }
+                                    )
+                                }
+                            )
+                        },
+                        floatingActionButton = {
+                            AppFab(
+                                currentView = currentView,
+                                onAddTransaction = {
+                                    editingTransaction = null
+                                    presetTxType = TransactionType.EXPENSE
+                                    showAddTransactionSheet = true
+                                },
+                                onAddAccount = {
+                                    editingAccount = null
+                                    presetAccountParentId = null
+                                    showAddAccountDialog = true
+                                },
+                                onAddCategory = { type ->
+                                    editingCategory = null
+                                    presetCategoryType = type
+                                    presetCategoryParentId = null
+                                    showAddCategoryDialog = true
+                                }
+                            )
+                        }
+                    ) { padding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(padding)
+                        ) {
+                            ScreenRouter(
+                                currentView = currentView,
+                                viewModel = viewModel,
+                                overview = overview,
+                                accountsWithBalances = accountsWithBalances,
+                                allAccounts = allAccounts,
+                                allCategories = allCategories,
+                                transactionsWithDetails = transactionsWithDetails,
+                                recurringBills = recurringBills,
+                                languageMode = languageMode,
+                                backupUiState = backupUiState,
+                                onNavigate = { currentView = it },
+                                onEditTransaction = { tx ->
+                                    editingTransaction = tx
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithType = { type ->
+                                    presetTxType = type
+                                    editingTransaction = null
+                                    showAddTransactionSheet = true
+                                },
+                                onAddAccount = { parentId ->
+                                    editingAccount = null
+                                    presetAccountParentId = parentId
+                                    showAddAccountDialog = true
+                                },
+                                onEditAccount = { acc ->
+                                    editingAccount = acc
+                                    presetAccountParentId = acc.parentId
+                                    showAddAccountDialog = true
+                                },
+                                onAddCategory = { type, parentId ->
+                                    editingCategory = null
+                                    presetCategoryType = type
+                                    presetCategoryParentId = parentId
+                                    showAddCategoryDialog = true
+                                },
+                                onEditCategory = { cat ->
+                                    editingCategory = cat
+                                    presetCategoryType = cat.type
+                                    presetCategoryParentId = cat.parentId
+                                    showAddCategoryDialog = true
+                                }
                             )
                         }
                     }
                 }
-            },
-            floatingActionButton = {
-                if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
-                    FloatingActionButton(
-                        onClick = {
-                            editingTransaction = null
-                            presetTxType = TransactionType.EXPENSE
-                            showAddTransactionSheet = true
-                        },
-                        containerColor = SolidPrimary,
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier.testTag("main_fab_add_tx")
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Transaction")
-                    }
-                } else if (currentView == AppView.ACCOUNTS) {
-                    FloatingActionButton(
-                        onClick = {
-                            editingAccount = null
-                            presetAccountParentId = null
-                            showAddAccountDialog = true
-                        },
-                        containerColor = SolidPrimary,
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier.testTag("accounts_fab_add")
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Account")
-                    }
-                } else if (currentView in listOf(AppView.EXPENSES, AppView.INCOME)) {
-                    val catType = if (currentView == AppView.EXPENSES) CategoryType.EXPENSE else CategoryType.INCOME
-                    FloatingActionButton(
-                        onClick = {
-                            editingCategory = null
-                            presetCategoryType = catType
-                            presetCategoryParentId = null
-                            showAddCategoryDialog = true
-                        },
-                        containerColor = if (catType == CategoryType.EXPENSE) SolidExpense else SolidIncome,
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier.testTag("categories_fab_add")
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Category")
-                    }
-                }
             }
-        ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                when (currentView) {
-                    AppView.DASHBOARD -> DashboardScreen(
-                        overview = overview,
-                        accountsWithBalances = accountsWithBalances,
-                        recentTransactions = transactionsWithDetails,
-                        languageMode = languageMode,
-                        onAddTransactionClick = { type ->
-                            presetTxType = type
-                            editingTransaction = null
-                            showAddTransactionSheet = true
-                        },
-                        onTransactionClick = { tx ->
-                            editingTransaction = tx
-                            showAddTransactionSheet = true
-                        },
-                        onViewAllTransactionsClick = {
-                            currentView = AppView.LEDGER
+
+            WindowSizeClassType.EXPANDED -> {
+                // EXPANDED TABLET / DESKTOP LAYOUT: Permanent Navigation Drawer + Wide Canvas
+                PermanentNavigationDrawer(
+                    drawerContent = {
+                        PermanentDrawerSheet(
+                            modifier = Modifier.width(280.dp),
+                            drawerContainerColor = MaterialTheme.colorScheme.surface
+                        ) {
+                            DrawerContent(
+                                viewModel = viewModel,
+                                currentView = currentView,
+                                onSelectView = { currentView = it },
+                                onOpenCalculator = { showGlobalCalculator = true },
+                                onOpenThemeFontSettings = { showThemeFontSettings = true },
+                                accountsCount = allAccounts.size,
+                                expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
+                                incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
+                                recurringCount = recurringBills.size,
+                                netWorth = overview.netWorth,
+                                isBalanced = overview.isLedgerBalanced,
+                                languageMode = languageMode
+                            )
                         }
-                    )
-                    AppView.LEDGER -> LedgerScreen(
-                        transactions = transactionsWithDetails,
-                        languageMode = languageMode,
-                        onAddTransactionClick = {
-                            editingTransaction = null
-                            presetTxType = TransactionType.EXPENSE
-                            showAddTransactionSheet = true
+                    }
+                ) {
+                    Scaffold(
+                        topBar = {
+                            TopAppBar(
+                                title = { Text(getViewTitle(currentView, languageMode), fontWeight = FontWeight.Bold) },
+                                actions = {
+                                    IconButton(onClick = { showThemeFontSettings = true }) {
+                                        Icon(Icons.Default.Palette, contentDescription = "Theme & Fonts", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(onClick = { showGlobalCalculator = true }) {
+                                        Icon(Icons.Default.Calculate, contentDescription = "Calculator", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    LanguageSelector(
+                                        currentMode = languageMode,
+                                        onModeSelected = { viewModel.setLanguageMode(it) }
+                                    )
+                                }
+                            )
                         },
-                        onTransactionClick = { tx ->
-                            editingTransaction = tx
-                            showAddTransactionSheet = true
+                        floatingActionButton = {
+                            AppFab(
+                                currentView = currentView,
+                                onAddTransaction = {
+                                    editingTransaction = null
+                                    presetTxType = TransactionType.EXPENSE
+                                    showAddTransactionSheet = true
+                                },
+                                onAddAccount = {
+                                    editingAccount = null
+                                    presetAccountParentId = null
+                                    showAddAccountDialog = true
+                                },
+                                onAddCategory = { type ->
+                                    editingCategory = null
+                                    presetCategoryType = type
+                                    presetCategoryParentId = null
+                                    showAddCategoryDialog = true
+                                }
+                            )
                         }
-                    )
-                    AppView.REPORTS -> ReportsScreen(
-                        overview = overview,
-                        accountsWithBalances = accountsWithBalances,
-                        languageMode = languageMode
-                    )
-                    AppView.ACCOUNTS -> AccountsScreen(
-                        accountsWithBalances = accountsWithBalances,
-                        languageMode = languageMode,
-                        onAddAccountClick = {
-                            editingAccount = null
-                            presetAccountParentId = null
-                            showAddAccountDialog = true
-                        },
-                        onAddSubAccountClick = { parent ->
-                            editingAccount = null
-                            presetAccountParentId = parent.id
-                            showAddAccountDialog = true
-                        },
-                        onEditAccountClick = { acc ->
-                            editingAccount = acc
-                            presetAccountParentId = acc.parentId
-                            showAddAccountDialog = true
-                        },
-                        onToggleActiveStatus = { acc, active ->
-                            viewModel.saveAccount(acc.copy(isActive = active))
+                    ) { padding ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(padding)
+                        ) {
+                            ScreenRouter(
+                                currentView = currentView,
+                                viewModel = viewModel,
+                                overview = overview,
+                                accountsWithBalances = accountsWithBalances,
+                                allAccounts = allAccounts,
+                                allCategories = allCategories,
+                                transactionsWithDetails = transactionsWithDetails,
+                                recurringBills = recurringBills,
+                                languageMode = languageMode,
+                                backupUiState = backupUiState,
+                                onNavigate = { currentView = it },
+                                onEditTransaction = { tx ->
+                                    editingTransaction = tx
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithType = { type ->
+                                    presetTxType = type
+                                    editingTransaction = null
+                                    showAddTransactionSheet = true
+                                },
+                                onAddAccount = { parentId ->
+                                    editingAccount = null
+                                    presetAccountParentId = parentId
+                                    showAddAccountDialog = true
+                                },
+                                onEditAccount = { acc ->
+                                    editingAccount = acc
+                                    presetAccountParentId = acc.parentId
+                                    showAddAccountDialog = true
+                                },
+                                onAddCategory = { type, parentId ->
+                                    editingCategory = null
+                                    presetCategoryType = type
+                                    presetCategoryParentId = parentId
+                                    showAddCategoryDialog = true
+                                },
+                                onEditCategory = { cat ->
+                                    editingCategory = cat
+                                    presetCategoryType = cat.type
+                                    presetCategoryParentId = cat.parentId
+                                    showAddCategoryDialog = true
+                                }
+                            )
                         }
-                    )
-                    AppView.EXPENSES -> CategoriesScreen(
-                        categories = allCategories,
-                        languageMode = languageMode,
-                        initialTab = 0,
-                        onAddCategoryClick = { type ->
-                            editingCategory = null
-                            presetCategoryType = type
-                            presetCategoryParentId = null
-                            showAddCategoryDialog = true
-                        },
-                        onAddSubCategoryClick = { parent ->
-                            editingCategory = null
-                            presetCategoryType = parent.type
-                            presetCategoryParentId = parent.id
-                            showAddCategoryDialog = true
-                        },
-                        onEditCategoryClick = { cat ->
-                            editingCategory = cat
-                            presetCategoryType = cat.type
-                            presetCategoryParentId = cat.parentId
-                            showAddCategoryDialog = true
-                        }
-                    )
-                    AppView.INCOME -> CategoriesScreen(
-                        categories = allCategories,
-                        languageMode = languageMode,
-                        initialTab = 1,
-                        onAddCategoryClick = { type ->
-                            editingCategory = null
-                            presetCategoryType = type
-                            presetCategoryParentId = null
-                            showAddCategoryDialog = true
-                        },
-                        onAddSubCategoryClick = { parent ->
-                            editingCategory = null
-                            presetCategoryType = parent.type
-                            presetCategoryParentId = parent.id
-                            showAddCategoryDialog = true
-                        },
-                        onEditCategoryClick = { cat ->
-                            editingCategory = cat
-                            presetCategoryType = cat.type
-                            presetCategoryParentId = cat.parentId
-                            showAddCategoryDialog = true
-                        }
-                    )
-                    AppView.RECURRING_BILLS -> RecurringBillsAndBackupScreen(
-                        viewModel = viewModel,
-                        bills = recurringBills,
-                        languageMode = languageMode,
-                        backupUiState = backupUiState,
-                        initialTab = 0
-                    )
-                    AppView.BACKUP_SYNC -> RecurringBillsAndBackupScreen(
-                        viewModel = viewModel,
-                        bills = recurringBills,
-                        languageMode = languageMode,
-                        backupUiState = backupUiState,
-                        initialTab = 1
-                    )
+                    }
                 }
             }
         }
@@ -722,7 +633,432 @@ fun MainAppContainer(
         PopupCalculatorDialog(
             languageMode = languageMode,
             onDismiss = { showGlobalCalculator = false },
-            onValueConfirmed = { /* Calculator confirmed */ }
+            onValueConfirmed = { /* Confirmed */ }
         )
+    }
+
+    if (showThemeFontSettings) {
+        ThemeFontSettingsDialog(
+            themeConfig = themeConfig,
+            languageMode = languageMode,
+            onPaletteSelected = { viewModel.setThemePalette(it) },
+            onModeSelected = { viewModel.setThemeMode(it) },
+            onDynamicColorToggled = { viewModel.setDynamicColor(it) },
+            onFontPresetSelected = { viewModel.setFontPreset(it) },
+            onDismiss = { showThemeFontSettings = false }
+        )
+    }
+}
+
+@Composable
+private fun AppFab(
+    currentView: AppView,
+    onAddTransaction: () -> Unit,
+    onAddAccount: () -> Unit,
+    onAddCategory: (CategoryType) -> Unit
+) {
+    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
+        FloatingActionButton(
+            onClick = onAddTransaction,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier.testTag("main_fab_add_tx")
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add Transaction")
+        }
+    } else if (currentView == AppView.ACCOUNTS) {
+        FloatingActionButton(
+            onClick = onAddAccount,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier.testTag("accounts_fab_add")
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add Account")
+        }
+    } else if (currentView in listOf(AppView.EXPENSES, AppView.INCOME)) {
+        val catType = if (currentView == AppView.EXPENSES) CategoryType.EXPENSE else CategoryType.INCOME
+        FloatingActionButton(
+            onClick = { onAddCategory(catType) },
+            containerColor = if (catType == CategoryType.EXPENSE) SolidExpense else SolidIncome,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier.testTag("categories_fab_add")
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Add Category")
+        }
+    }
+}
+
+@Composable
+private fun DrawerContent(
+    viewModel: BudgetViewModel,
+    currentView: AppView,
+    onSelectView: (AppView) -> Unit,
+    onOpenCalculator: () -> Unit,
+    onOpenThemeFontSettings: () -> Unit,
+    accountsCount: Int,
+    expensesCount: Int,
+    incomeCount: Int,
+    recurringCount: Int,
+    netWorth: Double,
+    isBalanced: Boolean,
+    languageMode: LanguageMode
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        // Drawer Header with Theme Color
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.primary)
+                .padding(20.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = LanguageHelper.getString("app_name", languageMode),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White.copy(alpha = 0.2f)
+                    ) {
+                        Text(
+                            text = "v2.3",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = LanguageHelper.getString("net_worth", languageMode),
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+                Text(
+                    text = LanguageHelper.formatCurrency(netWorth, languageMode),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isBalanced) Icons.Default.CheckCircle else Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = if (isBalanced) SolidIncome else SolidExpense,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isBalanced) "Dr = Cr Balanced" else "Unbalanced",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "MENU & MANAGEMENT",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        )
+
+        // Navigation Items
+        DrawerItemRow(
+            title = LanguageHelper.getString("dashboard", languageMode),
+            icon = Icons.Default.Dashboard,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.DASHBOARD,
+            onClick = { onSelectView(AppView.DASHBOARD) }
+        )
+
+        DrawerItemRow(
+            title = LanguageHelper.getString("ledger", languageMode),
+            icon = Icons.Default.ReceiptLong,
+            iconTint = SolidTransfer,
+            isSelected = currentView == AppView.LEDGER,
+            onClick = { onSelectView(AppView.LEDGER) }
+        )
+
+        DrawerItemRow(
+            title = LanguageHelper.getString("reports", languageMode),
+            icon = Icons.Default.Assessment,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.REPORTS,
+            onClick = { onSelectView(AppView.REPORTS) }
+        )
+
+        DrawerItemRow(
+            title = LanguageHelper.getString("accounts", languageMode),
+            icon = Icons.Default.AccountBalance,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = "$accountsCount",
+            isSelected = currentView == AppView.ACCOUNTS,
+            onClick = { onSelectView(AppView.ACCOUNTS) }
+        )
+
+        DrawerItemRow(
+            title = LanguageHelper.getString("expenses", languageMode),
+            icon = Icons.Default.Category,
+            iconTint = SolidExpense,
+            badge = "$expensesCount",
+            isSelected = currentView == AppView.EXPENSES,
+            onClick = { onSelectView(AppView.EXPENSES) }
+        )
+
+        DrawerItemRow(
+            title = LanguageHelper.getString("incomes", languageMode),
+            icon = Icons.Default.Payments,
+            iconTint = SolidIncome,
+            badge = "$incomeCount",
+            isSelected = currentView == AppView.INCOME,
+            onClick = { onSelectView(AppView.INCOME) }
+        )
+
+        DrawerItemRow(
+            title = "Recurring & Bills",
+            icon = Icons.Default.EventRepeat,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = "$recurringCount",
+            isSelected = currentView == AppView.RECURRING_BILLS,
+            onClick = { onSelectView(AppView.RECURRING_BILLS) }
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
+
+        Text(
+            text = "TOOLS & STYLING",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        )
+
+        // 7 Themes & Fonts Customizer
+        DrawerItemRow(
+            title = if (languageMode == LanguageMode.BANGLA) "থিম ও ফন্ট কাস্টমাইজ" else "Theme & Font Styling",
+            icon = Icons.Default.Palette,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = false,
+            onClick = onOpenThemeFontSettings
+        )
+
+        // Backup & Sync
+        DrawerItemRow(
+            title = "Dual Backup & Sync",
+            icon = Icons.Default.CloudSync,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.BACKUP_SYNC,
+            onClick = { onSelectView(AppView.BACKUP_SYNC) }
+        )
+
+        // Calculator
+        DrawerItemRow(
+            title = LanguageHelper.getString("calculator", languageMode),
+            icon = Icons.Default.Calculate,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = false,
+            onClick = onOpenCalculator
+        )
+
+        // Language toggle
+        NavigationDrawerItem(
+            label = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(LanguageHelper.getString("language", languageMode), fontWeight = FontWeight.Medium)
+                    Text(
+                        text = when (languageMode) {
+                            LanguageMode.ENGLISH -> "EN"
+                            LanguageMode.BANGLA -> "বাং"
+                            LanguageMode.BILINGUAL -> "EN/বাং"
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            icon = { Icon(Icons.Default.Translate, contentDescription = null) },
+            selected = false,
+            onClick = {
+                val nextMode = when (languageMode) {
+                    LanguageMode.ENGLISH -> LanguageMode.BANGLA
+                    LanguageMode.BANGLA -> LanguageMode.BILINGUAL
+                    LanguageMode.BILINGUAL -> LanguageMode.ENGLISH
+                }
+                viewModel.setLanguageMode(nextMode)
+            },
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun DrawerItemRow(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    badge: String? = null,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    NavigationDrawerItem(
+        label = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                )
+                if (badge != null) {
+                    Text(
+                        text = badge,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        },
+        icon = { Icon(icon, contentDescription = null, tint = iconTint) },
+        selected = isSelected,
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        colors = NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            selectedTextColor = MaterialTheme.colorScheme.primary
+        ),
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+    )
+}
+
+@Composable
+private fun ScreenRouter(
+    currentView: AppView,
+    viewModel: BudgetViewModel,
+    overview: com.example.data.repository.FinancialOverview,
+    accountsWithBalances: List<com.example.data.repository.AccountWithBalance>,
+    allAccounts: List<Account>,
+    allCategories: List<Category>,
+    transactionsWithDetails: List<com.example.data.model.TransactionWithDetails>,
+    recurringBills: List<com.example.data.model.RecurringBillWithDetails>,
+    languageMode: LanguageMode,
+    backupUiState: com.example.ui.viewmodel.BackupUiState,
+    onNavigate: (AppView) -> Unit,
+    onEditTransaction: (Transaction) -> Unit,
+    onAddTransactionWithType: (TransactionType) -> Unit,
+    onAddAccount: (Long?) -> Unit,
+    onEditAccount: (Account) -> Unit,
+    onAddCategory: (CategoryType, Long?) -> Unit,
+    onEditCategory: (Category) -> Unit
+) {
+    when (currentView) {
+        AppView.DASHBOARD -> DashboardScreen(
+            overview = overview,
+            accountsWithBalances = accountsWithBalances,
+            recentTransactions = transactionsWithDetails,
+            languageMode = languageMode,
+            onAddTransactionClick = onAddTransactionWithType,
+            onTransactionClick = onEditTransaction,
+            onViewAllTransactionsClick = { onNavigate(AppView.LEDGER) }
+        )
+        AppView.LEDGER -> LedgerScreen(
+            transactions = transactionsWithDetails,
+            languageMode = languageMode,
+            onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
+            onTransactionClick = onEditTransaction
+        )
+        AppView.REPORTS -> ReportsScreen(
+            overview = overview,
+            accountsWithBalances = accountsWithBalances,
+            languageMode = languageMode
+        )
+        AppView.ACCOUNTS -> AccountsScreen(
+            accountsWithBalances = accountsWithBalances,
+            languageMode = languageMode,
+            onAddAccountClick = { onAddAccount(null) },
+            onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
+            onEditAccountClick = onEditAccount,
+            onToggleActiveStatus = { acc, active ->
+                viewModel.saveAccount(acc.copy(isActive = active))
+            }
+        )
+        AppView.EXPENSES -> CategoriesScreen(
+            categories = allCategories,
+            languageMode = languageMode,
+            initialTab = 0,
+            onAddCategoryClick = { type -> onAddCategory(type, null) },
+            onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
+            onEditCategoryClick = onEditCategory
+        )
+        AppView.INCOME -> CategoriesScreen(
+            categories = allCategories,
+            languageMode = languageMode,
+            initialTab = 1,
+            onAddCategoryClick = { type -> onAddCategory(type, null) },
+            onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
+            onEditCategoryClick = onEditCategory
+        )
+        AppView.RECURRING_BILLS -> RecurringBillsAndBackupScreen(
+            viewModel = viewModel,
+            bills = recurringBills,
+            languageMode = languageMode,
+            backupUiState = backupUiState,
+            initialTab = 0
+        )
+        AppView.BACKUP_SYNC -> RecurringBillsAndBackupScreen(
+            viewModel = viewModel,
+            bills = recurringBills,
+            languageMode = languageMode,
+            backupUiState = backupUiState,
+            initialTab = 1
+        )
+    }
+}
+
+private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
+    return when (view) {
+        AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
+        AppView.LEDGER -> LanguageHelper.getString("ledger", languageMode)
+        AppView.REPORTS -> LanguageHelper.getString("reports", languageMode)
+        AppView.ACCOUNTS -> LanguageHelper.getString("accounts", languageMode)
+        AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
+        AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
+        AppView.RECURRING_BILLS -> "Recurring Bills"
+        AppView.BACKUP_SYNC -> "Backup & Sync"
     }
 }

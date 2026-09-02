@@ -15,6 +15,12 @@ import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.BudgetRepository
 import com.example.data.repository.FinancialOverview
+import com.example.sync.SyncManager
+import com.example.ui.theme.AppThemeConfig
+import com.example.ui.theme.FontPreset
+import com.example.ui.theme.ThemeMode
+import com.example.ui.theme.ThemePalette
+import com.example.ui.theme.ThemePreferences
 import com.example.util.BackupManager
 import com.example.util.DriveBackupResult
 import com.example.util.GoogleDriveBackupFile
@@ -38,6 +44,14 @@ sealed interface BackupUiState {
 class BudgetViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: BudgetRepository
+    private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
+
+    val themeConfig: StateFlow<AppThemeConfig> = themePrefs.themeConfig
+
+    fun setThemePalette(palette: ThemePalette) = themePrefs.setPalette(palette)
+    fun setThemeMode(mode: ThemeMode) = themePrefs.setMode(mode)
+    fun setDynamicColor(enabled: Boolean) = themePrefs.setDynamicColor(enabled)
+    fun setFontPreset(fontPreset: FontPreset) = themePrefs.setFontPreset(fontPreset)
 
     init {
         val db = AppDatabase.getDatabase(application, viewModelScope)
@@ -122,12 +136,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 repository.updateTransaction(transaction)
             }
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
             repository.deleteTransaction(transaction)
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
@@ -138,12 +154,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 repository.updateAccount(account)
             }
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
     fun deleteAccount(account: Account) {
         viewModelScope.launch {
             repository.deleteAccount(account)
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
@@ -154,12 +172,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 repository.updateCategory(category)
             }
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
             repository.deleteCategory(category)
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
@@ -170,19 +190,30 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 repository.updateRecurringBill(bill)
             }
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
     fun deleteRecurringBill(bill: RecurringBill) {
         viewModelScope.launch {
             repository.deleteRecurringBill(bill)
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
     fun payRecurringBill(bill: RecurringBill) {
         viewModelScope.launch {
             repository.payRecurringBill(bill)
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
+    }
+
+    fun triggerInstantSync() {
+        SyncManager.triggerInstantJsonSync(getApplication())
+    }
+
+    fun trigger24hDatabaseBackup() {
+        SyncManager.forceImmediateDatabaseBackup(getApplication())
     }
 
     fun createLocalBackup(onFileReady: (File) -> Unit) {
