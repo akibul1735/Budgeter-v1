@@ -16,6 +16,10 @@ import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.BudgetRepository
 import com.example.data.repository.FinancialOverview
 import com.example.util.BackupManager
+import com.example.util.DriveBackupResult
+import com.example.util.GoogleDriveBackupFile
+import com.example.util.GoogleDriveService
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -234,6 +238,85 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 _backupUiState.value = BackupUiState.Success("Restored $count records successfully!")
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Restore failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    private val _driveBackups = MutableStateFlow<List<GoogleDriveBackupFile>>(emptyList())
+    val driveBackups: StateFlow<List<GoogleDriveBackupFile>> = _driveBackups.asStateFlow()
+
+    private val _signedInGoogleAccount = MutableStateFlow<GoogleSignInAccount?>(null)
+    val signedInGoogleAccount: StateFlow<GoogleSignInAccount?> = _signedInGoogleAccount.asStateFlow()
+
+    fun updateSignedInAccount(account: GoogleSignInAccount?) {
+        _signedInGoogleAccount.value = account
+        if (account != null) {
+            fetchDriveBackups(account)
+        } else {
+            _driveBackups.value = emptyList()
+        }
+    }
+
+    fun fetchDriveBackups(account: GoogleSignInAccount) {
+        viewModelScope.launch {
+            val result = GoogleDriveService.listDriveBackups(getApplication(), account)
+            result.onSuccess { list ->
+                _driveBackups.value = list
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Could not list Drive backups: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun backupToGoogleDrive(account: GoogleSignInAccount) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = GoogleDriveService.uploadBackupToDrive(
+                context = getApplication(),
+                account = account,
+                accountDao = repository.accountDao,
+                categoryDao = repository.categoryDao,
+                transactionDao = repository.transactionDao,
+                recurringBillDao = repository.recurringBillDao
+            )
+            result.onSuccess { driveRes ->
+                _backupUiState.value = BackupUiState.Success("Database backed up to Google Drive (Visible 'Budgeter' folder & Hidden app folder)")
+                fetchDriveBackups(account)
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Google Drive backup failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun restoreFromGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = GoogleDriveService.restoreFromDriveFile(
+                context = getApplication(),
+                account = account,
+                fileId = backupFile.id,
+                accountDao = repository.accountDao,
+                categoryDao = repository.categoryDao,
+                transactionDao = repository.transactionDao,
+                recurringBillDao = repository.recurringBillDao
+            )
+            result.onSuccess { count ->
+                _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Google Drive!")
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Restore from Drive failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun deleteDriveBackup(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val success = GoogleDriveService.deleteDriveBackup(getApplication(), account, backupFile.id)
+            if (success) {
+                _backupUiState.value = BackupUiState.Success("Drive backup deleted")
+                fetchDriveBackups(account)
+            } else {
+                _backupUiState.value = BackupUiState.Error("Failed to delete Drive backup")
             }
         }
     }

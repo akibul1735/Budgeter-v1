@@ -21,19 +21,27 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -53,6 +61,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -81,7 +90,12 @@ import com.example.ui.viewmodel.BackupUiState
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.BackupManager
 import com.example.util.DateUtils
+import com.example.util.DriveBackupLocation
+import com.example.util.GoogleDriveBackupFile
+import com.example.util.GoogleDriveService
 import com.example.util.LanguageHelper
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -103,6 +117,10 @@ fun RecurringBillsAndBackupScreen(
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
 
     var localBackups by remember { mutableStateOf<List<File>>(emptyList()) }
+    val signedInAccount by viewModel.signedInGoogleAccount.collectAsStateWithLifecycle()
+    val driveBackups by viewModel.driveBackups.collectAsStateWithLifecycle()
+    var restoreConfirmFile by remember { mutableStateOf<GoogleDriveBackupFile?>(null) }
+    var deleteConfirmFile by remember { mutableStateOf<GoogleDriveBackupFile?>(null) }
 
     fun refreshLocalBackups() {
         localBackups = BackupManager.listLocalBackups(context)
@@ -110,6 +128,24 @@ fun RecurringBillsAndBackupScreen(
 
     LaunchedEffect(Unit) {
         refreshLocalBackups()
+        val existingAccount = GoogleDriveService.getSignedInAccount(context)
+        viewModel.updateSignedInAccount(existingAccount)
+    }
+
+    // Google Sign-In Launcher
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            viewModel.updateSignedInAccount(account)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // If explicit permission not granted or cancelled, update with null or last account
+            val current = GoogleDriveService.getSignedInAccount(context)
+            viewModel.updateSignedInAccount(current)
+        }
     }
 
     // SAF Launchers for Storage Export & Restore
@@ -354,55 +390,259 @@ fun RecurringBillsAndBackupScreen(
                         else -> {}
                     }
 
-                    // 1. Google Drive / Cloud Sync Card
+                    // 1. Google Drive Card (With Account Selector, Dual Backup to Visible "Budgeter" folder & Hidden appDataFolder)
                     item {
                         Card(
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(shape = CircleShape, color = SolidPrimary.copy(alpha = 0.15f), modifier = Modifier.size(36.dp)) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Sync, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(20.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(shape = CircleShape, color = SolidPrimary.copy(alpha = 0.15f), modifier = Modifier.size(36.dp)) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(Icons.Default.Sync, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(20.dp))
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text("Google Drive Cloud Backup", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text("Dual-store in visible 'Budgeter' & hidden folder", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                                         }
                                     }
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text("Google Drive & Cloud Auto-Sync", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        Text("Automatic decentralized double-entry snapshots", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+
+                                    if (signedInAccount != null) {
+                                        IconButton(
+                                            onClick = {
+                                                val client = GoogleDriveService.getGoogleSignInClient(context)
+                                                client.signOut().addOnCompleteListener {
+                                                    viewModel.updateSignedInAccount(null)
+                                                }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.CloudOff, contentDescription = "Sign Out", tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(18.dp))
+                                        }
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Budgeter operates with offline-first double-entry integrity. You can export complete snapshots to Google Drive or any cloud folder using standard system storage.",
-                                    fontSize = 12.sp,
-                                    lineHeight = 16.sp
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
 
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (signedInAccount == null) {
+                                    Text(
+                                        text = "Connect your Google account to automatically store database backups into both a visible 'Budgeter' folder in Google Drive and a secure hidden app folder. Both are fully restorable.",
+                                        fontSize = 12.sp,
+                                        lineHeight = 16.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
                                     Button(
                                         onClick = {
-                                            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                                            exportFileLauncher.launch("Budgeter_DoubleEntry_Backup_$timeStamp.json")
+                                            val client = GoogleDriveService.getGoogleSignInClient(context)
+                                            googleSignInLauncher.launch(client.signInIntent)
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Export to Drive", fontSize = 12.sp)
+                                        Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Select Google Account & Connect Drive", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                } else {
+                                    // Connected Account info banner
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.weight(1f),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(Icons.Default.AccountCircle, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(24.dp))
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column {
+                                                    Text(
+                                                        text = signedInAccount?.displayName ?: "Google User",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = signedInAccount?.email ?: "",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.outline
+                                                    )
+                                                }
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val client = GoogleDriveService.getGoogleSignInClient(context)
+                                                    googleSignInLauncher.launch(client.signInIntent)
+                                                },
+                                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) {
+                                                Text("Switch", fontSize = 11.sp)
+                                            }
+                                        }
                                     }
 
-                                    OutlinedButton(
-                                        onClick = { importFileLauncher.launch(arrayOf("application/json", "*/*")) },
-                                        modifier = Modifier.weight(1f)
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = {
+                                                signedInAccount?.let { acc ->
+                                                    viewModel.backupToGoogleDrive(acc)
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Backup to Drive Now", fontSize = 12.sp)
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                signedInAccount?.let { acc ->
+                                                    viewModel.fetchDriveBackups(acc)
+                                                }
+                                            },
+                                            modifier = Modifier.weight(0.5f)
+                                        ) {
+                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Refresh", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Manual SAF Export / Import fallback
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Device / File Exporter:", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        TextButton(
+                                            onClick = {
+                                                val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                                                exportFileLauncher.launch("Budgeter_DoubleEntry_Backup_$timeStamp.json")
+                                            },
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("SAF Export", fontSize = 11.sp)
+                                        }
+                                        TextButton(
+                                            onClick = { importFileLauncher.launch(arrayOf("application/json", "*/*")) },
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("SAF Import", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Google Drive Backups List
+                    if (signedInAccount != null) {
+                        item {
+                            Text(
+                                "GOOGLE DRIVE SNAPSHOTS (${driveBackups.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+
+                        if (driveBackups.isEmpty()) {
+                            item {
+                                Text("No Google Drive backups found for this account. Tap 'Backup to Drive Now' above.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                        } else {
+                            items(driveBackups) { backupFile ->
+                                Card(
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Import File", fontSize = 12.sp)
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                if (backupFile.location == DriveBackupLocation.VISIBLE_APP_FOLDER) {
+                                                    Surface(shape = RoundedCornerShape(4.dp), color = SolidPrimary.copy(alpha = 0.15f), modifier = Modifier.padding(end = 6.dp)) {
+                                                        Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                            Icon(Icons.Default.Folder, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(10.dp))
+                                                            Spacer(modifier = Modifier.width(2.dp))
+                                                            Text("Visible 'Budgeter'", fontSize = 9.sp, color = SolidPrimary, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                } else {
+                                                    Surface(shape = RoundedCornerShape(4.dp), color = SolidIncome.copy(alpha = 0.15f), modifier = Modifier.padding(end = 6.dp)) {
+                                                        Row(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                            Icon(Icons.Default.Lock, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(10.dp))
+                                                            Spacer(modifier = Modifier.width(2.dp))
+                                                            Text("Hidden App Folder", fontSize = 9.sp, color = SolidIncome, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(backupFile.name, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
+                                            Text(
+                                                text = if (backupFile.modifiedTime.isNotEmpty()) "${backupFile.modifiedTime.take(10)} • ${if (backupFile.size > 0) "${backupFile.size / 1024} KB" else "Synced"}" else "Synced Cloud Snapshot",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            // Delete Drive File
+                                            IconButton(
+                                                onClick = { deleteConfirmFile = backupFile },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
+                                            }
+
+                                            // Restore from Drive File
+                                            Button(
+                                                onClick = { restoreConfirmFile = backupFile },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) {
+                                                Text("Restore", fontSize = 11.sp)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -548,6 +788,70 @@ fun RecurringBillsAndBackupScreen(
             onDismiss = { showAddBillDialog = false },
             onSave = { bill -> viewModel.saveRecurringBill(bill) },
             onDelete = { bill -> viewModel.deleteRecurringBill(bill) }
+        )
+    }
+
+    // Google Drive Restore Confirmation Dialog
+    restoreConfirmFile?.let { backupFile ->
+        AlertDialog(
+            onDismissRequest = { restoreConfirmFile = null },
+            title = { Text("Restore From Google Drive?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "This will restore '${backupFile.name}' into Budgeter. Current local data will be safely updated and replaced with this snapshot.",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        signedInAccount?.let { acc ->
+                            viewModel.restoreFromGoogleDrive(acc, backupFile)
+                        }
+                        restoreConfirmFile = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                ) {
+                    Text("Confirm Restore")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { restoreConfirmFile = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Google Drive Delete Confirmation Dialog
+    deleteConfirmFile?.let { backupFile ->
+        AlertDialog(
+            onDismissRequest = { deleteConfirmFile = null },
+            title = { Text("Delete Drive Backup?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Are you sure you want to delete '${backupFile.name}' from your Google Drive?",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        signedInAccount?.let { acc ->
+                            viewModel.deleteDriveBackup(acc, backupFile)
+                        }
+                        deleteConfirmFile = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidExpense)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteConfirmFile = null }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }
