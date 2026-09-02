@@ -10,11 +10,12 @@ data class Category(
     val nameEn: String,
     val nameBn: String,
     val type: CategoryType, // EXPENSE or INCOME
-    val parentId: Long? = null, // null for main category, non-null for sub-category
+    val parentId: Long? = null, // null for main category (Group), non-null for sub-category
     val iconName: String = "Category",
     val colorHex: String = "#EF4444",
     val budgetLimit: Double = 0.0,
     val isSystem: Boolean = false,
+    val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     fun localizedName(mode: LanguageMode): String {

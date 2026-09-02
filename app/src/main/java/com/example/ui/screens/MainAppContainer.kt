@@ -75,7 +75,7 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.ui.components.LanguageSelector
 import com.example.ui.components.PopupCalculatorDialog
-import com.example.ui.dialogs.AddEditAccountDialog
+import com.example.ui.dialogs.AddEditAccountGroupOrCategoryDialog
 import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
 import com.example.ui.theme.SolidExpense
@@ -608,6 +608,9 @@ fun MainAppContainer(
                             editingAccount = acc
                             presetAccountParentId = acc.parentId
                             showAddAccountDialog = true
+                        },
+                        onToggleActiveStatus = { acc, active ->
+                            viewModel.saveAccount(acc.copy(isActive = active))
                         }
                     )
                     AppView.EXPENSES -> CategoriesScreen(
@@ -690,11 +693,11 @@ fun MainAppContainer(
 
     if (showAddAccountDialog) {
         val parentAccounts = allAccounts.filter { it.parentId == null }
-        AddEditAccountDialog(
-            parentAccounts = parentAccounts,
+        AddEditAccountGroupOrCategoryDialog(
+            allGroups = parentAccounts,
             languageMode = languageMode,
             existingAccount = editingAccount,
-            defaultParentId = presetAccountParentId,
+            defaultGroupId = presetAccountParentId,
             onDismiss = { showAddAccountDialog = false },
             onSave = { acc -> viewModel.saveAccount(acc) },
             onDelete = { acc -> viewModel.deleteAccount(acc) }

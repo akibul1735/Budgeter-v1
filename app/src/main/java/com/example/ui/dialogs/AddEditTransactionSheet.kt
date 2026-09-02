@@ -126,7 +126,7 @@ fun AddEditTransactionSheet(
     var showCalculator by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    // Filter categories by type
+    // Filter categories by type and active status
     val relevantCategories = remember(categories, txType) {
         val targetType = when (txType) {
             TransactionType.EXPENSE -> CategoryType.EXPENSE
@@ -134,7 +134,7 @@ fun AddEditTransactionSheet(
             TransactionType.TRANSFER -> null
         }
         if (targetType != null) {
-            categories.filter { it.type == targetType && it.parentId == null }
+            categories.filter { it.type == targetType && it.parentId == null && it.isActive }
         } else emptyList()
     }
 
@@ -146,14 +146,15 @@ fun AddEditTransactionSheet(
     // Subcategories of selected category
     val relevantSubCategories = remember(categories, selectedCategoryId) {
         if (selectedCategoryId != null) {
-            categories.filter { it.parentId == selectedCategoryId }
+            categories.filter { it.parentId == selectedCategoryId && it.isActive }
         } else emptyList()
     }
 
-    // Usable accounts (prefer sub-accounts / child accounts if present, else parent accounts)
+    // Usable accounts (prefer sub-accounts / child accounts if present, else parent accounts, active only)
     val usableAccounts = remember(accounts) {
-        val parentsWithChildren = accounts.filter { it.parentId != null }.mapNotNull { it.parentId }.toSet()
-        accounts.filter { it.id !in parentsWithChildren }
+        val activeList = accounts.filter { it.isActive }
+        val parentsWithChildren = activeList.filter { it.parentId != null }.mapNotNull { it.parentId }.toSet()
+        activeList.filter { it.id !in parentsWithChildren }
     }
 
     // Auto-select default accounts

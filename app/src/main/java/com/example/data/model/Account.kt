@@ -10,13 +10,14 @@ data class Account(
     val nameEn: String,
     val nameBn: String,
     val type: AccountType, // ASSET, LIABILITY, EQUITY
-    val parentId: Long? = null, // null for top-level account, non-null for sub-account
+    val parentId: Long? = null, // null for top-level account (Group), non-null for sub-account (Category/Account)
     val initialBalance: Double = 0.0,
     val iconName: String = "AccountBalance",
     val colorHex: String = "#1E56A0",
     val accountNumber: String = "",
     val description: String = "",
     val isSystem: Boolean = false,
+    val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 ) {
     fun localizedName(mode: LanguageMode): String {

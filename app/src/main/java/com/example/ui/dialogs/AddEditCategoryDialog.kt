@@ -60,6 +60,9 @@ fun AddEditCategoryDialog(
     var budgetLimitText by remember {
         mutableStateOf(existingCategory?.budgetLimit?.toString() ?: "0.0")
     }
+    var isActive by remember {
+        mutableStateOf(existingCategory?.isActive ?: true)
+    }
     var isSubCategory by remember { mutableStateOf(parentId != null) }
     var parentDropdownExpanded by remember { mutableStateOf(false) }
 
@@ -250,7 +253,8 @@ fun AddEditCategoryDialog(
                                 parentId = if (isSubCategory) parentId else null,
                                 budgetLimit = parsedLimit,
                                 iconName = if (categoryType == CategoryType.INCOME) "Payments" else "ShoppingCart",
-                                colorHex = if (categoryType == CategoryType.INCOME) "#10B981" else "#EF4444"
+                                colorHex = if (categoryType == CategoryType.INCOME) "#10B981" else "#EF4444",
+                                isActive = isActive
                             )
                             onSave(category)
                             onDismiss()
