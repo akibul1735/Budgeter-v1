@@ -25,9 +25,11 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +54,11 @@ import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.theme.SolidEquity
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidPrimary
+import com.example.ui.theme.SolidPrimaryContainer
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 
@@ -78,8 +85,8 @@ fun AccountsScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("accounts_screen"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Top Filter Row + Add Account button
         item {
@@ -90,18 +97,20 @@ fun AccountsScreen(
             ) {
                 Text(
                     text = LanguageHelper.getString("accounts", languageMode),
-                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Button(
                     onClick = onAddAccountClick,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     modifier = Modifier.testTag("add_account_btn")
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(LanguageHelper.getString("add_account", languageMode), fontWeight = FontWeight.SemiBold)
+                    Text(LanguageHelper.getString("add_account", languageMode), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -110,31 +119,47 @@ fun AccountsScreen(
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterChip(
                     selected = selectedTypeFilter == null,
                     onClick = { selectedTypeFilter = null },
-                    label = { Text("All") },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text("All", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidPrimary,
+                        selectedLabelColor = Color.White
+                    )
                 )
                 FilterChip(
                     selected = selectedTypeFilter == AccountType.ASSET,
                     onClick = { selectedTypeFilter = AccountType.ASSET },
-                    label = { Text(LanguageHelper.getString("assets", languageMode)) },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text(LanguageHelper.getString("assets", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidIncome,
+                        selectedLabelColor = Color.White
+                    )
                 )
                 FilterChip(
                     selected = selectedTypeFilter == AccountType.LIABILITY,
                     onClick = { selectedTypeFilter = AccountType.LIABILITY },
-                    label = { Text(LanguageHelper.getString("liabilities", languageMode)) },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text(LanguageHelper.getString("liabilities", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidExpense,
+                        selectedLabelColor = Color.White
+                    )
                 )
                 FilterChip(
                     selected = selectedTypeFilter == AccountType.EQUITY,
                     onClick = { selectedTypeFilter = AccountType.EQUITY },
-                    label = { Text(LanguageHelper.getString("equity", languageMode)) },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text(LanguageHelper.getString("equity", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidEquity,
+                        selectedLabelColor = Color.White
+                    )
                 )
             }
         }
@@ -143,15 +168,16 @@ fun AccountsScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = LanguageHelper.getString("no_accounts", languageMode),
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -163,10 +189,10 @@ fun AccountsScreen(
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         // Parent Account Row
                         Row(
                             modifier = Modifier
@@ -186,15 +212,15 @@ fun AccountsScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 val typeColor = when (accItem.account.type) {
-                                    AccountType.ASSET -> Color(0xFF10B981)
-                                    AccountType.LIABILITY -> MaterialTheme.colorScheme.error
-                                    AccountType.EQUITY -> Color(0xFF8B5CF6)
-                                    else -> MaterialTheme.colorScheme.primary
+                                    AccountType.ASSET -> SolidIncome
+                                    AccountType.LIABILITY -> SolidExpense
+                                    AccountType.EQUITY -> SolidEquity
+                                    else -> SolidPrimary
                                 }
 
                                 Box(
                                     modifier = Modifier
-                                        .size(42.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
                                         .background(typeColor.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
@@ -203,16 +229,16 @@ fun AccountsScreen(
                                         imageVector = IconHelper.getIconByName(accItem.account.iconName),
                                         contentDescription = null,
                                         tint = typeColor,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
 
                                 Column {
                                     Text(
                                         text = accItem.account.localizedName(languageMode),
-                                        style = MaterialTheme.typography.titleMedium,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -224,7 +250,7 @@ fun AccountsScreen(
                                             AccountType.EQUITY -> LanguageHelper.getString("equity", languageMode)
                                             else -> ""
                                         },
-                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
@@ -233,7 +259,7 @@ fun AccountsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = LanguageHelper.formatCurrency(accItem.currentBalance, languageMode),
-                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -241,21 +267,23 @@ fun AccountsScreen(
                                 if (accItem.subAccounts.isNotEmpty()) {
                                     IconButton(
                                         onClick = { expandedMap[accItem.account.id] = !isExpanded },
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                            contentDescription = "Expand"
+                                            contentDescription = "Expand",
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 } else {
                                     IconButton(
                                         onClick = { onEditAccountClick(accItem.account) },
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "Edit"
+                                            contentDescription = "Edit",
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -267,21 +295,21 @@ fun AccountsScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 10.dp, start = 16.dp)
+                                    .padding(top = 8.dp, start = 12.dp)
                             ) {
                                 accItem.subAccounts.forEach { subAccItem ->
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 4.dp)
-                                            .clip(RoundedCornerShape(12.dp))
+                                            .padding(vertical = 3.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                             .clickable { onEditAccountClick(subAccItem.account) },
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                                     ) {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
@@ -289,13 +317,13 @@ fun AccountsScreen(
                                                 Icon(
                                                     imageVector = IconHelper.getIconByName(subAccItem.account.iconName),
                                                     contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(18.dp)
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(16.dp)
                                                 )
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = subAccItem.account.localizedName(languageMode),
-                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -304,7 +332,7 @@ fun AccountsScreen(
 
                                             Text(
                                                 text = LanguageHelper.formatCurrency(subAccItem.currentBalance, languageMode),
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -315,12 +343,12 @@ fun AccountsScreen(
                                 // Quick Add Sub-Account button
                                 Text(
                                     text = "+ ${LanguageHelper.getString("add_sub_account", languageMode)}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 11.sp,
+                                    color = SolidPrimary,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
                                         .clickable { onAddSubAccountClick(accItem.account) }
-                                        .padding(vertical = 8.dp)
+                                        .padding(vertical = 6.dp)
                                 )
                             }
                         }

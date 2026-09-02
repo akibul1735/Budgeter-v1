@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -36,6 +37,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -54,6 +56,9 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidPrimary
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 
@@ -61,11 +66,16 @@ import com.example.util.LanguageHelper
 fun CategoriesScreen(
     categories: List<Category>,
     languageMode: LanguageMode,
+    initialTab: Int = 0,
     onAddCategoryClick: (CategoryType) -> Unit,
     onAddSubCategoryClick: (Category) -> Unit,
     onEditCategoryClick: (Category) -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
+
+    LaunchedEffect(initialTab) {
+        selectedTab = initialTab
+    }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
     val currentType = if (selectedTab == 0) CategoryType.EXPENSE else CategoryType.INCOME
@@ -82,8 +92,8 @@ fun CategoriesScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("categories_screen"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Header
         item {
@@ -94,18 +104,20 @@ fun CategoriesScreen(
             ) {
                 Text(
                     text = LanguageHelper.getString("categories", languageMode),
-                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Button(
                     onClick = { onAddCategoryClick(currentType) },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (currentType == CategoryType.EXPENSE) SolidExpense else SolidIncome),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     modifier = Modifier.testTag("add_category_btn")
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(LanguageHelper.getString("add_category", languageMode), fontWeight = FontWeight.SemiBold)
+                    Text(LanguageHelper.getString("add_category", languageMode), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -119,10 +131,10 @@ fun CategoriesScreen(
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
                         Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = if (selectedTab == 0) MaterialTheme.colorScheme.error else Color(0xFF10B981)
+                        color = if (selectedTab == 0) SolidExpense else SolidIncome
                     )
                 },
-                modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                modifier = Modifier.clip(RoundedCornerShape(10.dp))
             ) {
                 Tab(
                     selected = selectedTab == 0,
@@ -130,7 +142,9 @@ fun CategoriesScreen(
                     text = {
                         Text(
                             text = LanguageHelper.getString("expenses", languageMode),
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium
+                            fontSize = 13.sp,
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 0) SolidExpense else MaterialTheme.colorScheme.outline
                         )
                     }
                 )
@@ -140,7 +154,9 @@ fun CategoriesScreen(
                     text = {
                         Text(
                             text = LanguageHelper.getString("incomes", languageMode),
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium
+                            fontSize = 13.sp,
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selectedTab == 1) SolidIncome else MaterialTheme.colorScheme.outline
                         )
                     }
                 )
@@ -151,15 +167,16 @@ fun CategoriesScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = LanguageHelper.getString("no_categories", languageMode),
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -172,10 +189,10 @@ fun CategoriesScreen(
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
                         // Parent Category Header
                         Row(
                             modifier = Modifier
@@ -194,15 +211,11 @@ fun CategoriesScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                val catColor = if (currentType == CategoryType.EXPENSE) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    Color(0xFF10B981)
-                                }
+                                val catColor = if (currentType == CategoryType.EXPENSE) SolidExpense else SolidIncome
 
                                 Box(
                                     modifier = Modifier
-                                        .size(42.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
                                         .background(catColor.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
@@ -211,16 +224,16 @@ fun CategoriesScreen(
                                         imageVector = IconHelper.getIconByName(parent.iconName),
                                         contentDescription = null,
                                         tint = catColor,
-                                        modifier = Modifier.size(22.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
 
                                 Column {
                                     Text(
                                         text = parent.localizedName(languageMode),
-                                        style = MaterialTheme.typography.titleMedium,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -228,7 +241,7 @@ fun CategoriesScreen(
                                     if (subs.isNotEmpty()) {
                                         Text(
                                             text = "${subs.size} ${LanguageHelper.getString("sub_categories", languageMode)}",
-                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.outline
                                         )
                                     }
@@ -238,12 +251,12 @@ fun CategoriesScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (parent.budgetLimit > 0) {
                                     Surface(
-                                        shape = RoundedCornerShape(8.dp),
+                                        shape = RoundedCornerShape(6.dp),
                                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
                                     ) {
                                         Text(
                                             text = "Limit: ${LanguageHelper.formatCurrency(parent.budgetLimit, languageMode)}",
-                                            fontSize = 11.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
@@ -253,21 +266,23 @@ fun CategoriesScreen(
                                 if (subs.isNotEmpty()) {
                                     IconButton(
                                         onClick = { expandedMap[parent.id] = !isExpanded },
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                            contentDescription = "Expand"
+                                            contentDescription = "Expand",
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 } else {
                                     IconButton(
                                         onClick = { onEditCategoryClick(parent) },
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(28.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "Edit"
+                                            contentDescription = "Edit",
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
@@ -279,21 +294,21 @@ fun CategoriesScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 10.dp, start = 16.dp)
+                                    .padding(top = 8.dp, start = 12.dp)
                             ) {
                                 subs.forEach { subCat ->
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 4.dp)
-                                            .clip(RoundedCornerShape(12.dp))
+                                            .padding(vertical = 3.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                             .clickable { onEditCategoryClick(subCat) },
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                                     ) {
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
@@ -301,13 +316,13 @@ fun CategoriesScreen(
                                                 Icon(
                                                     imageVector = IconHelper.getIconByName(subCat.iconName),
                                                     contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(18.dp)
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(16.dp)
                                                 )
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = subCat.localizedName(languageMode),
-                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Medium,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -318,7 +333,7 @@ fun CategoriesScreen(
                                                 imageVector = Icons.Default.MoreVert,
                                                 contentDescription = "Edit",
                                                 tint = MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
                                     }
@@ -327,12 +342,12 @@ fun CategoriesScreen(
                                 // Quick Add Sub-Category button
                                 Text(
                                     text = "+ ${LanguageHelper.getString("add_sub_category", languageMode)}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 11.sp,
+                                    color = SolidPrimary,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
                                         .clickable { onAddSubCategoryClick(parent) }
-                                        .padding(vertical = 8.dp)
+                                        .padding(vertical = 6.dp)
                                 )
                             }
                         }

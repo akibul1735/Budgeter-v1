@@ -24,14 +24,15 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,6 +53,13 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.DoubleEntryFlowBadge
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidExpenseContainer
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidIncomeContainer
+import com.example.ui.theme.SolidPrimary
+import com.example.ui.theme.SolidPrimaryContainer
+import com.example.ui.theme.SolidTransfer
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
@@ -88,8 +96,8 @@ fun LedgerScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("ledger_screen"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Title & Add Transaction button
         item {
@@ -100,39 +108,41 @@ fun LedgerScreen(
             ) {
                 Text(
                     text = LanguageHelper.getString("ledger", languageMode),
-                    style = MaterialTheme.typography.headlineSmall,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Button(
                     onClick = onAddTransactionClick,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     modifier = Modifier.testTag("ledger_add_tx_btn")
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(LanguageHelper.getString("add_transaction", languageMode), fontWeight = FontWeight.SemiBold)
+                    Text(LanguageHelper.getString("add_transaction", languageMode), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // Search Bar
+        // Compact Search Bar
         item {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text(LanguageHelper.getString("search", languageMode)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                placeholder = { Text(LanguageHelper.getString("search", languageMode), fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
                         }
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(10.dp)
             )
         }
 
@@ -140,31 +150,47 @@ fun LedgerScreen(
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterChip(
                     selected = selectedTypeFilter == null,
                     onClick = { selectedTypeFilter = null },
-                    label = { Text("All") },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text("All", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidPrimary,
+                        selectedLabelColor = Color.White
+                    )
                 )
                 FilterChip(
                     selected = selectedTypeFilter == TransactionType.EXPENSE,
                     onClick = { selectedTypeFilter = TransactionType.EXPENSE },
-                    label = { Text(LanguageHelper.getString("expense", languageMode)) },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text(LanguageHelper.getString("expense", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidExpense,
+                        selectedLabelColor = Color.White
+                    )
                 )
                 FilterChip(
                     selected = selectedTypeFilter == TransactionType.INCOME,
                     onClick = { selectedTypeFilter = TransactionType.INCOME },
-                    label = { Text(LanguageHelper.getString("income", languageMode)) },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text(LanguageHelper.getString("income", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidIncome,
+                        selectedLabelColor = Color.White
+                    )
                 )
                 FilterChip(
                     selected = selectedTypeFilter == TransactionType.TRANSFER,
                     onClick = { selectedTypeFilter = TransactionType.TRANSFER },
-                    label = { Text(LanguageHelper.getString("transfer", languageMode)) },
-                    shape = RoundedCornerShape(10.dp)
+                    label = { Text(LanguageHelper.getString("transfer", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidTransfer,
+                        selectedLabelColor = Color.White
+                    )
                 )
             }
         }
@@ -173,15 +199,16 @@ fun LedgerScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = LanguageHelper.getString("no_transactions", languageMode),
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -193,12 +220,12 @@ fun LedgerScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { onTransactionClick(tx) },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(10.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -206,16 +233,21 @@ fun LedgerScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 val iconColor = when (tx.type) {
-                                    TransactionType.EXPENSE -> MaterialTheme.colorScheme.error
-                                    TransactionType.INCOME -> Color(0xFF10B981)
-                                    TransactionType.TRANSFER -> MaterialTheme.colorScheme.primary
+                                    TransactionType.EXPENSE -> SolidExpense
+                                    TransactionType.INCOME -> SolidIncome
+                                    TransactionType.TRANSFER -> SolidTransfer
+                                }
+                                val iconBg = when (tx.type) {
+                                    TransactionType.EXPENSE -> SolidExpenseContainer
+                                    TransactionType.INCOME -> SolidIncomeContainer
+                                    TransactionType.TRANSFER -> SolidPrimaryContainer
                                 }
 
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(32.dp)
                                         .clip(CircleShape)
-                                        .background(iconColor.copy(alpha = 0.12f)),
+                                        .background(iconBg),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     val icon = when (tx.type) {
@@ -227,11 +259,11 @@ fun LedgerScreen(
                                         imageVector = icon,
                                         contentDescription = null,
                                         tint = iconColor,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
 
                                 Column {
                                     val title = when (tx.type) {
@@ -245,7 +277,7 @@ fun LedgerScreen(
                                     }
                                     Text(
                                         text = title,
-                                        style = MaterialTheme.typography.titleMedium,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -254,7 +286,7 @@ fun LedgerScreen(
                                     if (tx.note.isNotBlank()) {
                                         Text(
                                             text = tx.note,
-                                            style = MaterialTheme.typography.bodySmall,
+                                            fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.outline,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -270,26 +302,26 @@ fun LedgerScreen(
                                     TransactionType.TRANSFER -> ""
                                 }
                                 val amtColor = when (tx.type) {
-                                    TransactionType.EXPENSE -> MaterialTheme.colorScheme.error
-                                    TransactionType.INCOME -> Color(0xFF10B981)
-                                    TransactionType.TRANSFER -> MaterialTheme.colorScheme.primary
+                                    TransactionType.EXPENSE -> SolidExpense
+                                    TransactionType.INCOME -> SolidIncome
+                                    TransactionType.TRANSFER -> SolidTransfer
                                 }
                                 Text(
                                     text = "$sign${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = amtColor
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = DateUtils.formatDate(tx.dateEpochMs, languageMode),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         // Double Entry Badge
                         DoubleEntryFlowBadge(item = item, languageMode = languageMode)

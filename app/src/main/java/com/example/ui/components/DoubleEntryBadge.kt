@@ -4,10 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -18,14 +16,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
-import com.example.util.LanguageHelper
+import com.example.ui.theme.SolidIncomeContainer
+import com.example.ui.theme.SolidOnIncomeContainer
+import com.example.ui.theme.SolidOnPrimaryContainer
+import com.example.ui.theme.SolidPrimaryContainer
 
 @Composable
 fun DoubleEntryFlowBadge(
@@ -37,11 +37,10 @@ fun DoubleEntryFlowBadge(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         when (tx.type) {
             TransactionType.EXPENSE -> {
-                // Debit: Expense Category/Subcategory, Credit: Payment Account
                 val debitText = item.subCategory?.localizedName(languageMode)
                     ?: item.category?.localizedName(languageMode)
                     ?: "Expense"
@@ -52,12 +51,11 @@ fun DoubleEntryFlowBadge(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(10.dp)
                 )
                 AccountPill(label = "Cr", name = creditText, isDebit = false)
             }
             TransactionType.INCOME -> {
-                // Debit: Asset Account, Credit: Income Category
                 val debitText = item.debitAccount?.localizedName(languageMode) ?: "Account"
                 val creditText = item.subCategory?.localizedName(languageMode)
                     ?: item.category?.localizedName(languageMode)
@@ -68,12 +66,11 @@ fun DoubleEntryFlowBadge(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(10.dp)
                 )
                 AccountPill(label = "Cr", name = creditText, isDebit = false)
             }
             TransactionType.TRANSFER -> {
-                // Debit: Destination Account, Credit: Source Account
                 val debitText = item.debitAccount?.localizedName(languageMode) ?: "Destination"
                 val creditText = item.creditAccount?.localizedName(languageMode) ?: "Source"
 
@@ -82,7 +79,7 @@ fun DoubleEntryFlowBadge(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(10.dp)
                 )
                 AccountPill(label = "Cr", name = creditText, isDebit = false)
             }
@@ -96,29 +93,25 @@ private fun AccountPill(
     name: String,
     isDebit: Boolean
 ) {
-    val bgColor = if (isDebit) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-    } else {
-        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-    }
-    val tagColor = if (isDebit) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+    val bgColor = if (isDebit) SolidPrimaryContainer else SolidIncomeContainer
+    val tagColor = if (isDebit) SolidOnPrimaryContainer else SolidOnIncomeContainer
 
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(4.dp))
             .background(bgColor)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 5.dp, vertical = 1.5.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "$label: ",
-                fontSize = 11.sp,
+                text = "$label ",
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = tagColor
             )
             Text(
                 text = name,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1

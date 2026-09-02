@@ -47,6 +47,10 @@ import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.FinancialOverview
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidIncomeContainer
+import com.example.ui.theme.SolidPrimary
 import com.example.util.LanguageHelper
 
 @Composable
@@ -61,14 +65,14 @@ fun ReportsScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("reports_screen"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Top Header
         item {
             Text(
                 text = LanguageHelper.getString("reports", languageMode),
-                style = MaterialTheme.typography.headlineSmall,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -78,29 +82,29 @@ fun ReportsScreen(
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                contentColor = MaterialTheme.colorScheme.primary,
+                contentColor = SolidPrimary,
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
                         Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = MaterialTheme.colorScheme.primary
+                        color = SolidPrimary
                     )
                 },
-                modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                modifier = Modifier.clip(RoundedCornerShape(10.dp))
             ) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Trial Balance", fontSize = 12.sp, fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal) }
+                    text = { Text("Trial Balance", fontSize = 11.sp, fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium) }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Balance Sheet", fontSize = 12.sp, fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal) }
+                    text = { Text("Balance Sheet", fontSize = 11.sp, fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium) }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("Income & Expense", fontSize = 12.sp, fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal) }
+                    text = { Text("Income & Expense", fontSize = 11.sp, fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium) }
                 )
             }
         }
@@ -111,10 +115,10 @@ fun ReportsScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(modifier = Modifier.padding(18.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -122,36 +126,36 @@ fun ReportsScreen(
                             ) {
                                 Text(
                                     text = LanguageHelper.getString("trial_balance", languageMode),
-                                    style = MaterialTheme.typography.titleMedium,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
 
                                 Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (overview.isLedgerBalanced) Color(0xFF10B981).copy(alpha = 0.15f) else MaterialTheme.colorScheme.errorContainer
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (overview.isLedgerBalanced) SolidIncomeContainer else MaterialTheme.colorScheme.errorContainer
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
                                             imageVector = if (overview.isLedgerBalanced) Icons.Default.CheckCircle else Icons.Default.Warning,
                                             contentDescription = null,
-                                            tint = if (overview.isLedgerBalanced) Color(0xFF10B981) else MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(14.dp)
+                                            tint = if (overview.isLedgerBalanced) SolidIncome else SolidExpense,
+                                            modifier = Modifier.size(12.dp)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = if (overview.isLedgerBalanced) "Dr = Cr Balanced" else "Unbalanced",
-                                            fontSize = 11.sp,
+                                            fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (overview.isLedgerBalanced) Color(0xFF047857) else MaterialTheme.colorScheme.error
+                                            color = if (overview.isLedgerBalanced) SolidIncome else SolidExpense
                                         )
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             // Total Debits vs Credits
                             Row(
@@ -161,14 +165,14 @@ fun ReportsScreen(
                                 Column {
                                     Text(
                                         text = LanguageHelper.getString("debit", languageMode),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 11.sp,
+                                        color = SolidPrimary,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(overview.totalDebits, languageMode),
-                                        style = MaterialTheme.typography.titleLarge,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -176,14 +180,14 @@ fun ReportsScreen(
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
                                         text = LanguageHelper.getString("credit", languageMode),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.secondary,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(overview.totalCredits, languageMode),
-                                        style = MaterialTheme.typography.titleLarge,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -198,49 +202,49 @@ fun ReportsScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(modifier = Modifier.padding(18.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Text(
                                 text = LanguageHelper.getString("balance_sheet", languageMode),
-                                style = MaterialTheme.typography.titleMedium,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             // Total Assets
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(LanguageHelper.getString("total_assets", languageMode), fontWeight = FontWeight.SemiBold)
-                                Text(LanguageHelper.formatCurrency(overview.totalAssets, languageMode), fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                Text(LanguageHelper.getString("total_assets", languageMode), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(LanguageHelper.formatCurrency(overview.totalAssets, languageMode), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SolidIncome)
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             // Total Liabilities
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(LanguageHelper.getString("total_liabilities", languageMode), fontWeight = FontWeight.SemiBold)
-                                Text(LanguageHelper.formatCurrency(overview.totalLiabilities, languageMode), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                Text(LanguageHelper.getString("total_liabilities", languageMode), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(LanguageHelper.formatCurrency(overview.totalLiabilities, languageMode), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SolidExpense)
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             HorizontalDivider()
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             // Net Worth / Equity
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(LanguageHelper.getString("net_worth", languageMode), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
-                                Text(LanguageHelper.formatCurrency(overview.netWorth, languageMode), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                                Text(LanguageHelper.getString("net_worth", languageMode), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = SolidPrimary)
+                                Text(LanguageHelper.formatCurrency(overview.netWorth, languageMode), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = SolidPrimary)
                             }
                         }
                     }
@@ -252,47 +256,47 @@ fun ReportsScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(modifier = Modifier.padding(18.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Text(
                                 text = LanguageHelper.getString("income_statement", languageMode),
-                                style = MaterialTheme.typography.titleMedium,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(LanguageHelper.getString("incomes", languageMode), fontWeight = FontWeight.SemiBold)
-                                Text(LanguageHelper.formatCurrency(overview.monthlyIncome, languageMode), fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                Text(LanguageHelper.getString("incomes", languageMode), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(LanguageHelper.formatCurrency(overview.monthlyIncome, languageMode), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SolidIncome)
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(LanguageHelper.getString("expenses", languageMode), fontWeight = FontWeight.SemiBold)
-                                Text(LanguageHelper.formatCurrency(overview.monthlyExpense, languageMode), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                Text(LanguageHelper.getString("expenses", languageMode), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(LanguageHelper.formatCurrency(overview.monthlyExpense, languageMode), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SolidExpense)
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             HorizontalDivider()
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Net Savings / উদ্বৃত্ত", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
-                                val netColor = if (overview.monthlyNetSavings >= 0) Color(0xFF10B981) else MaterialTheme.colorScheme.error
-                                Text(LanguageHelper.formatCurrency(overview.monthlyNetSavings, languageMode), fontWeight = FontWeight.ExtraBold, color = netColor)
+                                Text("Net Savings / উদ্বৃত্ত", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = SolidPrimary)
+                                val netColor = if (overview.monthlyNetSavings >= 0) SolidIncome else SolidExpense
+                                Text(LanguageHelper.formatCurrency(overview.monthlyNetSavings, languageMode), fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = netColor)
                             }
                         }
                     }
