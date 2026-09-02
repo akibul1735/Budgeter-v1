@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       create_release:
-        description: 'Create a GitHub Release with APK & AAB artifacts'
+        description: 'Create a GitHub Release with APK & Zip artifacts'
         required: false
         type: boolean
         default: true
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build & Test Android App
+    name: Build & Release Android App
     runs-on: ubuntu-latest
 
     permissions:
@@ -72,31 +72,37 @@ jobs:
       - name: Run Unit & Robolectric Tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
-
-      - name: Build Release APK & AAB Bundle
+      - name: Build Release APK
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'budgeter' }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
         run: |
-          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Locate Built Artifacts
-        id: find-artifacts
+      - name: Prepare Release Artifacts (APK & Source Zip)
+        id: prepare-artifacts
         run: |
           mkdir -p build_output
-          find app/build/outputs/apk -name "*.apk" -exec cp {} build_output/ \;
-          find app/build/outputs/bundle -name "*.aab" -exec cp {} build_output/ \;
-          echo "Output artifacts:"
+          # Locate release apk and rename to Budgeter-release.apk
+          RELEASE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -n "$RELEASE_APK" ]; then
+            cp "$RELEASE_APK" build_output/Budgeter-release.apk
+          else
+            # Fallback if unaligned or unsigned apk exists
+            FALLBACK_APK=$(find app/build/outputs/apk -name "*release*.apk" | head -n 1)
+            [ -n "$FALLBACK_APK" ] && cp "$FALLBACK_APK" build_output/Budgeter-release.apk
+          fi
+          # Create source zip archive
+          zip -r build_output/Budgeter-source-code.zip . -x "app/build/*" ".gradle/*" ".git/*" "build_output/*" "*.apk" "*.aab" "*.keystore" || true
+          echo "Release artifacts ready:"
           ls -la build_output/
 
-      - name: Upload Build Artifacts (APK & AAB)
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: budgeter-build-artifacts
+          name: budgeter-release-artifacts
           path: build_output/*
           retention-days: 14
 
@@ -104,14 +110,15 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: budgeter_release
-          name: budgeter_release
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v2.0.{0}', github.run_number) }}
+          name: "Budgeter-release"
           files: |
-            build_output/*.apk
-            build_output/*.aab
+            build_output/Budgeter-release.apk
+            build_output/Budgeter-source-code.zip
           generate_release_notes: true
           draft: false
           prerelease: false
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
