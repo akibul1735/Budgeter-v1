@@ -77,4 +77,15 @@ object DateUtils {
         cal.set(Calendar.MILLISECOND, 0)
         return cal.timeInMillis
     }
+
+    fun calculateNextDueDate(currentDueDate: Long, recurrence: com.example.data.model.RecurrencePeriod): Long {
+        val cal = Calendar.getInstance().apply { timeInMillis = currentDueDate }
+        when (recurrence) {
+            com.example.data.model.RecurrencePeriod.DAILY -> cal.add(Calendar.DAY_OF_YEAR, 1)
+            com.example.data.model.RecurrencePeriod.WEEKLY -> cal.add(Calendar.WEEK_OF_YEAR, 1)
+            com.example.data.model.RecurrencePeriod.MONTHLY -> cal.add(Calendar.MONTH, 1)
+            com.example.data.model.RecurrencePeriod.YEARLY -> cal.add(Calendar.YEAR, 1)
+        }
+        return cal.timeInMillis
+    }
 }

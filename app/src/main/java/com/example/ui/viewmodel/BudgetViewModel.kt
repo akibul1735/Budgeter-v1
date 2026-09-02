@@ -1,22 +1,35 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
 import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
+import com.example.data.model.RecurringBill
+import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.BudgetRepository
 import com.example.data.repository.FinancialOverview
+import com.example.util.BackupManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
+
+sealed interface BackupUiState {
+    object Idle : BackupUiState
+    object Loading : BackupUiState
+    data class Success(val message: String) : BackupUiState
+    data class Error(val message: String) : BackupUiState
+}
 
 class BudgetViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -27,7 +40,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         repository = BudgetRepository(
             accountDao = db.accountDao(),
             categoryDao = db.categoryDao(),
-            transactionDao = db.transactionDao()
+            transactionDao = db.transactionDao(),
+            recurringBillDao = db.recurringBillDao()
         )
     }
 
@@ -36,6 +50,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setLanguageMode(mode: LanguageMode) {
         _languageMode.value = mode
+    }
+
+    private val _backupUiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
+    val backupUiState: StateFlow<BackupUiState> = _backupUiState.asStateFlow()
+
+    fun clearBackupState() {
+        _backupUiState.value = BackupUiState.Idle
     }
 
     val financialOverview: StateFlow<FinancialOverview> = repository.financialOverview
@@ -76,7 +97,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             initialValue = emptyList()
         )
 
-    val transactionsWithDetails: StateFlow<List<com.example.data.model.TransactionWithDetails>> = repository.transactionsWithDetails
+    val transactionsWithDetails: StateFlow<List<TransactionWithDetails>> = repository.transactionsWithDetails
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val recurringBillsWithDetails: StateFlow<List<RecurringBillWithDetails>> = repository.recurringBillsWithDetails
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -128,6 +156,85 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
             repository.deleteCategory(category)
+        }
+    }
+
+    fun saveRecurringBill(bill: RecurringBill) {
+        viewModelScope.launch {
+            if (bill.id == 0L) {
+                repository.insertRecurringBill(bill)
+            } else {
+                repository.updateRecurringBill(bill)
+            }
+        }
+    }
+
+    fun deleteRecurringBill(bill: RecurringBill) {
+        viewModelScope.launch {
+            repository.deleteRecurringBill(bill)
+        }
+    }
+
+    fun payRecurringBill(bill: RecurringBill) {
+        viewModelScope.launch {
+            repository.payRecurringBill(bill)
+        }
+    }
+
+    fun createLocalBackup(onFileReady: (File) -> Unit) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            try {
+                val file = BackupManager.createLocalBackupFile(
+                    context = getApplication(),
+                    accountDao = repository.accountDao,
+                    categoryDao = repository.categoryDao,
+                    transactionDao = repository.transactionDao,
+                    recurringBillDao = repository.recurringBillDao
+                )
+                _backupUiState.value = BackupUiState.Success("Backup created successfully: ${file.name}")
+                onFileReady(file)
+            } catch (e: Exception) {
+                _backupUiState.value = BackupUiState.Error("Backup failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun exportBackupToUri(uri: Uri) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val success = BackupManager.exportBackupToUri(
+                context = getApplication(),
+                uri = uri,
+                accountDao = repository.accountDao,
+                categoryDao = repository.categoryDao,
+                transactionDao = repository.transactionDao,
+                recurringBillDao = repository.recurringBillDao
+            )
+            if (success) {
+                _backupUiState.value = BackupUiState.Success("Backup exported successfully to storage")
+            } else {
+                _backupUiState.value = BackupUiState.Error("Export failed")
+            }
+        }
+    }
+
+    fun restoreBackupFromUri(uri: Uri) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = BackupManager.restoreBackupFromUri(
+                context = getApplication(),
+                uri = uri,
+                accountDao = repository.accountDao,
+                categoryDao = repository.categoryDao,
+                transactionDao = repository.transactionDao,
+                recurringBillDao = repository.recurringBillDao
+            )
+            result.onSuccess { count ->
+                _backupUiState.value = BackupUiState.Success("Restored $count records successfully!")
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Restore failed: ${err.localizedMessage}")
+            }
         }
     }
 }

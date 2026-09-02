@@ -51,6 +51,9 @@ interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE type = 'INCOME' AND dateEpochMs BETWEEN :startTime AND :endTime")
     fun getTotalIncomeBetween(startTime: Long, endTime: Long): Flow<Double?>
 
-    @Query("SELECT COUNT(*) FROM transactions")
-    suspend fun getTransactionCount(): Int
+    @Query("SELECT * FROM transactions")
+    suspend fun getAllTransactionsSnapshot(): List<Transaction>
+
+    @Query("DELETE FROM transactions")
+    suspend fun deleteAll()
 }

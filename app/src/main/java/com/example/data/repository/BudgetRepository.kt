@@ -2,11 +2,15 @@ package com.example.data.repository
 
 import com.example.data.local.AccountDao
 import com.example.data.local.CategoryDao
+import com.example.data.local.RecurringBillDao
 import com.example.data.local.TransactionDao
 import com.example.data.model.Account
 import com.example.data.model.AccountType
+import com.example.data.model.BillStatus
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
+import com.example.data.model.RecurringBill
+import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
@@ -39,13 +43,34 @@ data class CategoryWithStats(
 )
 
 class BudgetRepository(
-    private val accountDao: AccountDao,
-    private val categoryDao: CategoryDao,
-    private val transactionDao: TransactionDao
+    val accountDao: AccountDao,
+    val categoryDao: CategoryDao,
+    val transactionDao: TransactionDao,
+    val recurringBillDao: RecurringBillDao
 ) {
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
+    val allBills: Flow<List<RecurringBill>> = recurringBillDao.getAllBills()
+
+    val recurringBillsWithDetails: Flow<List<RecurringBillWithDetails>> = combine(
+        allBills,
+        allAccounts,
+        allCategories
+    ) { bills, accounts, categories ->
+        val accountMap = accounts.associateBy { it.id }
+        val categoryMap = categories.associateBy { it.id }
+
+        bills.map { bill ->
+            RecurringBillWithDetails(
+                bill = bill,
+                debitAccount = bill.debitAccountId?.let { accountMap[it] },
+                creditAccount = bill.creditAccountId?.let { accountMap[it] },
+                category = bill.categoryId?.let { categoryMap[it] },
+                subCategory = bill.subCategoryId?.let { categoryMap[it] }
+            )
+        }
+    }
 
     val transactionsWithDetails: Flow<List<TransactionWithDetails>> = combine(
         allTransactions,
@@ -188,4 +213,33 @@ class BudgetRepository(
     suspend fun insertTransaction(transaction: Transaction): Long = transactionDao.insertTransaction(transaction)
     suspend fun updateTransaction(transaction: Transaction) = transactionDao.updateTransaction(transaction)
     suspend fun deleteTransaction(transaction: Transaction) = transactionDao.deleteTransaction(transaction)
+
+    suspend fun insertRecurringBill(bill: RecurringBill): Long = recurringBillDao.insertBill(bill)
+    suspend fun updateRecurringBill(bill: RecurringBill) = recurringBillDao.updateBill(bill)
+    suspend fun deleteRecurringBill(bill: RecurringBill) = recurringBillDao.deleteBill(bill)
+
+    suspend fun payRecurringBill(bill: RecurringBill) {
+        // 1. Record journal transaction
+        val tx = Transaction(
+            type = bill.type,
+            amount = bill.amount,
+            dateEpochMs = System.currentTimeMillis(),
+            debitAccountId = bill.debitAccountId,
+            creditAccountId = bill.creditAccountId,
+            categoryId = bill.categoryId,
+            subCategoryId = bill.subCategoryId,
+            payeeOrPayer = bill.payeeOrPayer,
+            note = "[Bill Paid] ${bill.title}: ${bill.note}"
+        )
+        transactionDao.insertTransaction(tx)
+
+        // 2. Advance due date
+        val nextDue = com.example.util.DateUtils.calculateNextDueDate(bill.nextDueDateEpochMs, bill.recurrencePeriod)
+        recurringBillDao.updateBillDueDate(
+            id = bill.id,
+            nextDue = nextDue,
+            newStatus = BillStatus.PAID,
+            recordedTime = System.currentTimeMillis()
+        )
+    }
 }

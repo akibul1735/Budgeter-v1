@@ -62,6 +62,14 @@ object LanguageHelper {
         }
     }
 
+    fun getLocalizedName(nameEn: String, nameBn: String, mode: LanguageMode): String {
+        return when (mode) {
+            LanguageMode.ENGLISH -> nameEn
+            LanguageMode.BANGLA -> nameBn.ifEmpty { nameEn }
+            LanguageMode.BILINGUAL -> if (nameBn.isNotEmpty()) "$nameEn / $nameBn" else nameEn
+        }
+    }
+
     data class Trans(val en: String, val bn: String)
 
     private val stringMap = mapOf(

@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.Account
 import com.example.data.model.Category
+import com.example.data.model.RecurringBill
 import com.example.data.model.Transaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,9 +17,10 @@ import kotlinx.coroutines.launch
     entities = [
         Account::class,
         Category::class,
-        Transaction::class
+        Transaction::class,
+        RecurringBill::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
+    abstract fun recurringBillDao(): RecurringBillDao
 
     companion object {
         @Volatile

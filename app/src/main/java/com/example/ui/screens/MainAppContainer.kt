@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -79,6 +81,7 @@ import com.example.ui.dialogs.AddEditTransactionSheet
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.ui.theme.SolidTransfer
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.LanguageHelper
 import kotlinx.coroutines.launch
@@ -89,7 +92,9 @@ enum class AppView {
     REPORTS,
     ACCOUNTS,
     EXPENSES,
-    INCOME
+    INCOME,
+    RECURRING_BILLS,
+    BACKUP_SYNC
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,6 +108,8 @@ fun MainAppContainer(
     val allAccounts by viewModel.allAccounts.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
     val transactionsWithDetails by viewModel.transactionsWithDetails.collectAsStateWithLifecycle()
+    val recurringBills by viewModel.recurringBillsWithDetails.collectAsStateWithLifecycle()
+    val backupUiState by viewModel.backupUiState.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -131,7 +138,7 @@ fun MainAppContainer(
         Triple(LanguageHelper.getString("reports", languageMode), Icons.Default.Assessment, AppView.REPORTS)
     )
 
-    val isSubView = currentView in listOf(AppView.ACCOUNTS, AppView.EXPENSES, AppView.INCOME)
+    val isSubView = currentView in listOf(AppView.ACCOUNTS, AppView.EXPENSES, AppView.INCOME, AppView.RECURRING_BILLS, AppView.BACKUP_SYNC)
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -164,7 +171,7 @@ fun MainAppContainer(
                                 color = Color.White.copy(alpha = 0.2f)
                             ) {
                                 Text(
-                                    text = "v2.0",
+                                    text = "v2.1",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -318,6 +325,39 @@ fun MainAppContainer(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                 )
 
+                // 4. Recurring Bills
+                NavigationDrawerItem(
+                    label = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recurring & Bills",
+                                fontWeight = if (currentView == AppView.RECURRING_BILLS) FontWeight.Bold else FontWeight.Medium
+                            )
+                            Text(
+                                text = "${recurringBills.size}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    },
+                    icon = { Icon(Icons.Default.EventRepeat, contentDescription = null, tint = SolidPrimary) },
+                    selected = currentView == AppView.RECURRING_BILLS,
+                    onClick = {
+                        currentView = AppView.RECURRING_BILLS
+                        scope.launch { drawerState.close() }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = SolidPrimary.copy(alpha = 0.12f),
+                        selectedTextColor = SolidPrimary
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                )
+
                 HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
 
                 // Menu Section: Tools & Preferences
@@ -327,6 +367,23 @@ fun MainAppContainer(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+
+                // Google Drive / Local Backup & Sync
+                NavigationDrawerItem(
+                    label = { Text("Backup & Sync (Drive / Local)", fontWeight = FontWeight.Medium) },
+                    icon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = SolidPrimary) },
+                    selected = currentView == AppView.BACKUP_SYNC,
+                    onClick = {
+                        currentView = AppView.BACKUP_SYNC
+                        scope.launch { drawerState.close() }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = SolidPrimary.copy(alpha = 0.12f),
+                        selectedTextColor = SolidPrimary
+                    ),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                 )
 
                 // Quick Calculator
@@ -391,6 +448,8 @@ fun MainAppContainer(
                                 AppView.ACCOUNTS -> LanguageHelper.getString("accounts", languageMode)
                                 AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
                                 AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
+                                AppView.RECURRING_BILLS -> "Recurring Bills"
+                                AppView.BACKUP_SYNC -> "Backup & Sync"
                             },
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
@@ -596,6 +655,20 @@ fun MainAppContainer(
                             presetCategoryParentId = cat.parentId
                             showAddCategoryDialog = true
                         }
+                    )
+                    AppView.RECURRING_BILLS -> RecurringBillsAndBackupScreen(
+                        viewModel = viewModel,
+                        bills = recurringBills,
+                        languageMode = languageMode,
+                        backupUiState = backupUiState,
+                        initialTab = 0
+                    )
+                    AppView.BACKUP_SYNC -> RecurringBillsAndBackupScreen(
+                        viewModel = viewModel,
+                        bills = recurringBills,
+                        languageMode = languageMode,
+                        backupUiState = backupUiState,
+                        initialTab = 1
                     )
                 }
             }
