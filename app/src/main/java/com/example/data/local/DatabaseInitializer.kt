@@ -394,6 +394,53 @@ object DatabaseInitializer {
             )
         )
 
+        // Seed "Others" Groups and Sub-Categories for Expense and Income
+        val catOthersExpenseId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Others",
+                nameBn = "অন্যান্য",
+                type = CategoryType.EXPENSE,
+                parentId = null,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = true
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Others",
+                nameBn = "অন্যান্য",
+                type = CategoryType.EXPENSE,
+                parentId = catOthersExpenseId,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = true
+            )
+        )
+
+        val catOthersIncomeId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Others",
+                nameBn = "অন্যান্য",
+                type = CategoryType.INCOME,
+                parentId = null,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = true
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Others",
+                nameBn = "অন্যান্য",
+                type = CategoryType.INCOME,
+                parentId = catOthersIncomeId,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = true
+            )
+        )
+
         // 5. Seed Initial Double-Entry Journal Transactions
         val now = System.currentTimeMillis()
         val oneDay = 86400000L

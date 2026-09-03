@@ -1,6 +1,7 @@
 package com.example.ui.dialogs
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
@@ -266,8 +268,31 @@ fun AddEditTransactionSheet(
         } else emptyList()
     }
 
-    if (selectedCategoryId == null && relevantCategories.isNotEmpty() && txType != TransactionType.TRANSFER) {
-        selectedCategoryId = relevantCategories.first().id
+    val othersCategoryGroup = remember(categories, txType) {
+        val targetType = when (txType) {
+            TransactionType.EXPENSE -> CategoryType.EXPENSE
+            TransactionType.INCOME -> CategoryType.INCOME
+            TransactionType.TRANSFER -> null
+        }
+        if (targetType != null) {
+            categories.firstOrNull { it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true) }
+                ?: relevantCategories.firstOrNull()
+        } else null
+    }
+
+    if (selectedCategoryId == null && txType != TransactionType.TRANSFER) {
+        selectedCategoryId = othersCategoryGroup?.id ?: relevantCategories.firstOrNull()?.id
+    }
+
+    val subCategoriesForSelectedGroup = remember(categories, selectedCategoryId) {
+        if (selectedCategoryId != null) {
+            categories.filter { it.parentId == selectedCategoryId && it.isActive }
+        } else emptyList()
+    }
+
+    if (selectedSubCategoryId == null && subCategoriesForSelectedGroup.isNotEmpty() && txType != TransactionType.TRANSFER) {
+        selectedSubCategoryId = subCategoriesForSelectedGroup.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id
+            ?: subCategoriesForSelectedGroup.first().id
     }
 
     val selectedCategory = remember(categories, selectedCategoryId) {
@@ -333,7 +358,7 @@ fun AddEditTransactionSheet(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Surface(
             modifier = Modifier
@@ -341,7 +366,11 @@ fun AddEditTransactionSheet(
                 .testTag("add_transaction_dialog"),
             color = MaterialTheme.colorScheme.background
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+            ) {
                 // Top App Bar
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -394,8 +423,21 @@ fun AddEditTransactionSheet(
                                     .clip(CircleShape)
                                     .clickable {
                                         if (amount > 0) {
+                                            val fallbackGroup = categories.firstOrNull {
+                                                val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                                                it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
+                                            } ?: relevantCategories.firstOrNull()
+
+                                            val finalCategoryId = if (txType != TransactionType.TRANSFER) {
+                                                selectedCategoryId ?: fallbackGroup?.id
+                                            } else null
+
+                                            val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
+                                                selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
+                                            } else null
+
                                             val tx = Transaction(
-                                                id = existingTransaction?.id ?: 0,
+                                                id = 0,
                                                 type = txType,
                                                 amount = amount,
                                                 dateEpochMs = selectedDateEpochMs,
@@ -414,8 +456,8 @@ fun AddEditTransactionSheet(
                                                     TransactionType.INCOME -> null
                                                     TransactionType.TRANSFER -> creditAccountId
                                                 },
-                                                categoryId = if (txType != TransactionType.TRANSFER) selectedCategoryId else null,
-                                                subCategoryId = if (txType != TransactionType.TRANSFER) selectedSubCategoryId else null
+                                                categoryId = finalCategoryId,
+                                                subCategoryId = finalSubCategoryId
                                             )
                                             onSave(tx)
                                             // Clear previous form's entered data and keep open for new entry
@@ -426,8 +468,17 @@ fun AddEditTransactionSheet(
                                             attachmentUri = ""
                                             status = TransactionStatus.NONE
                                             showNameDropdown = false
+                                            Toast.makeText(
+                                                context,
+                                                if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ করা হয়েছে! পরবর্তী এন্ট্রি দিন" else "Saved! Enter next transaction",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         } else {
-                                            showCalculator = true
+                                            Toast.makeText(
+                                                context,
+                                                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount first",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         }
                                     },
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
@@ -1001,16 +1052,17 @@ fun AddEditTransactionSheet(
                     Spacer(modifier = Modifier.height(80.dp)) // Padding for bottom bar
                 }
 
-                // Bottom Action Bar: Type Selector Pills + Save FAB
+                // Bottom Action Bar: Type Selector Pills + Save FAB (Pinned above Keyboard)
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -1021,22 +1073,33 @@ fun AddEditTransactionSheet(
                             modifier = Modifier.weight(1f)
                         ) {
                             val types = listOf(
-                                Triple(TransactionType.EXPENSE, LanguageHelper.getString("expense", languageMode).uppercase(), SolidExpense),
-                                Triple(TransactionType.INCOME, LanguageHelper.getString("income", languageMode).uppercase(), SolidIncome),
-                                Triple(TransactionType.TRANSFER, LanguageHelper.getString("transfer", languageMode).uppercase(), SolidTransfer)
+                                Triple(TransactionType.EXPENSE, "− " + (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
+                                Triple(TransactionType.INCOME, "+ " + (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
+                                Triple(TransactionType.TRANSFER, "⇄ " + (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
                             )
 
                             types.forEach { (type, label, color) ->
                                 val isSelected = txType == type
                                 Surface(
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     color = if (isSelected) color else color.copy(alpha = 0.12f),
+                                    border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.25f)),
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(12.dp))
                                         .clickable {
                                             txType = type
-                                            selectedCategoryId = null
-                                            selectedSubCategoryId = null
+                                            if (type != TransactionType.TRANSFER) {
+                                                val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                                                val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
+                                                val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                                selectedCategoryId = othersCat?.id
+                                                val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
+                                                selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                            } else {
+                                                selectedCategoryId = null
+                                                selectedSubCategoryId = null
+                                            }
                                         }
                                 ) {
                                     Text(
@@ -1044,7 +1107,10 @@ fun AddEditTransactionSheet(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) Color.White else color,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 9.dp)
                                     )
                                 }
                             }
@@ -1056,6 +1122,19 @@ fun AddEditTransactionSheet(
                         FloatingActionButton(
                             onClick = {
                                 if (amount > 0) {
+                                    val fallbackGroup = categories.firstOrNull {
+                                        val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                                        it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
+                                    } ?: relevantCategories.firstOrNull()
+
+                                    val finalCategoryId = if (txType != TransactionType.TRANSFER) {
+                                        selectedCategoryId ?: fallbackGroup?.id
+                                    } else null
+
+                                    val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
+                                        selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
+                                    } else null
+
                                     val tx = Transaction(
                                         id = existingTransaction?.id ?: 0,
                                         type = txType,
@@ -1076,8 +1155,8 @@ fun AddEditTransactionSheet(
                                             TransactionType.INCOME -> null
                                             TransactionType.TRANSFER -> creditAccountId
                                         },
-                                        categoryId = if (txType != TransactionType.TRANSFER) selectedCategoryId else null,
-                                        subCategoryId = if (txType != TransactionType.TRANSFER) selectedSubCategoryId else null
+                                        categoryId = finalCategoryId,
+                                        subCategoryId = finalSubCategoryId
                                     )
                                     onSave(tx)
                                     if (keepFormOpen && existingTransaction == null) {
@@ -1088,16 +1167,22 @@ fun AddEditTransactionSheet(
                                     } else {
                                         onDismiss()
                                     }
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             },
                             containerColor = typePrimaryColor,
                             contentColor = Color.White,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(46.dp)
                                 .testTag("save_transaction_btn")
                         ) {
-                            Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(22.dp))
+                            Icon(Icons.Default.Check, contentDescription = "Save", modifier = Modifier.size(24.dp))
                         }
                     }
                 }

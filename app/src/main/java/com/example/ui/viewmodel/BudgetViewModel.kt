@@ -65,6 +65,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             transactionDao = db.transactionDao(),
             recurringBillDao = db.recurringBillDao()
         )
+        viewModelScope.launch {
+            repository.ensureOthersGroupIntegrity()
+        }
     }
 
     private val _languageMode = MutableStateFlow(loadLanguageMode())

@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.app.Activity
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -65,6 +68,8 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -135,8 +140,11 @@ fun MainAppContainer(
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
+    val viewHistory = remember { mutableStateListOf(AppView.DASHBOARD) }
     var currentView by remember { mutableStateOf(AppView.DASHBOARD) }
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
 
     // Dialog control states
     var showAddTransactionSheet by remember { mutableStateOf(false) }
@@ -155,6 +163,54 @@ fun MainAppContainer(
     var showGlobalCalculator by remember { mutableStateOf(false) }
     var showThemeFontSettings by remember { mutableStateOf(false) }
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
+
+    val selectView: (AppView) -> Unit = { targetView ->
+        if (currentView != targetView) {
+            if (targetView == AppView.DASHBOARD) {
+                viewHistory.clear()
+                viewHistory.add(AppView.DASHBOARD)
+            } else {
+                viewHistory.add(targetView)
+            }
+            currentView = targetView
+        }
+    }
+
+    val handleBackPress: () -> Unit = {
+        when {
+            showAddTransactionSheet -> showAddTransactionSheet = false
+            showAddAccountDialog -> showAddAccountDialog = false
+            showAddCategoryDialog -> showAddCategoryDialog = false
+            showGlobalCalculator -> showGlobalCalculator = false
+            showThemeFontSettings -> showThemeFontSettings = false
+            showAutofillSettingsDialog -> showAutofillSettingsDialog = false
+            drawerState.isOpen -> scope.launch { drawerState.close() }
+            viewHistory.size > 1 -> {
+                viewHistory.removeAt(viewHistory.size - 1)
+                currentView = viewHistory.last()
+            }
+            currentView != AppView.DASHBOARD -> {
+                viewHistory.clear()
+                viewHistory.add(AppView.DASHBOARD)
+                currentView = AppView.DASHBOARD
+            }
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackPressTime < 2000L) {
+                    (context as? Activity)?.finish()
+                } else {
+                    lastBackPressTime = now
+                    val exitMsg = if (languageMode == LanguageMode.BANGLA) "বের হতে আবার ব্যাক চাপুন" else "Press back again to exit"
+                    Toast.makeText(context, exitMsg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    // Intercept hardware and gesture back presses
+    BackHandler(enabled = true) {
+        handleBackPress()
+    }
 
     val bottomNavItems = listOf(
         Triple(LanguageHelper.getString("main", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
@@ -187,7 +243,7 @@ fun MainAppContainer(
                                 viewModel = viewModel,
                                 currentView = currentView,
                                 onSelectView = {
-                                    currentView = it
+                                    selectView(it)
                                     scope.launch { drawerState.close() }
                                 },
                                 onOpenCalculator = {
@@ -224,8 +280,8 @@ fun MainAppContainer(
                                     )
                                 },
                                 navigationIcon = {
-                                    if (isSubView) {
-                                        IconButton(onClick = { currentView = AppView.DASHBOARD }) {
+                                    if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
+                                        IconButton(onClick = handleBackPress) {
                                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                                         }
                                     } else {
@@ -262,7 +318,7 @@ fun MainAppContainer(
                                         val isSelected = currentView == view
                                         NavigationBarItem(
                                             selected = isSelected,
-                                            onClick = { currentView = view },
+                                            onClick = { selectView(view) },
                                             icon = { Icon(icon, contentDescription = label) },
                                             label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
                                             colors = NavigationBarItemDefaults.colors(
@@ -314,7 +370,7 @@ fun MainAppContainer(
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
-                                onNavigate = { currentView = it },
+                                onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
                                     showAddTransactionSheet = true
@@ -378,7 +434,7 @@ fun MainAppContainer(
                             }
                             NavigationRailItem(
                                 selected = isSelected,
-                                onClick = { currentView = view },
+                                onClick = { selectView(view) },
                                 icon = { Icon(icon, contentDescription = view.name) },
                                 label = { Text(view.name.take(4), fontSize = 10.sp) },
                                 colors = NavigationRailItemDefaults.colors(
@@ -393,6 +449,13 @@ fun MainAppContainer(
                         topBar = {
                             TopAppBar(
                                 title = { Text(getViewTitle(currentView, languageMode), fontWeight = FontWeight.Bold) },
+                                navigationIcon = {
+                                    if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
+                                        IconButton(onClick = handleBackPress) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                        }
+                                    }
+                                },
                                 actions = {
                                     IconButton(onClick = { showGlobalCalculator = true }) {
                                         Icon(Icons.Default.Calculate, contentDescription = "Calculator")
@@ -442,7 +505,7 @@ fun MainAppContainer(
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
-                                onNavigate = { currentView = it },
+                                onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
                                     showAddTransactionSheet = true
@@ -491,7 +554,7 @@ fun MainAppContainer(
                             DrawerContent(
                                 viewModel = viewModel,
                                 currentView = currentView,
-                                onSelectView = { currentView = it },
+                                onSelectView = { selectView(it) },
                                 onOpenCalculator = { showGlobalCalculator = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
@@ -510,6 +573,13 @@ fun MainAppContainer(
                         topBar = {
                             TopAppBar(
                                 title = { Text(getViewTitle(currentView, languageMode), fontWeight = FontWeight.Bold) },
+                                navigationIcon = {
+                                    if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
+                                        IconButton(onClick = handleBackPress) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                        }
+                                    }
+                                },
                                 actions = {
                                     IconButton(onClick = { showThemeFontSettings = true }) {
                                         Icon(Icons.Default.Palette, contentDescription = "Theme & Fonts", tint = MaterialTheme.colorScheme.primary)
@@ -562,7 +632,7 @@ fun MainAppContainer(
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
-                                onNavigate = { currentView = it },
+                                onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
                                     showAddTransactionSheet = true

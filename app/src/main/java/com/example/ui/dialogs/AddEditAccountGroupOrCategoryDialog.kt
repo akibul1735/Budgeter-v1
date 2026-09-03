@@ -355,16 +355,17 @@ fun AddEditAccountGroupOrCategoryDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Initial Amount
-                OutlinedTextField(
-                    value = initialAmountText,
-                    onValueChange = { initialAmountText = it },
-                    label = { Text("Initial Amount (৳)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                // Initial Amount (Only for sub-accounts, account groups do not have initial balance)
+                if (entryMode == AccountEntryMode.NEW_CATEGORY) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = initialAmountText,
+                        onValueChange = { initialAmountText = it },
+                        label = { Text("Initial Amount (৳)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -462,7 +463,7 @@ fun AddEditAccountGroupOrCategoryDialog(
 
                     Button(
                         onClick = {
-                            val parsedBal = initialAmountText.toDoubleOrNull() ?: 0.0
+                            val parsedBal = if (entryMode == AccountEntryMode.NEW_GROUP) 0.0 else (initialAmountText.toDoubleOrNull() ?: 0.0)
                             val parent = if (entryMode == AccountEntryMode.NEW_CATEGORY) selectedGroupId else null
                             val groupType = if (entryMode == AccountEntryMode.NEW_CATEGORY) {
                                 allGroups.firstOrNull { it.id == selectedGroupId }?.type ?: accountType

@@ -202,13 +202,136 @@ class BudgetRepository(
         )
     }
 
-    suspend fun insertAccount(account: Account): Long = accountDao.insertAccount(account)
-    suspend fun updateAccount(account: Account) = accountDao.updateAccount(account)
+    suspend fun insertAccount(account: Account): Long {
+        val finalAcc = if (account.parentId == null) account.copy(initialBalance = 0.0) else account
+        return accountDao.insertAccount(finalAcc)
+    }
+
+    suspend fun updateAccount(account: Account) {
+        val finalAcc = if (account.parentId == null) account.copy(initialBalance = 0.0) else account
+        accountDao.updateAccount(finalAcc)
+    }
+
     suspend fun deleteAccount(account: Account) = accountDao.deleteAccount(account)
 
     suspend fun insertCategory(category: Category): Long = categoryDao.insertCategory(category)
     suspend fun updateCategory(category: Category) = categoryDao.updateCategory(category)
     suspend fun deleteCategory(category: Category) = categoryDao.deleteCategory(category)
+
+    suspend fun ensureOthersGroupIntegrity() {
+        val catSnapshot = categoryDao.getAllCategoriesSnapshot()
+
+        // 1. Ensure "Others" group & subcategory exist for EXPENSE
+        var othersExpenseGroup = catSnapshot.firstOrNull {
+            it.type == CategoryType.EXPENSE && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
+        }
+        if (othersExpenseGroup == null) {
+            val id = categoryDao.insertCategory(
+                Category(
+                    nameEn = "Others",
+                    nameBn = "অন্যান্য",
+                    type = CategoryType.EXPENSE,
+                    parentId = null,
+                    iconName = "MoreHoriz",
+                    colorHex = "#9E9E9E",
+                    isSystem = true
+                )
+            )
+            othersExpenseGroup = Category(
+                id = id,
+                nameEn = "Others",
+                nameBn = "অন্যান্য",
+                type = CategoryType.EXPENSE,
+                parentId = null,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = true
+            )
+        }
+
+        val hasExpenseSub = catSnapshot.any {
+            it.parentId == othersExpenseGroup.id && it.nameEn.equals("Others", ignoreCase = true)
+        }
+        if (!hasExpenseSub) {
+            categoryDao.insertCategory(
+                Category(
+                    nameEn = "Others",
+                    nameBn = "অন্যান্য",
+                    type = CategoryType.EXPENSE,
+                    parentId = othersExpenseGroup.id,
+                    iconName = "MoreHoriz",
+                    colorHex = "#9E9E9E",
+                    isSystem = true
+                )
+            )
+        }
+
+        // 2. Ensure "Others" group & subcategory exist for INCOME
+        var othersIncomeGroup = catSnapshot.firstOrNull {
+            it.type == CategoryType.INCOME && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
+        }
+        if (othersIncomeGroup == null) {
+            val id = categoryDao.insertCategory(
+                Category(
+                    nameEn = "Others",
+                    nameBn = "অন্যান্য",
+                    type = CategoryType.INCOME,
+                    parentId = null,
+                    iconName = "MoreHoriz",
+                    colorHex = "#9E9E9E",
+                    isSystem = true
+                )
+            )
+            othersIncomeGroup = Category(
+                id = id,
+                nameEn = "Others",
+                nameBn = "অন্যান্য",
+                type = CategoryType.INCOME,
+                parentId = null,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = true
+            )
+        }
+
+        val hasIncomeSub = catSnapshot.any {
+            it.parentId == othersIncomeGroup.id && it.nameEn.equals("Others", ignoreCase = true)
+        }
+        if (!hasIncomeSub) {
+            categoryDao.insertCategory(
+                Category(
+                    nameEn = "Others",
+                    nameBn = "অন্যান্য",
+                    type = CategoryType.INCOME,
+                    parentId = othersIncomeGroup.id,
+                    iconName = "MoreHoriz",
+                    colorHex = "#9E9E9E",
+                    isSystem = true
+                )
+            )
+        }
+
+        // 3. Any category that has parentId == null and has NO children and is not an Others group:
+        // Automatically join with the "Others" group of its type
+        val freshSnapshot = categoryDao.getAllCategoriesSnapshot()
+        val allParentIds = freshSnapshot.mapNotNull { it.parentId }.toSet()
+        freshSnapshot.forEach { cat ->
+            if (cat.parentId == null && !allParentIds.contains(cat.id)) {
+                if (!cat.nameEn.equals("Others", ignoreCase = true)) {
+                    val targetGroupId = if (cat.type == CategoryType.EXPENSE) othersExpenseGroup.id else othersIncomeGroup.id
+                    categoryDao.updateCategory(cat.copy(parentId = targetGroupId))
+                }
+            }
+        }
+
+        // 4. Ensure account groups (parentId == null) have 0 initial balance
+        val accountsSnapshot = accountDao.getAllAccountsSnapshot()
+        accountsSnapshot.forEach { acc ->
+            if (acc.parentId == null && acc.initialBalance != 0.0) {
+                accountDao.updateAccount(acc.copy(initialBalance = 0.0))
+            }
+        }
+    }
 
     suspend fun insertTransaction(transaction: Transaction): Long = transactionDao.insertTransaction(transaction)
     suspend fun updateTransaction(transaction: Transaction) = transactionDao.updateTransaction(transaction)
