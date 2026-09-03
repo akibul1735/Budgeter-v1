@@ -5,6 +5,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,9 +16,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -31,7 +35,10 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
+import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
@@ -71,6 +78,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +88,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -88,6 +97,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.Category
@@ -837,53 +847,114 @@ private fun CategoriesBudgetEntryView(
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             groupedItems.forEach { (groupName, catItems) ->
-                // Group Header (Blue text on left, Checkbox on right)
+                // Group Header (Group Name & Group Total based on selected categories on left/center, Checkbox on right)
                 item(key = "group_$groupName") {
-                    val allGroupEnabled = catItems.all { item ->
+                    val allGroupEnabled = catItems.isNotEmpty() && catItems.all { item ->
                         val saved = budgetMap["${item.itemType}_${item.id}"]
                         saved?.isEnabled ?: true
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = groupName.uppercase(),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = BrandBlue,
-                            letterSpacing = 0.5.sp
-                        )
+                    // Calculate Group Total based ONLY on selected (enabled) categories in this group
+                    val groupSelectedMonthlyTotal = catItems.filter { item ->
+                        val saved = budgetMap["${item.itemType}_${item.id}"]
+                        saved?.isEnabled ?: true
+                    }.sumOf { item ->
+                        val saved = budgetMap["${item.itemType}_${item.id}"]
+                        saved?.budgetedAmount ?: item.defaultLimit
+                    }
 
-                        // Group Toggle Checkbox
-                        Checkbox(
-                            checked = allGroupEnabled,
-                            onCheckedChange = { targetState ->
-                                val updatedBudgets = catItems.map { item ->
-                                    val saved = budgetMap["${item.itemType}_${item.id}"]
-                                    val amt = saved?.budgetedAmount ?: item.defaultLimit
-                                    MonthlyBudget(
-                                        year = selectedYear,
-                                        month = selectedMonth,
-                                        itemType = item.itemType,
-                                        itemId = item.id,
-                                        budgetedAmount = amt,
-                                        isEnabled = targetState,
-                                        updatedAt = System.currentTimeMillis()
-                                    )
+                    val displayedGroupTotal = if (isPeriodicFlow) {
+                        globalFrequency.fromMonthly(groupSelectedMonthlyTotal)
+                    } else {
+                        groupSelectedMonthlyTotal
+                    }
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 9.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left: Group Name
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                Text(
+                                    text = groupName.uppercase(),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = BrandBlue,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+
+                            // Right: Group Total Amount (based on selected categories) + Group Tick Checkbox
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Group Total Pill
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = BrandBlue.copy(alpha = 0.10f),
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "Total: ",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = BrandBlue.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = LanguageHelper.formatCurrency(displayedGroupTotal, languageMode),
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = BrandBlue
+                                        )
+                                    }
                                 }
-                                onSaveMultiple(updatedBudgets)
-                            },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = BrandBlue,
-                                uncheckedColor = MaterialTheme.colorScheme.outline
-                            ),
-                            modifier = Modifier.size(24.dp)
-                        )
+
+                                // Group Toggle Checkbox:
+                                // Tapping selects/ticks all categories in the group (or unselects all if all currently checked).
+                                // Only checked if ALL categories in the group are selected.
+                                Checkbox(
+                                    checked = allGroupEnabled,
+                                    onCheckedChange = { targetState ->
+                                        val newEnabledState = if (allGroupEnabled) false else true
+                                        val updatedBudgets = catItems.map { item ->
+                                            val saved = budgetMap["${item.itemType}_${item.id}"]
+                                            val amt = saved?.budgetedAmount ?: item.defaultLimit
+                                            MonthlyBudget(
+                                                year = selectedYear,
+                                                month = selectedMonth,
+                                                itemType = item.itemType,
+                                                itemId = item.id,
+                                                budgetedAmount = amt,
+                                                isEnabled = newEnabledState,
+                                                updatedAt = System.currentTimeMillis()
+                                            )
+                                        }
+                                        onSaveMultiple(updatedBudgets)
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = BrandBlue,
+                                        uncheckedColor = MaterialTheme.colorScheme.outline
+                                    ),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -892,8 +963,10 @@ private fun CategoriesBudgetEntryView(
                     val saved = budgetMap["${item.itemType}_${item.id}"]
                     val suggestions = suggestionsMap[item.id] ?: listOf(
                         BudgetSuggestionOption(0, 500.0, "Prev Month"),
-                        BudgetSuggestionOption(1, 1000.0, "Frequent"),
-                        BudgetSuggestionOption(2, 1500.0, "3-Mo Avg")
+                        BudgetSuggestionOption(1, 1000.0, "Frequent 1"),
+                        BudgetSuggestionOption(2, 1200.0, "Frequent 2"),
+                        BudgetSuggestionOption(3, 1500.0, "Frequent 3"),
+                        BudgetSuggestionOption(4, 1800.0, "3-Mo Avg")
                     )
 
                     BudgetItemRow(
@@ -920,9 +993,9 @@ private fun CategoriesBudgetEntryView(
 }
 
 /**
- * Individual Category / Account row matching the image specifications:
+ * Individual Category / Account row matching the specifications:
  * Row 1: Icon, Name, Checkbox
- * Row 2: Frequency dropdown (for expense/income), Sliding & fading amounts with pretext & dots, Edit box
+ * Row 2: Frequency dropdown (for expense/income), Touch-swipeable sliding & fading amounts with pretext & dots, Manual Entry calculator button
  */
 @Composable
 private fun BudgetItemRow(
@@ -937,7 +1010,7 @@ private fun BudgetItemRow(
 ) {
     var itemFrequency by remember(globalFrequency) { mutableStateOf(globalFrequency) }
     var showFreqDropdown by remember { mutableStateOf(false) }
-    var showCustomAmountDialog by remember { mutableStateOf(false) }
+    var showPopupCalculator by remember { mutableStateOf(false) }
 
     val isEnabled = savedBudget?.isEnabled ?: true
     val currentMonthlyAmt = savedBudget?.budgetedAmount ?: item.defaultLimit
@@ -949,31 +1022,28 @@ private fun BudgetItemRow(
         currentMonthlyAmt
     }
 
-    // Convert suggestions to item frequency
-    val opt0Monthly = suggestions[0].amountMonthly
-    val opt1Monthly = suggestions[1].amountMonthly
-    val opt2Monthly = suggestions[2].amountMonthly
-
-    val opt0Display = if (isPeriodicFlow) itemFrequency.fromMonthly(opt0Monthly) else opt0Monthly
-    val opt1Display = if (isPeriodicFlow) itemFrequency.fromMonthly(opt1Monthly) else opt1Monthly
-    val opt2Display = if (isPeriodicFlow) itemFrequency.fromMonthly(opt2Monthly) else opt2Monthly
-
-    // Determine active suggestion index (0, 1, 2, or -1 for custom)
-    val activeIndex = remember(currentMonthlyAmt, opt0Monthly, opt1Monthly, opt2Monthly) {
-        when {
-            kotlin.math.abs(currentMonthlyAmt - opt0Monthly) < 0.5 -> 0
-            kotlin.math.abs(currentMonthlyAmt - opt1Monthly) < 0.5 -> 1
-            kotlin.math.abs(currentMonthlyAmt - opt2Monthly) < 0.5 -> 2
-            else -> -1
-        }
+    // Determine active suggestion index (0..n-1, or -1 for custom)
+    val activeIndex = remember(currentMonthlyAmt, suggestions) {
+        val found = suggestions.indexOfFirst { kotlin.math.abs(currentMonthlyAmt - it.amountMonthly) < 0.5 }
+        if (found >= 0) found else -1
     }
 
-    val pretext = when (activeIndex) {
-        0 -> suggestions[0].pretext
-        1 -> suggestions[1].pretext
-        2 -> suggestions[2].pretext
+    val pretext = when {
+        activeIndex >= 0 && activeIndex < suggestions.size -> suggestions[activeIndex].pretext
         else -> "Custom"
     }
+
+    // Indices for left, center, right suggestions in the circular carousel
+    val centerIdx = if (activeIndex >= 0) activeIndex else 0
+    val prevIdx = if (centerIdx <= 0) suggestions.size - 1 else centerIdx - 1
+    val nextIdx = (centerIdx + 1) % suggestions.size
+
+    val prevMonthly = suggestions.getOrNull(prevIdx)?.amountMonthly ?: 500.0
+    val centerMonthly = suggestions.getOrNull(centerIdx)?.amountMonthly ?: currentMonthlyAmt
+    val nextMonthly = suggestions.getOrNull(nextIdx)?.amountMonthly ?: 1500.0
+
+    val prevDisplay = if (isPeriodicFlow) itemFrequency.fromMonthly(prevMonthly) else prevMonthly
+    val nextDisplay = if (isPeriodicFlow) itemFrequency.fromMonthly(nextMonthly) else nextMonthly
 
     val parsedColor = remember(item.colorHex) {
         try {
@@ -982,6 +1052,9 @@ private fun BudgetItemRow(
             sectionColor
         }
     }
+
+    // Horizontal drag accumulator for swipe gesture detection
+    var horizontalDragAccumulator by remember { mutableFloatStateOf(0f) }
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -1047,7 +1120,7 @@ private fun BudgetItemRow(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ROW 2: Frequency Dropdown + Sliding Amounts with Pretext & Dots + Edit Box
+            // ROW 2: Frequency Dropdown + Touch-Swipeable Sliding Amounts + Manual Entry Calculator Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1055,7 +1128,7 @@ private fun BudgetItemRow(
             ) {
                 // 1. Frequency dropdown (Only for Expense & Income; omitted for Assets & Liabilities)
                 if (isPeriodicFlow) {
-                    Box(modifier = Modifier.width(88.dp)) {
+                    Box(modifier = Modifier.width(84.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -1065,14 +1138,14 @@ private fun BudgetItemRow(
                         ) {
                             Text(
                                 text = itemFrequency.localizedName(languageMode),
-                                fontSize = 12.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Icon(
                                 Icons.Default.KeyboardArrowDown,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(15.dp),
                                 tint = MaterialTheme.colorScheme.outline
                             )
                         }
@@ -1099,26 +1172,51 @@ private fun BudgetItemRow(
                         }
                     }
                 } else {
-                    // For assets/liabilities, leave a tiny spacing
                     Spacer(modifier = Modifier.width(4.dp))
                 }
 
-                // 2. Sliding and Fading Carousel (< Center > with left & right faded values)
+                // 2. Touch/Swipeable Carousel (< Center > with left & right faded values)
+                // Supports horizontal touch swiping (left/right drag) as well as arrow/text clicking
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.weight(1f).padding(horizontal = 2.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 2.dp)
+                        .pointerInput(suggestions, activeIndex) {
+                            detectHorizontalDragGestures(
+                                onDragEnd = {
+                                    if (horizontalDragAccumulator < -30f) {
+                                        // Swiped Left -> Select Next Suggestion
+                                        val targetIdx = (centerIdx + 1) % suggestions.size
+                                        onSaveBudget(suggestions[targetIdx].amountMonthly, true)
+                                    } else if (horizontalDragAccumulator > 30f) {
+                                        // Swiped Right -> Select Previous Suggestion
+                                        val targetIdx = if (centerIdx <= 0) suggestions.size - 1 else centerIdx - 1
+                                        onSaveBudget(suggestions[targetIdx].amountMonthly, true)
+                                    }
+                                    horizontalDragAccumulator = 0f
+                                },
+                                onDragCancel = {
+                                    horizontalDragAccumulator = 0f
+                                },
+                                onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    horizontalDragAccumulator += dragAmount
+                                }
+                            )
+                        }
                 ) {
-                    // Left faded value (Clickable to switch to opt0)
+                    // Left faded value (Clickable to switch to prev suggestion)
                     Text(
-                        text = formatCompactCurrency(opt0Display, languageMode),
+                        text = formatCompactCurrency(prevDisplay, languageMode),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Normal,
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .clickable {
-                                onSaveBudget(opt0Monthly, true)
+                                onSaveBudget(prevMonthly, true)
                             }
                             .padding(horizontal = 2.dp, vertical = 4.dp),
                         maxLines = 1
@@ -1127,13 +1225,7 @@ private fun BudgetItemRow(
                     // Left Chevron
                     IconButton(
                         onClick = {
-                            val nextMonthly = when (activeIndex) {
-                                1 -> opt0Monthly
-                                2 -> opt1Monthly
-                                0 -> opt2Monthly
-                                else -> opt0Monthly
-                            }
-                            onSaveBudget(nextMonthly, true)
+                            onSaveBudget(prevMonthly, true)
                         },
                         modifier = Modifier.size(24.dp)
                     ) {
@@ -1145,7 +1237,7 @@ private fun BudgetItemRow(
                         )
                     }
 
-                    // Center Amount Column (Bold Amount + Pretext + 3 Indicator Dots)
+                    // Center Amount Column (Bold Amount + Pretext + Dynamic Indicator Dots)
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(horizontal = 2.dp)
@@ -1168,41 +1260,28 @@ private fun BudgetItemRow(
 
                         Spacer(modifier = Modifier.height(2.dp))
 
-                        // 3 Indicator Dots underneath
+                        // Indicator Dots underneath for all suggestions
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val dotColor = if (item.itemType == "EXPENSE") SolidExpense else sectionColor
-                            val inactiveDotColor = MaterialTheme.colorScheme.outlineVariant
+                            val inactiveDotColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
 
-                            Surface(
-                                shape = CircleShape,
-                                color = if (activeIndex == 0) dotColor else inactiveDotColor,
-                                modifier = Modifier.size(if (activeIndex == 0) 4.5.dp else 3.5.dp)
-                            ) {}
-                            Surface(
-                                shape = CircleShape,
-                                color = if (activeIndex == 1) dotColor else inactiveDotColor,
-                                modifier = Modifier.size(if (activeIndex == 1) 4.5.dp else 3.5.dp)
-                            ) {}
-                            Surface(
-                                shape = CircleShape,
-                                color = if (activeIndex == 2) dotColor else inactiveDotColor,
-                                modifier = Modifier.size(if (activeIndex == 2) 4.5.dp else 3.5.dp)
-                            ) {}
+                            suggestions.forEachIndexed { idx, _ ->
+                                val isSelected = activeIndex == idx
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isSelected) dotColor else inactiveDotColor,
+                                    modifier = Modifier.size(if (isSelected) 4.5.dp else 3.dp)
+                                ) {}
+                            }
                         }
                     }
 
                     // Right Chevron
                     IconButton(
                         onClick = {
-                            val nextMonthly = when (activeIndex) {
-                                0 -> opt1Monthly
-                                1 -> opt2Monthly
-                                2 -> opt0Monthly
-                                else -> opt1Monthly
-                            }
                             onSaveBudget(nextMonthly, true)
                         },
                         modifier = Modifier.size(24.dp)
@@ -1215,47 +1294,48 @@ private fun BudgetItemRow(
                         )
                     }
 
-                    // Right faded value (Clickable to switch to opt2)
+                    // Right faded value (Clickable to switch to next suggestion)
                     Text(
-                        text = formatCompactCurrency(opt2Display, languageMode),
+                        text = formatCompactCurrency(nextDisplay, languageMode),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Normal,
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .clickable {
-                                onSaveBudget(opt2Monthly, true)
+                                onSaveBudget(nextMonthly, true)
                             }
                             .padding(horizontal = 2.dp, vertical = 4.dp),
                         maxLines = 1
                     )
                 }
 
-                // 3. Edit Button Box on far right (e.g. [$1,280.00  ✎])
+                // 3. Manual Entry Button Box on far right (Tapping opens the Popup Calculator)
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    color = MaterialTheme.colorScheme.surface,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { showCustomAmountDialog = true }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .clickable { showPopupCalculator = true }
+                        .padding(horizontal = 7.dp, vertical = 5.dp)
+                        .testTag("manual_entry_btn_${item.id}")
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Calculate,
+                            contentDescription = "Manual Entry Calculator",
+                            tint = BrandBlue,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Text(
                             text = formatCompactCurrency(displayedCurrentAmt, languageMode),
-                            fontSize = 12.5.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit Amount",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(12.dp)
                         )
                     }
                 }
@@ -1263,15 +1343,15 @@ private fun BudgetItemRow(
         }
     }
 
-    // Direct Amount Editor Dialog
-    if (showCustomAmountDialog) {
-        CustomAmountEditorDialog(
+    // Popup Calculator Dialog (Positioned consistently a few rows above the bottom of the screen)
+    if (showPopupCalculator) {
+        PopupCalculatorDialog(
             itemName = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),
             currentAmount = displayedCurrentAmt,
             frequency = if (isPeriodicFlow) itemFrequency else BudgetFrequency.MONTHLY,
             isPeriodicFlow = isPeriodicFlow,
             languageMode = languageMode,
-            onDismiss = { showCustomAmountDialog = false },
+            onDismiss = { showPopupCalculator = false },
             onConfirm = { enteredAmt ->
                 val monthlyToSave = if (isPeriodicFlow) {
                     itemFrequency.toMonthly(enteredAmt)
@@ -1279,17 +1359,19 @@ private fun BudgetItemRow(
                     enteredAmt
                 }
                 onSaveBudget(monthlyToSave, true)
-                showCustomAmountDialog = false
+                showPopupCalculator = false
             }
         )
     }
 }
 
 /**
- * Dialog for typing a custom budget amount directly with quick increment buttons.
+ * Popup Calculator Dialog for Manual Entry.
+ * Positioned consistently a few rows above the bottom of the screen across all screen sizes.
+ * Features full arithmetic capabilities (+, -, ×, ÷, =, C, ⌫), quick increments, live formula preview, and clear confirmation.
  */
 @Composable
-private fun CustomAmountEditorDialog(
+private fun PopupCalculatorDialog(
     itemName: String,
     currentAmount: Double,
     frequency: BudgetFrequency,
@@ -1298,96 +1380,333 @@ private fun CustomAmountEditorDialog(
     onDismiss: () -> Unit,
     onConfirm: (Double) -> Unit
 ) {
-    var amountText by remember {
-        mutableStateOf(if (currentAmount > 0) String.format("%.0f", currentAmount) else "")
+    var expression by remember {
+        mutableStateOf(if (currentAmount > 0) String.format("%.0f", currentAmount) else "0")
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = itemName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isPeriodicFlow) "Set ${frequency.localizedName(languageMode)} Budget" else "Set Target Balance",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+    // Safe arithmetic evaluation helper
+    fun evalExpression(expr: String): Double {
+        return try {
+            val sanitized = expr.replace("×", "*").replace("÷", "/").replace(" ", "")
+            if (sanitized.isEmpty()) return 0.0
+
+            // Simple recursive descent / operator precedence evaluator
+            val tokens = mutableListOf<String>()
+            var numBuf = StringBuilder()
+            for (ch in sanitized) {
+                if (ch.isDigit() || ch == '.') {
+                    numBuf.append(ch)
+                } else if (ch in "+-*/") {
+                    if (numBuf.isNotEmpty()) {
+                        tokens.add(numBuf.toString())
+                        numBuf = StringBuilder()
                     }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
+                    tokens.add(ch.toString())
                 }
+            }
+            if (numBuf.isNotEmpty()) tokens.add(numBuf.toString())
+            if (tokens.isEmpty()) return 0.0
 
-                Spacer(modifier = Modifier.height(14.dp))
+            // Pass 1: Handle * and /
+            val pass1 = mutableListOf<String>()
+            var i = 0
+            while (i < tokens.size) {
+                val token = tokens[i]
+                if ((token == "*" || token == "/") && pass1.isNotEmpty() && i + 1 < tokens.size) {
+                    val prev = pass1.removeAt(pass1.size - 1).toDoubleOrNull() ?: 0.0
+                    val next = tokens[i + 1].toDoubleOrNull() ?: 1.0
+                    val res = if (token == "*") prev * next else (if (next != 0.0) prev / next else prev)
+                    pass1.add(res.toString())
+                    i += 2
+                } else {
+                    pass1.add(token)
+                    i++
+                }
+            }
 
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Amount (৳)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth().testTag("custom_budget_input")
+            // Pass 2: Handle + and -
+            var total = pass1.firstOrNull()?.toDoubleOrNull() ?: 0.0
+            var j = 1
+            while (j < pass1.size) {
+                val op = pass1[j]
+                val nextVal = pass1.getOrNull(j + 1)?.toDoubleOrNull() ?: 0.0
+                if (op == "+") total += nextVal
+                else if (op == "-") total -= nextVal
+                j += 2
+            }
+            total
+        } catch (_: Exception) {
+            0.0
+        }
+    }
+
+    val calculatedResult = remember(expression) { evalExpression(expression) }
+
+    fun appendChar(c: String) {
+        if (expression == "0" && c != "." && c !in "+-×÷") {
+            expression = c
+        } else {
+            val lastChar = expression.lastOrNull()
+            if (c in "+-×÷" && lastChar != null && lastChar in "+-×÷") {
+                expression = expression.dropLast(1) + c
+            } else {
+                expression += c
+            }
+        }
+    }
+
+    fun backspace() {
+        if (expression.length > 1) {
+            expression = expression.dropLast(1)
+        } else {
+            expression = "0"
+        }
+    }
+
+    fun clearAll() {
+        expression = "0"
+    }
+
+    fun evaluateToResult() {
+        val res = evalExpression(expression)
+        expression = if (res % 1.0 == 0.0) res.toLong().toString() else String.format("%.2f", res)
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        // Position dialog floating consistently a few rows above the bottom of the screen
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Quick Increment Chips
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 16.dp, vertical = 20.dp)
+                .imePadding(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp,
+                shadowElevation = 12.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .widthIn(max = 380.dp)
+                    .fillMaxWidth()
+                    .padding(bottom = 56.dp) // Elevated a few rows above bottom of screen
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {} // prevent closing when clicking inside
+                    )
+                    .testTag("popup_calculator_dialog")
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(500, 1000, 5000).forEach { inc ->
-                        OutlinedButton(
-                            onClick = {
-                                val cur = amountText.toDoubleOrNull() ?: 0.0
-                                amountText = (cur + inc).toInt().toString()
-                            },
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                            modifier = Modifier.weight(1f)
+                    // Header: Item Name + Close
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = itemName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = if (isPeriodicFlow) "Manual Entry • ${frequency.localizedName(languageMode)}" else "Manual Entry • Target Balance",
+                                fontSize = 11.5.sp,
+                                color = BrandBlue,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+
+                    // Calculator Screen / Display Box
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.End
                         ) {
-                            Text("+$inc", fontSize = 11.sp)
+                            // Formula preview
+                            Text(
+                                text = expression,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            // Large Result
+                            Text(
+                                text = formatCompactCurrency(calculatedResult, languageMode),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
                         }
                     }
-                    OutlinedButton(
-                        onClick = { amountText = "0" },
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                        modifier = Modifier.weight(1f)
+
+                    // Quick Increment Chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("Clear", fontSize = 11.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    OutlinedButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val parsed = amountText.toDoubleOrNull() ?: 0.0
-                            onConfirm(parsed)
+                        listOf(100, 500, 1000, 5000).forEach { inc ->
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        val cur = evalExpression(expression)
+                                        val nextVal = (cur + inc).toLong()
+                                        expression = nextVal.toString()
+                                    }
+                                    .padding(vertical = 5.dp)
+                            ) {
+                                Text(
+                                    text = "+$inc",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
+                    }
+
+                    // Keypad Grid (4 columns)
+                    val keyRows = listOf(
+                        listOf("C", "÷", "×", "⌫"),
+                        listOf("7", "8", "9", "-"),
+                        listOf("4", "5", "6", "+"),
+                        listOf("1", "2", "3", "="),
+                        listOf("0", "00", ".", "OK")
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        keyRows.forEach { rowKeys ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                rowKeys.forEach { key ->
+                                    val isOp = key in listOf("÷", "×", "-", "+", "=")
+                                    val isSpecial = key in listOf("C", "⌫")
+                                    val isOk = key == "OK"
+
+                                    val btnColor = when {
+                                        isOk -> BrandBlue
+                                        isOp -> BrandBlue.copy(alpha = 0.12f)
+                                        isSpecial -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    }
+                                    val textColor = when {
+                                        isOk -> Color.White
+                                        isOp -> BrandBlue
+                                        isSpecial -> MaterialTheme.colorScheme.error
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = btnColor,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(38.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                when (key) {
+                                                    "C" -> clearAll()
+                                                    "⌫" -> backspace()
+                                                    "=" -> evaluateToResult()
+                                                    "OK" -> {
+                                                        val finalVal = evalExpression(expression)
+                                                        onConfirm(finalVal)
+                                                    }
+                                                    else -> appendChar(key)
+                                                }
+                                            }
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            if (key == "⌫") {
+                                                Icon(
+                                                    Icons.Default.Backspace,
+                                                    contentDescription = "Backspace",
+                                                    tint = textColor,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            } else if (key == "OK") {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                                    Text("Done", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                }
+                                            } else {
+                                                Text(
+                                                    text = key,
+                                                    fontSize = if (isOp || isSpecial) 15.sp else 14.sp,
+                                                    fontWeight = if (isOp || isSpecial) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                                    color = textColor
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom Action Bar: Cancel and Set Budget
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Apply")
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Cancel", fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                val finalVal = evalExpression(expression)
+                                onConfirm(finalVal)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+                            modifier = Modifier.weight(1.5f).height(40.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Set Budget", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -1433,7 +1752,7 @@ private fun BudgetHelpDialog(onDismiss: () -> Unit) {
                         fontSize = 13.sp
                     )
                     Text(
-                        text = "Tap < or > or the faded amounts to easily pick from Previous Month actuals, Frequently expensed/incomed amounts, or 3-Month Averages.",
+                        text = "Swipe left/right or tap < or > to slide between Previous Month actuals, 3 Frequent suggestions, and 3-Month Averages.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1459,7 +1778,7 @@ private fun BudgetHelpDialog(onDismiss: () -> Unit) {
                         fontSize = 13.sp
                     )
                     Text(
-                        text = "Assets and liabilities support smart sliding suggestions and direct edits, without periodic frequency conversions.",
+                        text = "Assets and liabilities support smart sliding suggestions and direct manual calculator entries, without periodic frequency conversions.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1478,9 +1797,9 @@ private fun BudgetHelpDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * Calculates 3 smart budget suggestions for any item:
+ * Calculates smart budget suggestions for any item including:
  * 1. Previous Month actual spending / balance
- * 2. Frequently expensed / incomed amount (mode or median)
+ * 2. 3 Frequent suggestions (Frequent 1, Frequent 2, Frequent 3)
  * 3. 3-Month Average
  */
 private fun calculateSuggestionsForItem(
@@ -1522,33 +1841,33 @@ private fun calculateSuggestionsForItem(
         }
     }
 
-    // 2. Frequently expensed or incomed
+    // 2. Compute 3 Frequent Amounts from transaction history / past patterns
     val allItemTxs = allTransactions.filter {
         it.transaction.categoryId == itemId || it.transaction.subCategoryId == itemId ||
                 it.transaction.debitAccountId == itemId || it.transaction.creditAccountId == itemId
     }
 
-    val frequentAmt = if (allItemTxs.isNotEmpty()) {
-        val cal = Calendar.getInstance()
-        val monthlyTotals = allItemTxs.groupBy {
+    val cal = Calendar.getInstance()
+    val monthlyTotals = if (allItemTxs.isNotEmpty()) {
+        allItemTxs.groupBy {
             cal.timeInMillis = it.transaction.dateEpochMs
             "${cal.get(Calendar.YEAR)}_${cal.get(Calendar.MONTH)}"
         }.values.map { txList -> txList.sumOf { it.transaction.amount } }
+    } else emptyList()
 
-        if (monthlyTotals.isNotEmpty()) {
-            val counts = monthlyTotals.groupingBy { it }.eachCount()
-            val maxFreq = counts.maxByOrNull { it.value }
-            if (maxFreq != null && maxFreq.value > 1) {
-                maxFreq.key
-            } else {
-                val sorted = monthlyTotals.sorted()
-                sorted[sorted.size / 2]
-            }
-        } else {
-            if (defaultLimit > 0) defaultLimit else 1000.0
-        }
+    val freqCounts = monthlyTotals.groupingBy { it }.eachCount().toList().sortedByDescending { it.second }
+
+    val baseFreq = if (freqCounts.isNotEmpty()) freqCounts[0].first else if (defaultLimit > 0) defaultLimit else 1000.0
+    val freq1 = baseFreq
+    val freq2 = if (freqCounts.size > 1) {
+        freqCounts[1].first
     } else {
-        if (defaultLimit > 0) defaultLimit else 1000.0
+        (baseFreq * 1.25).roundToInt().toDouble()
+    }
+    val freq3 = if (freqCounts.size > 2) {
+        freqCounts[2].first
+    } else {
+        (baseFreq * 0.75).roundToInt().coerceAtLeast(100).toDouble()
     }
 
     // 3. 3-Month Average
@@ -1561,7 +1880,6 @@ private fun calculateSuggestionsForItem(
                 (it.transaction.categoryId == itemId || it.transaction.subCategoryId == itemId ||
                  it.transaction.debitAccountId == itemId || it.transaction.creditAccountId == itemId)
     }
-    val cal = Calendar.getInstance()
     val threeMonthGrouped = threeMonthTxs.groupBy {
         cal.timeInMillis = it.transaction.dateEpochMs
         "${cal.get(Calendar.YEAR)}_${cal.get(Calendar.MONTH)}"
@@ -1577,8 +1895,10 @@ private fun calculateSuggestionsForItem(
 
     return listOf(
         BudgetSuggestionOption(0, prevMonthAmt, "Prev Month"),
-        BudgetSuggestionOption(1, frequentAmt, "Frequent"),
-        BudgetSuggestionOption(2, avgAmt, "3-Mo Avg")
+        BudgetSuggestionOption(1, freq1, "Frequent 1"),
+        BudgetSuggestionOption(2, freq2, "Frequent 2"),
+        BudgetSuggestionOption(3, freq3, "Frequent 3"),
+        BudgetSuggestionOption(4, avgAmt, "3-Mo Avg")
     )
 }
 
