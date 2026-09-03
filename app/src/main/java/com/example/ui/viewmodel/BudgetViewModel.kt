@@ -17,6 +17,7 @@ import com.example.data.repository.BudgetRepository
 import com.example.data.repository.FinancialOverview
 import com.example.sync.SyncManager
 import com.example.ui.theme.AppThemeConfig
+import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.FontPreset
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import android.content.Context
 
 sealed interface BackupUiState {
     object Idle : BackupUiState
@@ -45,11 +47,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     private val repository: BudgetRepository
     private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
+    private val appPrefs = application.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
 
     val themeConfig: StateFlow<AppThemeConfig> = themePrefs.themeConfig
 
     fun setThemePalette(palette: ThemePalette) = themePrefs.setPalette(palette)
     fun setThemeMode(mode: ThemeMode) = themePrefs.setMode(mode)
+    fun setColorIntensity(intensity: ColorIntensity) = themePrefs.setColorIntensity(intensity)
     fun setDynamicColor(enabled: Boolean) = themePrefs.setDynamicColor(enabled)
     fun setFontPreset(fontPreset: FontPreset) = themePrefs.setFontPreset(fontPreset)
 
@@ -63,11 +67,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    private val _languageMode = MutableStateFlow(LanguageMode.BILINGUAL)
+    private val _languageMode = MutableStateFlow(loadLanguageMode())
     val languageMode: StateFlow<LanguageMode> = _languageMode.asStateFlow()
+
+    private fun loadLanguageMode(): LanguageMode {
+        val saved = appPrefs.getString("app_language_mode", LanguageMode.ENGLISH.name) ?: LanguageMode.ENGLISH.name
+        return try {
+            LanguageMode.valueOf(saved)
+        } catch (_: Exception) {
+            LanguageMode.ENGLISH
+        }
+    }
 
     fun setLanguageMode(mode: LanguageMode) {
         _languageMode.value = mode
+        appPrefs.edit().putString("app_language_mode", mode.name).apply()
     }
 
     private val _backupUiState = MutableStateFlow<BackupUiState>(BackupUiState.Idle)

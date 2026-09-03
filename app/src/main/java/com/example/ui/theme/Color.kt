@@ -55,16 +55,45 @@ val SolidAmoledBorder = Color(0xFF2B2B2B)
 fun buildThemeColorScheme(
     palette: ThemePalette,
     isDark: Boolean,
-    isAmoled: Boolean = false
+    isAmoled: Boolean = false,
+    intensity: ColorIntensity = ColorIntensity.VIVID
 ): ColorScheme {
     val (primary, primaryDark, primaryContainer, onPrimaryContainer) = when (palette) {
-        ThemePalette.EMERALD -> listOf(Color(0xFF059669), Color(0xFF047857), Color(0xFFD1FAE5), Color(0xFF065F46))
-        ThemePalette.SAPPHIRE -> listOf(Color(0xFF2563EB), Color(0xFF1D4ED8), Color(0xFFDBEAFE), Color(0xFF1E40AF))
-        ThemePalette.AMETHYST -> listOf(Color(0xFF7C3AED), Color(0xFF6D28D9), Color(0xFFEDE9FE), Color(0xFF5B21B6))
-        ThemePalette.GOLDEN -> listOf(Color(0xFFD97706), Color(0xFFB45309), Color(0xFFFEF3C7), Color(0xFF92400E))
-        ThemePalette.CRIMSON -> listOf(Color(0xFFDC2626), Color(0xFFB91C1C), Color(0xFFFEE2E2), Color(0xFF991B1B))
-        ThemePalette.TEAL -> listOf(Color(0xFF0D9488), Color(0xFF0F766E), Color(0xFFCCFBF1), Color(0xFF115E59))
-        ThemePalette.SUNSET -> listOf(Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFFFFEDD5), Color(0xFF9A3412))
+        ThemePalette.EMERALD -> when (intensity) {
+            ColorIntensity.STANDARD -> listOf(Color(0xFF059669), Color(0xFF047857), Color(0xFFD1FAE5), Color(0xFF065F46))
+            ColorIntensity.VIVID -> listOf(Color(0xFF047857), Color(0xFF065F46), Color(0xFFA7F3D0), Color(0xFF022C22))
+            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF065F46), Color(0xFF022C22), Color(0xFF6EE7B7), Color(0xFF022C22))
+        }
+        ThemePalette.SAPPHIRE -> when (intensity) {
+            ColorIntensity.STANDARD -> listOf(Color(0xFF2563EB), Color(0xFF1D4ED8), Color(0xFFDBEAFE), Color(0xFF1E40AF))
+            ColorIntensity.VIVID -> listOf(Color(0xFF1D4ED8), Color(0xFF1E40AF), Color(0xFFBFDBFE), Color(0xFF172554))
+            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF1E40AF), Color(0xFF172554), Color(0xFF93C5FD), Color(0xFF0F172A))
+        }
+        ThemePalette.AMETHYST -> when (intensity) {
+            ColorIntensity.STANDARD -> listOf(Color(0xFF7C3AED), Color(0xFF6D28D9), Color(0xFFEDE9FE), Color(0xFF5B21B6))
+            ColorIntensity.VIVID -> listOf(Color(0xFF6D28D9), Color(0xFF5B21B6), Color(0xFFDDD6FE), Color(0xFF2E1065))
+            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF5B21B6), Color(0xFF2E1065), Color(0xFFC4B5FD), Color(0xFF1E1B4B))
+        }
+        ThemePalette.GOLDEN -> when (intensity) {
+            ColorIntensity.STANDARD -> listOf(Color(0xFFD97706), Color(0xFFB45309), Color(0xFFFEF3C7), Color(0xFF92400E))
+            ColorIntensity.VIVID -> listOf(Color(0xFFB45309), Color(0xFF92400E), Color(0xFFFDE68A), Color(0xFF451A03))
+            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF92400E), Color(0xFF451A03), Color(0xFFFCD34D), Color(0xFF261001))
+        }
+        ThemePalette.CRIMSON -> when (intensity) {
+            ColorIntensity.STANDARD -> listOf(Color(0xFFDC2626), Color(0xFFB91C1C), Color(0xFFFEE2E2), Color(0xFF991B1B))
+            ColorIntensity.VIVID -> listOf(Color(0xFFB91C1C), Color(0xFF991B1B), Color(0xFFFECACA), Color(0xFF450A0A))
+            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF991B1B), Color(0xFF450A0A), Color(0xFFFCA5A5), Color(0xFF2A0404))
+        }
+        ThemePalette.TEAL -> when (intensity) {
+            ColorIntensity.STANDARD -> listOf(Color(0xFF0D9488), Color(0xFF0F766E), Color(0xFFCCFBF1), Color(0xFF115E59))
+            ColorIntensity.VIVID -> listOf(Color(0xFF0F766E), Color(0xFF115E59), Color(0xFF99F6E4), Color(0xFF042F2E))
+            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF115E59), Color(0xFF042F2E), Color(0xFF5EEAD4), Color(0xFF021C1C))
+        }
+        ThemePalette.SUNSET -> when (intensity) {
+            ColorIntensity.STANDARD -> listOf(Color(0xFFEA580C), Color(0xFFC2410C), Color(0xFFFFEDD5), Color(0xFF9A3412))
+            ColorIntensity.VIVID -> listOf(Color(0xFFC2410C), Color(0xFF9A3412), Color(0xFFFED7AA), Color(0xFF431407))
+            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF9A3412), Color(0xFF431407), Color(0xFFFDBA74), Color(0xFF270903))
+        }
     }
 
     return if (isDark) {
@@ -84,11 +113,11 @@ fun buildThemeColorScheme(
                 surface = SolidAmoledSurface,
                 onSurface = Color.White,
                 surfaceVariant = SolidAmoledSurfaceVariant,
-                onSurfaceVariant = Color(0xFFA1A1AA),
-                outline = SolidAmoledBorder,
+                onSurfaceVariant = Color(0xFFE4E4E7),
+                outline = Color(0xFF52525B),
                 error = SolidExpense,
                 onError = Color.White,
-                errorContainer = Color(0xFF450A0A),
+                errorContainer = Color(0xFF7F1D1D),
                 onErrorContainer = Color(0xFFFCA5A5)
             )
         } else {
@@ -103,16 +132,16 @@ fun buildThemeColorScheme(
                 onSecondaryContainer = Color.White,
                 tertiary = SolidIncome,
                 background = SolidDarkBg,
-                onBackground = SolidDarkTextPrimary,
+                onBackground = Color.White,
                 surface = SolidDarkSurface,
-                onSurface = SolidDarkTextPrimary,
+                onSurface = Color.White,
                 surfaceVariant = SolidDarkSurfaceVariant,
-                onSurfaceVariant = SolidDarkTextSecondary,
-                outline = SolidDarkBorder,
+                onSurfaceVariant = Color(0xFFE2E8F0),
+                outline = Color(0xFF64748B),
                 error = SolidExpense,
                 onError = Color.White,
-                errorContainer = SolidExpenseContainer,
-                onErrorContainer = SolidOnExpenseContainer
+                errorContainer = Color(0xFF7F1D1D),
+                onErrorContainer = Color(0xFFFCA5A5)
             )
         }
     } else {
@@ -131,8 +160,8 @@ fun buildThemeColorScheme(
             surface = SolidLightSurface,
             onSurface = SolidLightTextPrimary,
             surfaceVariant = SolidLightSurfaceVariant,
-            onSurfaceVariant = SolidLightTextSecondary,
-            outline = SolidLightBorder,
+            onSurfaceVariant = Color(0xFF334155),
+            outline = Color(0xFFCBD5E1),
             error = SolidExpense,
             onError = Color.White,
             errorContainer = SolidExpenseContainer,

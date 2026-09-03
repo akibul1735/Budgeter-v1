@@ -142,24 +142,6 @@ fun LedgerScreen(
                                 tint = if (showSearchField || searchQuery.isNotEmpty()) SolidPrimary else MaterialTheme.colorScheme.outline
                             )
                         }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        Button(
-                            onClick = onAddTransactionClick,
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.testTag("ledger_add_tx_btn")
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                LanguageHelper.getString("add_transaction", languageMode),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                 }
 

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
@@ -47,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.LanguageMode
 import com.example.util.CalculatorEvaluator
 import com.example.util.LanguageHelper
@@ -103,18 +103,21 @@ fun PopupCalculatorDialog(
         updateExpression(String.format("%.2f", sum).trimEnd('0').trimEnd('.'))
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 4.dp,
+            tonalElevation = 6.dp,
             modifier = Modifier
-                .fillMaxWidth(0.95f)
+                .fillMaxWidth(0.92f)
                 .testTag("popup_calculator_dialog")
         ) {
             Column(
                 modifier = Modifier
-                    .padding(14.dp)
+                    .padding(16.dp)
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -125,21 +128,29 @@ fun PopupCalculatorDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Calculate,
-                            contentDescription = "Calculator",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Calculate,
+                                    contentDescription = "Calculator",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = LanguageHelper.getString("quick_calc", languageMode),
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
@@ -149,25 +160,25 @@ fun PopupCalculatorDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Compact Expression & Result Display Box
+                // High Contrast Expression & Result Screen
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         horizontalAlignment = Alignment.End
                     ) {
                         Text(
                             text = if (expression.isEmpty()) "0" else expression,
                             fontSize = 16.sp,
                             fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Normal,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -175,9 +186,9 @@ fun PopupCalculatorDialog(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = if (hasError) "Error" else LanguageHelper.formatCurrency(previewResult ?: 0.0, languageMode),
-                            fontSize = 20.sp,
+                            fontSize = 24.sp,
                             fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.ExtraBold,
                             color = if (hasError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -185,13 +196,13 @@ fun PopupCalculatorDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Quick Add Presets Row
+                // Quick Increment Presets
                 val presets = listOf(10.0, 50.0, 100.0, 500.0, 1000.0)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(presets) { preset ->
                         AssistChip(
@@ -199,38 +210,38 @@ fun PopupCalculatorDialog(
                             label = {
                                 Text(
                                     text = "+${preset.toInt()}",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             },
                             colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                                 labelColor = MaterialTheme.colorScheme.primary
                             ),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(26.dp)
+                            modifier = Modifier.height(28.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Compact Keypad Grid (4 Rows x 4 Columns)
+                // 4x4 Keypad Grid + Bottom Row
                 val keyRows = listOf(
                     listOf("C", "÷", "×", "DEL"),
                     listOf("7", "8", "9", "-"),
                     listOf("4", "5", "6", "+"),
-                    listOf("1", "2", "3", ".")
+                    listOf("1", "2", "3", "=")
                 )
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     keyRows.forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             row.forEach { key ->
                                 CompactCalcButton(
@@ -240,6 +251,12 @@ fun PopupCalculatorDialog(
                                         when (key) {
                                             "C" -> clear()
                                             "DEL" -> backspace()
+                                            "=" -> {
+                                                val res = previewResult
+                                                if (res != null) {
+                                                    updateExpression(String.format("%.2f", res).trimEnd('0').trimEnd('.'))
+                                                }
+                                            }
                                             else -> append(key)
                                         }
                                     }
@@ -248,10 +265,10 @@ fun PopupCalculatorDialog(
                         }
                     }
 
-                    // Bottom Row: "0", "00" and OK Button
+                    // Bottom Row: "0", "00", ".", OK Button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CompactCalcButton(
@@ -264,6 +281,11 @@ fun PopupCalculatorDialog(
                             modifier = Modifier.weight(1f),
                             onClick = { append("00") }
                         )
+                        CompactCalcButton(
+                            key = ".",
+                            modifier = Modifier.weight(1f),
+                            onClick = { append(".") }
+                        )
                         Button(
                             onClick = {
                                 val finalVal = previewResult ?: 0.0
@@ -271,14 +293,13 @@ fun PopupCalculatorDialog(
                                 onDismiss()
                             },
                             modifier = Modifier
-                                .weight(2f)
-                                .height(38.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                .weight(1f)
+                                .height(44.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = "OK", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "OK", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Check, contentDescription = "OK", modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -293,25 +314,27 @@ private fun CompactCalcButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val isOperator = key in listOf("+", "-", "×", "÷")
+    val isOperator = key in listOf("+", "-", "×", "÷", "=")
     val isAction = key in listOf("C", "DEL")
 
     val bg = when {
-        isAction -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-        isOperator -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        key == "C" -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+        key == "DEL" -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+        isOperator -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     }
 
     val textColor = when {
-        isAction -> MaterialTheme.colorScheme.error
+        key == "C" -> MaterialTheme.colorScheme.error
+        key == "DEL" -> MaterialTheme.colorScheme.onSurface
         isOperator -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.onSurface
     }
 
     Box(
         modifier = modifier
-            .height(38.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .height(44.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(bg)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -321,13 +344,13 @@ private fun CompactCalcButton(
                 imageVector = Icons.AutoMirrored.Filled.Backspace,
                 contentDescription = "Backspace",
                 tint = textColor,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(18.dp)
             )
         } else {
             Text(
                 text = key,
-                fontSize = 15.sp,
-                fontWeight = if (isOperator || isAction) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 17.sp,
+                fontWeight = if (isOperator || isAction) FontWeight.Bold else FontWeight.SemiBold,
                 color = textColor,
                 textAlign = TextAlign.Center
             )

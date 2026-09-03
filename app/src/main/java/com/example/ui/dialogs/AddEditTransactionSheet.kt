@@ -1284,13 +1284,38 @@ private fun QuickCreateCategoryDialog(
     onDismiss: () -> Unit,
     onCategoryCreated: (Category) -> Unit
 ) {
+    var createMode by remember { mutableStateOf(if (parentCategories.isNotEmpty()) 0 else 1) } // 0 = Category under Group, 1 = New Group
     var nameEn by remember { mutableStateOf("") }
     var nameBn by remember { mutableStateOf("") }
-    var selectedParentId by remember { mutableStateOf<Long?>(null) }
+    var selectedParentId by remember { mutableStateOf<Long?>(parentCategories.firstOrNull()?.id) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(LanguageHelper.getString("add_new_category", languageMode), fontWeight = FontWeight.Bold) },
+        title = {
+            Column {
+                Text(
+                    text = if (createMode == 0) "Create Category" else "Create Category Group",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = createMode == 0,
+                        onClick = { createMode = 0 },
+                        label = { Text("Sub-Category", fontSize = 12.sp) }
+                    )
+                    FilterChip(
+                        selected = createMode == 1,
+                        onClick = { createMode = 1 },
+                        label = { Text("New Group", fontSize = 12.sp) }
+                    )
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -1301,7 +1326,7 @@ private fun QuickCreateCategoryDialog(
                 OutlinedTextField(
                     value = nameEn,
                     onValueChange = { nameEn = it },
-                    label = { Text("Name (English)") },
+                    label = { Text(if (createMode == 0) "Category Name (English)" else "Group Name (English)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1313,45 +1338,57 @@ private fun QuickCreateCategoryDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                if (parentCategories.isNotEmpty()) {
-                    Text("Parent Category (Optional):", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        FilterChip(
-                            selected = selectedParentId == null,
-                            onClick = { selectedParentId = null },
-                            label = { Text("None (New Parent)", fontSize = 11.sp) }
+                if (createMode == 0) {
+                    if (parentCategories.isEmpty()) {
+                        Text(
+                            text = "No category groups exist yet. Please switch to 'New Group' first.",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
                         )
-                        parentCategories.forEach { parent ->
-                            FilterChip(
-                                selected = selectedParentId == parent.id,
-                                onClick = { selectedParentId = parent.id },
-                                label = { Text(parent.localizedName(languageMode), fontSize = 11.sp) }
-                            )
+                    } else {
+                        Text("Connect to Group (Required):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            parentCategories.forEach { parent ->
+                                FilterChip(
+                                    selected = selectedParentId == parent.id,
+                                    onClick = { selectedParentId = parent.id },
+                                    label = { Text(parent.localizedName(languageMode), fontSize = 12.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = IconHelper.getIconByName(parent.iconName),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
         },
         confirmButton = {
+            val canSave = nameEn.isNotBlank() && (createMode == 1 || (createMode == 0 && selectedParentId != null))
             Button(
                 onClick = {
-                    if (nameEn.isNotBlank()) {
+                    if (canSave) {
+                        val parentCat = if (createMode == 0) parentCategories.firstOrNull { it.id == selectedParentId } else null
                         val newCat = Category(
                             nameEn = nameEn.trim(),
                             nameBn = nameBn.trim().ifEmpty { nameEn.trim() },
                             type = targetType,
-                            parentId = selectedParentId,
-                            iconName = "Category",
-                            colorHex = "#2563EB"
+                            parentId = if (createMode == 0) selectedParentId else null,
+                            iconName = parentCat?.iconName ?: "Category",
+                            colorHex = parentCat?.colorHex ?: "#2563EB"
                         )
                         onCategoryCreated(newCat)
                     }
                 },
-                enabled = nameEn.isNotBlank()
+                enabled = canSave
             ) {
                 Text(LanguageHelper.getString("save", languageMode))
             }
@@ -1575,13 +1612,39 @@ private fun QuickCreateAccountDialog(
     onDismiss: () -> Unit,
     onAccountCreated: (Account) -> Unit
 ) {
+    var createMode by remember { mutableStateOf(if (parentAccounts.isNotEmpty()) 0 else 1) } // 0 = Sub-Account, 1 = Account Group
     var nameEn by remember { mutableStateOf("") }
     var nameBn by remember { mutableStateOf("") }
     var selectedParentId by remember { mutableStateOf<Long?>(parentAccounts.firstOrNull()?.id) }
+    var newGroupType by remember { mutableStateOf(AccountType.ASSET) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(LanguageHelper.getString("add_new_account", languageMode), fontWeight = FontWeight.Bold) },
+        title = {
+            Column {
+                Text(
+                    text = if (createMode == 0) "Create Account" else "Create Account Group",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = createMode == 0,
+                        onClick = { createMode = 0 },
+                        label = { Text("Sub-Account", fontSize = 12.sp) }
+                    )
+                    FilterChip(
+                        selected = createMode == 1,
+                        onClick = { createMode = 1 },
+                        label = { Text("New Group", fontSize = 12.sp) }
+                    )
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -1592,53 +1655,83 @@ private fun QuickCreateAccountDialog(
                 OutlinedTextField(
                     value = nameEn,
                     onValueChange = { nameEn = it },
-                    label = { Text("Account Name (English)") },
+                    label = { Text(if (createMode == 0) "Account Name (English)" else "Account Group Name (English)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = nameBn,
                     onValueChange = { nameBn = it },
-                    label = { Text("Account Name (Bangla - Optional)") },
+                    label = { Text("Name (Bangla - Optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                if (parentAccounts.isNotEmpty()) {
-                    Text("Account Group / Type:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        parentAccounts.forEach { parent ->
-                            FilterChip(
-                                selected = selectedParentId == parent.id,
-                                onClick = { selectedParentId = parent.id },
-                                label = { Text(parent.localizedName(languageMode), fontSize = 11.sp) }
-                            )
+                if (createMode == 0) {
+                    if (parentAccounts.isEmpty()) {
+                        Text(
+                            text = "No account groups exist yet. Please create a Group first.",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
+                        )
+                    } else {
+                        Text("Connect to Account Group (Required):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            parentAccounts.forEach { parent ->
+                                FilterChip(
+                                    selected = selectedParentId == parent.id,
+                                    onClick = { selectedParentId = parent.id },
+                                    label = { Text(parent.localizedName(languageMode), fontSize = 12.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            IconHelper.getIconByName(parent.iconName),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                )
+                            }
                         }
+                    }
+                } else {
+                    Text("Account Group Nature:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = newGroupType == AccountType.ASSET,
+                            onClick = { newGroupType = AccountType.ASSET },
+                            label = { Text("Asset / Wallet / Bank", fontSize = 11.sp) }
+                        )
+                        FilterChip(
+                            selected = newGroupType == AccountType.LIABILITY,
+                            onClick = { newGroupType = AccountType.LIABILITY },
+                            label = { Text("Liability / Loan / Card", fontSize = 11.sp) }
+                        )
                     }
                 }
             }
         },
         confirmButton = {
+            val canSave = nameEn.isNotBlank() && (createMode == 1 || (createMode == 0 && selectedParentId != null))
             Button(
                 onClick = {
-                    if (nameEn.isNotBlank()) {
-                        val parentAcc = parentAccounts.firstOrNull { it.id == selectedParentId }
+                    if (canSave) {
+                        val parentAcc = if (createMode == 0) parentAccounts.firstOrNull { it.id == selectedParentId } else null
                         val newAcc = Account(
                             nameEn = nameEn.trim(),
                             nameBn = nameBn.trim().ifEmpty { nameEn.trim() },
-                            type = parentAcc?.type ?: AccountType.ASSET,
-                            parentId = selectedParentId,
-                            iconName = parentAcc?.iconName ?: "AccountBalance",
-                            colorHex = parentAcc?.colorHex ?: "#2563EB"
+                            type = if (createMode == 0) (parentAcc?.type ?: AccountType.ASSET) else newGroupType,
+                            parentId = if (createMode == 0) selectedParentId else null,
+                            iconName = parentAcc?.iconName ?: (if (newGroupType == AccountType.ASSET) "AccountBalance" else "CreditCard"),
+                            colorHex = parentAcc?.colorHex ?: (if (newGroupType == AccountType.ASSET) "#2563EB" else "#DC2626")
                         )
                         onAccountCreated(newAcc)
                     }
                 },
-                enabled = nameEn.isNotBlank()
+                enabled = canSave
             ) {
                 Text(LanguageHelper.getString("save", languageMode))
             }

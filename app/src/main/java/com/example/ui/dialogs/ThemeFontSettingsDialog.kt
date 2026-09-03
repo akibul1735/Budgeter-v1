@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
 import com.example.ui.theme.AppThemeConfig
+import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.FontPreset
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
@@ -63,6 +64,7 @@ fun ThemeFontSettingsDialog(
     languageMode: LanguageMode,
     onPaletteSelected: (ThemePalette) -> Unit,
     onModeSelected: (ThemeMode) -> Unit,
+    onColorIntensitySelected: (ColorIntensity) -> Unit = {},
     onDynamicColorToggled: (Boolean) -> Unit,
     onFontPresetSelected: (FontPreset) -> Unit,
     onDismiss: () -> Unit
@@ -173,7 +175,47 @@ fun ThemeFontSettingsDialog(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 2. Theme Mode (Light / Dark / System / AMOLED)
+            // 2. Color Intensity / Saturation Level
+            Text(
+                text = if (isBangla) "🌈 কালার ইনটেনসিটি (গাঢ়ত্ব)" else "🌈 Color Intensity Level",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (intensity in ColorIntensity.values()) {
+                    val isSelected = themeConfig.colorIntensity == intensity
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onColorIntensitySelected(intensity) },
+                        label = {
+                            Text(
+                                text = if (isBangla) intensity.titleBn else intensity.titleEn,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        leadingIcon = if (isSelected) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                        } else null,
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 3. Theme Mode (Light / Dark / System / AMOLED)
             Text(
                 text = if (isBangla) "🌙 থিম মোড" else "🌙 Theme Mode",
                 style = MaterialTheme.typography.labelLarge,

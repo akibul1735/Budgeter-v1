@@ -92,6 +92,7 @@ import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
 import com.example.ui.dialogs.AutofillSettingsDialog
 import com.example.ui.dialogs.ThemeFontSettingsDialog
+import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidTransfer
@@ -658,6 +659,7 @@ fun MainAppContainer(
             languageMode = languageMode,
             onPaletteSelected = { viewModel.setThemePalette(it) },
             onModeSelected = { viewModel.setThemeMode(it) },
+            onColorIntensitySelected = { viewModel.setColorIntensity(it) },
             onDynamicColorToggled = { viewModel.setDynamicColor(it) },
             onFontPresetSelected = { viewModel.setFontPreset(it) },
             onDismiss = { showThemeFontSettings = false }

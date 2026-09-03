@@ -99,26 +99,14 @@ fun CategoriesScreen(
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = LanguageHelper.getString("categories", languageMode),
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
-
-                Button(
-                    onClick = { onAddCategoryClick(currentType) },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (currentType == CategoryType.EXPENSE) SolidExpense else SolidIncome),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.testTag("add_category_btn")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(LanguageHelper.getString("add_category", languageMode), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
             }
         }
 
@@ -144,7 +132,7 @@ fun CategoriesScreen(
                             text = LanguageHelper.getString("expenses", languageMode),
                             fontSize = 13.sp,
                             fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 0) SolidExpense else MaterialTheme.colorScheme.outline
+                            color = if (selectedTab == 0) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 )
@@ -156,7 +144,7 @@ fun CategoriesScreen(
                             text = LanguageHelper.getString("incomes", languageMode),
                             fontSize = 13.sp,
                             fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 1) SolidIncome else MaterialTheme.colorScheme.outline
+                            color = if (selectedTab == 1) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 )
@@ -177,7 +165,7 @@ fun CategoriesScreen(
                         Text(
                             text = LanguageHelper.getString("no_categories", languageMode),
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -242,7 +230,7 @@ fun CategoriesScreen(
                                         Text(
                                             text = "${subs.size} ${LanguageHelper.getString("sub_categories", languageMode)}",
                                             fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.outline
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }

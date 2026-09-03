@@ -218,11 +218,11 @@ fun AccountsScreen(
             }
         }
 
-        // --- 2. Action Bar: "Edit Button" & "+Add" Button ---
+        // --- 2. Action Bar: "Edit Button" ---
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Edit Button (toggles active/inactive controls)
@@ -247,23 +247,10 @@ fun AccountsScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isEditMode) "Done" else "Edit",
+                        text = if (isEditMode) "Done" else "Edit Accounts",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
-                }
-
-                // +Add Button
-                Button(
-                    onClick = onAddAccountClick,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    modifier = Modifier.testTag("accounts_add_btn")
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("+ Add", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -495,7 +482,7 @@ fun AccountGroupCard(
                         Text(
                             text = if (group.type == AccountType.ASSET) "Assets Group" else "Liabilities Group",
                             fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -506,7 +493,7 @@ fun AccountGroupCard(
                         text = LanguageHelper.formatCurrency(groupItem.currentBalance, languageMode),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (isInactiveSection) MaterialTheme.colorScheme.outline
+                        color = if (isInactiveSection) MaterialTheme.colorScheme.onSurfaceVariant
                         else if (group.type == AccountType.LIABILITY) SolidExpense else SolidIncome
                     )
 

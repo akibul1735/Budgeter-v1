@@ -30,7 +30,8 @@ fun MyApplicationTheme(
         else -> buildThemeColorScheme(
             palette = themeConfig.palette,
             isDark = isDarkMode,
-            isAmoled = isAmoled
+            isAmoled = isAmoled,
+            intensity = themeConfig.colorIntensity
         )
     }
 
