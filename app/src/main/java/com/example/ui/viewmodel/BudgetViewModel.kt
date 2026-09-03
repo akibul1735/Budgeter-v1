@@ -23,7 +23,12 @@ import com.example.ui.theme.FontPreset
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
 import com.example.ui.theme.ThemePreferences
+import com.example.util.AutofillConfig
+import com.example.util.AutofillPreferences
 import com.example.util.BackupManager
+import com.example.util.BackupPreferences
+import com.example.util.BackupSettingsConfig
+import com.example.util.DataImportHelper
 import com.example.util.DriveBackupResult
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
@@ -53,8 +58,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val repository: BudgetRepository
     private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
     private val appPrefs = application.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
+    private val backupPrefs: BackupPreferences = BackupPreferences.getInstance(application)
 
     val themeConfig: StateFlow<AppThemeConfig> = themePrefs.themeConfig
+    val backupSettingsConfig: StateFlow<BackupSettingsConfig> = backupPrefs.config
 
     fun setThemePalette(palette: ThemePalette) = themePrefs.setPalette(palette)
     fun setThemeMode(mode: ThemeMode) = themePrefs.setMode(mode)
@@ -464,6 +471,75 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 _backupUiState.value = BackupUiState.Error("Failed to delete Drive backup")
             }
+        }
+    }
+
+    // Quick Sync
+    fun triggerQuickSync() {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            SyncManager.triggerInstantJsonSync(getApplication())
+            val now = System.currentTimeMillis()
+            backupPrefs.recordSyncTimestamp(now)
+            _backupUiState.value = BackupUiState.Success("QuickSync completed successfully")
+        }
+    }
+
+    // Backup Settings Configuration
+    fun setCloudProvider(provider: String) = backupPrefs.setCloudProvider(provider)
+    fun setAccountLinked(linked: Boolean) = backupPrefs.setAccountLinked(linked)
+    fun setLocalBackupDirectory(dir: String) = backupPrefs.setLocalBackupDirectory(dir)
+    fun setAutoPhoneBackupEnabled(enabled: Boolean) = backupPrefs.setAutoPhoneBackupEnabled(enabled)
+    fun setScheduledTime(hour: Int, minute: Int) = backupPrefs.setScheduledTime(hour, minute)
+    fun setUploadAttachments(enabled: Boolean) = backupPrefs.setUploadAttachments(enabled)
+    fun setAutoSyncData(enabled: Boolean) = backupPrefs.setAutoSyncData(enabled)
+    fun setWifiOnly(enabled: Boolean) = backupPrefs.setWifiOnly(enabled)
+
+    // Data Import: CSV (Excel)
+    fun importFromCsv(uri: Uri) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = DataImportHelper.importCsv(
+                context = getApplication(),
+                uri = uri,
+                accountDao = repository.accountDao,
+                categoryDao = repository.categoryDao,
+                transactionDao = repository.transactionDao
+            )
+            result.onSuccess { count ->
+                _backupUiState.value = BackupUiState.Success("Successfully imported $count transactions from CSV")
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("CSV Import failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    // Data Import: QIF
+    fun importFromQif(uri: Uri) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = DataImportHelper.importQif(
+                context = getApplication(),
+                uri = uri,
+                accountDao = repository.accountDao,
+                categoryDao = repository.categoryDao,
+                transactionDao = repository.transactionDao
+            )
+            result.onSuccess { count ->
+                _backupUiState.value = BackupUiState.Success("Successfully imported $count records from QIF file")
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("QIF Import failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    // Reset All Data to Initial Defaults
+    fun resetAllData(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            repository.resetDatabaseToDefaults()
+            _backupUiState.value = BackupUiState.Success("All data reset to initial defaults successfully")
+            onComplete()
         }
     }
 }

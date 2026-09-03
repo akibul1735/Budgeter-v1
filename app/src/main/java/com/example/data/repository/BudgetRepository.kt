@@ -384,4 +384,17 @@ class BudgetRepository(
             recordedTime = System.currentTimeMillis()
         )
     }
+
+    suspend fun resetDatabaseToDefaults() {
+        transactionDao.deleteAll()
+        recurringBillDao.deleteAll()
+        monthlyBudgetDao.deleteAll()
+        categoryDao.deleteAll()
+        accountDao.deleteAll()
+        com.example.data.local.DatabaseInitializer.seedInitialData(
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao
+        )
+    }
 }

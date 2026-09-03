@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.DrawerValue
@@ -1027,6 +1028,66 @@ private fun DrawerContent(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
+        // Quick Sync in Menu with Last Sync Timestamp
+        val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
+        val lastSyncStr = if (backupConfig.lastSyncTimestamp > 0L) {
+            java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(backupConfig.lastSyncTimestamp))
+        } else "Never"
+
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .clickable { viewModel.triggerQuickSync() }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sync,
+                        contentDescription = "Quick Sync",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Quick Sync",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Last: $lastSyncStr",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp)
+                ) {
+                    Text(
+                        text = "Sync",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
+
         // 7 Themes & Fonts Customizer
         DrawerItemRow(
             title = if (languageMode == LanguageMode.BANGLA) "থিম ও ফন্ট কাস্টমাইজ" else "Theme & Font Styling",
@@ -1045,9 +1106,9 @@ private fun DrawerContent(
             onClick = onOpenAutofillSettings
         )
 
-        // Backup & Sync
+        // Backup, Restore & Sync
         DrawerItemRow(
-            title = "Dual Backup & Sync",
+            title = "Backup, Restore & Sync",
             icon = Icons.Default.CloudSync,
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = currentView == AppView.BACKUP_SYNC,
@@ -1244,19 +1305,15 @@ private fun ScreenRouter(
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory
         )
-        AppView.RECURRING_BILLS -> RecurringBillsAndBackupScreen(
+        AppView.RECURRING_BILLS -> RecurringBillsScreen(
             viewModel = viewModel,
             bills = recurringBills,
-            languageMode = languageMode,
-            backupUiState = backupUiState,
-            initialTab = 0
+            languageMode = languageMode
         )
-        AppView.BACKUP_SYNC -> RecurringBillsAndBackupScreen(
+        AppView.BACKUP_SYNC -> BackupSyncSettingsScreen(
             viewModel = viewModel,
-            bills = recurringBills,
             languageMode = languageMode,
-            backupUiState = backupUiState,
-            initialTab = 1
+            backupUiState = backupUiState
         )
     }
 }
@@ -1272,6 +1329,6 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
         AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
         AppView.RECURRING_BILLS -> "Recurring Bills"
-        AppView.BACKUP_SYNC -> "Backup & Sync"
+        AppView.BACKUP_SYNC -> "Backup, Restore & Sync"
     }
 }
