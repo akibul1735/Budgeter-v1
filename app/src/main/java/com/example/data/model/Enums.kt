@@ -19,6 +19,13 @@ enum class TransactionType {
     TRANSFER  // Debit: Destination Asset Account, Credit: Source Asset Account
 }
 
+enum class TransactionStatus(val titleEn: String, val titleBn: String) {
+    NONE("None", "কোনটি নয়"),
+    CLEARED("Cleared", "সম্পন্ন"),
+    VOID("Void", "বাতিল"),
+    RECONCILED("Reconciled", "মিলিত")
+}
+
 enum class LanguageMode {
     ENGLISH,
     BANGLA,

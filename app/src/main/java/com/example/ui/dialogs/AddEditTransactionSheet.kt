@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,20 +35,26 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -54,6 +63,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -73,9 +84,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,6 +97,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,6 +110,7 @@ import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.DatePickerModal
@@ -112,12 +127,6 @@ import com.example.util.AutofillPreferences
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-
-enum class TransactionStatus {
-    CLEARED,
-    UNCLEARED,
-    RECONCILED
-}
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -166,9 +175,10 @@ fun AddEditTransactionSheet(
     }
 
     var status by remember {
-        mutableStateOf(TransactionStatus.CLEARED)
+        mutableStateOf(existingTransaction?.status ?: TransactionStatus.NONE)
     }
 
+    var showNameDropdown by remember { mutableStateOf(false) }
     var keepFormOpen by remember { mutableStateOf(false) }
 
     // Double-entry Accounts
@@ -207,17 +217,21 @@ fun AddEditTransactionSheet(
         }
     }
 
-    // Payee suggestions from previous entries
+    // Payee suggestions from previous entries with partial matching
     val pastPayees = remember(allTransactions) {
-        allTransactions.mapNotNull { it.transaction.payeeOrPayer.takeIf { p -> p.isNotBlank() } }.distinct()
+        allTransactions.mapNotNull { it.transaction.payeeOrPayer.takeIf { p -> p.isNotBlank() } }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .map { it.key }
     }
     val payeeSuggestions = remember(payee, pastPayees) {
-        if (payee.isBlank()) {
-            pastPayees.take(5)
+        val q = payee.trim()
+        if (q.isEmpty()) {
+            pastPayees.take(8)
         } else {
-            pastPayees.filter {
-                it.contains(payee, ignoreCase = true) && !it.equals(payee, ignoreCase = true)
-            }.take(5)
+            pastPayees.filter { it.contains(q, ignoreCase = true) }.take(8)
         }
     }
 
@@ -373,20 +387,60 @@ fun AddEditTransactionSheet(
 
                             Spacer(modifier = Modifier.width(4.dp))
 
-                            // "+1" consecutive entry mode button
+                            // "+1" button: saves current entry and clears previous form's entered data for new entry
                             Surface(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { keepFormOpen = !keepFormOpen }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                color = if (keepFormOpen) SolidPrimaryContainer else Color.Transparent
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        if (amount > 0) {
+                                            val tx = Transaction(
+                                                id = existingTransaction?.id ?: 0,
+                                                type = txType,
+                                                amount = amount,
+                                                dateEpochMs = selectedDateEpochMs,
+                                                note = note.trim(),
+                                                referenceNo = labelTag.trim(),
+                                                payeeOrPayer = payee.trim(),
+                                                attachmentUri = attachmentUri.trim(),
+                                                status = status,
+                                                debitAccountId = when (txType) {
+                                                    TransactionType.EXPENSE -> null
+                                                    TransactionType.INCOME -> debitAccountId
+                                                    TransactionType.TRANSFER -> debitAccountId
+                                                },
+                                                creditAccountId = when (txType) {
+                                                    TransactionType.EXPENSE -> creditAccountId
+                                                    TransactionType.INCOME -> null
+                                                    TransactionType.TRANSFER -> creditAccountId
+                                                },
+                                                categoryId = if (txType != TransactionType.TRANSFER) selectedCategoryId else null,
+                                                subCategoryId = if (txType != TransactionType.TRANSFER) selectedSubCategoryId else null
+                                            )
+                                            onSave(tx)
+                                            // Clear previous form's entered data and keep open for new entry
+                                            amount = 0.0
+                                            payee = ""
+                                            note = ""
+                                            labelTag = ""
+                                            attachmentUri = ""
+                                            status = TransactionStatus.NONE
+                                            showNameDropdown = false
+                                        } else {
+                                            showCalculator = true
+                                        }
+                                    },
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                shape = CircleShape
                             ) {
-                                Text(
-                                    text = "+1",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = if (keepFormOpen) SolidPrimary else MaterialTheme.colorScheme.outline
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "+1",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
 
                             if (existingTransaction != null && onDelete != null) {
@@ -409,41 +463,101 @@ fun AddEditTransactionSheet(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    // 1. Title / Payee Name Field with Attachment & Autofill Affordance
-                    OutlinedTextField(
-                        value = payee,
-                        onValueChange = { payee = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("tx_payee_input"),
-                        placeholder = {
-                            Text(
-                                text = "Name / Payee",
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        },
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { attachmentPickerLauncher.launch("*/*") }) {
-                                    Icon(
-                                        Icons.Default.AttachFile,
-                                        contentDescription = "Attach File/Image",
-                                        tint = if (attachmentUri.isNotBlank()) SolidPrimary else MaterialTheme.colorScheme.outline
-                                    )
+                    // 1. Title / Payee Name Field with Dropdown Suggestions & Partial Matching
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = payee,
+                            onValueChange = {
+                                payee = it
+                                showNameDropdown = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showNameDropdown = true }
+                                .testTag("tx_payee_input"),
+                            placeholder = {
+                                Text(
+                                    text = LanguageHelper.getString("payee_payer", languageMode).ifEmpty { "Name / Payee" },
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            },
+                            trailingIcon = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (payee.isNotBlank()) {
+                                        IconButton(
+                                            onClick = {
+                                                payee = ""
+                                                showNameDropdown = false
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Clear",
+                                                tint = MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    IconButton(onClick = { attachmentPickerLauncher.launch("*/*") }) {
+                                        Icon(
+                                            Icons.Default.AttachFile,
+                                            contentDescription = "Attach File/Image",
+                                            tint = if (attachmentUri.isNotBlank()) SolidPrimary else MaterialTheme.colorScheme.outline
+                                        )
+                                    }
                                 }
-                            }
-                        },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
 
-                    // Past Entry Suggestions Chips Row
-                    if (payeeSuggestions.isNotEmpty()) {
+                        // Top Name Dropdown Suggestions
+                        DropdownMenu(
+                            expanded = showNameDropdown && payeeSuggestions.isNotEmpty(),
+                            onDismissRequest = { showNameDropdown = false },
+                            modifier = Modifier.fillMaxWidth(0.9f)
+                        ) {
+                            payeeSuggestions.forEach { suggestion ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.History,
+                                                contentDescription = null,
+                                                tint = SolidPrimary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = suggestion,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        payee = suggestion
+                                        showNameDropdown = false
+                                        onSelectPayeeSuggestion(suggestion)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Past Entry Quick Suggestion Chips Row (when dropdown is not open)
+                    if (payeeSuggestions.isNotEmpty() && !showNameDropdown) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -459,9 +573,12 @@ fun AddEditTransactionSheet(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                payeeSuggestions.forEach { suggestion ->
+                                payeeSuggestions.take(4).forEach { suggestion ->
                                     AssistChip(
-                                        onClick = { onSelectPayeeSuggestion(suggestion) },
+                                        onClick = {
+                                            payee = suggestion
+                                            onSelectPayeeSuggestion(suggestion)
+                                        },
                                         label = {
                                             Text(
                                                 text = suggestion,
@@ -761,7 +878,7 @@ fun AddEditTransactionSheet(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
 
-                            // Row D: Status (Cleared / Uncleared / Reconciled)
+                            // Row D: Status (None / Cleared / Void / Reconciled - Default: None)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -771,9 +888,19 @@ fun AddEditTransactionSheet(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
-                                        imageVector = if (status == TransactionStatus.CLEARED) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                                        imageVector = when (status) {
+                                            TransactionStatus.NONE -> Icons.Default.RadioButtonUnchecked
+                                            TransactionStatus.CLEARED -> Icons.Default.CheckCircle
+                                            TransactionStatus.VOID -> Icons.Default.Cancel
+                                            TransactionStatus.RECONCILED -> Icons.Default.Lock
+                                        },
                                         contentDescription = "Status",
-                                        tint = if (status == TransactionStatus.CLEARED) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                        tint = when (status) {
+                                            TransactionStatus.NONE -> MaterialTheme.colorScheme.outline
+                                            TransactionStatus.CLEARED -> SolidIncome
+                                            TransactionStatus.VOID -> SolidExpense
+                                            TransactionStatus.RECONCILED -> SolidPrimary
+                                        },
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(14.dp))
@@ -787,23 +914,31 @@ fun AddEditTransactionSheet(
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     TransactionStatus.values().forEach { st ->
                                         val isSel = status == st
+                                        val activeColor = when (st) {
+                                            TransactionStatus.NONE -> MaterialTheme.colorScheme.outline
+                                            TransactionStatus.CLEARED -> SolidIncome
+                                            TransactionStatus.VOID -> SolidExpense
+                                            TransactionStatus.RECONCILED -> SolidPrimary
+                                        }
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = if (isSel) SolidPrimaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                            color = if (isSel) activeColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                            border = if (isSel) BorderStroke(1.dp, activeColor) else null,
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .clickable { status = st }
                                         ) {
                                             Text(
                                                 text = when (st) {
+                                                    TransactionStatus.NONE -> LanguageHelper.getString("none", languageMode)
                                                     TransactionStatus.CLEARED -> LanguageHelper.getString("cleared", languageMode)
-                                                    TransactionStatus.UNCLEARED -> LanguageHelper.getString("uncleared", languageMode)
+                                                    TransactionStatus.VOID -> LanguageHelper.getString("void", languageMode)
                                                     TransactionStatus.RECONCILED -> LanguageHelper.getString("reconciled", languageMode)
                                                 },
                                                 fontSize = 10.sp,
                                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSel) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                                color = if (isSel) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                                             )
                                         }
                                     }
@@ -930,6 +1065,7 @@ fun AddEditTransactionSheet(
                                         referenceNo = labelTag.trim(),
                                         payeeOrPayer = payee.trim(),
                                         attachmentUri = attachmentUri.trim(),
+                                        status = status,
                                         debitAccountId = when (txType) {
                                             TransactionType.EXPENSE -> null
                                             TransactionType.INCOME -> debitAccountId
@@ -1041,7 +1177,9 @@ fun AddEditTransactionSheet(
 
     if (showLabelDialog) {
         val existingLabels = remember(allTransactions) {
-            allTransactions.mapNotNull { it.transaction.referenceNo.takeIf { s -> s.isNotBlank() } }.distinct()
+            allTransactions.flatMap { tx ->
+                tx.transaction.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            }.distinct()
         }
         LabelPickerModalDialog(
             currentLabel = labelTag,
@@ -1127,7 +1265,15 @@ private fun OptionRowItem(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+private fun parseItemColor(hex: String?, fallback: Color = Color(0xFFEA580C)): Color {
+    if (hex.isNullOrBlank()) return fallback
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (_: Exception) {
+        fallback
+    }
+}
+
 @Composable
 private fun CategoryPickerModalDialog(
     categories: List<Category>,
@@ -1144,8 +1290,14 @@ private fun CategoryPickerModalDialog(
         TransactionType.INCOME -> CategoryType.INCOME
         TransactionType.TRANSFER -> CategoryType.EXPENSE
     }
-    val parentCategories = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
-    var expandedParentId by remember { mutableStateOf(selectedCategoryId ?: parentCategories.firstOrNull()?.id) }
+    val activeCategories = remember(categories, targetType) {
+        categories.filter { it.type == targetType && it.isActive }
+    }
+    val parentCategories = remember(activeCategories) {
+        activeCategories.filter { it.parentId == null }
+    }
+
+    var searchQuery by remember { mutableStateOf("") }
     var showInlineCreateCategory by remember { mutableStateOf(false) }
 
     if (showInlineCreateCategory) {
@@ -1162,117 +1314,328 @@ private fun CategoryPickerModalDialog(
         return
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = LanguageHelper.getString("select_category_dialog", languageMode),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                OutlinedButton(
-                    onClick = { showInlineCreateCategory = true },
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(LanguageHelper.getString("add_new_category", languageMode), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        },
-        text = {
-            Column(
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxHeight(0.85f)
+                    .clickable(enabled = false) {},
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
             ) {
-                parentCategories.forEach { parent ->
-                    val isSelected = expandedParentId == parent.id
-                    val subCats = categories.filter { it.parentId == parent.id && it.isActive }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Top Drag Handle
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(38.dp)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                            .align(Alignment.CenterHorizontally)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    Card(
+                    // Top Search Bar with Green "New" Button
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                expandedParentId = parent.id
-                                if (subCats.isEmpty()) {
-                                    onCategorySelected(parent.id, null)
-                                }
-                            },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                        )
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                     ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(parent.iconName),
-                                        contentDescription = null,
-                                        tint = SolidPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = parent.localizedName(languageMode),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                if (subCats.isEmpty()) {
-                                    IconButton(onClick = { onCategorySelected(parent.id, null) }, modifier = Modifier.size(28.dp)) {
-                                        Icon(Icons.Default.Check, contentDescription = "Select", tint = SolidPrimary)
-                                    }
-                                }
-                            }
-
-                            if (subCats.isNotEmpty() && isSelected) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    // Main category itself
-                                    FilterChip(
-                                        selected = selectedCategoryId == parent.id && selectedSubCategoryId == null,
-                                        onClick = { onCategorySelected(parent.id, null) },
-                                        label = { Text("Main / ${parent.localizedName(languageMode)}", fontSize = 11.sp) }
-                                    )
-                                    subCats.forEach { sub ->
-                                        FilterChip(
-                                            selected = selectedSubCategoryId == sub.id,
-                                            onClick = { onCategorySelected(parent.id, sub.id) },
-                                            label = { Text(sub.localizedName(languageMode), fontSize = 11.sp) }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 8.dp),
+                                singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                decorationBox = { innerTextField ->
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = LanguageHelper.getString("search", languageMode).ifEmpty { "Search" },
+                                            color = MaterialTheme.colorScheme.outline,
+                                            fontSize = 14.sp
                                         )
                                     }
+                                    innerTextField()
                                 }
+                            )
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { searchQuery = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            // Green "New" Pill Button
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFF2E7D32),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { showInlineCreateCategory = true }
+                            ) {
+                                Text(
+                                    text = "New",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Scrollable Category Groups Grid
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 14.dp)
+                    ) {
+                        val query = searchQuery.trim().lowercase()
+
+                        if (query.isNotEmpty()) {
+                            // Search Results
+                            val matchingCategories = activeCategories.filter {
+                                it.nameEn.lowercase().contains(query) ||
+                                        it.nameBn.lowercase().contains(query)
+                            }
+                            if (matchingCategories.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = LanguageHelper.getString("no_results_found", languageMode).ifEmpty { "No categories found" },
+                                        color = MaterialTheme.colorScheme.outline,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = "Search Results",
+                                    color = Color(0xFF2E7D32),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                Category3ColumnGrid(
+                                    items = matchingCategories,
+                                    selectedCategoryId = selectedCategoryId,
+                                    selectedSubCategoryId = selectedSubCategoryId,
+                                    languageMode = languageMode,
+                                    onItemClick = { cat ->
+                                        if (cat.parentId != null) {
+                                            onCategorySelected(cat.parentId, cat.id)
+                                        } else {
+                                            onCategorySelected(cat.id, null)
+                                        }
+                                    }
+                                )
+                            }
+                        } else {
+                            // Display by Groups
+                            // 1. Standalone root categories (no subcategories)
+                            val standaloneParents = parentCategories.filter { parent ->
+                                activeCategories.none { it.parentId == parent.id }
+                            }
+                            if (standaloneParents.isNotEmpty()) {
+                                Text(
+                                    text = "Others",
+                                    color = Color(0xFF2E7D32),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp, bottom = 12.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                Category3ColumnGrid(
+                                    items = standaloneParents,
+                                    selectedCategoryId = selectedCategoryId,
+                                    selectedSubCategoryId = selectedSubCategoryId,
+                                    languageMode = languageMode,
+                                    onItemClick = { cat ->
+                                        onCategorySelected(cat.id, null)
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(18.dp))
+                            }
+
+                            // 2. Parent categories with subcategories
+                            val parentsWithSubs = parentCategories.filter { parent ->
+                                activeCategories.any { it.parentId == parent.id }
+                            }
+                            parentsWithSubs.forEach { parent ->
+                                val subCats = activeCategories.filter { it.parentId == parent.id }
+                                val groupItems = listOf(parent) + subCats
+
+                                Text(
+                                    text = "➤ ${parent.localizedName(languageMode)}",
+                                    color = Color(0xFF2E7D32),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 10.dp, bottom = 12.dp),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                Category3ColumnGrid(
+                                    items = groupItems,
+                                    selectedCategoryId = selectedCategoryId,
+                                    selectedSubCategoryId = selectedSubCategoryId,
+                                    languageMode = languageMode,
+                                    onItemClick = { cat ->
+                                        if (cat.id == parent.id) {
+                                            onCategorySelected(parent.id, null)
+                                        } else {
+                                            onCategorySelected(parent.id, cat.id)
+                                        }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(18.dp))
                             }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(LanguageHelper.getString("cancel", languageMode))
+        }
+    }
+}
+
+@Composable
+private fun Category3ColumnGrid(
+    items: List<Category>,
+    selectedCategoryId: Long?,
+    selectedSubCategoryId: Long?,
+    languageMode: LanguageMode,
+    onItemClick: (Category) -> Unit
+) {
+    val rows = items.chunked(3)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        rows.forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                for (i in 0 until 3) {
+                    if (i < rowItems.size) {
+                        val cat = rowItems[i]
+                        val isSelected = if (cat.parentId != null) {
+                            selectedSubCategoryId == cat.id
+                        } else {
+                            selectedCategoryId == cat.id && selectedSubCategoryId == null
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onItemClick(cat) }
+                                .padding(horizontal = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(contentAlignment = Alignment.TopEnd) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(CircleShape)
+                                        .background(parseItemColor(cat.colorHex)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = IconHelper.getIconByName(cat.iconName),
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF2E7D32))
+                                            .border(1.5.dp, Color.White, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = cat.localizedName(languageMode),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1401,7 +1764,6 @@ private fun QuickCreateCategoryDialog(
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AccountPickerModalDialog(
     accounts: List<Account>,
@@ -1416,6 +1778,8 @@ private fun AccountPickerModalDialog(
 ) {
     var selectedCredit by remember { mutableStateOf(creditAccountId) }
     var selectedDebit by remember { mutableStateOf(debitAccountId) }
+    var transferTab by remember { mutableStateOf(0) } // 0 = Source (From), 1 = Destination (To)
+    var searchQuery by remember { mutableStateOf("") }
     var showInlineCreateAccount by remember { mutableStateOf(false) }
 
     if (showInlineCreateAccount) {
@@ -1432,176 +1796,394 @@ private fun AccountPickerModalDialog(
         return
     }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = LanguageHelper.getString("select_account_dialog", languageMode),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                OutlinedButton(
-                    onClick = { showInlineCreateAccount = true },
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(LanguageHelper.getString("add_new_account", languageMode), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        },
-        text = {
-            Column(
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .fillMaxHeight(0.85f)
+                    .clickable(enabled = false) {},
+                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
             ) {
-                if (txType == TransactionType.TRANSFER) {
-                    Text("Source Account (From):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SolidExpense)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        accounts.forEach { acc ->
-                            FilterChip(
-                                selected = selectedCredit == acc.id,
-                                onClick = { selectedCredit = acc.id },
-                                label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
-                                leadingIcon = {
-                                    Icon(
-                                        IconHelper.getIconByName(acc.iconName),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Top Drag Handle
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(38.dp)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                            .align(Alignment.CenterHorizontally)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Transfer Tabs (if transfer)
+                    if (txType == TransactionType.TRANSFER) {
+                        val fromAcc = accounts.firstOrNull { it.id == selectedCredit }
+                        val toAcc = accounts.firstOrNull { it.id == selectedDebit }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { transferTab = 0 },
+                                color = if (transferTab == 0) SolidExpense.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                border = if (transferTab == 0) BorderStroke(1.5.dp, SolidExpense) else null,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("From (Source)", fontSize = 11.sp, color = SolidExpense, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = fromAcc?.localizedName(languageMode) ?: "Select",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
+                            }
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { transferTab = 1 },
+                                color = if (transferTab == 1) SolidIncome.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                border = if (transferTab == 1) BorderStroke(1.5.dp, SolidIncome) else null,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("To (Destination)", fontSize = 11.sp, color = SolidIncome, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = toAcc?.localizedName(languageMode) ?: "Select",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // Top Search Bar with Green "New" Button
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(20.dp)
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 8.dp),
+                                singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                decorationBox = { innerTextField ->
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = LanguageHelper.getString("search", languageMode).ifEmpty { "Search" },
+                                            color = MaterialTheme.colorScheme.outline,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { searchQuery = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            // Green "New" Pill Button
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFF2E7D32),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { showInlineCreateAccount = true }
+                            ) {
+                                Text(
+                                    text = "New",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Destination Account (To):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SolidIncome)
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Content Scrollable
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 14.dp)
                     ) {
-                        accounts.forEach { acc ->
-                            FilterChip(
-                                selected = selectedDebit == acc.id,
-                                onClick = { selectedDebit = acc.id },
-                                label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
-                                leadingIcon = {
-                                    Icon(
-                                        IconHelper.getIconByName(acc.iconName),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
+                        val query = searchQuery.trim().lowercase()
+                        val currentTargetSelectedId = when (txType) {
+                            TransactionType.EXPENSE -> selectedCredit
+                            TransactionType.INCOME -> selectedDebit
+                            TransactionType.TRANSFER -> if (transferTab == 0) selectedCredit else selectedDebit
+                        }
+
+                        val onPickAccount: (Account) -> Unit = { acc ->
+                            when (txType) {
+                                TransactionType.EXPENSE -> {
+                                    onAccountSelected(acc.id, null)
+                                }
+                                TransactionType.INCOME -> {
+                                    onAccountSelected(null, acc.id)
+                                }
+                                TransactionType.TRANSFER -> {
+                                    if (transferTab == 0) {
+                                        selectedCredit = acc.id
+                                        transferTab = 1
+                                    } else {
+                                        selectedDebit = acc.id
+                                        onAccountSelected(selectedCredit, acc.id)
+                                    }
+                                }
+                            }
+                        }
+
+                        if (query.isNotEmpty()) {
+                            val filtered = accounts.filter {
+                                it.nameEn.lowercase().contains(query) ||
+                                        it.nameBn.lowercase().contains(query)
+                            }
+                            if (filtered.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = LanguageHelper.getString("no_results_found", languageMode).ifEmpty { "No accounts found" },
+                                        color = MaterialTheme.colorScheme.outline,
+                                        fontSize = 14.sp
                                     )
                                 }
-                            )
+                            } else {
+                                Text(
+                                    text = "Search Results",
+                                    color = Color(0xFF2E7D32),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                Account3ColumnGrid(
+                                    items = filtered,
+                                    selectedAccountId = currentTargetSelectedId,
+                                    languageMode = languageMode,
+                                    onItemClick = onPickAccount
+                                )
+                            }
+                        } else {
+                            // Group accounts by parent account or account type
+                            val parentAccounts = allAccounts.filter { it.parentId == null }
+                            parentAccounts.forEach { parent ->
+                                val childAccounts = accounts.filter { it.parentId == parent.id }
+                                val groupItems = if (childAccounts.isNotEmpty()) {
+                                    childAccounts
+                                } else if (accounts.any { it.id == parent.id }) {
+                                    listOf(parent)
+                                } else {
+                                    emptyList()
+                                }
+
+                                if (groupItems.isNotEmpty()) {
+                                    Text(
+                                        text = "➤ ${parent.localizedName(languageMode)}",
+                                        color = Color(0xFF2E7D32),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 10.dp, bottom = 12.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Account3ColumnGrid(
+                                        items = groupItems,
+                                        selectedAccountId = currentTargetSelectedId,
+                                        languageMode = languageMode,
+                                        onItemClick = onPickAccount
+                                    )
+                                    Spacer(modifier = Modifier.height(18.dp))
+                                }
+                            }
+
+                            // Any standalone accounts without parent in group list
+                            val parentIds = parentAccounts.map { it.id }.toSet()
+                            val unassigned = accounts.filter { it.parentId == null && it.id !in parentIds }
+                            if (unassigned.isNotEmpty()) {
+                                Text(
+                                    text = "Others",
+                                    color = Color(0xFF2E7D32),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 10.dp, bottom = 12.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                Account3ColumnGrid(
+                                    items = unassigned,
+                                    selectedAccountId = currentTargetSelectedId,
+                                    languageMode = languageMode,
+                                    onItemClick = onPickAccount
+                                )
+                                Spacer(modifier = Modifier.height(18.dp))
+                            }
                         }
                     }
-                } else {
-                    // Grouped by parent accounts
-                    val parentAccounts = allAccounts.filter { it.parentId == null }
-                    if (parentAccounts.isNotEmpty()) {
-                        parentAccounts.forEach { parent ->
-                            val childAccounts = accounts.filter { it.parentId == parent.id }
-                            if (childAccounts.isNotEmpty()) {
-                                Text(
-                                    text = parent.localizedName(languageMode),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SolidPrimary
-                                )
-                                FlowRow(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Account3ColumnGrid(
+    items: List<Account>,
+    selectedAccountId: Long?,
+    languageMode: LanguageMode,
+    onItemClick: (Account) -> Unit
+) {
+    val rows = items.chunked(3)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        rows.forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                for (i in 0 until 3) {
+                    if (i < rowItems.size) {
+                        val acc = rowItems[i]
+                        val isSelected = selectedAccountId == acc.id
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onItemClick(acc) }
+                                .padding(horizontal = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(contentAlignment = Alignment.TopEnd) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(CircleShape)
+                                        .background(parseItemColor(acc.colorHex, Color(0xFF2563EB))),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    childAccounts.forEach { acc ->
-                                        val isSelected = if (txType == TransactionType.EXPENSE) selectedCredit == acc.id else selectedDebit == acc.id
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = {
-                                                if (txType == TransactionType.EXPENSE) {
-                                                    selectedCredit = acc.id
-                                                    onAccountSelected(acc.id, null)
-                                                } else {
-                                                    selectedDebit = acc.id
-                                                    onAccountSelected(null, acc.id)
-                                                }
-                                            },
-                                            label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
-                                            leadingIcon = {
-                                                Icon(
-                                                    IconHelper.getIconByName(acc.iconName),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
+                                    Icon(
+                                        imageVector = IconHelper.getIconByName(acc.iconName),
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF2E7D32))
+                                            .border(1.5.dp, Color.White, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(11.dp)
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = acc.localizedName(languageMode),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     } else {
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            accounts.forEach { acc ->
-                                val isSelected = if (txType == TransactionType.EXPENSE) selectedCredit == acc.id else selectedDebit == acc.id
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        if (txType == TransactionType.EXPENSE) {
-                                            selectedCredit = acc.id
-                                            onAccountSelected(acc.id, null)
-                                        } else {
-                                            selectedDebit = acc.id
-                                            onAccountSelected(null, acc.id)
-                                        }
-                                    },
-                                    label = { Text(acc.localizedName(languageMode), fontSize = 12.sp) },
-                                    leadingIcon = {
-                                        Icon(
-                                            IconHelper.getIconByName(acc.iconName),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
-        },
-        confirmButton = {
-            if (txType == TransactionType.TRANSFER) {
-                Button(onClick = {
-                    onAccountSelected(selectedCredit, selectedDebit)
-                }) {
-                    Text(LanguageHelper.getString("done", languageMode))
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(LanguageHelper.getString("cancel", languageMode))
-            }
         }
-    )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1753,65 +2335,191 @@ private fun LabelPickerModalDialog(
     onLabelSelected: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var newLabelInput by remember { mutableStateOf("") }
+    val initialSelected = remember(currentLabel) {
+        currentLabel.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+    }
+    val selectedLabels = remember { mutableStateListOf<String>().apply { addAll(initialSelected) } }
+    val labelPool = remember { mutableStateListOf<String>().apply { addAll(existingLabels.distinct()) } }
+    var inputQuery by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(LanguageHelper.getString("label", languageMode), fontWeight = FontWeight.Bold) },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Label,
+                        contentDescription = null,
+                        tint = SolidPrimary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = LanguageHelper.getString("label", languageMode),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+                if (selectedLabels.isNotEmpty()) {
+                    TextButton(onClick = { selectedLabels.clear() }) {
+                        Text(
+                            text = LanguageHelper.getString("clear", languageMode).ifEmpty { "Clear" },
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // New Label input row
+                // Input Field for Searching or Adding New Label
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
-                        value = newLabelInput,
-                        onValueChange = { newLabelInput = it },
-                        placeholder = { Text("Type new label/tag...") },
+                        value = inputQuery,
+                        onValueChange = { inputQuery = it },
+                        placeholder = { Text("Search or type new label...", fontSize = 13.sp) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Button(
-                        onClick = {
-                            if (newLabelInput.isNotBlank()) {
-                                onLabelSelected(newLabelInput.trim())
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = {
+                            if (inputQuery.isNotEmpty()) {
+                                IconButton(onClick = { inputQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                }
                             }
                         },
-                        enabled = newLabelInput.isNotBlank()
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val trimmed = inputQuery.trim()
+                            if (trimmed.isNotBlank()) {
+                                if (trimmed !in labelPool) {
+                                    labelPool.add(0, trimmed)
+                                }
+                                if (trimmed !in selectedLabels) {
+                                    selectedLabels.add(trimmed)
+                                }
+                                inputQuery = ""
+                            }
+                        },
+                        enabled = inputQuery.isNotBlank(),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(52.dp)
                     ) {
-                        Text(LanguageHelper.getString("add", languageMode).ifEmpty { "Add" })
+                        Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(LanguageHelper.getString("add", languageMode).ifEmpty { "Add" }, fontSize = 12.sp)
                     }
                 }
 
-                // Existing Labels Section
-                if (existingLabels.isNotEmpty()) {
+                // Currently Selected Labels (Removable Chips)
+                if (selectedLabels.isNotEmpty()) {
                     Text(
-                        text = LanguageHelper.getString("suggestions", languageMode),
+                        text = "Selected (${selectedLabels.size}):",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = SolidPrimary
                     )
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        existingLabels.forEach { label ->
-                            val isSelected = currentLabel.equals(label, ignoreCase = true)
+                        selectedLabels.forEach { label ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { selectedLabels.remove(label) }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                ) {
+                                    Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.fillMaxWidth(),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+                }
+
+                // All Previous / Available Labels
+                val filteredPool = remember(labelPool, inputQuery) {
+                    val q = inputQuery.trim().lowercase()
+                    if (q.isEmpty()) labelPool else labelPool.filter { it.lowercase().contains(q) }
+                }
+
+                Text(
+                    text = "Previous Labels (${filteredPool.size}):",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (filteredPool.isEmpty()) {
+                    Text(
+                        text = if (inputQuery.isNotBlank()) "No existing label matching \"$inputQuery\". Click 'Add' to create it!" else "No previous labels found. Create one above!",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                } else {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        filteredPool.forEach { label ->
+                            val isSelected = label in selectedLabels
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { onLabelSelected(label) },
+                                onClick = {
+                                    if (isSelected) {
+                                        selectedLabels.remove(label)
+                                    } else {
+                                        selectedLabels.add(label)
+                                    }
+                                },
                                 label = { Text(label, fontSize = 12.sp) },
                                 leadingIcon = {
-                                    Icon(Icons.Default.Label, contentDescription = null, modifier = Modifier.size(14.dp))
-                                }
+                                    if (isSelected) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    } else {
+                                        Icon(Icons.Default.Label, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp)
                             )
                         }
                     }
@@ -1819,10 +2527,12 @@ private fun LabelPickerModalDialog(
             }
         },
         confirmButton = {
-            if (currentLabel.isNotBlank()) {
-                TextButton(onClick = { onLabelSelected("") }) {
-                    Text(LanguageHelper.getString("clear", languageMode).ifEmpty { "Clear Label" }, color = MaterialTheme.colorScheme.error)
+            Button(
+                onClick = {
+                    onLabelSelected(selectedLabels.joinToString(", "))
                 }
+            ) {
+                Text(LanguageHelper.getString("done", languageMode).ifEmpty { "Done" })
             }
         },
         dismissButton = {
