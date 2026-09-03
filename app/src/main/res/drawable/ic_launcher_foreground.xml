@@ -3,6 +3,6 @@
     <item
         android:width="72dp"
         android:height="72dp"
-        android:drawable="@drawable/pure_gold_coin_1788441453092"
+        android:drawable="@drawable/app_coin_icon_1788436688502"
         android:gravity="center" />
 </layer-list>
