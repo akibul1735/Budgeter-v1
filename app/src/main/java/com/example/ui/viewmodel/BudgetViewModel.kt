@@ -140,6 +140,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun saveMultipleMonthlyBudgets(budgets: List<MonthlyBudget>) {
+        viewModelScope.launch {
+            budgets.forEach { repository.saveMonthlyBudget(it) }
+            SyncManager.triggerInstantJsonSync(getApplication())
+        }
+    }
+
     fun copyBudgetsFromPreviousMonth() {
         viewModelScope.launch {
             var prevY = _selectedBudgetYear.value
