@@ -111,6 +111,7 @@ enum class AppView {
     DASHBOARD,
     LEDGER,
     BUDGET,
+    BUDGET_MAKER,
     REPORTS,
     ACCOUNTS,
     EXPENSES,
@@ -221,6 +222,7 @@ fun MainAppContainer(
         Triple(LanguageHelper.getString("main", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
         Triple(LanguageHelper.getString("transactions", languageMode), Icons.AutoMirrored.Filled.ReceiptLong, AppView.LEDGER),
         Triple(LanguageHelper.getString("budget", languageMode), Icons.Default.Assessment, AppView.BUDGET),
+        Triple(LanguageHelper.getString("budget_maker", languageMode), Icons.Default.Calculate, AppView.BUDGET_MAKER),
         Triple(LanguageHelper.getString("balance_sheet", languageMode), Icons.Default.AccountBalance, AppView.ACCOUNTS)
     )
 
@@ -445,6 +447,7 @@ fun MainAppContainer(
                                 AppView.DASHBOARD -> Icons.Default.Dashboard
                                 AppView.LEDGER -> Icons.AutoMirrored.Filled.ReceiptLong
                                 AppView.BUDGET -> Icons.Default.Assessment
+                                AppView.BUDGET_MAKER -> Icons.Default.Calculate
                                 AppView.REPORTS -> Icons.Default.Assessment
                                 AppView.ACCOUNTS -> Icons.Default.AccountBalance
                                 AppView.EXPENSES -> Icons.Default.Category
@@ -963,6 +966,14 @@ private fun DrawerContent(
         )
 
         DrawerItemRow(
+            title = LanguageHelper.getString("budget_maker", languageMode),
+            icon = Icons.Default.Calculate,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.BUDGET_MAKER,
+            onClick = { onSelectView(AppView.BUDGET_MAKER) }
+        )
+
+        DrawerItemRow(
             title = LanguageHelper.getString("reports", languageMode),
             icon = Icons.Default.Assessment,
             iconTint = MaterialTheme.colorScheme.primary,
@@ -1174,7 +1185,21 @@ private fun ScreenRouter(
             onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
             onTransactionClick = onEditTransaction
         )
-        AppView.BUDGET -> BudgetScreen(
+        AppView.BUDGET -> BudgetTrackingScreen(
+            viewModel = viewModel,
+            allCategories = allCategories,
+            allAccounts = allAccounts,
+            accountsWithBalances = accountsWithBalances,
+            transactionsWithDetails = transactionsWithDetails,
+            monthlyBudgets = monthlyBudgets,
+            selectedYear = selectedBudgetYear,
+            selectedMonth = selectedBudgetMonth,
+            languageMode = languageMode,
+            onNavigateToBudgetMaker = { onNavigate(AppView.BUDGET_MAKER) },
+            onAddTransactionWithCategory = onAddTransactionWithCategory,
+            onEditTransaction = onEditTransaction
+        )
+        AppView.BUDGET_MAKER -> BudgetScreen(
             viewModel = viewModel,
             allCategories = allCategories,
             allAccounts = allAccounts,
@@ -1241,6 +1266,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
         AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
+        AppView.BUDGET_MAKER -> LanguageHelper.getString("budget_maker", languageMode)
         AppView.REPORTS -> LanguageHelper.getString("reports", languageMode)
         AppView.ACCOUNTS -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
