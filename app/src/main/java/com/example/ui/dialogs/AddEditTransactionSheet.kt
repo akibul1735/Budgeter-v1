@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
@@ -28,12 +30,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Calculate
@@ -57,6 +62,7 @@ import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -98,13 +104,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.PopupProperties
 import coil.compose.AsyncImage
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -154,6 +164,14 @@ fun AddEditTransactionSheet(
 
     var amount by remember {
         mutableDoubleStateOf(existingTransaction?.amount ?: 0.0)
+    }
+
+    var amountText by remember {
+        mutableStateOf(
+            if (existingTransaction != null && existingTransaction.amount > 0.0) {
+                if (existingTransaction.amount % 1.0 == 0.0) existingTransaction.amount.toLong().toString() else existingTransaction.amount.toString()
+            } else ""
+        )
     }
 
     var selectedDateEpochMs by remember {
@@ -346,6 +364,7 @@ fun AddEditTransactionSheet(
             }
             if (autofillConfig.autofillAmount && latestMatch.amount > 0) {
                 amount = latestMatch.amount
+                amountText = if (latestMatch.amount % 1.0 == 0.0) latestMatch.amount.toLong().toString() else latestMatch.amount.toString()
             }
             if (autofillConfig.autofillNotes && latestMatch.note.isNotBlank()) {
                 note = latestMatch.note
@@ -462,6 +481,7 @@ fun AddEditTransactionSheet(
                                             onSave(tx)
                                             // Clear previous form's entered data and keep open for new entry
                                             amount = 0.0
+                                            amountText = ""
                                             payee = ""
                                             note = ""
                                             labelTag = ""
@@ -520,11 +540,10 @@ fun AddEditTransactionSheet(
                             value = payee,
                             onValueChange = {
                                 payee = it
-                                showNameDropdown = true
+                                showNameDropdown = it.isNotBlank()
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showNameDropdown = true }
                                 .testTag("tx_payee_input"),
                             placeholder = {
                                 Text(
@@ -568,10 +587,15 @@ fun AddEditTransactionSheet(
                             shape = RoundedCornerShape(12.dp)
                         )
 
-                        // Top Name Dropdown Suggestions
+                        // Top Name Dropdown Suggestions (focusable = false to prevent closing soft keyboard)
                         DropdownMenu(
                             expanded = showNameDropdown && payeeSuggestions.isNotEmpty(),
                             onDismissRequest = { showNameDropdown = false },
+                            properties = PopupProperties(
+                                focusable = false,
+                                dismissOnBackPress = true,
+                                dismissOnClickOutside = true
+                            ),
                             modifier = Modifier.fillMaxWidth(0.9f)
                         ) {
                             payeeSuggestions.forEach { suggestion ->
@@ -603,48 +627,6 @@ fun AddEditTransactionSheet(
                                         onSelectPayeeSuggestion(suggestion)
                                     }
                                 )
-                            }
-                        }
-                    }
-
-                    // Past Entry Quick Suggestion Chips Row (when dropdown is not open)
-                    if (payeeSuggestions.isNotEmpty() && !showNameDropdown) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "💡",
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-                            FlowRow(
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                payeeSuggestions.take(4).forEach { suggestion ->
-                                    AssistChip(
-                                        onClick = {
-                                            payee = suggestion
-                                            onSelectPayeeSuggestion(suggestion)
-                                        },
-                                        label = {
-                                            Text(
-                                                text = suggestion,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        },
-                                        colors = AssistChipDefaults.assistChipColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.height(26.dp)
-                                    )
-                                }
                             }
                         }
                     }
@@ -767,47 +749,92 @@ fun AddEditTransactionSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .border(1.5.dp, typePrimaryColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                            .clickable { showCalculator = true },
+                            .border(1.5.dp, typePrimaryColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
                         color = typeContainerColor.copy(alpha = 0.35f)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Type sign circular indicator
-                            Box(
+                            // Type sign circular indicator (clickable to toggle between - and +)
+                            Surface(
+                                shape = CircleShape,
+                                color = typePrimaryColor,
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(typePrimaryColor),
-                                contentAlignment = Alignment.Center
+                                    .clickable {
+                                        txType = when (txType) {
+                                            TransactionType.EXPENSE -> TransactionType.INCOME
+                                            TransactionType.INCOME -> TransactionType.EXPENSE
+                                            TransactionType.TRANSFER -> TransactionType.EXPENSE
+                                        }
+                                        if (txType != TransactionType.TRANSFER) {
+                                            val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                                            val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
+                                            val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                            selectedCategoryId = othersCat?.id
+                                            val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
+                                            selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                        }
+                                    }
                             ) {
-                                val signText = when (txType) {
-                                    TransactionType.EXPENSE -> "−"
-                                    TransactionType.INCOME -> "+"
-                                    TransactionType.TRANSFER -> "⇄"
+                                Box(contentAlignment = Alignment.Center) {
+                                    val signText = when (txType) {
+                                        TransactionType.EXPENSE -> "−"
+                                        TransactionType.INCOME -> "+"
+                                        TransactionType.TRANSFER -> "⇄"
+                                    }
+                                    Text(
+                                        text = signText,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
                                 }
-                                Text(
-                                    text = signText,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
                             }
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            // Large Numeric Amount Display
-                            Text(
-                                text = LanguageHelper.formatNumber(amount, languageMode),
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = typePrimaryColor,
-                                modifier = Modifier.weight(1f)
+                            // Direct Numeric Amount Input
+                            BasicTextField(
+                                value = amountText,
+                                onValueChange = { input ->
+                                    val clean = input.filter { it.isDigit() || it == '.' }
+                                    if (clean.count { it == '.' } <= 1 && clean.length <= 12) {
+                                        amountText = clean
+                                        amount = clean.toDoubleOrNull() ?: 0.0
+                                    }
+                                },
+                                textStyle = TextStyle(
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = typePrimaryColor
+                                ),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal,
+                                    imeAction = ImeAction.Done
+                                ),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("tx_amount_input"),
+                                decorationBox = { innerTextField ->
+                                    Box(contentAlignment = Alignment.CenterStart) {
+                                        if (amountText.isEmpty()) {
+                                            Text(
+                                                text = "0",
+                                                fontSize = 26.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = typePrimaryColor.copy(alpha = 0.35f)
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                }
                             )
 
                             // Calculator Icon Button
@@ -879,7 +906,20 @@ fun AddEditTransactionSheet(
                                 )
                             }
 
-                            // Row B: Account
+                            // Row B: Account (Showing Account Group Name with Account)
+                            val formatAccountWithGroup: (Account?) -> String = { acc ->
+                                if (acc == null) {
+                                    LanguageHelper.getString("select_account", languageMode)
+                                } else {
+                                    val parent = if (acc.parentId != null) accounts.firstOrNull { it.id == acc.parentId } else null
+                                    if (parent != null) {
+                                        "${parent.localizedName(languageMode)} / ${acc.localizedName(languageMode)}"
+                                    } else {
+                                        acc.localizedName(languageMode)
+                                    }
+                                }
+                            }
+
                             OptionRowItem(
                                 icon = {
                                     Icon(
@@ -890,13 +930,11 @@ fun AddEditTransactionSheet(
                                     )
                                 },
                                 title = when (txType) {
-                                    TransactionType.EXPENSE -> selectedCreditAccount?.localizedName(languageMode)
-                                        ?: LanguageHelper.getString("select_account", languageMode)
-                                    TransactionType.INCOME -> selectedDebitAccount?.localizedName(languageMode)
-                                        ?: LanguageHelper.getString("select_account", languageMode)
+                                    TransactionType.EXPENSE -> formatAccountWithGroup(selectedCreditAccount)
+                                    TransactionType.INCOME -> formatAccountWithGroup(selectedDebitAccount)
                                     TransactionType.TRANSFER -> {
-                                        val from = selectedCreditAccount?.localizedName(languageMode) ?: "Source"
-                                        val to = selectedDebitAccount?.localizedName(languageMode) ?: "Dest"
+                                        val from = formatAccountWithGroup(selectedCreditAccount)
+                                        val to = formatAccountWithGroup(selectedDebitAccount)
                                         "$from ➔ $to"
                                     }
                                 },
@@ -1052,137 +1090,251 @@ fun AddEditTransactionSheet(
                     Spacer(modifier = Modifier.height(80.dp)) // Padding for bottom bar
                 }
 
-                // Bottom Action Bar: Type Selector Pills + Save FAB (Pinned above Keyboard)
+                // Bottom Action Bar: Type Selector Pills or Keyboard Accessory Toolbar (Pinned above Keyboard)
+                val isKeyboardOpen = WindowInsets.isImeVisible
+
+                val executeSave: () -> Unit = {
+                    if (amount > 0) {
+                        val fallbackGroup = categories.firstOrNull {
+                            val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                            it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
+                        } ?: relevantCategories.firstOrNull()
+
+                        val finalCategoryId = if (txType != TransactionType.TRANSFER) {
+                            selectedCategoryId ?: fallbackGroup?.id
+                        } else null
+
+                        val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
+                            selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
+                        } else null
+
+                        val tx = Transaction(
+                            id = existingTransaction?.id ?: 0,
+                            type = txType,
+                            amount = amount,
+                            dateEpochMs = selectedDateEpochMs,
+                            note = note.trim(),
+                            referenceNo = labelTag.trim(),
+                            payeeOrPayer = payee.trim(),
+                            attachmentUri = attachmentUri.trim(),
+                            status = status,
+                            debitAccountId = when (txType) {
+                                TransactionType.EXPENSE -> null
+                                TransactionType.INCOME -> debitAccountId
+                                TransactionType.TRANSFER -> debitAccountId
+                            },
+                            creditAccountId = when (txType) {
+                                TransactionType.EXPENSE -> creditAccountId
+                                TransactionType.INCOME -> null
+                                TransactionType.TRANSFER -> creditAccountId
+                            },
+                            categoryId = finalCategoryId,
+                            subCategoryId = finalSubCategoryId
+                        )
+                        onSave(tx)
+                        if (keepFormOpen && existingTransaction == null) {
+                            amount = 0.0
+                            amountText = ""
+                            note = ""
+                            payee = ""
+                            attachmentUri = ""
+                        } else {
+                            onDismiss()
+                        }
+                    } else {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 6.dp,
                     shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Segmented Type Pills: EXPENSE, INCOME, TRANSFER
+                    if (isKeyboardOpen) {
+                        // When keyboard is focused: show three buttons just above keyboard on right side: Expense icon, Income icon, Transfer icon, Save button
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            horizontalArrangement = Arrangement.End
                         ) {
-                            val types = listOf(
-                                Triple(TransactionType.EXPENSE, "− " + (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
-                                Triple(TransactionType.INCOME, "+ " + (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
-                                Triple(TransactionType.TRANSFER, "⇄ " + (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
-                            )
-
-                            types.forEach { (type, label, color) ->
-                                val isSelected = txType == type
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) color else color.copy(alpha = 0.12f),
-                                    border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.25f)),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable {
-                                            txType = type
-                                            if (type != TransactionType.TRANSFER) {
-                                                val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                                                val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
-                                                val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                                selectedCategoryId = othersCat?.id
-                                                val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
-                                                selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
-                                            } else {
-                                                selectedCategoryId = null
-                                                selectedSubCategoryId = null
-                                            }
-                                        }
-                                ) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else color,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 9.dp)
+                            // Expense icon button
+                            Surface(
+                                shape = CircleShape,
+                                color = if (txType == TransactionType.EXPENSE) SolidExpense else SolidExpense.copy(alpha = 0.12f),
+                                border = if (txType == TransactionType.EXPENSE) null else BorderStroke(1.dp, SolidExpense.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        txType = TransactionType.EXPENSE
+                                        val relevant = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
+                                        val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                        selectedCategoryId = othersCat?.id
+                                        val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
+                                        selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                    }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDownward,
+                                        contentDescription = "Expense",
+                                        tint = if (txType == TransactionType.EXPENSE) Color.White else SolidExpense,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
 
-                        // Save Floating Action Button
-                        FloatingActionButton(
-                            onClick = {
-                                if (amount > 0) {
-                                    val fallbackGroup = categories.firstOrNull {
-                                        val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                                        it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
-                                    } ?: relevantCategories.firstOrNull()
-
-                                    val finalCategoryId = if (txType != TransactionType.TRANSFER) {
-                                        selectedCategoryId ?: fallbackGroup?.id
-                                    } else null
-
-                                    val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
-                                        selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
-                                    } else null
-
-                                    val tx = Transaction(
-                                        id = existingTransaction?.id ?: 0,
-                                        type = txType,
-                                        amount = amount,
-                                        dateEpochMs = selectedDateEpochMs,
-                                        note = note.trim(),
-                                        referenceNo = labelTag.trim(),
-                                        payeeOrPayer = payee.trim(),
-                                        attachmentUri = attachmentUri.trim(),
-                                        status = status,
-                                        debitAccountId = when (txType) {
-                                            TransactionType.EXPENSE -> null
-                                            TransactionType.INCOME -> debitAccountId
-                                            TransactionType.TRANSFER -> debitAccountId
-                                        },
-                                        creditAccountId = when (txType) {
-                                            TransactionType.EXPENSE -> creditAccountId
-                                            TransactionType.INCOME -> null
-                                            TransactionType.TRANSFER -> creditAccountId
-                                        },
-                                        categoryId = finalCategoryId,
-                                        subCategoryId = finalSubCategoryId
-                                    )
-                                    onSave(tx)
-                                    if (keepFormOpen && existingTransaction == null) {
-                                        amount = 0.0
-                                        note = ""
-                                        payee = ""
-                                        attachmentUri = ""
-                                    } else {
-                                        onDismiss()
+                            // Income icon button
+                            Surface(
+                                shape = CircleShape,
+                                color = if (txType == TransactionType.INCOME) SolidIncome else SolidIncome.copy(alpha = 0.12f),
+                                border = if (txType == TransactionType.INCOME) null else BorderStroke(1.dp, SolidIncome.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        txType = TransactionType.INCOME
+                                        val relevant = categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
+                                        val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                        selectedCategoryId = othersCat?.id
+                                        val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
+                                        selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
                                     }
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowUpward,
+                                        contentDescription = "Income",
+                                        tint = if (txType == TransactionType.INCOME) Color.White else SolidIncome,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                 }
-                            },
-                            containerColor = typePrimaryColor,
-                            contentColor = Color.White,
-                            shape = RoundedCornerShape(14.dp),
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // Transfer icon button
+                            Surface(
+                                shape = CircleShape,
+                                color = if (txType == TransactionType.TRANSFER) SolidTransfer else SolidTransfer.copy(alpha = 0.12f),
+                                border = if (txType == TransactionType.TRANSFER) null else BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        txType = TransactionType.TRANSFER
+                                        selectedCategoryId = null
+                                        selectedSubCategoryId = null
+                                    }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.SwapHoriz,
+                                        contentDescription = "Transfer",
+                                        tint = if (txType == TransactionType.TRANSFER) Color.White else SolidTransfer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            // Save button
+                            FloatingActionButton(
+                                onClick = executeSave,
+                                containerColor = typePrimaryColor,
+                                contentColor = Color.White,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .testTag("save_transaction_btn_keyboard")
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = "Save", modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    } else {
+                        // Standard Bottom Action Bar: Type Selector Pills + Save FAB
+                        Row(
                             modifier = Modifier
-                                .size(46.dp)
-                                .testTag("save_transaction_btn")
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = "Save", modifier = Modifier.size(24.dp))
+                            // Segmented Type Pills: EXPENSE, INCOME, TRANSFER
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                val types = listOf(
+                                    Triple(TransactionType.EXPENSE, "− " + (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
+                                    Triple(TransactionType.INCOME, "+ " + (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
+                                    Triple(TransactionType.TRANSFER, "⇄ " + (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
+                                )
+
+                                types.forEach { (type, label, color) ->
+                                    val isSelected = txType == type
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isSelected) color else color.copy(alpha = 0.12f),
+                                        border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.25f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                txType = type
+                                                if (type != TransactionType.TRANSFER) {
+                                                    val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                                                    val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
+                                                    val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                                    selectedCategoryId = othersCat?.id
+                                                    val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
+                                                    selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                                } else {
+                                                    selectedCategoryId = null
+                                                    selectedSubCategoryId = null
+                                                }
+                                            }
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color.White else color,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 9.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            // Save Floating Action Button
+                            FloatingActionButton(
+                                onClick = executeSave,
+                                containerColor = typePrimaryColor,
+                                contentColor = Color.White,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .testTag("save_transaction_btn")
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = "Save", modifier = Modifier.size(24.dp))
+                            }
                         }
                     }
                 }
@@ -1198,6 +1350,7 @@ fun AddEditTransactionSheet(
             onDismiss = { showCalculator = false },
             onValueConfirmed = { calculatedAmount ->
                 amount = calculatedAmount
+                amountText = if (calculatedAmount % 1.0 == 0.0) calculatedAmount.toLong().toString() else calculatedAmount.toString()
                 showCalculator = false
             }
         )
@@ -1593,13 +1746,12 @@ private fun CategoryPickerModalDialog(
                                 Spacer(modifier = Modifier.height(18.dp))
                             }
 
-                            // 2. Parent categories with subcategories
+                            // 2. Parent categories with subcategories (No duplicate group name in grid, transactions occur with subcategories)
                             val parentsWithSubs = parentCategories.filter { parent ->
                                 activeCategories.any { it.parentId == parent.id }
                             }
                             parentsWithSubs.forEach { parent ->
                                 val subCats = activeCategories.filter { it.parentId == parent.id }
-                                val groupItems = listOf(parent) + subCats
 
                                 Text(
                                     text = "➤ ${parent.localizedName(languageMode)}",
@@ -1613,16 +1765,12 @@ private fun CategoryPickerModalDialog(
                                 )
 
                                 Category3ColumnGrid(
-                                    items = groupItems,
+                                    items = subCats,
                                     selectedCategoryId = selectedCategoryId,
                                     selectedSubCategoryId = selectedSubCategoryId,
                                     languageMode = languageMode,
                                     onItemClick = { cat ->
-                                        if (cat.id == parent.id) {
-                                            onCategorySelected(parent.id, null)
-                                        } else {
-                                            onCategorySelected(parent.id, cat.id)
-                                        }
+                                        onCategorySelected(parent.id, cat.id)
                                     }
                                 )
                                 Spacer(modifier = Modifier.height(18.dp))
@@ -2119,6 +2267,7 @@ private fun AccountPickerModalDialog(
                                 )
                                 Account3ColumnGrid(
                                     items = filtered,
+                                    allAccounts = allAccounts,
                                     selectedAccountId = currentTargetSelectedId,
                                     languageMode = languageMode,
                                     onItemClick = onPickAccount
@@ -2150,6 +2299,7 @@ private fun AccountPickerModalDialog(
                                     )
                                     Account3ColumnGrid(
                                         items = groupItems,
+                                        allAccounts = allAccounts,
                                         selectedAccountId = currentTargetSelectedId,
                                         languageMode = languageMode,
                                         onItemClick = onPickAccount
@@ -2174,6 +2324,7 @@ private fun AccountPickerModalDialog(
                                 )
                                 Account3ColumnGrid(
                                     items = unassigned,
+                                    allAccounts = allAccounts,
                                     selectedAccountId = currentTargetSelectedId,
                                     languageMode = languageMode,
                                     onItemClick = onPickAccount
@@ -2191,6 +2342,7 @@ private fun AccountPickerModalDialog(
 @Composable
 private fun Account3ColumnGrid(
     items: List<Account>,
+    allAccounts: List<Account> = emptyList(),
     selectedAccountId: Long?,
     languageMode: LanguageMode,
     onItemClick: (Account) -> Unit
@@ -2209,6 +2361,7 @@ private fun Account3ColumnGrid(
                     if (i < rowItems.size) {
                         val acc = rowItems[i]
                         val isSelected = selectedAccountId == acc.id
+                        val parentGroup = if (acc.parentId != null) allAccounts.firstOrNull { it.id == acc.parentId } else null
 
                         Column(
                             modifier = Modifier
@@ -2261,6 +2414,18 @@ private fun Account3ColumnGrid(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.fillMaxWidth()
                             )
+                            if (parentGroup != null) {
+                                Text(
+                                    text = parentGroup.localizedName(languageMode),
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     } else {
                         Spacer(modifier = Modifier.weight(1f))
