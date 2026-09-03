@@ -408,8 +408,8 @@ object DatabaseInitializer {
         )
         categoryDao.insertCategory(
             Category(
-                nameEn = "Others",
-                nameBn = "অন্যান্য",
+                nameEn = "General",
+                nameBn = "সাধারণ",
                 type = CategoryType.EXPENSE,
                 parentId = catOthersExpenseId,
                 iconName = "MoreHoriz",
@@ -431,8 +431,8 @@ object DatabaseInitializer {
         )
         categoryDao.insertCategory(
             Category(
-                nameEn = "Others",
-                nameBn = "অন্যান্য",
+                nameEn = "General",
+                nameBn = "সাধারণ",
                 type = CategoryType.INCOME,
                 parentId = catOthersIncomeId,
                 iconName = "MoreHoriz",

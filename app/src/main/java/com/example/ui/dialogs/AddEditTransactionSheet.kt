@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.NorthWest
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Save
@@ -100,9 +101,11 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -200,6 +203,10 @@ fun AddEditTransactionSheet(
 
     var showNameDropdown by remember { mutableStateOf(false) }
     var keepFormOpen by remember { mutableStateOf(false) }
+
+    var isNameFocused by remember { mutableStateOf(false) }
+    var isAmountFocused by remember { mutableStateOf(false) }
+    var isNoteFocused by remember { mutableStateOf(false) }
 
     // Double-entry Accounts
     var debitAccountId by remember {
@@ -535,7 +542,7 @@ fun AddEditTransactionSheet(
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     // 1. Title / Payee Name Field with Dropdown Suggestions & Partial Matching
-                    Box(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = payee,
                             onValueChange = {
@@ -544,7 +551,8 @@ fun AddEditTransactionSheet(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("tx_payee_input"),
+                                .testTag("tx_payee_input")
+                                .onFocusChanged { isNameFocused = it.isFocused },
                             placeholder = {
                                 Text(
                                     text = LanguageHelper.getString("payee_payer", languageMode).ifEmpty { "Name / Payee" },
@@ -587,46 +595,65 @@ fun AddEditTransactionSheet(
                             shape = RoundedCornerShape(12.dp)
                         )
 
-                        // Top Name Dropdown Suggestions (focusable = false to prevent closing soft keyboard)
-                        DropdownMenu(
-                            expanded = showNameDropdown && payeeSuggestions.isNotEmpty(),
-                            onDismissRequest = { showNameDropdown = false },
-                            properties = PopupProperties(
-                                focusable = false,
-                                dismissOnBackPress = true,
-                                dismissOnClickOutside = true
-                            ),
-                            modifier = Modifier.fillMaxWidth(0.9f)
-                        ) {
-                            payeeSuggestions.forEach { suggestion ->
-                                DropdownMenuItem(
-                                    text = {
+                        // Inline Dropdown Suggestions: Does not open a popup window, so keyboard NEVER closes!
+                        if (showNameDropdown && payeeSuggestions.isNotEmpty()) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 6.dp,
+                                shadowElevation = 4.dp,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    payeeSuggestions.take(5).forEach { suggestion ->
                                         Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    payee = suggestion
+                                                    showNameDropdown = false
+                                                    onSelectPayeeSuggestion(suggestion)
+                                                }
+                                                .padding(horizontal = 14.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.History,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Text(
+                                                    text = suggestion,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
                                             Icon(
-                                                imageVector = Icons.Default.History,
-                                                contentDescription = null,
-                                                tint = SolidPrimary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = suggestion,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                imageVector = Icons.Default.NorthWest,
+                                                contentDescription = "Autofill",
+                                                tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(14.dp)
                                             )
                                         }
-                                    },
-                                    onClick = {
-                                        payee = suggestion
-                                        showNameDropdown = false
-                                        onSelectPayeeSuggestion(suggestion)
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -764,7 +791,7 @@ fun AddEditTransactionSheet(
                                 shape = CircleShape,
                                 color = typePrimaryColor,
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(36.dp)
                                     .clip(CircleShape)
                                     .clickable {
                                         txType = when (txType) {
@@ -774,13 +801,17 @@ fun AddEditTransactionSheet(
                                         }
                                         if (txType != TransactionType.TRANSFER) {
                                             val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                                            val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
-                                            val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                            selectedCategoryId = othersCat?.id
-                                            val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
-                                            selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                            val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
+                                            if (currentCat == null || currentCat.type != targetType) {
+                                                val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
+                                                val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                                selectedCategoryId = defaultGroup?.id
+                                                val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
+                                                selectedSubCategoryId = subs.firstOrNull()?.id
+                                            }
                                         }
                                     }
+                                    .testTag("tx_sign_toggle_btn")
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     val signText = when (txType) {
@@ -821,7 +852,8 @@ fun AddEditTransactionSheet(
                                 singleLine = true,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .testTag("tx_amount_input"),
+                                    .testTag("tx_amount_input")
+                                    .onFocusChanged { isAmountFocused = it.isFocused },
                                 decorationBox = { innerTextField ->
                                     Box(contentAlignment = Alignment.CenterStart) {
                                         if (amountText.isEmpty()) {
@@ -1070,7 +1102,8 @@ fun AddEditTransactionSheet(
                             onValueChange = { note = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(4.dp),
+                                .padding(4.dp)
+                                .onFocusChanged { isNoteFocused = it.isFocused },
                             placeholder = {
                                 Text(
                                     text = LanguageHelper.getString("notes", languageMode).ifEmpty { "Note" },
@@ -1091,7 +1124,7 @@ fun AddEditTransactionSheet(
                 }
 
                 // Bottom Action Bar: Type Selector Pills or Keyboard Accessory Toolbar (Pinned above Keyboard)
-                val isKeyboardOpen = WindowInsets.isImeVisible
+                val isKeyboardOpen = WindowInsets.isImeVisible || isNameFocused || isAmountFocused || isNoteFocused
 
                 val executeSave: () -> Unit = {
                     if (amount > 0) {
@@ -1175,11 +1208,14 @@ fun AddEditTransactionSheet(
                                     .clip(CircleShape)
                                     .clickable {
                                         txType = TransactionType.EXPENSE
-                                        val relevant = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
-                                        val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                        selectedCategoryId = othersCat?.id
-                                        val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
-                                        selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                        val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
+                                        if (currentCat == null || currentCat.type != CategoryType.EXPENSE) {
+                                            val relevant = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
+                                            val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                            selectedCategoryId = defaultGroup?.id
+                                            val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
+                                            selectedSubCategoryId = subs.firstOrNull()?.id
+                                        }
                                     }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -1204,11 +1240,14 @@ fun AddEditTransactionSheet(
                                     .clip(CircleShape)
                                     .clickable {
                                         txType = TransactionType.INCOME
-                                        val relevant = categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
-                                        val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                        selectedCategoryId = othersCat?.id
-                                        val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
-                                        selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                        val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
+                                        if (currentCat == null || currentCat.type != CategoryType.INCOME) {
+                                            val relevant = categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
+                                            val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                            selectedCategoryId = defaultGroup?.id
+                                            val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
+                                            selectedSubCategoryId = subs.firstOrNull()?.id
+                                        }
                                     }
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -1674,10 +1713,12 @@ private fun CategoryPickerModalDialog(
                         val query = searchQuery.trim().lowercase()
 
                         if (query.isNotEmpty()) {
-                            // Search Results
-                            val matchingCategories = activeCategories.filter {
-                                it.nameEn.lowercase().contains(query) ||
-                                        it.nameBn.lowercase().contains(query)
+                            // Search Results: Only search subcategories under groups
+                            val matchingCategories = activeCategories.filter { cat ->
+                                cat.parentId != null && (
+                                    cat.nameEn.lowercase().contains(query) ||
+                                    cat.nameBn.lowercase().contains(query)
+                                )
                             }
                             if (matchingCategories.isEmpty()) {
                                 Box(
@@ -1711,69 +1752,44 @@ private fun CategoryPickerModalDialog(
                                     onItemClick = { cat ->
                                         if (cat.parentId != null) {
                                             onCategorySelected(cat.parentId, cat.id)
-                                        } else {
-                                            onCategorySelected(cat.id, null)
                                         }
                                     }
                                 )
                             }
                         } else {
-                            // Display by Groups
-                            // 1. Standalone root categories (no subcategories)
-                            val standaloneParents = parentCategories.filter { parent ->
-                                activeCategories.none { it.parentId == parent.id }
-                            }
-                            if (standaloneParents.isNotEmpty()) {
-                                Text(
-                                    text = "Others",
-                                    color = Color(0xFF2E7D32),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 8.dp, bottom = 12.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                                Category3ColumnGrid(
-                                    items = standaloneParents,
-                                    selectedCategoryId = selectedCategoryId,
-                                    selectedSubCategoryId = selectedSubCategoryId,
-                                    languageMode = languageMode,
-                                    onItemClick = { cat ->
-                                        onCategorySelected(cat.id, null)
+                            // Display by Groups (Group name appears only once at middle as group name; no duplicate group name in categories)
+                            parentCategories.forEach { parent ->
+                                val subCats = activeCategories
+                                    .filter { it.parentId == parent.id }
+                                    .filter { sub ->
+                                        // Remove duplicate if identical to group name unless it's the sole subcategory
+                                        !sub.nameEn.equals(parent.nameEn, ignoreCase = true) ||
+                                        activeCategories.count { it.parentId == parent.id } == 1
                                     }
-                                )
-                                Spacer(modifier = Modifier.height(18.dp))
-                            }
 
-                            // 2. Parent categories with subcategories (No duplicate group name in grid, transactions occur with subcategories)
-                            val parentsWithSubs = parentCategories.filter { parent ->
-                                activeCategories.any { it.parentId == parent.id }
-                            }
-                            parentsWithSubs.forEach { parent ->
-                                val subCats = activeCategories.filter { it.parentId == parent.id }
+                                if (subCats.isNotEmpty()) {
+                                    Text(
+                                        text = "➤ ${parent.localizedName(languageMode)}",
+                                        color = Color(0xFF2E7D32),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 10.dp, bottom = 12.dp),
+                                        textAlign = TextAlign.Center
+                                    )
 
-                                Text(
-                                    text = "➤ ${parent.localizedName(languageMode)}",
-                                    color = Color(0xFF2E7D32),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 10.dp, bottom = 12.dp),
-                                    textAlign = TextAlign.Center
-                                )
-
-                                Category3ColumnGrid(
-                                    items = subCats,
-                                    selectedCategoryId = selectedCategoryId,
-                                    selectedSubCategoryId = selectedSubCategoryId,
-                                    languageMode = languageMode,
-                                    onItemClick = { cat ->
-                                        onCategorySelected(parent.id, cat.id)
-                                    }
-                                )
-                                Spacer(modifier = Modifier.height(18.dp))
+                                    Category3ColumnGrid(
+                                        items = subCats,
+                                        selectedCategoryId = selectedCategoryId,
+                                        selectedSubCategoryId = selectedSubCategoryId,
+                                        languageMode = languageMode,
+                                        onItemClick = { cat ->
+                                            onCategorySelected(parent.id, cat.id)
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.height(18.dp))
+                                }
                             }
                         }
                     }
