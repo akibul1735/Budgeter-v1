@@ -8,6 +8,7 @@ import com.example.data.local.AppDatabase
 import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
+import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.Transaction
@@ -27,13 +28,17 @@ import com.example.util.DriveBackupResult
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.Calendar
 import android.content.Context
 
 sealed interface BackupUiState {
@@ -63,10 +68,93 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             accountDao = db.accountDao(),
             categoryDao = db.categoryDao(),
             transactionDao = db.transactionDao(),
-            recurringBillDao = db.recurringBillDao()
+            recurringBillDao = db.recurringBillDao(),
+            monthlyBudgetDao = db.monthlyBudgetDao()
         )
         viewModelScope.launch {
             repository.ensureOthersGroupIntegrity()
+        }
+    }
+
+    private val initialCalendar = Calendar.getInstance()
+    private val _selectedBudgetYear = MutableStateFlow(initialCalendar.get(Calendar.YEAR))
+    val selectedBudgetYear: StateFlow<Int> = _selectedBudgetYear.asStateFlow()
+
+    private val _selectedBudgetMonth = MutableStateFlow(initialCalendar.get(Calendar.MONTH) + 1)
+    val selectedBudgetMonth: StateFlow<Int> = _selectedBudgetMonth.asStateFlow()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val monthlyBudgets: StateFlow<List<MonthlyBudget>> = combine(
+        _selectedBudgetYear,
+        _selectedBudgetMonth
+    ) { year, month ->
+        Pair(year, month)
+    }.flatMapLatest { (year, month) ->
+        repository.getMonthlyBudgets(year, month)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun setBudgetYearMonth(year: Int, month: Int) {
+        _selectedBudgetYear.value = year
+        _selectedBudgetMonth.value = month.coerceIn(1, 12)
+    }
+
+    fun nextBudgetMonth() {
+        var y = _selectedBudgetYear.value
+        var m = _selectedBudgetMonth.value + 1
+        if (m > 12) {
+            m = 1
+            y += 1
+        }
+        _selectedBudgetYear.value = y
+        _selectedBudgetMonth.value = m
+    }
+
+    fun prevBudgetMonth() {
+        var y = _selectedBudgetYear.value
+        var m = _selectedBudgetMonth.value - 1
+        if (m < 1) {
+            m = 12
+            y -= 1
+        }
+        _selectedBudgetYear.value = y
+        _selectedBudgetMonth.value = m
+    }
+
+    fun saveMonthlyBudget(itemType: String, itemId: Long, amount: Double, isEnabled: Boolean = true) {
+        viewModelScope.launch {
+            val budget = MonthlyBudget(
+                year = _selectedBudgetYear.value,
+                month = _selectedBudgetMonth.value,
+                itemType = itemType,
+                itemId = itemId,
+                budgetedAmount = amount,
+                isEnabled = isEnabled,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.saveMonthlyBudget(budget)
+            SyncManager.triggerInstantJsonSync(getApplication())
+        }
+    }
+
+    fun copyBudgetsFromPreviousMonth() {
+        viewModelScope.launch {
+            var prevY = _selectedBudgetYear.value
+            var prevM = _selectedBudgetMonth.value - 1
+            if (prevM < 1) {
+                prevM = 12
+                prevY -= 1
+            }
+            repository.copyBudgets(
+                fromYear = prevY,
+                fromMonth = prevM,
+                toYear = _selectedBudgetYear.value,
+                toMonth = _selectedBudgetMonth.value
+            )
+            SyncManager.triggerInstantJsonSync(getApplication())
         }
     }
 
@@ -242,7 +330,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     accountDao = repository.accountDao,
                     categoryDao = repository.categoryDao,
                     transactionDao = repository.transactionDao,
-                    recurringBillDao = repository.recurringBillDao
+                    recurringBillDao = repository.recurringBillDao,
+                    monthlyBudgetDao = repository.monthlyBudgetDao
                 )
                 _backupUiState.value = BackupUiState.Success("Backup created successfully: ${file.name}")
                 onFileReady(file)
@@ -261,7 +350,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 accountDao = repository.accountDao,
                 categoryDao = repository.categoryDao,
                 transactionDao = repository.transactionDao,
-                recurringBillDao = repository.recurringBillDao
+                recurringBillDao = repository.recurringBillDao,
+                monthlyBudgetDao = repository.monthlyBudgetDao
             )
             if (success) {
                 _backupUiState.value = BackupUiState.Success("Backup exported successfully to storage")
@@ -280,7 +370,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 accountDao = repository.accountDao,
                 categoryDao = repository.categoryDao,
                 transactionDao = repository.transactionDao,
-                recurringBillDao = repository.recurringBillDao
+                recurringBillDao = repository.recurringBillDao,
+                monthlyBudgetDao = repository.monthlyBudgetDao
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Restored $count records successfully!")

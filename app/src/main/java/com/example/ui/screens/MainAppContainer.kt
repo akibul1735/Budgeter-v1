@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.Account
+import com.example.data.model.AccountType
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
@@ -109,6 +110,7 @@ import kotlinx.coroutines.launch
 enum class AppView {
     DASHBOARD,
     LEDGER,
+    BUDGET,
     REPORTS,
     ACCOUNTS,
     EXPENSES,
@@ -137,6 +139,9 @@ fun MainAppContainer(
     val transactionsWithDetails by viewModel.transactionsWithDetails.collectAsStateWithLifecycle()
     val recurringBills by viewModel.recurringBillsWithDetails.collectAsStateWithLifecycle()
     val backupUiState by viewModel.backupUiState.collectAsStateWithLifecycle()
+    val monthlyBudgets by viewModel.monthlyBudgets.collectAsStateWithLifecycle()
+    val selectedBudgetYear by viewModel.selectedBudgetYear.collectAsStateWithLifecycle()
+    val selectedBudgetMonth by viewModel.selectedBudgetMonth.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -215,11 +220,11 @@ fun MainAppContainer(
     val bottomNavItems = listOf(
         Triple(LanguageHelper.getString("main", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
         Triple(LanguageHelper.getString("transactions", languageMode), Icons.AutoMirrored.Filled.ReceiptLong, AppView.LEDGER),
-        Triple(LanguageHelper.getString("balance_sheet", languageMode), Icons.Default.AccountBalance, AppView.ACCOUNTS),
-        Triple(LanguageHelper.getString("budget", languageMode), Icons.Default.Assessment, AppView.REPORTS)
+        Triple(LanguageHelper.getString("budget", languageMode), Icons.Default.Assessment, AppView.BUDGET),
+        Triple(LanguageHelper.getString("balance_sheet", languageMode), Icons.Default.AccountBalance, AppView.ACCOUNTS)
     )
 
-    val isSubView = currentView in listOf(AppView.ACCOUNTS, AppView.EXPENSES, AppView.INCOME, AppView.RECURRING_BILLS, AppView.BACKUP_SYNC)
+    val isSubView = currentView in listOf(AppView.REPORTS, AppView.ACCOUNTS, AppView.EXPENSES, AppView.INCOME, AppView.RECURRING_BILLS, AppView.BACKUP_SYNC)
 
     // Window Width Adaptive Layout Container
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -262,6 +267,7 @@ fun MainAppContainer(
                                 expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
                                 incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
                                 recurringCount = recurringBills.size,
+                                budgetCount = monthlyBudgets.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
                                 languageMode = languageMode
@@ -370,6 +376,9 @@ fun MainAppContainer(
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
+                                monthlyBudgets = monthlyBudgets,
+                                selectedBudgetYear = selectedBudgetYear,
+                                selectedBudgetMonth = selectedBudgetMonth,
                                 onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
@@ -378,6 +387,16 @@ fun MainAppContainer(
                                 onAddTransactionWithType = { type ->
                                     presetTxType = type
                                     editingTransaction = null
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithCategory = { cat ->
+                                    editingTransaction = null
+                                    presetTxType = if (cat.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithAccount = { acc ->
+                                    editingTransaction = null
+                                    presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                     showAddTransactionSheet = true
                                 },
                                 onAddAccount = { parentId ->
@@ -425,6 +444,7 @@ fun MainAppContainer(
                             val icon = when (view) {
                                 AppView.DASHBOARD -> Icons.Default.Dashboard
                                 AppView.LEDGER -> Icons.AutoMirrored.Filled.ReceiptLong
+                                AppView.BUDGET -> Icons.Default.Assessment
                                 AppView.REPORTS -> Icons.Default.Assessment
                                 AppView.ACCOUNTS -> Icons.Default.AccountBalance
                                 AppView.EXPENSES -> Icons.Default.Category
@@ -505,6 +525,9 @@ fun MainAppContainer(
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
+                                monthlyBudgets = monthlyBudgets,
+                                selectedBudgetYear = selectedBudgetYear,
+                                selectedBudgetMonth = selectedBudgetMonth,
                                 onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
@@ -513,6 +536,16 @@ fun MainAppContainer(
                                 onAddTransactionWithType = { type ->
                                     presetTxType = type
                                     editingTransaction = null
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithCategory = { cat ->
+                                    editingTransaction = null
+                                    presetTxType = if (cat.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithAccount = { acc ->
+                                    editingTransaction = null
+                                    presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                     showAddTransactionSheet = true
                                 },
                                 onAddAccount = { parentId ->
@@ -562,6 +595,7 @@ fun MainAppContainer(
                                 expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
                                 incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
                                 recurringCount = recurringBills.size,
+                                budgetCount = monthlyBudgets.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
                                 languageMode = languageMode
@@ -632,6 +666,9 @@ fun MainAppContainer(
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
+                                monthlyBudgets = monthlyBudgets,
+                                selectedBudgetYear = selectedBudgetYear,
+                                selectedBudgetMonth = selectedBudgetMonth,
                                 onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
@@ -640,6 +677,16 @@ fun MainAppContainer(
                                 onAddTransactionWithType = { type ->
                                     presetTxType = type
                                     editingTransaction = null
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithCategory = { cat ->
+                                    editingTransaction = null
+                                    presetTxType = if (cat.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithAccount = { acc ->
+                                    editingTransaction = null
+                                    presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                     showAddTransactionSheet = true
                                 },
                                 onAddAccount = { parentId ->
@@ -802,6 +849,7 @@ private fun DrawerContent(
     expensesCount: Int,
     incomeCount: Int,
     recurringCount: Int,
+    budgetCount: Int = 0,
     netWorth: Double,
     isBalanced: Boolean,
     languageMode: LanguageMode
@@ -835,7 +883,7 @@ private fun DrawerContent(
                         color = Color.White.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = "v2.5",
+                            text = "v3.4",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -903,6 +951,15 @@ private fun DrawerContent(
             iconTint = SolidTransfer,
             isSelected = currentView == AppView.LEDGER,
             onClick = { onSelectView(AppView.LEDGER) }
+        )
+
+        DrawerItemRow(
+            title = LanguageHelper.getString("budget", languageMode),
+            icon = Icons.Default.Assessment,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = if (budgetCount > 0) "$budgetCount" else null,
+            isSelected = currentView == AppView.BUDGET,
+            onClick = { onSelectView(AppView.BUDGET) }
         )
 
         DrawerItemRow(
@@ -1087,9 +1144,14 @@ private fun ScreenRouter(
     recurringBills: List<com.example.data.model.RecurringBillWithDetails>,
     languageMode: LanguageMode,
     backupUiState: com.example.ui.viewmodel.BackupUiState,
+    monthlyBudgets: List<com.example.data.model.MonthlyBudget>,
+    selectedBudgetYear: Int,
+    selectedBudgetMonth: Int,
     onNavigate: (AppView) -> Unit,
     onEditTransaction: (Transaction) -> Unit,
     onAddTransactionWithType: (TransactionType) -> Unit,
+    onAddTransactionWithCategory: (Category) -> Unit,
+    onAddTransactionWithAccount: (Account) -> Unit,
     onAddAccount: (Long?) -> Unit,
     onEditAccount: (Account) -> Unit,
     onAddCategory: (CategoryType, Long?) -> Unit,
@@ -1111,6 +1173,20 @@ private fun ScreenRouter(
             accountsWithBalances = accountsWithBalances,
             onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
             onTransactionClick = onEditTransaction
+        )
+        AppView.BUDGET -> BudgetScreen(
+            viewModel = viewModel,
+            allCategories = allCategories,
+            allAccounts = allAccounts,
+            accountsWithBalances = accountsWithBalances,
+            transactionsWithDetails = transactionsWithDetails,
+            monthlyBudgets = monthlyBudgets,
+            selectedYear = selectedBudgetYear,
+            selectedMonth = selectedBudgetMonth,
+            languageMode = languageMode,
+            onEditTransaction = onEditTransaction,
+            onAddTransactionWithCategory = onAddTransactionWithCategory,
+            onAddTransactionWithAccount = onAddTransactionWithAccount
         )
         AppView.REPORTS -> ReportsScreen(
             overview = overview,
@@ -1164,6 +1240,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
     return when (view) {
         AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
         AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
+        AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
         AppView.REPORTS -> LanguageHelper.getString("reports", languageMode)
         AppView.ACCOUNTS -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)

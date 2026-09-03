@@ -4,10 +4,12 @@ import android.content.Context
 import android.net.Uri
 import com.example.data.local.AccountDao
 import com.example.data.local.CategoryDao
+import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
 import com.example.data.local.TransactionDao
 import com.example.data.model.Account
 import com.example.data.model.Category
+import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.Transaction
 import com.squareup.moshi.Moshi
@@ -21,13 +23,14 @@ import java.util.Date
 import java.util.Locale
 
 data class BudgetBackupData(
-    val version: Int = 2,
+    val version: Int = 3,
     val exportedAt: Long = System.currentTimeMillis(),
     val app: String = "Budgeter",
     val accounts: List<Account>,
     val categories: List<Category>,
     val transactions: List<Transaction>,
-    val recurringBills: List<RecurringBill> = emptyList()
+    val recurringBills: List<RecurringBill> = emptyList(),
+    val monthlyBudgets: List<MonthlyBudget> = emptyList()
 )
 
 object BackupManager {
@@ -45,13 +48,15 @@ object BackupManager {
         accountDao: AccountDao,
         categoryDao: CategoryDao,
         transactionDao: TransactionDao,
-        recurringBillDao: RecurringBillDao
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null
     ): File = withContext(Dispatchers.IO) {
         val backupData = BudgetBackupData(
             accounts = accountDao.getAllAccountsSnapshot(),
             categories = categoryDao.getAllCategoriesSnapshot(),
             transactions = transactionDao.getAllTransactionsSnapshot(),
-            recurringBills = recurringBillDao.getAllBillsSnapshot()
+            recurringBills = recurringBillDao.getAllBillsSnapshot(),
+            monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList()
         )
         val json = adapter.indent("  ").toJson(backupData)
 
@@ -74,14 +79,16 @@ object BackupManager {
         accountDao: AccountDao,
         categoryDao: CategoryDao,
         transactionDao: TransactionDao,
-        recurringBillDao: RecurringBillDao
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val backupData = BudgetBackupData(
                 accounts = accountDao.getAllAccountsSnapshot(),
                 categories = categoryDao.getAllCategoriesSnapshot(),
                 transactions = transactionDao.getAllTransactionsSnapshot(),
-                recurringBills = recurringBillDao.getAllBillsSnapshot()
+                recurringBills = recurringBillDao.getAllBillsSnapshot(),
+                monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList()
             )
             val json = adapter.indent("  ").toJson(backupData)
 
@@ -105,7 +112,8 @@ object BackupManager {
         accountDao: AccountDao,
         categoryDao: CategoryDao,
         transactionDao: TransactionDao,
-        recurringBillDao: RecurringBillDao
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -118,6 +126,7 @@ object BackupManager {
             // Replace all records safely
             transactionDao.deleteAll()
             recurringBillDao.deleteAll()
+            monthlyBudgetDao?.deleteAll()
             categoryDao.deleteAll()
             accountDao.deleteAll()
 
@@ -127,8 +136,11 @@ object BackupManager {
             if (backupData.recurringBills.isNotEmpty()) {
                 recurringBillDao.insertAll(backupData.recurringBills)
             }
+            if (backupData.monthlyBudgets.isNotEmpty() && monthlyBudgetDao != null) {
+                monthlyBudgetDao.upsertBudgets(backupData.monthlyBudgets)
+            }
 
-            val totalCount = backupData.transactions.size + backupData.accounts.size + backupData.categories.size
+            val totalCount = backupData.transactions.size + backupData.accounts.size + backupData.categories.size + backupData.monthlyBudgets.size
             Result.success(totalCount)
         } catch (e: Exception) {
             e.printStackTrace()

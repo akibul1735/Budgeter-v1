@@ -31,9 +31,19 @@ import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material.icons.filled.Wallet
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 object IconHelper {
+
+    fun parseColorHex(hex: String?, fallback: Color = Color(0xFF1E56A0)): Color {
+        if (hex.isNullOrBlank()) return fallback
+        return try {
+            Color(android.graphics.Color.parseColor(hex))
+        } catch (_: Exception) {
+            fallback
+        }
+    }
 
     fun getIconByName(iconName: String): ImageVector {
         return when (iconName) {

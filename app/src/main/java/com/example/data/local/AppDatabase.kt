@@ -8,6 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.Account
 import com.example.data.model.Category
+import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.Transaction
 import kotlinx.coroutines.CoroutineScope
@@ -19,9 +20,10 @@ import kotlinx.coroutines.launch
         Account::class,
         Category::class,
         Transaction::class,
-        RecurringBill::class
+        RecurringBill::class,
+        MonthlyBudget::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
     abstract fun recurringBillDao(): RecurringBillDao
+    abstract fun monthlyBudgetDao(): MonthlyBudgetDao
 
     companion object {
         @Volatile
@@ -41,6 +44,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `monthly_budgets` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `year` INTEGER NOT NULL,
+                        `month` INTEGER NOT NULL,
+                        `itemType` TEXT NOT NULL,
+                        `itemId` INTEGER NOT NULL,
+                        `budgetedAmount` REAL NOT NULL,
+                        `isEnabled` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_monthly_budgets_year_month_itemType_itemId` ON `monthly_budgets` (`year`, `month`, `itemType`, `itemId`)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -48,7 +73,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_double_entry_db"
                 )
-                    .addMigrations(MIGRATION_4_5)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

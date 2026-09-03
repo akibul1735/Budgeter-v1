@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.data.local.AccountDao
 import com.example.data.local.CategoryDao
+import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
 import com.example.data.local.TransactionDao
 import com.example.data.model.Account
@@ -9,6 +10,7 @@ import com.example.data.model.AccountType
 import com.example.data.model.BillStatus
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
+import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.Transaction
@@ -46,12 +48,29 @@ class BudgetRepository(
     val accountDao: AccountDao,
     val categoryDao: CategoryDao,
     val transactionDao: TransactionDao,
-    val recurringBillDao: RecurringBillDao
+    val recurringBillDao: RecurringBillDao,
+    val monthlyBudgetDao: MonthlyBudgetDao
 ) {
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
     val allBills: Flow<List<RecurringBill>> = recurringBillDao.getAllBills()
+
+    fun getMonthlyBudgets(year: Int, month: Int): Flow<List<MonthlyBudget>> =
+        monthlyBudgetDao.getBudgetsForMonth(year, month)
+
+    suspend fun saveMonthlyBudget(budget: MonthlyBudget): Long =
+        monthlyBudgetDao.upsertBudget(budget)
+
+    suspend fun copyBudgets(fromYear: Int, fromMonth: Int, toYear: Int, toMonth: Int) {
+        val previous = monthlyBudgetDao.getBudgetsForMonthSnapshot(fromYear, fromMonth)
+        if (previous.isNotEmpty()) {
+            val copied = previous.map {
+                it.copy(id = 0, year = toYear, month = toMonth, updatedAt = System.currentTimeMillis())
+            }
+            monthlyBudgetDao.upsertBudgets(copied)
+        }
+    }
 
     val recurringBillsWithDetails: Flow<List<RecurringBillWithDetails>> = combine(
         allBills,
