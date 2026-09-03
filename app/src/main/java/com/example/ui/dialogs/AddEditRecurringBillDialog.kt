@@ -34,6 +34,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -202,7 +203,7 @@ fun AddEditRecurringBillDialog(
                         readOnly = true,
                         label = { Text("Repeat Frequency") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceDropdownExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                     )
                     ExposedDropdownMenu(
                         expanded = recurrenceDropdownExpanded,
@@ -252,7 +253,7 @@ fun AddEditRecurringBillDialog(
                         readOnly = true,
                         label = { Text(if (selectedType == TransactionType.EXPENSE) "Paid From (Asset/Liability)" else "Deposit To (Asset)") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountDropdownExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                     )
                     ExposedDropdownMenu(
                         expanded = accountDropdownExpanded,
@@ -288,7 +289,7 @@ fun AddEditRecurringBillDialog(
                         readOnly = true,
                         label = { Text("Category") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                     )
                     ExposedDropdownMenu(
                         expanded = categoryDropdownExpanded,

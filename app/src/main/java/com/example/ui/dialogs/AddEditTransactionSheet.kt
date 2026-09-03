@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
@@ -50,7 +51,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Notes
@@ -1006,7 +1006,7 @@ fun AddEditTransactionSheet(
                             OptionRowItem(
                                 icon = {
                                     Icon(
-                                        imageVector = Icons.Default.Label,
+                                        imageVector = Icons.AutoMirrored.Filled.Label,
                                         contentDescription = "Label",
                                         tint = MaterialTheme.colorScheme.outline,
                                         modifier = Modifier.size(20.dp)
@@ -2437,7 +2437,7 @@ private fun LabelPickerModalDialog(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.Label,
+                        imageVector = Icons.AutoMirrored.Filled.Label,
                         contentDescription = null,
                         tint = SolidPrimary,
                         modifier = Modifier.size(22.dp)
@@ -2601,7 +2601,7 @@ private fun LabelPickerModalDialog(
                                     if (isSelected) {
                                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
                                     } else {
-                                        Icon(Icons.Default.Label, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, modifier = Modifier.size(14.dp))
                                     }
                                 },
                                 shape = RoundedCornerShape(8.dp)

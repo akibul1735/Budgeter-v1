@@ -19,10 +19,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
@@ -442,7 +442,7 @@ private fun TransactionRowItem(
                         modifier = Modifier.padding(top = 1.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Notes,
+                            imageVector = Icons.AutoMirrored.Filled.Notes,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(11.dp)

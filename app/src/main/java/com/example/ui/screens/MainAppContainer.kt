@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
@@ -37,7 +38,6 @@ import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.DrawerValue
@@ -214,7 +214,7 @@ fun MainAppContainer(
 
     val bottomNavItems = listOf(
         Triple(LanguageHelper.getString("main", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
-        Triple(LanguageHelper.getString("transactions", languageMode), Icons.Default.ReceiptLong, AppView.LEDGER),
+        Triple(LanguageHelper.getString("transactions", languageMode), Icons.AutoMirrored.Filled.ReceiptLong, AppView.LEDGER),
         Triple(LanguageHelper.getString("balance_sheet", languageMode), Icons.Default.AccountBalance, AppView.ACCOUNTS),
         Triple(LanguageHelper.getString("budget", languageMode), Icons.Default.Assessment, AppView.REPORTS)
     )
@@ -424,7 +424,7 @@ fun MainAppContainer(
                             val isSelected = currentView == view
                             val icon = when (view) {
                                 AppView.DASHBOARD -> Icons.Default.Dashboard
-                                AppView.LEDGER -> Icons.Default.ReceiptLong
+                                AppView.LEDGER -> Icons.AutoMirrored.Filled.ReceiptLong
                                 AppView.REPORTS -> Icons.Default.Assessment
                                 AppView.ACCOUNTS -> Icons.Default.AccountBalance
                                 AppView.EXPENSES -> Icons.Default.Category
@@ -899,7 +899,7 @@ private fun DrawerContent(
 
         DrawerItemRow(
             title = LanguageHelper.getString("transactions", languageMode),
-            icon = Icons.Default.ReceiptLong,
+            icon = Icons.AutoMirrored.Filled.ReceiptLong,
             iconTint = SolidTransfer,
             isSelected = currentView == AppView.LEDGER,
             onClick = { onSelectView(AppView.LEDGER) }
