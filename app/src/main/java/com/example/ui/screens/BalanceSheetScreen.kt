@@ -724,7 +724,7 @@ private fun BalanceSheetGroupItem(
     onEditSubAccount: (Account) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Parent Account Row (e.g., "➤ Cash  45%   BDT 890.00   BDT 5,205.00 ▲")
+        // Parent Account Row (e.g., Cash 45% BDT 890.00 BDT 5,205.00 ▲)
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = Color.Transparent,
@@ -745,18 +745,26 @@ private fun BalanceSheetGroupItem(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // Account Name with Blue arrow indicator
+                // Account Name with Group Icon Indicator
                 Row(
                     modifier = Modifier.weight(1.1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "➤",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = IconHelper.getIconByName(group.parentAccount.iconName),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn,
                         fontSize = 13.sp,

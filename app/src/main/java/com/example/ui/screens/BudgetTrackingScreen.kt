@@ -703,14 +703,23 @@ private fun CategoryGroupSection(
 
                         Spacer(modifier = Modifier.width(8.dp))
 
-                        // Blue arrow pointer (➤)
-                        Text(
-                            text = "➤",
-                            color = BrandBlueLight,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(end = 4.dp)
-                        )
+                        // Group Indicating Icon Badge
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(BrandBlueLight.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
+                                contentDescription = null,
+                                tint = BrandBlueLight,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
 
                         Text(
                             text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),

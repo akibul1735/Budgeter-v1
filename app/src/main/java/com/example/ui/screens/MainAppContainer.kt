@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tag
@@ -141,16 +142,15 @@ enum class AppView {
     LABELS,
     ITEMS_SUMMARY,
     RECURRING_BILLS,
-    BACKUP_SYNC
+    BACKUP_SYNC,
+    SETTINGS
 }
 
 fun AppTab.toAppView(): AppView = when (this) {
     AppTab.MAIN -> AppView.DASHBOARD
     AppTab.TRANSACTIONS -> AppView.LEDGER
     AppTab.BALANCE_SHEET -> AppView.BALANCE_SHEET
-    AppTab.ACCOUNTS -> AppView.ACCOUNTS
     AppTab.BUDGET -> AppView.BUDGET
-    AppTab.CATEGORIES -> AppView.CATEGORIES
     AppTab.NET_EARNINGS -> AppView.REPORTS
     AppTab.LABELS -> AppView.LABELS
     AppTab.ITEMS_SUMMARY -> AppView.ITEMS_SUMMARY
@@ -161,11 +161,7 @@ fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.DASHBOARD -> AppTab.MAIN
     AppView.LEDGER -> AppTab.TRANSACTIONS
     AppView.BALANCE_SHEET -> AppTab.BALANCE_SHEET
-    AppView.ACCOUNTS -> AppTab.ACCOUNTS
     AppView.BUDGET -> AppTab.BUDGET
-    AppView.CATEGORIES -> AppTab.CATEGORIES
-    AppView.EXPENSES -> AppTab.CATEGORIES
-    AppView.INCOME -> AppTab.CATEGORIES
     AppView.REPORTS -> AppTab.NET_EARNINGS
     AppView.LABELS -> AppTab.LABELS
     AppView.ITEMS_SUMMARY -> AppTab.ITEMS_SUMMARY
@@ -514,7 +510,10 @@ fun MainAppContainer(
                                     presetCategoryType = cat.type
                                     presetCategoryParentId = cat.parentId
                                     showAddCategoryDialog = true
-                                }
+                                },
+                                onOpenTabCustomizer = { showTabCustomizationDialog = true },
+                                onOpenThemeFontSettings = { showThemeFontSettings = true },
+                                onOpenAutofillSettings = { showAutofillSettingsDialog = true }
                             )
                         }
                     }
@@ -659,7 +658,10 @@ fun MainAppContainer(
                                     presetCategoryType = cat.type
                                     presetCategoryParentId = cat.parentId
                                     showAddCategoryDialog = true
-                                }
+                                },
+                                onOpenTabCustomizer = { showTabCustomizationDialog = true },
+                                onOpenThemeFontSettings = { showThemeFontSettings = true },
+                                onOpenAutofillSettings = { showAutofillSettingsDialog = true }
                             )
                         }
                     }
@@ -805,7 +807,10 @@ fun MainAppContainer(
                                     presetCategoryType = cat.type
                                     presetCategoryParentId = cat.parentId
                                     showAddCategoryDialog = true
-                                }
+                                },
+                                onOpenTabCustomizer = { showTabCustomizationDialog = true },
+                                onOpenThemeFontSettings = { showThemeFontSettings = true },
+                                onOpenAutofillSettings = { showAutofillSettingsDialog = true }
                             )
                         }
                     }
@@ -1388,6 +1393,15 @@ private fun DrawerContent(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
+        // Settings
+        DrawerItemRow(
+            title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
+            icon = Icons.Default.Settings,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.SETTINGS,
+            onClick = { onSelectView(AppView.SETTINGS) }
+        )
+
         // TAB CUSTOMIZATION (TOP / BOTTOM & TAB TOGGLES)
         DrawerItemRow(
             title = LanguageHelper.getString("tab_customization", languageMode),
@@ -1560,7 +1574,10 @@ private fun ScreenRouter(
     onAddAccount: (Long?) -> Unit,
     onEditAccount: (Account) -> Unit,
     onAddCategory: (CategoryType, Long?) -> Unit,
-    onEditCategory: (Category) -> Unit
+    onEditCategory: (Category) -> Unit,
+    onOpenTabCustomizer: () -> Unit = {},
+    onOpenThemeFontSettings: () -> Unit = {},
+    onOpenAutofillSettings: () -> Unit = {}
 ) {
     when (currentView) {
         AppView.DASHBOARD -> DashboardScreen(
@@ -1661,6 +1678,12 @@ private fun ScreenRouter(
             },
             onResetAllCalculations = {
                 viewModel.resetAllAccountCalculations()
+            },
+            onUpdateAccounts = { updatedList ->
+                viewModel.updateAccounts(updatedList)
+            },
+            onDeleteAccounts = { delList ->
+                viewModel.deleteAccounts(delList)
             }
         )
         AppView.CATEGORIES -> CategoriesScreen(
@@ -1669,7 +1692,13 @@ private fun ScreenRouter(
             initialTab = 0,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
-            onEditCategoryClick = onEditCategory
+            onEditCategoryClick = onEditCategory,
+            onUpdateCategories = { updatedList ->
+                viewModel.updateCategories(updatedList)
+            },
+            onDeleteCategories = { delList ->
+                viewModel.deleteCategories(delList)
+            }
         )
         AppView.EXPENSES -> CategoriesScreen(
             categories = allCategories,
@@ -1677,7 +1706,13 @@ private fun ScreenRouter(
             initialTab = 0,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
-            onEditCategoryClick = onEditCategory
+            onEditCategoryClick = onEditCategory,
+            onUpdateCategories = { updatedList ->
+                viewModel.updateCategories(updatedList)
+            },
+            onDeleteCategories = { delList ->
+                viewModel.deleteCategories(delList)
+            }
         )
         AppView.INCOME -> CategoriesScreen(
             categories = allCategories,
@@ -1685,12 +1720,26 @@ private fun ScreenRouter(
             initialTab = 1,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
-            onEditCategoryClick = onEditCategory
+            onEditCategoryClick = onEditCategory,
+            onUpdateCategories = { updatedList ->
+                viewModel.updateCategories(updatedList)
+            },
+            onDeleteCategories = { delList ->
+                viewModel.deleteCategories(delList)
+            }
         )
         AppView.BACKUP_SYNC -> BackupSyncSettingsScreen(
             viewModel = viewModel,
             languageMode = languageMode,
             backupUiState = backupUiState
+        )
+        AppView.SETTINGS -> SettingsScreen(
+            viewModel = viewModel,
+            languageMode = languageMode,
+            onNavigateToBackupSync = { onNavigate(AppView.BACKUP_SYNC) },
+            onOpenTabCustomizer = onOpenTabCustomizer,
+            onOpenThemeFontSettings = onOpenThemeFontSettings,
+            onOpenAutofillSettings = onOpenAutofillSettings
         )
     }
 }
@@ -1711,5 +1760,6 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
         AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
         AppView.BACKUP_SYNC -> "Backup, Restore & Sync"
+        AppView.SETTINGS -> LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" }
     }
 }

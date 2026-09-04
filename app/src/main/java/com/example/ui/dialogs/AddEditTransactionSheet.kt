@@ -1768,16 +1768,35 @@ private fun CategoryPickerModalDialog(
                                     }
 
                                 if (subCats.isNotEmpty()) {
-                                    Text(
-                                        text = "➤ ${parent.localizedName(languageMode)}",
-                                        color = Color(0xFF2E7D32),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
+                                    Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(top = 10.dp, bottom = 12.dp),
-                                        textAlign = TextAlign.Center
-                                    )
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFF2E7D32).copy(alpha = 0.12f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = IconHelper.getIconByName(parent.iconName),
+                                                contentDescription = null,
+                                                tint = Color(0xFF2E7D32),
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = parent.localizedName(languageMode),
+                                            color = Color(0xFF2E7D32),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                    }
 
                                     Category3ColumnGrid(
                                         items = subCats,
@@ -2303,16 +2322,35 @@ private fun AccountPickerModalDialog(
                                 }
 
                                 if (groupItems.isNotEmpty()) {
-                                    Text(
-                                        text = "➤ ${parent.localizedName(languageMode)}",
-                                        color = Color(0xFF2E7D32),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
+                                    Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(top = 10.dp, bottom = 12.dp),
-                                        textAlign = TextAlign.Center
-                                    )
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFF2E7D32).copy(alpha = 0.12f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = IconHelper.getIconByName(parent.iconName),
+                                                contentDescription = null,
+                                                tint = Color(0xFF2E7D32),
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = parent.localizedName(languageMode),
+                                            color = Color(0xFF2E7D32),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                    }
                                     Account3ColumnGrid(
                                         items = groupItems,
                                         allAccounts = allAccounts,

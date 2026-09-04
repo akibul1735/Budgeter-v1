@@ -235,7 +235,20 @@ class BudgetRepository(
 
     suspend fun insertCategory(category: Category): Long = categoryDao.insertCategory(category)
     suspend fun updateCategory(category: Category) = categoryDao.updateCategory(category)
+    suspend fun updateCategories(categories: List<Category>) = categoryDao.insertCategories(categories)
     suspend fun deleteCategory(category: Category) = categoryDao.deleteCategory(category)
+    suspend fun deleteCategories(categories: List<Category>) {
+        categories.forEach { categoryDao.deleteCategory(it) }
+    }
+    suspend fun updateAccounts(accounts: List<Account>) {
+        val sanitized = accounts.map { acc ->
+            if (acc.parentId == null) acc.copy(initialBalance = 0.0) else acc
+        }
+        accountDao.insertAccounts(sanitized)
+    }
+    suspend fun deleteAccounts(accounts: List<Account>) {
+        accounts.forEach { accountDao.deleteAccount(it) }
+    }
 
     suspend fun ensureOthersGroupIntegrity() {
         val catSnapshot = categoryDao.getAllCategoriesSnapshot()

@@ -400,9 +400,29 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun saveAccounts(accounts: List<Account>) {
+        viewModelScope.launch {
+            activeRepo.updateAccounts(accounts)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun updateAccounts(accounts: List<Account>) = saveAccounts(accounts)
+
     fun deleteAccount(account: Account) {
         viewModelScope.launch {
             activeRepo.deleteAccount(account)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun deleteAccounts(accounts: List<Account>) {
+        viewModelScope.launch {
+            activeRepo.deleteAccounts(accounts)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
             }
@@ -422,9 +442,29 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun saveCategories(categories: List<Category>) {
+        viewModelScope.launch {
+            activeRepo.updateCategories(categories)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun updateCategories(categories: List<Category>) = saveCategories(categories)
+
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
             activeRepo.deleteCategory(category)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun deleteCategories(categories: List<Category>) {
+        viewModelScope.launch {
+            activeRepo.deleteCategories(categories)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
             }
