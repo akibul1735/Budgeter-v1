@@ -1743,7 +1743,10 @@ private fun ScreenRouter(
             },
             onExecuteTransfer = onExecuteTransfer,
             onAddTransactionWithAccount = onAddTransactionWithAccountAndType,
-            onEditAccount = onEditAccount
+            onEditAccount = onEditAccount,
+            onSaveCategoryAllocations = { categoryId, allocMap ->
+                viewModel.saveCategoryAccountAllocations(categoryId, allocMap)
+            }
         )
         AppView.BUDGET -> BudgetTrackingScreen(
             viewModel = viewModel,

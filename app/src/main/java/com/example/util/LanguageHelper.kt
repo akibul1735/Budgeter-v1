@@ -300,6 +300,23 @@ object LanguageHelper {
         "revert_expense_hint" to Trans("Revert / Decrease Expense (Refund)", "খরচ হ্রাস / রিভার্ট (রিফান্ড)"),
         "revert_income_hint" to Trans("Revert / Decrease Income (Deduction)", "আয় হ্রাস / রিভার্ট (কর্তন)"),
         "normal_expense_hint" to Trans("Normal Expense (−)", "স্বাভাবিক খরচ (−)"),
-        "normal_income_hint" to Trans("Normal Income (+)", "স্বাভাবিক আয় (+)")
+        "normal_income_hint" to Trans("Normal Income (+)", "স্বাভাবিক আয় (+)"),
+        "by_account" to Trans("By Account", "হিসাব ভিত্তিক"),
+        "by_category_split" to Trans("By Category & Splits", "ক্যাটাগরি ও বরাদ্দ"),
+        "assign_category" to Trans("Assign / Split", "বরাদ্দ ও বিভাজন"),
+        "assign_to_account" to Trans("+ Assign to Account", "+ এই হিসাবে বরাদ্দ"),
+        "split_expense_across_accounts" to Trans("Split Budget Across Accounts", "একাধিক হিসাবে বাজেট বণ্টন"),
+        "allocated_accounts" to Trans("Assigned Accounts", "বরাদ্দকৃত হিসাব"),
+        "unallocated" to Trans("Unallocated", "অবরাদ্দকৃত"),
+        "multi_account_split" to Trans("Split Across Accounts", "একাধিক হিসাবে বিভক্ত"),
+        "save_allocations" to Trans("Save Allocations", "বরাদ্দ সংরক্ষণ করুন"),
+        "add_account_split" to Trans("+ Add Account", "+ হিসাব যোগ করুন"),
+        "total_category_budget" to Trans("Total Category Budget", "ক্যাটাগরির মোট বাজেট"),
+        "edit_allocation" to Trans("Edit Allocation", "বরাদ্দ পরিবর্তন"),
+        "allocation_summary" to Trans("Allocation Summary", "বরাদ্দ সারসংক্ষেপ"),
+        "no_categories_match" to Trans("No categories found", "কোনো ক্যাটাগরি পাওয়া যায়নি"),
+        "search_categories" to Trans("Search categories...", "ক্যাটাগরি অনুসন্ধান..."),
+        "fill_remaining" to Trans("Fill Remaining", "অবশিষ্ট পূরণ"),
+        "clear" to Trans("Clear", "মুছুন")
     )
 }

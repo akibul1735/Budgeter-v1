@@ -348,6 +348,34 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun saveCategoryAccountAllocations(
+        categoryId: Long,
+        allocations: Map<Long, Double>,
+        year: Int = _selectedBudgetYear.value,
+        month: Int = _selectedBudgetMonth.value
+    ) {
+        viewModelScope.launch {
+            activeRepo.saveCategoryAccountAllocations(year, month, categoryId, allocations)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun deleteCategoryAccountAllocation(
+        categoryId: Long,
+        accountId: Long,
+        year: Int = _selectedBudgetYear.value,
+        month: Int = _selectedBudgetMonth.value
+    ) {
+        viewModelScope.launch {
+            activeRepo.deleteCategoryAccountAllocation(year, month, categoryId, accountId)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
     fun copyBudgetsFromPreviousMonth() {
         viewModelScope.launch {
             var prevY = _selectedBudgetYear.value

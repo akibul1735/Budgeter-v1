@@ -131,13 +131,24 @@ object DemoDatabaseInitializer {
                 colorHex = "#3B82F6"
             )
         )
+        val sonaliBankId = accountDao.insertAccount(
+            Account(
+                nameEn = "Sonali Bank Principal A/C",
+                nameBn = "সোনালী ব্যাংক প্রিন্সিপাল হিসাব",
+                type = AccountType.ASSET,
+                parentId = bankParentId,
+                initialBalance = 45000.0,
+                iconName = "AccountBalance",
+                colorHex = "#047857"
+            )
+        )
         val bkashId = accountDao.insertAccount(
             Account(
                 nameEn = "bKash Personal Wallet",
                 nameBn = "বিকাশ ব্যক্তিগত ওয়ালেট",
                 type = AccountType.ASSET,
                 parentId = mfsParentId,
-                initialBalance = 7850.0,
+                initialBalance = 2000.0,
                 iconName = "PhoneIphone",
                 colorHex = "#E2136E"
             )
@@ -327,6 +338,16 @@ object DemoDatabaseInitializer {
                 parentId = catHousingId,
                 iconName = "ElectricBolt",
                 colorHex = "#FBBF24"
+            )
+        )
+        val subMobileRechargeId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Mobile Recharge & Data",
+                nameBn = "মোবাইল রিচার্জ ও ডাটা",
+                type = CategoryType.EXPENSE,
+                parentId = catHousingId,
+                iconName = "PhoneAndroid",
+                colorHex = "#FB923C"
             )
         )
         val subInternetId = categoryDao.insertCategory(
@@ -575,14 +596,23 @@ object DemoDatabaseInitializer {
             )
         )
 
-        // 6. Seed Monthly Budgets for Categories
+        // 6. Seed Monthly Budgets for Categories & Multi-Account Allocations
         val defaultBudgets = listOf(
             MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = catFoodId, budgetedAmount = 22000.0),
             MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = catHousingId, budgetedAmount = 32000.0),
             MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = catTransportId, budgetedAmount = 7500.0),
             MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = catLifestyleId, budgetedAmount = 10000.0),
             MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = catHealthId, budgetedAmount = 5000.0),
-            MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = catEntertainmentId, budgetedAmount = 4000.0)
+            MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = catEntertainmentId, budgetedAmount = 4000.0),
+            MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = subElectricityId, budgetedAmount = 3300.0),
+            MonthlyBudget(year = curYear, month = curMonth, itemType = "EXPENSE", itemId = subMobileRechargeId, budgetedAmount = 500.0),
+            // User Payment Source Allocation Scenario:
+            // Recharge assign 500 to bKash
+            MonthlyBudget(year = curYear, month = curMonth, itemType = "ALLOC_$subMobileRechargeId", itemId = bkashId, budgetedAmount = 500.0),
+            // E bill assign 1300 to bKash (bKash has 2000 balance -> 200 surplus!)
+            MonthlyBudget(year = curYear, month = curMonth, itemType = "ALLOC_$subElectricityId", itemId = bkashId, budgetedAmount = 1300.0),
+            // E bill assign 2000 to Sonali bank (split across two accounts)
+            MonthlyBudget(year = curYear, month = curMonth, itemType = "ALLOC_$subElectricityId", itemId = sonaliBankId, budgetedAmount = 2000.0)
         )
         defaultBudgets.forEach { monthlyBudgetDao.upsertBudget(it) }
 

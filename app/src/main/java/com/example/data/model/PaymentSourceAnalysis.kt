@@ -41,7 +41,27 @@ data class AccountRequirementItem(
     val isExpense: Boolean = true,
     val categoryId: Long? = null,
     val iconName: String = "Category",
-    val colorHex: String = "#EF4444"
+    val colorHex: String = "#EF4444",
+    val isMultiAccountSplit: Boolean = false,
+    val totalCategoryBudget: Double = 0.0,
+    val splitAccountCount: Int = 1
+)
+
+data class CategoryAccountSplit(
+    val account: Account,
+    val allocatedAmount: Double,
+    val actualSpent: Double = 0.0,
+    val remaining: Double = 0.0,
+    val percentageOfCategory: Double = 0.0
+)
+
+data class CategoryAllocationAnalysis(
+    val category: Category,
+    val totalBudgetOrRequired: Double,
+    val totalActualSpent: Double,
+    val totalRemaining: Double,
+    val accountSplits: List<CategoryAccountSplit>,
+    val isMultiAccount: Boolean = accountSplits.size > 1
 )
 
 data class AccountRequirementAnalysis(
@@ -117,7 +137,8 @@ data class PaymentSourceAnalysisOverview(
     val accountsNeedingFundsCount: Int,
     val accountsWithSurplusCount: Int,
     val accountAnalyses: List<AccountRequirementAnalysis>,
-    val transferSuggestions: List<FundAllocationSuggestion>
+    val categoryAllocations: List<CategoryAllocationAnalysis> = emptyList(),
+    val transferSuggestions: List<FundAllocationSuggestion> = emptyList()
 ) {
     val netStatus: Double get() = totalAvailable - totalRequired
     val isOverallSurplus: Boolean get() = netStatus >= 0.0

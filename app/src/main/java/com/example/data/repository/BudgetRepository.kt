@@ -150,6 +150,51 @@ class BudgetRepository(
         }
     }
 
+    suspend fun saveCategoryAccountAllocations(
+        year: Int,
+        month: Int,
+        categoryId: Long,
+        allocations: Map<Long, Double>
+    ) {
+        val itemType = "ALLOC_$categoryId"
+        val existing = monthlyBudgetDao.getBudgetsForMonthSnapshot(year, month)
+            .filter { it.itemType == itemType }
+
+        // Remove allocations that are set to 0 or removed
+        for (item in existing) {
+            if (!allocations.containsKey(item.itemId) || (allocations[item.itemId] ?: 0.0) <= 0.0) {
+                monthlyBudgetDao.deleteBudget(year, month, itemType, item.itemId)
+            }
+        }
+
+        // Insert or update non-zero allocations
+        for ((accountId, amount) in allocations) {
+            if (amount > 0.0) {
+                val match = existing.find { it.itemId == accountId }
+                val budget = MonthlyBudget(
+                    id = match?.id ?: 0,
+                    year = year,
+                    month = month,
+                    itemType = itemType,
+                    itemId = accountId,
+                    budgetedAmount = amount,
+                    isEnabled = true,
+                    updatedAt = System.currentTimeMillis()
+                )
+                monthlyBudgetDao.upsertBudget(budget)
+            }
+        }
+    }
+
+    suspend fun deleteCategoryAccountAllocation(
+        year: Int,
+        month: Int,
+        categoryId: Long,
+        accountId: Long
+    ) {
+        monthlyBudgetDao.deleteBudget(year, month, "ALLOC_$categoryId", accountId)
+    }
+
     suspend fun copyBudgets(fromYear: Int, fromMonth: Int, toYear: Int, toMonth: Int) {
         val previous = monthlyBudgetDao.getBudgetsForMonthSnapshot(fromYear, fromMonth)
         if (previous.isNotEmpty()) {
