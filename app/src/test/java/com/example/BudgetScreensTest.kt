@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -76,7 +77,8 @@ class BudgetScreensTest {
         }
 
         // Tap the Budget tab in the navigation bar using its unique test tag
-        composeTestRule.onNodeWithTag("bottom_nav_budget").performClick()
+        composeTestRule.onNodeWithTag("bottom_nav_budget").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("budget_tracking_screen").assertExists()
     }
 }
