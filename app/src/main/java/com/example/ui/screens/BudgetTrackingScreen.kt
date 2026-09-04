@@ -257,10 +257,86 @@ fun BudgetTrackingScreen(
 
         val resultList = mutableListOf<CategoryGroupBudgetTracking>()
 
-        // 1. Process regular parent categories with subcategories
+        // 1. Process regular parent categories with subcategories or standalone parent categories
         parentCategories.forEach { parent ->
             val children = groupedByParent[parent.id] ?: emptyList()
-            val trackingItems = children.map { cat ->
+            if (children.isNotEmpty()) {
+                val trackingItems = children.map { cat ->
+                    val catTxs = monthTransactions.filter {
+                        it.transaction.categoryId == cat.id || it.transaction.subCategoryId == cat.id
+                    }
+                    val spent = catTxs.sumOf { it.transaction.amount }
+                    val budgetEntry = budgetMap["${itemTypeKey}_${cat.id}"]
+                    val budgetLimit = budgetEntry?.budgetedAmount ?: cat.budgetLimit
+                    val isEnabled = budgetEntry?.isEnabled ?: true
+
+                    CategoryBudgetTrackingItem(
+                        category = cat,
+                        spentAmount = spent,
+                        budgetLimit = budgetLimit,
+                        isEnabled = isEnabled,
+                        transactions = catTxs
+                    )
+                }.filter { item ->
+                    val matchesSearch = searchQuery.isEmpty() ||
+                            item.category.nameEn.contains(searchQuery, ignoreCase = true) ||
+                            item.category.nameBn.contains(searchQuery, ignoreCase = true)
+                    val matchesBudgeted = !filterOnlyBudgeted || item.hasBudget
+                    val matchesOver = !filterOnlyOverBudget || item.isOverBudget
+                    matchesSearch && matchesBudgeted && matchesOver
+                }
+
+                if (trackingItems.isNotEmpty() || (searchQuery.isEmpty() && !filterOnlyBudgeted && !filterOnlyOverBudget)) {
+                    resultList.add(
+                        CategoryGroupBudgetTracking(
+                            parentCategory = parent,
+                            groupNameEn = parent.nameEn,
+                            groupNameBn = parent.nameBn,
+                            items = trackingItems
+                        )
+                    )
+                }
+            } else {
+                // Parent category with no sub-categories (standalone)
+                val catTxs = monthTransactions.filter {
+                    it.transaction.categoryId == parent.id || it.transaction.subCategoryId == parent.id
+                }
+                val spent = catTxs.sumOf { it.transaction.amount }
+                val budgetEntry = budgetMap["${itemTypeKey}_${parent.id}"]
+                val budgetLimit = budgetEntry?.budgetedAmount ?: parent.budgetLimit
+                val isEnabled = budgetEntry?.isEnabled ?: true
+
+                val singleItem = CategoryBudgetTrackingItem(
+                    category = parent,
+                    spentAmount = spent,
+                    budgetLimit = budgetLimit,
+                    isEnabled = isEnabled,
+                    transactions = catTxs
+                )
+
+                val matchesSearch = searchQuery.isEmpty() ||
+                        parent.nameEn.contains(searchQuery, ignoreCase = true) ||
+                        parent.nameBn.contains(searchQuery, ignoreCase = true)
+                val matchesBudgeted = !filterOnlyBudgeted || singleItem.hasBudget
+                val matchesOver = !filterOnlyOverBudget || singleItem.isOverBudget
+
+                if (matchesSearch && matchesBudgeted && matchesOver) {
+                    resultList.add(
+                        CategoryGroupBudgetTracking(
+                            parentCategory = parent,
+                            groupNameEn = parent.nameEn,
+                            groupNameBn = parent.nameBn,
+                            items = listOf(singleItem)
+                        )
+                    )
+                }
+            }
+        }
+
+        // 2. Process orphaned child categories whose parent is not in parentCategories
+        val orphanedChildren = childCategories.filter { child -> parentCategories.none { it.id == child.parentId } }
+        if (orphanedChildren.isNotEmpty()) {
+            val orphanItems = orphanedChildren.map { cat ->
                 val catTxs = monthTransactions.filter {
                     it.transaction.categoryId == cat.id || it.transaction.subCategoryId == cat.id
                 }
@@ -285,47 +361,13 @@ fun BudgetTrackingScreen(
                 matchesSearch && matchesBudgeted && matchesOver
             }
 
-            if (trackingItems.isNotEmpty() || (searchQuery.isEmpty() && !filterOnlyBudgeted && !filterOnlyOverBudget)) {
-                resultList.add(
-                    CategoryGroupBudgetTracking(
-                        parentCategory = parent,
-                        groupNameEn = parent.nameEn,
-                        groupNameBn = parent.nameBn,
-                        items = trackingItems
-                    )
-                )
-            }
-        }
-
-        // 2. Process standalone categories (no parent and not a parent itself)
-        val standalone = relevantCategories.filter { cat ->
-            cat.parentId == null && !parentCategories.any { it.id == cat.id }
-        }
-        if (standalone.isNotEmpty()) {
-            val standaloneItems = standalone.map { cat ->
-                val catTxs = monthTransactions.filter {
-                    it.transaction.categoryId == cat.id || it.transaction.subCategoryId == cat.id
-                }
-                val spent = catTxs.sumOf { it.transaction.amount }
-                val budgetEntry = budgetMap["${itemTypeKey}_${cat.id}"]
-                val budgetLimit = budgetEntry?.budgetedAmount ?: cat.budgetLimit
-                val isEnabled = budgetEntry?.isEnabled ?: true
-
-                CategoryBudgetTrackingItem(
-                    category = cat,
-                    spentAmount = spent,
-                    budgetLimit = budgetLimit,
-                    isEnabled = isEnabled,
-                    transactions = catTxs
-                )
-            }
-            if (standaloneItems.isNotEmpty()) {
+            if (orphanItems.isNotEmpty()) {
                 resultList.add(
                     CategoryGroupBudgetTracking(
                         parentCategory = null,
                         groupNameEn = "Others",
                         groupNameBn = "অন্যান্য",
-                        items = standaloneItems
+                        items = orphanItems
                     )
                 )
             }
@@ -548,8 +590,12 @@ fun BudgetTrackingScreen(
                     }
                 }
             } else {
-                items(categoryGroups, key = { it.groupNameEn }) { group ->
-                    val isExpanded = expandedGroups[group.groupNameEn] ?: true
+                items(
+                    items = categoryGroups,
+                    key = { "${it.parentCategory?.id ?: "others"}_${it.groupNameEn}_${it.groupNameBn}" }
+                ) { group ->
+                    val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
+                    val isExpanded = expandedGroups[groupKey] ?: true
 
                     CategoryGroupSection(
                         group = group,
@@ -557,7 +603,7 @@ fun BudgetTrackingScreen(
                         todayPaceRatio = todayPaceRatio,
                         languageMode = languageMode,
                         onToggleExpand = {
-                            expandedGroups[group.groupNameEn] = !isExpanded
+                            expandedGroups[groupKey] = !isExpanded
                         },
                         onCategoryClick = { trackingItem ->
                             selectedCategoryForDetail = trackingItem
