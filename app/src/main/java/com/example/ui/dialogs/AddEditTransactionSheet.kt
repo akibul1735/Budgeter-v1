@@ -53,14 +53,18 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.NorthWest
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -118,6 +122,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -140,8 +145,12 @@ import com.example.ui.theme.SolidTransfer
 import com.example.util.AutofillConfig
 import com.example.util.AutofillPreferences
 import com.example.util.DateUtils
+import com.example.util.DisplayFormatPreferences
 import com.example.util.IconHelper
+import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
+import com.example.util.TransferFeePreferences
+import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -160,6 +169,9 @@ fun AddEditTransactionSheet(
     val context = LocalContext.current
     val autofillPrefs = remember { AutofillPreferences.getInstance(context) }
     val autofillConfig by autofillPrefs.config.collectAsState()
+    val displayFormatPrefs = remember { DisplayFormatPreferences.getInstance(context) }
+    val displayFormatConfig by displayFormatPrefs.config.collectAsStateWithLifecycle()
+    val transferFeePrefs = remember { TransferFeePreferences.getInstance(context) }
 
     var txType by remember {
         mutableStateOf(existingTransaction?.type ?: TransactionType.EXPENSE)
@@ -244,6 +256,20 @@ fun AddEditTransactionSheet(
     var selectedSubCategoryId by remember {
         mutableStateOf(existingTransaction?.subCategoryId)
     }
+
+    // Transfer Fee State
+    var hasTransferFee by remember { mutableStateOf(false) }
+    var transferFeeAmount by remember { mutableDoubleStateOf(0.0) }
+    var transferFeeAmountText by remember { mutableStateOf("") }
+    var transferFeeAccountId by remember { mutableStateOf<Long?>(null) }
+    var transferFeeCategoryId by remember { mutableStateOf<Long?>(null) }
+    var transferFeeSubCategoryId by remember { mutableStateOf<Long?>(null) }
+    var isTransferFeeAmountFocused by remember { mutableStateOf(false) }
+    var showTransferFeeCalculator by remember { mutableStateOf(false) }
+    var showTransferFeeCategoryPicker by remember { mutableStateOf(false) }
+
+    // Account picker destination: 0 = source/credit (or regular), 1 = dest/debit, 2 = transfer fee account
+    var accountPickerTarget by remember { mutableStateOf(0) }
 
     // Pickers & Modals
     var showCalculator by remember { mutableStateOf(false) }
@@ -1069,7 +1095,9 @@ fun AddEditTransactionSheet(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // 4. Selector Rows (Category, Account, Split, Status, Label)
+                    // 4. Selector Rows (Category, Account, Transfer Fee, Split, Status, Label)
+                    val isDoubleLine = displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -1079,6 +1107,17 @@ fun AddEditTransactionSheet(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             // Row A: Category (For Expense & Income)
                             if (txType != TransactionType.TRANSFER) {
+                                val catGroupName = selectedCategory?.localizedName(languageMode)
+                                val subCatName = selectedSubCategory?.localizedName(languageMode)
+                                val (catTitle, catSub) = when {
+                                    catGroupName == null -> Pair(LanguageHelper.getString("select_category", languageMode), null)
+                                    subCatName != null && subCatName != catGroupName -> {
+                                        if (isDoubleLine) Pair(catGroupName, subCatName)
+                                        else Pair("$catGroupName > $subCatName", null)
+                                    }
+                                    else -> Pair(catGroupName, null)
+                                }
+
                                 OptionRowItem(
                                     icon = {
                                         Icon(
@@ -1088,13 +1127,9 @@ fun AddEditTransactionSheet(
                                             modifier = Modifier.size(20.dp)
                                         )
                                     },
-                                    title = if (selectedCategory != null) {
-                                        val catName = selectedCategory.localizedName(languageMode)
-                                        val subName = selectedSubCategory?.localizedName(languageMode)
-                                        if (subName != null) "$catName / $subName" else catName
-                                    } else {
-                                        LanguageHelper.getString("select_category", languageMode)
-                                    },
+                                    title = catTitle,
+                                    subTitle = catSub,
+                                    isTwoLine = isDoubleLine && catSub != null,
                                     onClick = { showCategoryPickerModal = true }
                                 )
 
@@ -1105,46 +1140,286 @@ fun AddEditTransactionSheet(
                                 )
                             }
 
-                            // Row B: Account (Showing Account Group Name with Account)
-                            val formatAccountWithGroup: (Account?) -> String = { acc ->
-                                if (acc == null) {
-                                    LanguageHelper.getString("select_account", languageMode)
-                                } else {
-                                    val parent = if (acc.parentId != null) accounts.firstOrNull { it.id == acc.parentId } else null
-                                    if (parent != null) {
-                                        "${parent.localizedName(languageMode)} / ${acc.localizedName(languageMode)}"
-                                    } else {
-                                        acc.localizedName(languageMode)
+                            // Row B: Account Selection
+                            if (txType != TransactionType.TRANSFER) {
+                                val activeAcc = if (txType == TransactionType.EXPENSE) selectedCreditAccount else selectedDebitAccount
+                                val parentAcc = if (activeAcc?.parentId != null) accounts.firstOrNull { it.id == activeAcc.parentId } else null
+                                val (accTitle, accSub) = when {
+                                    activeAcc == null -> Pair(LanguageHelper.getString("select_account", languageMode), null)
+                                    parentAcc != null -> {
+                                        if (isDoubleLine) Pair(parentAcc.localizedName(languageMode), activeAcc.localizedName(languageMode))
+                                        else Pair("${parentAcc.localizedName(languageMode)} > ${activeAcc.localizedName(languageMode)}", null)
                                     }
+                                    else -> Pair(activeAcc.localizedName(languageMode), null)
                                 }
-                            }
 
-                            OptionRowItem(
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.CreditCard,
-                                        contentDescription = "Account",
-                                        tint = SolidPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                },
-                                title = when (txType) {
-                                    TransactionType.EXPENSE -> formatAccountWithGroup(selectedCreditAccount)
-                                    TransactionType.INCOME -> formatAccountWithGroup(selectedDebitAccount)
-                                    TransactionType.TRANSFER -> {
-                                        val from = formatAccountWithGroup(selectedCreditAccount)
-                                        val to = formatAccountWithGroup(selectedDebitAccount)
-                                        "$from ➔ $to"
+                                OptionRowItem(
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.CreditCard,
+                                            contentDescription = "Account",
+                                            tint = SolidPrimary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    title = accTitle,
+                                    subTitle = accSub,
+                                    isTwoLine = isDoubleLine && accSub != null,
+                                    onClick = {
+                                        accountPickerTarget = if (txType == TransactionType.EXPENSE) 0 else 1
+                                        showAccountPickerModal = true
                                     }
-                                },
-                                onClick = { showAccountPickerModal = true }
-                            )
+                                )
+                            } else {
+                                // Transfer: Source Account Row (From)
+                                val fromAcc = selectedCreditAccount
+                                val fromParent = if (fromAcc?.parentId != null) accounts.firstOrNull { it.id == fromAcc.parentId } else null
+                                val (fromTitle, fromSub) = when {
+                                    fromAcc == null -> Pair(LanguageHelper.getString("source_account", languageMode).ifEmpty { "From Account" }, null)
+                                    fromParent != null -> {
+                                        if (isDoubleLine) Pair(fromParent.localizedName(languageMode), fromAcc.localizedName(languageMode))
+                                        else Pair("${fromParent.localizedName(languageMode)} > ${fromAcc.localizedName(languageMode)}", null)
+                                    }
+                                    else -> Pair(fromAcc.localizedName(languageMode), null)
+                                }
+
+                                OptionRowItem(
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowUpward,
+                                            contentDescription = "From Account",
+                                            tint = SolidExpense,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    title = fromTitle,
+                                    subTitle = fromSub,
+                                    isTwoLine = isDoubleLine && fromSub != null,
+                                    trailingContent = {
+                                        IconButton(
+                                            onClick = {
+                                                val temp = creditAccountId
+                                                creditAccountId = debitAccountId
+                                                debitAccountId = temp
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.SwapHoriz,
+                                                contentDescription = "Swap Accounts",
+                                                tint = SolidTransfer,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        accountPickerTarget = 0
+                                        showAccountPickerModal = true
+                                    }
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 48.dp, end = 12.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                )
+
+                                // Transfer: Destination Account Row (To)
+                                val toAcc = selectedDebitAccount
+                                val toParent = if (toAcc?.parentId != null) accounts.firstOrNull { it.id == toAcc.parentId } else null
+                                val (toTitle, toSub) = when {
+                                    toAcc == null -> Pair(LanguageHelper.getString("destination_account", languageMode).ifEmpty { "To Account" }, null)
+                                    toParent != null -> {
+                                        if (isDoubleLine) Pair(toParent.localizedName(languageMode), toAcc.localizedName(languageMode))
+                                        else Pair("${toParent.localizedName(languageMode)} > ${toAcc.localizedName(languageMode)}", null)
+                                    }
+                                    else -> Pair(toAcc.localizedName(languageMode), null)
+                                }
+
+                                OptionRowItem(
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDownward,
+                                            contentDescription = "To Account",
+                                            tint = SolidIncome,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    title = toTitle,
+                                    subTitle = toSub,
+                                    isTwoLine = isDoubleLine && toSub != null,
+                                    onClick = {
+                                        accountPickerTarget = 1
+                                        showAccountPickerModal = true
+                                    }
+                                )
+                            }
 
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 48.dp, end = 12.dp),
                                 thickness = 0.5.dp,
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                             )
+
+                            // Transfer Fee Section (Only for Transfer)
+                            if (txType == TransactionType.TRANSFER) {
+                                Surface(
+                                    color = if (hasTransferFee) SolidTransfer.copy(alpha = 0.05f) else Color.Transparent,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { hasTransferFee = !hasTransferFee }
+                                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ReceiptLong,
+                                                    contentDescription = "Transfer Fee",
+                                                    tint = if (hasTransferFee) SolidTransfer else MaterialTheme.colorScheme.outline,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(14.dp))
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার ফি যোগ করুন" else "Add Transfer Fee",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = if (hasTransferFee) FontWeight.SemiBold else FontWeight.Medium,
+                                                    color = if (hasTransferFee) SolidTransfer else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+
+                                            androidx.compose.material3.Switch(
+                                                checked = hasTransferFee,
+                                                onCheckedChange = { hasTransferFee = it },
+                                                colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                    checkedThumbColor = Color.White,
+                                                    checkedTrackColor = SolidTransfer
+                                                )
+                                            )
+                                        }
+
+                                        if (hasTransferFee) {
+                                            // Fee Amount Input Row
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "ফি:" else "Fee:",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = SolidTransfer,
+                                                    modifier = Modifier.width(50.dp)
+                                                )
+
+                                                OutlinedTextField(
+                                                    value = transferFeeAmountText,
+                                                    onValueChange = { newVal ->
+                                                        val clean = newVal.filter { it.isDigit() || it == '.' }
+                                                        transferFeeAmountText = clean
+                                                        transferFeeAmount = clean.toDoubleOrNull() ?: 0.0
+                                                    },
+                                                    placeholder = { Text("0.00", fontSize = 14.sp) },
+                                                    singleLine = true,
+                                                    keyboardOptions = KeyboardOptions(
+                                                        keyboardType = KeyboardType.Decimal,
+                                                        imeAction = ImeAction.Done
+                                                    ),
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .padding(end = 6.dp),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = SolidTransfer,
+                                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                                    )
+                                                )
+
+                                                IconButton(
+                                                    onClick = { showTransferFeeCalculator = true },
+                                                    modifier = Modifier.size(36.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Calculate,
+                                                        contentDescription = "Calculate Fee",
+                                                        tint = SolidTransfer,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // Fee Account Row (Default is Source Account)
+                                            val effectiveFeeAccId = transferFeeAccountId ?: creditAccountId
+                                            val feeAcc = accounts.firstOrNull { it.id == effectiveFeeAccId }
+                                            val feeParent = if (feeAcc?.parentId != null) accounts.firstOrNull { it.id == feeAcc.parentId } else null
+                                            val (feeAccTitle, feeAccSub) = when {
+                                                feeAcc == null -> Pair(LanguageHelper.getString("select_account", languageMode), null)
+                                                feeParent != null -> {
+                                                    if (isDoubleLine) Pair(feeParent.localizedName(languageMode), feeAcc.localizedName(languageMode))
+                                                    else Pair("${feeParent.localizedName(languageMode)} > ${feeAcc.localizedName(languageMode)}", null)
+                                                }
+                                                else -> Pair(feeAcc.localizedName(languageMode), null)
+                                            }
+
+                                            OptionRowItem(
+                                                icon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.CreditCard,
+                                                        contentDescription = "Fee Account",
+                                                        tint = SolidTransfer,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                },
+                                                title = "${if (languageMode == LanguageMode.BANGLA) "ফি একাউন্ট: " else "Fee Account: "}$feeAccTitle",
+                                                subTitle = feeAccSub,
+                                                isTwoLine = isDoubleLine && feeAccSub != null,
+                                                onClick = {
+                                                    accountPickerTarget = 2
+                                                    showAccountPickerModal = true
+                                                }
+                                            )
+
+                                            // Fee Category Row (Remembered or Default)
+                                            val feeCat = categories.firstOrNull { it.id == transferFeeCategoryId }
+                                            val feeSubCat = categories.firstOrNull { it.id == transferFeeSubCategoryId }
+                                            val (feeCatTitle, feeCatSub) = when {
+                                                feeCat == null -> Pair(if (languageMode == LanguageMode.BANGLA) "ফি ক্যাটাগরি বাছাই করুন" else "Select Fee Category", null)
+                                                feeSubCat != null && feeSubCat != feeCat -> {
+                                                    if (isDoubleLine) Pair(feeCat.localizedName(languageMode), feeSubCat.localizedName(languageMode))
+                                                    else Pair("${feeCat.localizedName(languageMode)} > ${feeSubCat.localizedName(languageMode)}", null)
+                                                }
+                                                else -> Pair(feeCat.localizedName(languageMode), null)
+                                            }
+
+                                            OptionRowItem(
+                                                icon = {
+                                                    Icon(
+                                                        imageVector = IconHelper.getIconByName(feeCat?.iconName ?: "Category"),
+                                                        contentDescription = "Fee Category",
+                                                        tint = SolidExpense,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                },
+                                                title = "${if (languageMode == LanguageMode.BANGLA) "ফি ক্যাটাগরি: " else "Fee Category: "}$feeCatTitle",
+                                                subTitle = feeCatSub,
+                                                isTwoLine = isDoubleLine && feeCatSub != null,
+                                                onClick = { showTransferFeeCategoryPicker = true }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 48.dp, end = 12.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                )
+                            }
 
                             // Row C: Split
                             OptionRowItem(
@@ -1339,6 +1614,37 @@ fun AddEditTransactionSheet(
                             subCategoryId = finalSubCategoryId
                         )
                         onSave(tx)
+
+                        // If transfer with fee, create fee transaction as well
+                        if (txType == TransactionType.TRANSFER && hasTransferFee && transferFeeAmount > 0) {
+                            val feeAccId = transferFeeAccountId ?: creditAccountId
+                            val feeTx = Transaction(
+                                id = 0,
+                                type = TransactionType.EXPENSE,
+                                amount = transferFeeAmount,
+                                dateEpochMs = selectedDateEpochMs,
+                                note = "Transfer fee for ${payee.ifBlank { "Transfer" }}",
+                                referenceNo = if (labelTag.isNotBlank()) "$labelTag, Fee" else "Fee",
+                                payeeOrPayer = if (payee.isNotBlank()) "$payee (Fee)" else "Transfer Fee",
+                                attachmentUri = "",
+                                status = status,
+                                debitAccountId = null,
+                                creditAccountId = feeAccId,
+                                categoryId = transferFeeCategoryId,
+                                subCategoryId = transferFeeSubCategoryId
+                            )
+                            onSave(feeTx)
+
+                            // Save remembered category in preferences
+                            if (transferFeeCategoryId != null) {
+                                transferFeePrefs.setFeeCategoryForPayee(
+                                    payee,
+                                    transferFeeCategoryId!!,
+                                    transferFeeSubCategoryId
+                                )
+                            }
+                        }
+
                         if (keepFormOpen && existingTransaction == null) {
                             amount = 0.0
                             amountText = ""
@@ -1350,6 +1656,9 @@ fun AddEditTransactionSheet(
                             note = ""
                             payee = ""
                             attachmentUri = ""
+                            hasTransferFee = false
+                            transferFeeAmount = 0.0
+                            transferFeeAmountText = ""
                         } else {
                             onDismiss()
                         }
@@ -1586,6 +1895,20 @@ fun AddEditTransactionSheet(
         )
     }
 
+    if (showTransferFeeCalculator) {
+        PopupCalculatorDialog(
+            initialValue = transferFeeAmount,
+            languageMode = languageMode,
+            onDismiss = { showTransferFeeCalculator = false },
+            onValueConfirmed = { calculatedAmount ->
+                val absAmt = Math.abs(calculatedAmount)
+                transferFeeAmount = absAmt
+                transferFeeAmountText = if (absAmt % 1.0 == 0.0) absAmt.toLong().toString() else absAmt.toString()
+                showTransferFeeCalculator = false
+            }
+        )
+    }
+
     if (showDatePicker) {
         DatePickerModal(
             selectedDateEpochMs = selectedDateEpochMs,
@@ -1620,23 +1943,51 @@ fun AddEditTransactionSheet(
         )
     }
 
+    if (showTransferFeeCategoryPicker) {
+        CategoryPickerModalDialog(
+            categories = categories,
+            txType = TransactionType.EXPENSE,
+            selectedCategoryId = transferFeeCategoryId,
+            selectedSubCategoryId = transferFeeSubCategoryId,
+            languageMode = languageMode,
+            onCategorySelected = { catId, subCatId ->
+                transferFeeCategoryId = catId
+                transferFeeSubCategoryId = subCatId
+                showTransferFeeCategoryPicker = false
+            },
+            onAddNewCategory = { newCat ->
+                onAddNewCategory?.invoke(newCat)
+                transferFeeCategoryId = newCat.parentId ?: newCat.id
+                transferFeeSubCategoryId = if (newCat.parentId != null) newCat.id else null
+                showTransferFeeCategoryPicker = false
+            },
+            onDismiss = { showTransferFeeCategoryPicker = false }
+        )
+    }
+
     if (showAccountPickerModal) {
         AccountPickerModalDialog(
             accounts = usableAccounts,
             allAccounts = accounts,
             txType = txType,
-            creditAccountId = creditAccountId,
+            creditAccountId = if (accountPickerTarget == 2) (transferFeeAccountId ?: creditAccountId) else creditAccountId,
             debitAccountId = debitAccountId,
             languageMode = languageMode,
             onAccountSelected = { sourceId, destId ->
-                creditAccountId = sourceId
-                debitAccountId = destId
+                when (accountPickerTarget) {
+                    0 -> creditAccountId = sourceId
+                    1 -> debitAccountId = if (txType == TransactionType.TRANSFER) sourceId else destId
+                    2 -> transferFeeAccountId = sourceId
+                }
                 showAccountPickerModal = false
             },
             onAddNewAccount = { newAcc ->
                 onAddNewAccount?.invoke(newAcc)
-                if (txType == TransactionType.EXPENSE) creditAccountId = newAcc.id
-                else debitAccountId = newAcc.id
+                when (accountPickerTarget) {
+                    0 -> creditAccountId = newAcc.id
+                    1 -> debitAccountId = newAcc.id
+                    2 -> transferFeeAccountId = newAcc.id
+                }
                 showAccountPickerModal = false
             },
             onDismiss = { showAccountPickerModal = false }
@@ -1700,13 +2051,16 @@ fun AddEditTransactionSheet(
 private fun OptionRowItem(
     icon: @Composable () -> Unit,
     title: String,
+    subTitle: String? = null,
+    isTwoLine: Boolean = false,
+    trailingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = if (isTwoLine && subTitle != null) 9.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -1716,20 +2070,47 @@ private fun OptionRowItem(
         ) {
             icon()
             Spacer(modifier = Modifier.width(14.dp))
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
+            if (isTwoLine && subTitle != null) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = subTitle,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            } else {
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        if (trailingContent != null) {
+            trailingContent()
+        } else {
+            Icon(
+                imageVector = Icons.Default.MoreHoriz,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(16.dp)
             )
         }
-        Icon(
-            imageVector = Icons.Default.MoreHoriz,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.size(16.dp)
-        )
     }
 }
 

@@ -295,7 +295,9 @@ fun BudgetSummaryCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp),
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = onCardClick != null) { onCardClick?.invoke() },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -306,7 +308,11 @@ fun BudgetSummaryCard(
                 }
             } else {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = onCardClick != null) { onCardClick?.invoke() }
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Donut / Pie Canvas Chart on Left

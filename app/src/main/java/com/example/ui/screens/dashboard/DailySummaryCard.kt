@@ -468,7 +468,11 @@ fun DailySummaryCard(
             // Bottom Section: Mode label and Averages
             if (showAverages) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(enabled = onCardClick != null) { onCardClick?.invoke() }
+                        .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(

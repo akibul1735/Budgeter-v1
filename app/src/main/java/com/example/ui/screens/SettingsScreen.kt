@@ -80,7 +80,10 @@ import com.example.util.CurrencyConfig
 import com.example.util.CurrencyDisplayMode
 import com.example.util.CurrencyItem
 import com.example.util.CurrencyPreferences
+import com.example.util.DisplayFormatConfig
+import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
+import androidx.compose.material.icons.filled.Splitscreen
 
 @Composable
 fun SettingsScreen(
@@ -94,6 +97,7 @@ fun SettingsScreen(
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
     val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
+    val displayFormatConfig by viewModel.displayFormatConfig.collectAsStateWithLifecycle()
     var customCodeInput by remember(currencyConfig) { mutableStateOf(currencyConfig.customCode) }
     var customSymbolInput by remember(currencyConfig) { mutableStateOf(currencyConfig.customSymbol) }
 
@@ -293,6 +297,120 @@ fun SettingsScreen(
                     icon = Icons.Default.AutoAwesome,
                     onClick = onOpenAutofillSettings
                 )
+            }
+        }
+
+        // Section 5: Group & Category / Account Display Format
+        item {
+            SettingsCategoryCard(
+                title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও একাউন্ট প্রদর্শন বিন্যাস" else "Category & Account Display Format",
+                icon = Icons.Default.Splitscreen
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "লেনদেন এন্ট্রি ও তালিকায় গ্রুপ এবং ক্যাটাগরি/একাউন্ট প্রদর্শনের ধরণ নির্বাচন করুন:" else "Choose how group and category/account names are formatted across entry forms and transactions:",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val isTwoLines = displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES
+                    val isSingleLine = displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.SINGLE_LINE
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.setItemDisplayFormat(ItemDisplayFormat.TWO_LINES) },
+                        color = if (isTwoLines) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.5.dp,
+                            if (isTwoLines) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "দুই লাইন (ডিফল্ট)" else "Double Line (Default)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = if (isTwoLines) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "➤ Utilities",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Text(
+                                        text = "Electricity",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.setItemDisplayFormat(ItemDisplayFormat.SINGLE_LINE) },
+                        color = if (isSingleLine) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.5.dp,
+                            if (isSingleLine) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "এক লাইন" else "Single Line",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = if (isSingleLine) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Utilities > Electricity",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

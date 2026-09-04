@@ -1611,14 +1611,14 @@ private fun TransactionRowItem(
         TransactionType.EXPENSE -> {
             val cat = item.category?.localizedName(languageMode) ?: ""
             val sub = item.subCategory?.localizedName(languageMode)
-            if (sub != null && sub != primaryTitle) "$cat / $sub" else cat
+            if (sub != null && sub != cat) "$cat > $sub" else cat
         }
         TransactionType.INCOME -> {
             val cat = item.category?.localizedName(languageMode) ?: ""
             val sub = item.subCategory?.localizedName(languageMode)
-            if (sub != null && sub != primaryTitle) "$cat / $sub" else cat
+            if (sub != null && sub != cat) "$cat > $sub" else cat
         }
-        TransactionType.TRANSFER -> "(${LanguageHelper.getString("transfer", languageMode)})"
+        TransactionType.TRANSFER -> LanguageHelper.getString("transfer", languageMode)
     }
 
     val accountDisplay = when (tx.type) {
@@ -1676,13 +1676,12 @@ private fun TransactionRowItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Left: Avatar Icon OR Selection Check Circle (Bluecoins Style)
+        // Left: Avatar Icon OR Selection Check Circle
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
             if (isSelected) {
-                // Bright Blue circle with White Checkmark (Screenshot 1 Bluecoins style)
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -1721,70 +1720,107 @@ private fun TransactionRowItem(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Center: Title, Subtitle, Note
+            // Center: Name (left top), Category/Group (left below), Labels & Notes (below)
             Column(modifier = Modifier.weight(1f)) {
+                // Left Top: Name / Payee
                 Text(
                     text = primaryTitle,
-                    fontSize = if (rowStyle == LedgerRowStyle.COMPACT) 12.sp else 13.sp,
+                    fontSize = if (rowStyle == LedgerRowStyle.COMPACT) 12.5.sp else 13.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
+                // Left Below: Category ("Group > category")
                 if (subTitle.isNotBlank()) {
                     Text(
                         text = subTitle,
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                if (rowStyle == LedgerRowStyle.DETAILED || tx.note.isNotBlank() || tx.referenceNo.isNotBlank()) {
+                // Below that: Labels on left (round shape) and just right notes if any
+                val hasLabels = tx.referenceNo.isNotBlank()
+                val hasNote = tx.note.isNotBlank()
+                val hasAttachment = tx.attachmentUri.isNotBlank()
+
+                if (hasLabels || hasNote || hasAttachment) {
+                    Spacer(modifier = Modifier.height(3.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(top = 1.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        if (tx.referenceNo.isNotBlank()) {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                        // Round Shape Label(s) on Left
+                        if (hasLabels) {
+                            val labelList = tx.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                            labelList.take(2).forEach { lbl ->
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        0.5.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                    )
+                                ) {
+                                    Text(
+                                        text = "#$lbl",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            if (labelList.size > 2) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = "+${labelList.size - 2}",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Just right: Notes if any
+                        if (hasNote) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f, fill = false)
                             ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Notes,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "#${tx.referenceNo}",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    text = tx.note,
+                                    fontSize = 10.5.sp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
 
-                        if (tx.note.isNotBlank()) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Notes,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Text(
-                                text = tx.note,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        if (tx.attachmentUri.isNotBlank()) {
+                        if (hasAttachment) {
                             Icon(
                                 imageVector = Icons.Default.AttachFile,
                                 contentDescription = "Attached",
                                 tint = SolidPrimary,
-                                modifier = Modifier.size(10.dp)
+                                modifier = Modifier.size(11.dp)
                             )
                         }
                     }
@@ -1794,11 +1830,11 @@ private fun TransactionRowItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Right: Amount and Account Info
+        // Right: Amount on top (with color & sign), Account name & balance below
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = "$sign${LanguageHelper.formatCurrency(Math.abs(tx.amount), languageMode)}",
-                fontSize = if (rowStyle == LedgerRowStyle.COMPACT) 12.sp else 13.sp,
+                fontSize = if (rowStyle == LedgerRowStyle.COMPACT) 12.5.sp else 13.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = amtColor
             )
@@ -1814,7 +1850,7 @@ private fun TransactionRowItem(
             if (accountLine.isNotBlank()) {
                 Text(
                     text = accountLine,
-                    fontSize = 10.sp,
+                    fontSize = 10.5.sp,
                     color = MaterialTheme.colorScheme.outline,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1822,12 +1858,19 @@ private fun TransactionRowItem(
             }
 
             if (tx.status != TransactionStatus.NONE) {
-                Text(
-                    text = tx.status.titleEn,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (tx.status == TransactionStatus.RECONCILED) SolidIncome else MaterialTheme.colorScheme.outline
-                )
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = (if (tx.status == TransactionStatus.RECONCILED) SolidIncome else MaterialTheme.colorScheme.outline).copy(alpha = 0.12f),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Text(
+                        text = tx.status.titleEn,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (tx.status == TransactionStatus.RECONCILED) SolidIncome else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
             }
         }
     }

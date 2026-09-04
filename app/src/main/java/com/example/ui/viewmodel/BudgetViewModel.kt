@@ -48,6 +48,9 @@ import com.example.util.DailySummaryPeriod
 import com.example.util.DashboardCardType
 import com.example.util.DashboardConfig
 import com.example.util.DashboardPreferences
+import com.example.util.DisplayFormatConfig
+import com.example.util.DisplayFormatPreferences
+import com.example.util.ItemDisplayFormat
 import com.example.util.NavigationTabConfig
 import com.example.util.TabPosition
 import com.example.util.TabPreferences
@@ -81,11 +84,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val accountCalcPrefs: AccountCalculationPreferences = AccountCalculationPreferences.getInstance(application)
     private val dashboardPrefs: DashboardPreferences = DashboardPreferences.getInstance(application)
     private val currencyPrefs: CurrencyPreferences = CurrencyPreferences.getInstance(application)
+    private val displayFormatPrefs: DisplayFormatPreferences = DisplayFormatPreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
     val dashboardConfig: StateFlow<DashboardConfig> = dashboardPrefs.config
     val currencyConfig: StateFlow<CurrencyConfig> = currencyPrefs.config
+    val displayFormatConfig: StateFlow<DisplayFormatConfig> = displayFormatPrefs.config
+
+    fun setItemDisplayFormat(format: ItemDisplayFormat) {
+        displayFormatPrefs.setItemDisplayFormat(format)
+    }
 
     fun setCurrency(currency: CurrencyItem) {
         currencyPrefs.setCurrency(currency)
