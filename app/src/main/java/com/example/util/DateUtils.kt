@@ -152,6 +152,19 @@ object DateUtils {
         return cal.timeInMillis
     }
 
+    fun getMonthName(month: Int, mode: LanguageMode): String {
+        val monthNamesEn = arrayOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        )
+        val monthIdx = (month - 1).coerceIn(0, 11)
+        return when (mode) {
+            LanguageMode.BANGLA -> banglaMonths[monthIdx]
+            LanguageMode.ENGLISH -> monthNamesEn[monthIdx]
+            LanguageMode.BILINGUAL -> "${monthNamesEn[monthIdx]} (${banglaMonths[monthIdx]})"
+        }
+    }
+
     fun formatMonthYear(year: Int, month: Int, mode: LanguageMode): String {
         val monthNamesEn = arrayOf(
             "January", "February", "March", "April", "May", "June",

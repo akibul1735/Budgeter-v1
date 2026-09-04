@@ -132,6 +132,7 @@ import kotlinx.coroutines.launch
 enum class AppView {
     DASHBOARD,
     LEDGER,
+    PAYMENT_SOURCE,
     BALANCE_SHEET,
     ACCOUNTS,
     BUDGET,
@@ -150,6 +151,7 @@ enum class AppView {
 fun AppTab.toAppView(): AppView = when (this) {
     AppTab.MAIN -> AppView.DASHBOARD
     AppTab.TRANSACTIONS -> AppView.LEDGER
+    AppTab.PAYMENT_SOURCE -> AppView.PAYMENT_SOURCE
     AppTab.BALANCE_SHEET -> AppView.BALANCE_SHEET
     AppTab.BUDGET -> AppView.BUDGET
     AppTab.NET_EARNINGS -> AppView.REPORTS
@@ -161,6 +163,7 @@ fun AppTab.toAppView(): AppView = when (this) {
 fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.DASHBOARD -> AppTab.MAIN
     AppView.LEDGER -> AppTab.TRANSACTIONS
+    AppView.PAYMENT_SOURCE -> AppTab.PAYMENT_SOURCE
     AppView.BALANCE_SHEET -> AppTab.BALANCE_SHEET
     AppView.BUDGET -> AppTab.BUDGET
     AppView.REPORTS -> AppTab.NET_EARNINGS
@@ -492,6 +495,37 @@ fun MainAppContainer(
                                     presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                     showAddTransactionSheet = true
                                 },
+                                onExecuteTransfer = { fromAcc, toAcc, amt ->
+                                    presetTxType = TransactionType.TRANSFER
+                                    editingTransaction = Transaction(
+                                        type = TransactionType.TRANSFER,
+                                        amount = amt,
+                                        creditAccountId = fromAcc.id,
+                                        debitAccountId = toAcc.id,
+                                        dateEpochMs = System.currentTimeMillis(),
+                                        note = "Payment source fund allocation"
+                                    )
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithAccountAndType = { acc, txType ->
+                                    presetTxType = txType
+                                    editingTransaction = if (txType == TransactionType.EXPENSE) {
+                                        Transaction(
+                                            type = txType,
+                                            amount = 0.0,
+                                            creditAccountId = acc.id,
+                                            dateEpochMs = System.currentTimeMillis()
+                                        )
+                                    } else {
+                                        Transaction(
+                                            type = txType,
+                                            amount = 0.0,
+                                            debitAccountId = acc.id,
+                                            dateEpochMs = System.currentTimeMillis()
+                                        )
+                                    }
+                                    showAddTransactionSheet = true
+                                },
                                 onAddAccount = { parentId ->
                                     editingAccount = null
                                     presetAccountParentId = parentId
@@ -790,6 +824,37 @@ fun MainAppContainer(
                                 onAddTransactionWithAccount = { acc ->
                                     editingTransaction = null
                                     presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
+                                    showAddTransactionSheet = true
+                                },
+                                onExecuteTransfer = { fromAcc, toAcc, amt ->
+                                    presetTxType = TransactionType.TRANSFER
+                                    editingTransaction = Transaction(
+                                        type = TransactionType.TRANSFER,
+                                        amount = amt,
+                                        creditAccountId = fromAcc.id,
+                                        debitAccountId = toAcc.id,
+                                        dateEpochMs = System.currentTimeMillis(),
+                                        note = "Payment source fund allocation"
+                                    )
+                                    showAddTransactionSheet = true
+                                },
+                                onAddTransactionWithAccountAndType = { acc, txType ->
+                                    presetTxType = txType
+                                    editingTransaction = if (txType == TransactionType.EXPENSE) {
+                                        Transaction(
+                                            type = txType,
+                                            amount = 0.0,
+                                            creditAccountId = acc.id,
+                                            dateEpochMs = System.currentTimeMillis()
+                                        )
+                                    } else {
+                                        Transaction(
+                                            type = txType,
+                                            amount = 0.0,
+                                            debitAccountId = acc.id,
+                                            dateEpochMs = System.currentTimeMillis()
+                                        )
+                                    }
                                     showAddTransactionSheet = true
                                 },
                                 onAddAccount = { parentId ->
@@ -1241,7 +1306,16 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.LEDGER) }
         )
 
-        // 3. Balance Sheet (Stats)
+        // 3. Payment Source Requirement Analysis
+        DrawerItemRow(
+            title = LanguageHelper.getString("payment_source", languageMode),
+            icon = Icons.Default.Payments,
+            iconTint = SolidTransfer,
+            isSelected = currentView == AppView.PAYMENT_SOURCE,
+            onClick = { onSelectView(AppView.PAYMENT_SOURCE) }
+        )
+
+        // 4. Balance Sheet (Stats)
         DrawerItemRow(
             title = LanguageHelper.getString("balance_sheet", languageMode),
             icon = Icons.Default.AccountBalance,
@@ -1599,6 +1673,8 @@ private fun ScreenRouter(
     onAddTransactionWithType: (TransactionType) -> Unit,
     onAddTransactionWithCategory: (Category) -> Unit,
     onAddTransactionWithAccount: (Account) -> Unit,
+    onExecuteTransfer: (Account, Account, Double) -> Unit = { _, _, _ -> },
+    onAddTransactionWithAccountAndType: (Account, TransactionType) -> Unit = { _, _ -> },
     onAddAccount: (Long?) -> Unit,
     onEditAccount: (Account) -> Unit,
     onAddCategory: (CategoryType, Long?) -> Unit,
@@ -1648,6 +1724,26 @@ private fun ScreenRouter(
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
             onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) }
+        )
+        AppView.PAYMENT_SOURCE -> PaymentSourceScreen(
+            allAccounts = allAccounts,
+            accountsWithBalances = accountsWithBalances,
+            allCategories = allCategories,
+            monthlyBudgets = monthlyBudgets,
+            allTransactions = transactionsWithDetails,
+            recurringBills = recurringBills.map { it.bill },
+            selectedYear = selectedBudgetYear,
+            selectedMonth = selectedBudgetMonth,
+            languageMode = languageMode,
+            onPrevMonth = { viewModel.prevBudgetMonth() },
+            onNextMonth = { viewModel.nextBudgetMonth() },
+            onSetCurrentMonth = {
+                val cal = java.util.Calendar.getInstance()
+                viewModel.setBudgetYearMonth(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
+            },
+            onExecuteTransfer = onExecuteTransfer,
+            onAddTransactionWithAccount = onAddTransactionWithAccountAndType,
+            onEditAccount = onEditAccount
         )
         AppView.BUDGET -> BudgetTrackingScreen(
             viewModel = viewModel,
@@ -1788,6 +1884,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
     return when (view) {
         AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
         AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
+        AppView.PAYMENT_SOURCE -> LanguageHelper.getString("payment_source_analysis", languageMode)
         AppView.BALANCE_SHEET -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
         AppView.BUDGET_MAKER -> LanguageHelper.getString("budget_maker", languageMode)
