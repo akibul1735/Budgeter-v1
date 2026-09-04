@@ -218,7 +218,7 @@ fun TabCustomizationDialog(
 
             // TAB ITEMS LIST (MATCHING SCREENSHOT)
             Text(
-                text = if (languageMode == LanguageMode.BANGLA) "সক্রিয় ট্যাব নির্বাচন করুন" else "VISIBLE TABS (${config.visibleTabs.size} OF 8 ACTIVE)",
+                text = if (languageMode == LanguageMode.BANGLA) "সক্রিয় ট্যাব নির্বাচন করুন (${config.visibleTabs.size}/${config.allTabsOrder.size})" else "VISIBLE TABS (${config.visibleTabs.size} OF ${config.allTabsOrder.size} ACTIVE)",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.outline

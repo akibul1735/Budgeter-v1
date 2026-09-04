@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Assessment
@@ -130,15 +131,16 @@ enum class AppView {
     DASHBOARD,
     LEDGER,
     BALANCE_SHEET,
+    ACCOUNTS,
     BUDGET,
     BUDGET_MAKER,
+    CATEGORIES,
+    EXPENSES,
+    INCOME,
     REPORTS,
     LABELS,
     ITEMS_SUMMARY,
     RECURRING_BILLS,
-    ACCOUNTS,
-    EXPENSES,
-    INCOME,
     BACKUP_SYNC
 }
 
@@ -146,7 +148,9 @@ fun AppTab.toAppView(): AppView = when (this) {
     AppTab.MAIN -> AppView.DASHBOARD
     AppTab.TRANSACTIONS -> AppView.LEDGER
     AppTab.BALANCE_SHEET -> AppView.BALANCE_SHEET
+    AppTab.ACCOUNTS -> AppView.ACCOUNTS
     AppTab.BUDGET -> AppView.BUDGET
+    AppTab.CATEGORIES -> AppView.CATEGORIES
     AppTab.NET_EARNINGS -> AppView.REPORTS
     AppTab.LABELS -> AppView.LABELS
     AppTab.ITEMS_SUMMARY -> AppView.ITEMS_SUMMARY
@@ -157,7 +161,11 @@ fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.DASHBOARD -> AppTab.MAIN
     AppView.LEDGER -> AppTab.TRANSACTIONS
     AppView.BALANCE_SHEET -> AppTab.BALANCE_SHEET
+    AppView.ACCOUNTS -> AppTab.ACCOUNTS
     AppView.BUDGET -> AppTab.BUDGET
+    AppView.CATEGORIES -> AppTab.CATEGORIES
+    AppView.EXPENSES -> AppTab.CATEGORIES
+    AppView.INCOME -> AppTab.CATEGORIES
     AppView.REPORTS -> AppTab.NET_EARNINGS
     AppView.LABELS -> AppTab.LABELS
     AppView.ITEMS_SUMMARY -> AppTab.ITEMS_SUMMARY
@@ -1073,8 +1081,8 @@ private fun AppFab(
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add Account")
         }
-    } else if (currentView in listOf(AppView.EXPENSES, AppView.INCOME)) {
-        val catType = if (currentView == AppView.EXPENSES) CategoryType.EXPENSE else CategoryType.INCOME
+    } else if (currentView in listOf(AppView.CATEGORIES, AppView.EXPENSES, AppView.INCOME)) {
+        val catType = if (currentView == AppView.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
         FloatingActionButton(
             onClick = { onAddCategory(catType) },
             containerColor = if (catType == CategoryType.EXPENSE) SolidExpense else SolidIncome,
@@ -1180,14 +1188,14 @@ private fun DrawerContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "MAIN VIEWS (8 TABS)",
+            text = "MAIN VIEWS & STATS",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
-        // 1. Main
+        // 1. Main Dashboard
         DrawerItemRow(
             title = LanguageHelper.getString("main", languageMode),
             icon = Icons.Default.Dashboard,
@@ -1205,7 +1213,7 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.LEDGER) }
         )
 
-        // 3. Balance Sheet
+        // 3. Balance Sheet (Stats)
         DrawerItemRow(
             title = LanguageHelper.getString("balance_sheet", languageMode),
             icon = Icons.Default.AccountBalance,
@@ -1215,7 +1223,17 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.BALANCE_SHEET) }
         )
 
-        // 4. Budget
+        // 4. Accounts (Create & Manage)
+        DrawerItemRow(
+            title = LanguageHelper.getString("accounts", languageMode),
+            icon = Icons.Default.AccountBalanceWallet,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = "$accountsCount",
+            isSelected = currentView == AppView.ACCOUNTS,
+            onClick = { onSelectView(AppView.ACCOUNTS) }
+        )
+
+        // 5. Budget (Stats & Tracking)
         DrawerItemRow(
             title = LanguageHelper.getString("budget", languageMode),
             icon = Icons.Default.ShoppingBag,
@@ -1225,7 +1243,17 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.BUDGET) }
         )
 
-        // 5. Net Earnings
+        // 6. Categories (Create & Manage)
+        DrawerItemRow(
+            title = LanguageHelper.getString("categories", languageMode),
+            icon = Icons.Default.Category,
+            iconTint = SolidExpense,
+            badge = "${expensesCount + incomeCount}",
+            isSelected = currentView == AppView.CATEGORIES,
+            onClick = { onSelectView(AppView.CATEGORIES) }
+        )
+
+        // 7. Net Earnings (Reports & Stats)
         DrawerItemRow(
             title = LanguageHelper.getString("net_earnings", languageMode),
             icon = Icons.Default.Assignment,
@@ -1234,7 +1262,7 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.REPORTS) }
         )
 
-        // 6. Labels
+        // 8. Labels
         DrawerItemRow(
             title = LanguageHelper.getString("labels", languageMode),
             icon = Icons.Default.Tag,
@@ -1243,7 +1271,7 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.LABELS) }
         )
 
-        // 7. Items Summary
+        // 9. Items Summary
         DrawerItemRow(
             title = LanguageHelper.getString("items_summary", languageMode),
             icon = Icons.Default.Bookmark,
@@ -1252,7 +1280,7 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.ITEMS_SUMMARY) }
         )
 
-        // 8. Reminders
+        // 10. Reminders
         DrawerItemRow(
             title = LanguageHelper.getString("reminders", languageMode),
             icon = Icons.Default.Alarm,
@@ -1265,38 +1293,11 @@ private fun DrawerContent(
         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
 
         Text(
-            text = "MANAGEMENT & CONFIG",
+            text = "MANAGEMENT & QUICK TOOLS",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-        )
-
-        DrawerItemRow(
-            title = LanguageHelper.getString("accounts", languageMode),
-            icon = Icons.Default.AccountBalance,
-            iconTint = MaterialTheme.colorScheme.primary,
-            badge = "$accountsCount",
-            isSelected = currentView == AppView.ACCOUNTS,
-            onClick = { onSelectView(AppView.ACCOUNTS) }
-        )
-
-        DrawerItemRow(
-            title = LanguageHelper.getString("expenses", languageMode),
-            icon = Icons.Default.Category,
-            iconTint = SolidExpense,
-            badge = "$expensesCount",
-            isSelected = currentView == AppView.EXPENSES,
-            onClick = { onSelectView(AppView.EXPENSES) }
-        )
-
-        DrawerItemRow(
-            title = LanguageHelper.getString("incomes", languageMode),
-            icon = Icons.Default.Payments,
-            iconTint = SolidIncome,
-            badge = "$incomeCount",
-            isSelected = currentView == AppView.INCOME,
-            onClick = { onSelectView(AppView.INCOME) }
         )
 
         DrawerItemRow(
@@ -1644,6 +1645,14 @@ private fun ScreenRouter(
                 viewModel.saveAccount(acc.copy(isActive = active))
             }
         )
+        AppView.CATEGORIES -> CategoriesScreen(
+            categories = allCategories,
+            languageMode = languageMode,
+            initialTab = 0,
+            onAddCategoryClick = { type -> onAddCategory(type, null) },
+            onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
+            onEditCategoryClick = onEditCategory
+        )
         AppView.EXPENSES -> CategoriesScreen(
             categories = allCategories,
             languageMode = languageMode,
@@ -1675,6 +1684,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.BALANCE_SHEET -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
         AppView.BUDGET_MAKER -> LanguageHelper.getString("budget_maker", languageMode)
+        AppView.CATEGORIES -> LanguageHelper.getString("categories", languageMode)
         AppView.REPORTS -> LanguageHelper.getString("net_earnings", languageMode)
         AppView.LABELS -> LanguageHelper.getString("labels", languageMode)
         AppView.ITEMS_SUMMARY -> LanguageHelper.getString("items_summary", languageMode)

@@ -218,13 +218,36 @@ fun AccountsScreen(
             }
         }
 
-        // --- 2. Action Bar: "Edit Button" ---
+        // --- 2. Action Bar: "Add Account" & "Edit Button" ---
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Add Account Button
+                Button(
+                    onClick = onAddAccountClick,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    modifier = Modifier.testTag("accounts_add_account_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Account",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = LanguageHelper.getString("add_account", languageMode),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color.White
+                    )
+                }
+
                 // Edit Button (toggles active/inactive controls)
                 OutlinedButton(
                     onClick = { isEditMode = !isEditMode },

@@ -5,9 +5,11 @@ import android.content.SharedPreferences
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Tag
@@ -25,7 +27,9 @@ enum class AppTab(
     MAIN("main", "Main", "মূল ড্যাশবোর্ড"),
     TRANSACTIONS("transactions", "Transactions", "লেনদেন"),
     BALANCE_SHEET("balance_sheet", "Balance Sheet", "ব্যালেন্স শীট"),
+    ACCOUNTS("accounts", "Accounts", "অ্যাকাউন্টস"),
     BUDGET("budget", "Budget", "বাজেট"),
+    CATEGORIES("categories", "Categories", "ক্যাটাগরি"),
     NET_EARNINGS("net_earnings", "Net Earnings", "নেট আয় ও রিপোর্ট"),
     LABELS("labels", "Labels", "লেবেল"),
     ITEMS_SUMMARY("items_summary", "Items Summary", "আইটেম সামারি"),
@@ -36,7 +40,9 @@ enum class AppTab(
             MAIN -> Icons.Default.Dashboard
             TRANSACTIONS -> Icons.AutoMirrored.Filled.ReceiptLong
             BALANCE_SHEET -> Icons.Default.AccountBalance
+            ACCOUNTS -> Icons.Default.AccountBalanceWallet
             BUDGET -> Icons.Default.ShoppingBag
+            CATEGORIES -> Icons.Default.Category
             NET_EARNINGS -> Icons.Default.Assignment
             LABELS -> Icons.Default.Tag
             ITEMS_SUMMARY -> Icons.Default.Bookmark
@@ -97,7 +103,10 @@ class TabPreferences(context: Context) {
             val loaded = enabledStr.split(",")
                 .mapNotNull { name -> try { AppTab.valueOf(name.trim()) } catch (_: Exception) { null } }
                 .toSet()
-            if (loaded.isNotEmpty()) loaded else setOf(AppTab.MAIN)
+            if (loaded.isNotEmpty()) {
+                val missingNewTabs = AppTab.values().filter { !loaded.contains(it) && (it == AppTab.ACCOUNTS || it == AppTab.CATEGORIES) }
+                loaded + missingNewTabs
+            } else setOf(AppTab.MAIN)
         } else {
             AppTab.values().toSet()
         }
