@@ -203,7 +203,7 @@ fun BudgetSummaryPreviewDialog(
                         val name = cat?.localizedName(languageMode) ?: (if (catId == null) "Others" else "Uncategorized")
                         val amt = txList.sumOf { it.transaction.amount }
                         val pct = if (totalActual > 0) (amt / totalActual * 100).toFloat() else 0f
-                        val bgt = monthlyBudgets.find { it.categoryId == catId && it.isEnabled }?.budgetedAmount ?: 0.0
+                        val bgt = monthlyBudgets.find { it.itemId == catId && it.isEnabled }?.budgetedAmount ?: 0.0
                         SummarySliceItem(
                             id = catId,
                             name = name,
@@ -219,7 +219,8 @@ fun BudgetSummaryPreviewDialog(
                 SummaryGrouping.BY_PARENT_CATEGORY -> {
                     val map = mutableMapOf<String, MutableList<TransactionWithDetails>>()
                     filteredTransactions.forEach { tx ->
-                        val parent = tx.category?.parentCategory?.ifBlank { null } ?: tx.category?.name ?: "General"
+                        val parentCat = if (tx.category?.parentId != null) allCategories.find { it.id == tx.category.parentId } else tx.category
+                        val parent = parentCat?.localizedName(languageMode) ?: "General"
                         map.getOrPut(parent) { mutableListOf() }.add(tx)
                     }
                     val sorted = map.toList().sortedByDescending { it.second.sumOf { tx -> tx.transaction.amount } }
@@ -241,13 +242,13 @@ fun BudgetSummaryPreviewDialog(
                 SummaryGrouping.BY_ACCOUNT -> {
                     val map = mutableMapOf<Long?, MutableList<TransactionWithDetails>>()
                     filteredTransactions.forEach { tx ->
-                        val accId = if (selectedTxType == TransactionType.EXPENSE) tx.transaction.sourceAccountId else tx.transaction.destinationAccountId
+                        val accId = if (selectedTxType == TransactionType.EXPENSE) tx.transaction.creditAccountId else tx.transaction.debitAccountId
                         map.getOrPut(accId) { mutableListOf() }.add(tx)
                     }
                     val sorted = map.toList().sortedByDescending { it.second.sumOf { tx -> tx.transaction.amount } }
                     sorted.mapIndexed { idx, (accId, txList) ->
                         val acc = accounts.find { it.id == accId }
-                        val name = acc?.name ?: "Account"
+                        val name = acc?.localizedName(languageMode) ?: "Account"
                         val amt = txList.sumOf { it.transaction.amount }
                         val pct = if (totalActual > 0) (amt / totalActual * 100).toFloat() else 0f
                         SummarySliceItem(

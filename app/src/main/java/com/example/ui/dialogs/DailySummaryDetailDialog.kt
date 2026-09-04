@@ -471,7 +471,7 @@ fun DailySummaryDetailDialog(
                                                 )
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = tx.category?.localizedName(languageMode) ?: tx.transaction.description.ifBlank { "Transaction" },
+                                                    text = tx.category?.localizedName(languageMode) ?: tx.transaction.payeeOrPayer.ifBlank { tx.transaction.note }.ifBlank { "Transaction" },
                                                     fontSize = 11.5.sp,
                                                     color = MaterialTheme.colorScheme.onSurface,
                                                     maxLines = 1,

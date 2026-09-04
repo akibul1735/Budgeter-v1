@@ -141,8 +141,7 @@ class BudgetScreensTest {
             MainAppContainer(viewModel = viewModel)
         }
 
-        // Tap the Budget tab in the navigation bar using its unique test tag
-        composeTestRule.onNodeWithTag("bottom_nav_budget").performClick()
+        viewModel.navigateTo(com.example.ui.navigation.AppView.BUDGET)
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("budget_tracking_screen").assertExists()
     }

@@ -55,6 +55,9 @@ jobs:
 
       - name: Setup Environment & Secrets
         run: |
+          if [ ! -f ".env.example" ]; then
+            echo 'GEMINI_API_KEY=""' > .env.example
+          fi
           if [ ! -f ".env" ]; then
             echo 'GEMINI_API_KEY=""' > .env
           fi
