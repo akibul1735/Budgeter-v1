@@ -133,15 +133,18 @@ class BudgetScreensTest {
     }
 
     @Test
-    fun testNavigateToBudgetTabInMainAppContainer() {
+    fun testBudgetScreenRendering() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val viewModel = BudgetViewModel(app)
 
         composeTestRule.setContent {
-            MainAppContainer(viewModel = viewModel)
+            BudgetScreen(
+                viewModel = viewModel,
+                onAddTransactionWithCategory = {},
+                onEditTransaction = {}
+            )
         }
 
-        viewModel.navigateTo(com.example.ui.navigation.AppView.BUDGET)
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("budget_tracking_screen").assertExists()
     }

@@ -409,7 +409,12 @@ fun AddEditTransactionSheet(
 
     val executeSave: () -> Unit = {
         val parsedAmt = amountText.toDoubleOrNull() ?: amount
-        if (parsedAmt > 0) {
+        val absAmt = Math.abs(parsedAmt)
+        if (absAmt > 0) {
+            val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
+            val isRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
+            val finalAmount = if (isRevertExpense || isRevertIncome) -absAmt else absAmt
+
             val fallbackGroup = categories.firstOrNull {
                 val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
                 it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
@@ -426,7 +431,7 @@ fun AddEditTransactionSheet(
             val tx = Transaction(
                 id = existingTransaction?.id ?: 0L,
                 type = txType,
-                amount = parsedAmt,
+                amount = finalAmount,
                 dateEpochMs = selectedDateEpochMs,
                 note = note.trim(),
                 referenceNo = labelTag.trim(),
@@ -523,7 +528,12 @@ fun AddEditTransactionSheet(
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .clickable {
-                                        if (amount > 0) {
+                                        val absAmt = Math.abs(amount)
+                                        if (absAmt > 0) {
+                                            val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
+                                            val isRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
+                                            val finalAmount = if (isRevertExpense || isRevertIncome) -absAmt else absAmt
+
                                             val fallbackGroup = categories.firstOrNull {
                                                 val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
                                                 it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
@@ -540,7 +550,7 @@ fun AddEditTransactionSheet(
                                             val tx = Transaction(
                                                 id = 0,
                                                 type = txType,
-                                                amount = amount,
+                                                amount = finalAmount,
                                                 dateEpochMs = selectedDateEpochMs,
                                                 note = note.trim(),
                                                 referenceNo = labelTag.trim(),
