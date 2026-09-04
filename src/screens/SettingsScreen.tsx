@@ -8,9 +8,13 @@ import {
   Bell,
   HardDriveDownload,
   Info,
+  Layers,
+  Check,
+  AlignLeft,
+  Columns,
 } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
-import { LanguageMode, CurrencyDisplayMode } from '../types';
+import { LanguageMode, CurrencyDisplayMode, HierarchyDisplayMode } from '../types';
 import { LanguageHelper } from '../utils/languageHelper';
 
 interface SettingsScreenProps {
@@ -28,11 +32,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 }) => {
   const {
     languageMode,
-    currencyCode,
-    currencySymbol,
-    currencyDisplayMode,
-    isBanglaDigitsEnabled,
+    currencyConfig,
     dashboardConfig,
+    hierarchyDisplayMode,
+    setHierarchyDisplayMode,
   } = useBudget();
 
   return (
@@ -48,6 +51,97 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </p>
       </div>
 
+      {/* Category & Account Display Layout Preference (New Feature) */}
+      <div className="p-6 bg-white rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5 text-slate-900 font-bold text-sm">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <div>Category & Account Hierarchy Display</div>
+              <div className="text-xs text-slate-500 font-normal">
+                Choose how group names and category/account titles are formatted across cards & forms
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Double Line Option (Default) */}
+          <button
+            type="button"
+            id="btn-hierarchy-double-line"
+            onClick={() => setHierarchyDisplayMode(HierarchyDisplayMode.DOUBLE_LINE)}
+            className={`p-4 rounded-2xl border text-left transition-all relative ${
+              hierarchyDisplayMode === HierarchyDisplayMode.DOUBLE_LINE
+                ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>Double Lines (Default)</span>
+                  <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-semibold">
+                    Recommended
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Group above, Item below
+                </div>
+              </div>
+              {hierarchyDisplayMode === HierarchyDisplayMode.DOUBLE_LINE && (
+                <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <Check className="w-3 h-3" />
+                </div>
+              )}
+            </div>
+
+            {/* Live Visual Sample */}
+            <div className="mt-3 p-2.5 bg-white rounded-xl border border-slate-200/80 text-xs">
+              <div className="text-[10px] text-slate-500 font-medium leading-none">&gt;Food & Dining</div>
+              <div className="text-xs font-bold text-slate-900 mt-0.5">Groceries & Supermarket</div>
+            </div>
+          </button>
+
+          {/* Single Line Option */}
+          <button
+            type="button"
+            id="btn-hierarchy-single-line"
+            onClick={() => setHierarchyDisplayMode(HierarchyDisplayMode.SINGLE_LINE)}
+            className={`p-4 rounded-2xl border text-left transition-all relative ${
+              hierarchyDisplayMode === HierarchyDisplayMode.SINGLE_LINE
+                ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20'
+                : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-xs font-bold text-slate-900">
+                  Single Line
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Group &gt; Category inline
+                </div>
+              </div>
+              {hierarchyDisplayMode === HierarchyDisplayMode.SINGLE_LINE && (
+                <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <Check className="w-3 h-3" />
+                </div>
+              )}
+            </div>
+
+            {/* Live Visual Sample */}
+            <div className="mt-3 p-2.5 bg-white rounded-xl border border-slate-200/80 text-xs flex items-center">
+              <span className="text-xs font-bold text-slate-900 truncate">
+                Food & Dining &gt; Groceries & Supermarket
+              </span>
+            </div>
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Language & Currency Card */}
         <div
@@ -61,7 +155,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <div className="text-xs text-slate-500">
             Current Language: <strong className="text-slate-800 capitalize">{languageMode.toLowerCase()}</strong>
             <br />
-            Currency: <strong className="text-slate-800">{currencySymbol} ({currencyCode})</strong>
+            Currency: <strong className="text-slate-800">{currencyConfig.selectedSymbol} ({currencyConfig.selectedCode})</strong>
           </div>
         </div>
 
@@ -124,3 +218,4 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     </div>
   );
 };
+

@@ -82,6 +82,11 @@ export enum TransactionStatus {
   RECONCILED = 'RECONCILED',
 }
 
+export enum HierarchyDisplayMode {
+  DOUBLE_LINE = 'DOUBLE_LINE',
+  SINGLE_LINE = 'SINGLE_LINE',
+}
+
 export interface Transaction {
   id: number;
   type: TransactionType;
@@ -97,6 +102,12 @@ export interface Transaction {
   tags: string[];
   isCalculationAdjusted?: boolean;
   attachmentUri?: string;
+  // Transfer Fee attributes
+  feeAmount?: number;
+  feeAccountId?: number | null;
+  feeCategoryId?: number | null;
+  isTransferFee?: boolean;
+  linkedTransferId?: number;
 }
 
 export interface TransactionWithDetails {

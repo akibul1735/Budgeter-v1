@@ -26,6 +26,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   const [colorHex, setColorHex] = useState<string>('#F59E0B');
   const [iconName, setIconName] = useState<string>('FolderTree');
   const [defaultAccountId, setDefaultAccountId] = useState<number | null>(null);
+  const [parentId, setParentId] = useState<number | null>(null);
 
   useEffect(() => {
     if (editingCategory) {
@@ -36,6 +37,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
       setColorHex(editingCategory.colorHex || '#F59E0B');
       setIconName(editingCategory.iconName || 'FolderTree');
       setDefaultAccountId(editingCategory.defaultAccountId);
+      setParentId(editingCategory.parentId || null);
     } else {
       setNameEn('');
       setNameBn('');
@@ -43,6 +45,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
       setMonthlyBudgetStr('0');
       setColorHex('#F59E0B');
       setIconName('FolderTree');
+      setParentId(null);
       const assetAccounts = accounts.filter((a) => a.type === AccountType.ASSET);
       setDefaultAccountId(assetAccounts[0]?.id || null);
     }
@@ -69,6 +72,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         colorHex,
         iconName,
         defaultAccountId,
+        parentId,
       });
     } else {
       addCategory({
@@ -79,7 +83,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         colorHex,
         monthlyBudget: budget,
         sortOrder: categories.length + 1,
-        parentId: null,
+        parentId,
         isTaxDeductible: false,
         defaultAccountId,
         isCalculated: true,

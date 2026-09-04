@@ -111,6 +111,79 @@ export class LanguageHelper {
         return nameBn ? `${nameEn} / ${nameBn}` : nameEn;
     }
   }
+
+  public static getCategoryHierarchy(
+    category: { nameEn: string; nameBn?: string; parentId?: number | null } | undefined | null,
+    allCategories: { id: number; nameEn: string; nameBn?: string; parentId?: number | null }[],
+    mode: LanguageMode
+  ): { groupName: string; categoryName: string; singleLine: string } {
+    if (!category) {
+      return { groupName: 'General', categoryName: 'Uncategorized', singleLine: 'General > Uncategorized' };
+    }
+
+    const catName = this.getLocalizedName(category.nameEn, category.nameBn || '', mode);
+    if (category.parentId) {
+      const parent = allCategories.find((c) => c.id === category.parentId);
+      if (parent) {
+        const parentName = this.getLocalizedName(parent.nameEn, parent.nameBn || '', mode);
+        return {
+          groupName: parentName,
+          categoryName: catName,
+          singleLine: `${parentName} > ${catName}`,
+        };
+      }
+    }
+
+    // If no parent, check if the category name itself contains a group or treat as root group
+    return {
+      groupName: catName,
+      categoryName: catName,
+      singleLine: catName,
+    };
+  }
+
+  public static getAccountHierarchy(
+    account: { nameEn: string; nameBn?: string; parentId?: number | null; type?: string; accountRole?: string } | undefined | null,
+    allAccounts: { id: number; nameEn: string; nameBn?: string; parentId?: number | null }[],
+    mode: LanguageMode
+  ): { groupName: string; accountName: string; singleLine: string } {
+    if (!account) {
+      return { groupName: 'Accounts', accountName: 'No Account', singleLine: 'Accounts > No Account' };
+    }
+
+    const accName = this.getLocalizedName(account.nameEn, account.nameBn || '', mode);
+    if (account.parentId) {
+      const parent = allAccounts.find((a) => a.id === account.parentId);
+      if (parent) {
+        const parentName = this.getLocalizedName(parent.nameEn, parent.nameBn || '', mode);
+        return {
+          groupName: parentName,
+          accountName: accName,
+          singleLine: `${parentName} > ${accName}`,
+        };
+      }
+    }
+
+    // Default Group by Role / Type
+    let defaultGroup = 'Accounts';
+    if (account.accountRole) {
+      defaultGroup = account.accountRole;
+    } else if (account.type === 'ASSET') {
+      defaultGroup = accName.toLowerCase().includes('bkash') || accName.toLowerCase().includes('nagad') || accName.toLowerCase().includes('rocket')
+        ? 'Mobile Banking Accounts'
+        : accName.toLowerCase().includes('bank')
+        ? 'Bank Accounts'
+        : 'Cash & Wallets';
+    } else if (account.type === 'LIABILITY') {
+      defaultGroup = 'Credit & Loans';
+    }
+
+    return {
+      groupName: defaultGroup,
+      accountName: accName,
+      singleLine: `${defaultGroup} > ${accName}`,
+    };
+  }
 }
 
 interface TransEntry {

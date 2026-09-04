@@ -22,6 +22,7 @@ import {
   DashboardCardType,
   AutofillConfig,
   TransactionType,
+  HierarchyDisplayMode,
   FinancialOverview,
   AccountWithBalance,
   CategorySpending,
@@ -53,6 +54,8 @@ interface BudgetContextType {
   tabConfig: NavigationTabConfig;
   dashboardConfig: DashboardConfig;
   autofillConfig: AutofillConfig;
+  hierarchyDisplayMode: HierarchyDisplayMode;
+  feeCategoryMemory: Record<string, number>;
   currentTab: AppTab;
   isDemoMode: boolean;
   selectedYear: number;
@@ -79,10 +82,22 @@ interface BudgetContextType {
   setTabConfig: (config: NavigationTabConfig) => void;
   setDashboardConfig: (config: DashboardConfig) => void;
   setAutofillConfig: (config: AutofillConfig) => void;
+  setHierarchyDisplayMode: (mode: HierarchyDisplayMode) => void;
+  saveFeeCategoryPreference: (key: string, categoryId: number) => void;
+  getRememberedFeeCategoryId: (key?: string) => number | null;
   toggleDemoMode: () => void;
+
+  // Running balance
+  getTransactionAccountRunningBalance: (txId: number, accountId: number) => number;
 
   // CRUD Transactions
   addTransaction: (tx: Omit<Transaction, 'id'>) => Transaction;
+  addTransferWithFee: (
+    transferTx: Omit<Transaction, 'id'>,
+    feeAmount?: number,
+    feeAccountId?: number | null,
+    feeCategoryId?: number | null
+  ) => { transfer: Transaction; fee?: Transaction };
   updateTransaction: (tx: Transaction) => void;
   deleteTransaction: (id: number) => void;
 
@@ -138,6 +153,8 @@ const STORAGE_KEYS = {
   DASHBOARD: 'budgeter_dashboard_cfg_v2',
   AUTOFILL: 'budgeter_autofill_cfg_v2',
   DEMO_MODE: 'budgeter_demo_mode_v2',
+  HIERARCHY_DISPLAY: 'budgeter_hierarchy_display_v2',
+  FEE_MEMORY: 'budgeter_fee_cat_memory_v2',
 };
 
 export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -418,6 +435,33 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   });
 
+  const [hierarchyDisplayMode, setHierarchyDisplayModeState] = useState<HierarchyDisplayMode>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.HIERARCHY_DISPLAY);
+      return saved ? (saved as HierarchyDisplayMode) : HierarchyDisplayMode.DOUBLE_LINE;
+    } catch {
+      return HierarchyDisplayMode.DOUBLE_LINE;
+    }
+  });
+
+  const [feeCategoryMemory, setFeeCategoryMemory] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.FEE_MEMORY);
+      return saved ? JSON.parse(saved) : { default: 14 }; // 14 = Transfer Charges
+    } catch {
+      return { default: 14 };
+    }
+  });
+
+  // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.HIERARCHY_DISPLAY, hierarchyDisplayMode);
+  }, [hierarchyDisplayMode]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.FEE_MEMORY, JSON.stringify(feeCategoryMemory));
+  }, [feeCategoryMemory]);
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
@@ -561,6 +605,121 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setAutofillConfig = useCallback((config: AutofillConfig) => {
     setAutofillConfigState(config);
   }, []);
+
+  const setHierarchyDisplayMode = useCallback((mode: HierarchyDisplayMode) => {
+    setHierarchyDisplayModeState(mode);
+  }, []);
+
+  const saveFeeCategoryPreference = useCallback((key: string, categoryId: number) => {
+    setFeeCategoryMemory((prev) => ({
+      ...prev,
+      [key.toLowerCase().trim()]: categoryId,
+      default: categoryId,
+    }));
+  }, []);
+
+  const getRememberedFeeCategoryId = useCallback(
+    (key?: string): number | null => {
+      if (key && key.trim()) {
+        const cleaned = key.toLowerCase().trim();
+        if (feeCategoryMemory[cleaned]) {
+          return feeCategoryMemory[cleaned];
+        }
+      }
+      return feeCategoryMemory['default'] || 14; // Default to Transfer Charges
+    },
+    [feeCategoryMemory]
+  );
+
+  // Pre-calculate running balances for fast ledger queries
+  const transactionAccountRunningMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const balances = new Map<number, number>();
+    accounts.forEach((acc) => balances.set(acc.id, acc.initialBalance));
+
+    // Sort chronologically ascending to compute chronological running balance
+    const sorted = [...transactions].sort((a, b) => a.dateEpochMs - b.dateEpochMs || a.id - b.id);
+    for (const tx of sorted) {
+      if (tx.creditAccountId) {
+        const prev = balances.get(tx.creditAccountId) || 0;
+        const next = prev - tx.amount;
+        balances.set(tx.creditAccountId, next);
+        map.set(`${tx.id}_${tx.creditAccountId}`, next);
+      }
+      if (tx.debitAccountId) {
+        const prev = balances.get(tx.debitAccountId) || 0;
+        const next = prev + tx.amount;
+        balances.set(tx.debitAccountId, next);
+        map.set(`${tx.id}_${tx.debitAccountId}`, next);
+      }
+    }
+    return map;
+  }, [accounts, transactions]);
+
+  const getTransactionAccountRunningBalance = useCallback(
+    (txId: number, accountId: number): number => {
+      const val = transactionAccountRunningMap.get(`${txId}_${accountId}`);
+      if (val !== undefined) return val;
+      return accountBalances.get(accountId) || 0;
+    },
+    [transactionAccountRunningMap, accountBalances]
+  );
+
+  // Transfer with optional fee execution
+  const addTransferWithFee = useCallback(
+    (
+      transferTxData: Omit<Transaction, 'id'>,
+      feeAmount?: number,
+      feeAccountId?: number | null,
+      feeCategoryId?: number | null
+    ): { transfer: Transaction; fee?: Transaction } => {
+      const transferId = Date.now() + Math.floor(Math.random() * 1000);
+      const newTransfer: Transaction = {
+        ...transferTxData,
+        id: transferId,
+        feeAmount: feeAmount || 0,
+        feeAccountId: feeAccountId || transferTxData.creditAccountId,
+        feeCategoryId: feeCategoryId || null,
+      };
+
+      let newFeeTx: Transaction | undefined = undefined;
+      const newTxList = [newTransfer];
+
+      if (feeAmount && feeAmount > 0) {
+        const feeId = transferId + 1;
+        const feeSourceAcc = feeAccountId || transferTxData.creditAccountId;
+        newFeeTx = {
+          id: feeId,
+          type: TransactionType.EXPENSE,
+          amount: feeAmount,
+          dateEpochMs: transferTxData.dateEpochMs,
+          creditAccountId: feeSourceAcc,
+          debitAccountId: null,
+          categoryId: feeCategoryId || getRememberedFeeCategoryId() || 14,
+          note: `Transfer Fee for ${transferTxData.payeePayer || 'Transfer'}`,
+          payeePayer: `${transferTxData.payeePayer || 'Transfer'}(#)`,
+          status: transferTxData.status,
+          labelIds: transferTxData.labelIds || [],
+          tags: ['fee', 'transfer-charges'],
+          isTransferFee: true,
+          linkedTransferId: transferId,
+        };
+        newTxList.unshift(newFeeTx); // Fee entry appears right beside transfer
+
+        // Remember fee category preference
+        if (feeCategoryId) {
+          if (transferTxData.payeePayer) {
+            saveFeeCategoryPreference(transferTxData.payeePayer, feeCategoryId);
+          }
+          saveFeeCategoryPreference('default', feeCategoryId);
+        }
+      }
+
+      setTransactions((prev) => [...newTxList, ...prev]);
+      return { transfer: newTransfer, fee: newFeeTx };
+    },
+    [getRememberedFeeCategoryId, saveFeeCategoryPreference]
+  );
 
   const toggleDemoMode = useCallback(() => {
     setIsDemoMode((prev) => !prev);
@@ -888,6 +1047,8 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         tabConfig,
         dashboardConfig,
         autofillConfig,
+        hierarchyDisplayMode,
+        feeCategoryMemory,
         currentTab,
         isDemoMode,
         selectedYear,
@@ -910,8 +1071,13 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTabConfig,
         setDashboardConfig,
         setAutofillConfig,
+        setHierarchyDisplayMode,
+        saveFeeCategoryPreference,
+        getRememberedFeeCategoryId,
         toggleDemoMode,
+        getTransactionAccountRunningBalance,
         addTransaction,
+        addTransferWithFee,
         updateTransaction,
         deleteTransaction,
         addAccount,

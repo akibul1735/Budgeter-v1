@@ -14,6 +14,10 @@ import {
   Calendar,
   Tag,
   ArrowUpDown,
+  Building2,
+  FolderTree,
+  Receipt,
+  FileText,
 } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
 import {
@@ -21,6 +25,7 @@ import {
   TransactionType,
   TransactionStatus,
   LanguageMode,
+  HierarchyDisplayMode,
 } from '../types';
 import { LanguageHelper } from '../utils/languageHelper';
 
@@ -40,6 +45,8 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
     languageMode,
     selectedYear,
     selectedMonth,
+    hierarchyDisplayMode,
+    getTransactionAccountRunningBalance,
   } = useBudget();
 
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -55,7 +62,6 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
       const inMonth = d.getFullYear() === selectedYear && d.getMonth() + 1 === selectedMonth;
 
       if (!inMonth && filterType !== 'ALL_TIME') {
-        // If user wants this month only
         return false;
       }
 
@@ -67,7 +73,7 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
       // Account filter
       if (filterAccountId !== 'ALL') {
         const accId = Number(filterAccountId);
-        if (tx.creditAccountId !== accId && tx.debitAccountId !== accId) {
+        if (tx.creditAccountId !== accId && tx.debitAccountId !== accId && tx.feeAccountId !== accId) {
           return false;
         }
       }
@@ -117,10 +123,11 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
       'Date',
       'Type',
       'Amount',
-      'Payee/Payer',
-      'Category',
-      'Source (Credit)',
-      'Destination (Debit)',
+      'Payee/Name',
+      'Group_Category',
+      'Source_Account',
+      'Destination_Account',
+      'Account_Balance_After',
       'Status',
       'Note',
       'Tags',
@@ -128,18 +135,22 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
 
     const rows = filteredTransactions.map((tx) => {
       const cat = categories.find((c) => c.id === tx.categoryId);
+      const catHierarchy = cat ? LanguageHelper.getCategoryHierarchy(cat, categories, languageMode) : null;
       const creditAcc = accounts.find((a) => a.id === tx.creditAccountId);
       const debitAcc = accounts.find((a) => a.id === tx.debitAccountId);
+      const primaryAccId = tx.creditAccountId || tx.debitAccountId || 0;
+      const postBalance = getTransactionAccountRunningBalance(tx.id, primaryAccId);
 
       return [
         tx.id,
         new Date(tx.dateEpochMs).toISOString().split('T')[0],
         tx.type,
         tx.amount,
-        `"${(tx.payeePayer || '').replace(/"/g, '""')}"`,
-        `"${(cat?.nameEn || '').replace(/"/g, '""')}"`,
+        `"${(tx.payeePayer || tx.note || 'Journal Entry').replace(/"/g, '""')}"`,
+        `"${(catHierarchy?.singleLine || '').replace(/"/g, '""')}"`,
         `"${(creditAcc?.nameEn || '').replace(/"/g, '""')}"`,
         `"${(debitAcc?.nameEn || '').replace(/"/g, '""')}"`,
+        postBalance,
         tx.status,
         `"${(tx.note || '').replace(/"/g, '""')}"`,
         `"${(tx.tags || []).join(';')}"`,
@@ -268,11 +279,11 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
         </select>
       </div>
 
-      {/* Transaction List */}
+      {/* Transaction List with Redesigned Transaction Cards */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
         <div className="px-5 py-3.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
           <span>Entries ({filteredTransactions.length})</span>
-          <span>Amount & Flow</span>
+          <span>Amount & Account Balance</span>
         </div>
 
         {filteredTransactions.length === 0 ? (
@@ -284,92 +295,166 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
             {filteredTransactions.map((tx) => {
               const isIncome = tx.type === TransactionType.INCOME;
               const isTransfer = tx.type === TransactionType.TRANSFER;
+              const isFee = !!tx.isTransferFee;
+
+              // Entity Lookups
               const cat = categories.find((c) => c.id === tx.categoryId);
+              const catHierarchy = cat
+                ? LanguageHelper.getCategoryHierarchy(cat, categories, languageMode)
+                : null;
+
               const creditAcc = accounts.find((a) => a.id === tx.creditAccountId);
               const debitAcc = accounts.find((a) => a.id === tx.debitAccountId);
+
+              // Hierarchy for Accounts
+              const creditAccHierarchy = creditAcc
+                ? LanguageHelper.getAccountHierarchy(creditAcc, accounts, languageMode)
+                : null;
+              const debitAccHierarchy = debitAcc
+                ? LanguageHelper.getAccountHierarchy(debitAcc, accounts, languageMode)
+                : null;
+
+              // Primary Account for Balance Display
+              const displayAccountId = isIncome
+                ? tx.debitAccountId
+                : tx.creditAccountId || tx.debitAccountId;
+
+              const displayAccount = accounts.find((a) => a.id === displayAccountId);
+              const runningBalance = displayAccountId
+                ? getTransactionAccountRunningBalance(tx.id, displayAccountId)
+                : 0;
+
+              // Transaction Name (Left Top)
+              const transactionName =
+                tx.payeePayer ||
+                (isTransfer
+                  ? 'Account Transfer'
+                  : isIncome
+                  ? 'Income Receipt'
+                  : tx.note || 'Journal Entry');
+
+              // Category Hierarchy formatting (Left Below)
+              let categoryDisplayNode: React.ReactNode = null;
+              if (cat && catHierarchy) {
+                if (hierarchyDisplayMode === HierarchyDisplayMode.DOUBLE_LINE) {
+                  categoryDisplayNode = (
+                    <div className="text-[11px] leading-tight">
+                      <span className="text-slate-400 font-medium">&gt;{catHierarchy.groupName}</span>{' '}
+                      <span className="font-semibold text-slate-700">{catHierarchy.categoryName}</span>
+                    </div>
+                  );
+                } else {
+                  categoryDisplayNode = (
+                    <div className="text-[11px] font-semibold text-slate-700 truncate">
+                      {catHierarchy.singleLine}
+                    </div>
+                  );
+                }
+              } else if (isTransfer) {
+                if (hierarchyDisplayMode === HierarchyDisplayMode.DOUBLE_LINE) {
+                  categoryDisplayNode = (
+                    <div className="text-[11px] text-slate-600 font-medium flex items-center gap-1">
+                      <span>&gt;{creditAccHierarchy?.accountName || 'Source'}</span>
+                      <ArrowLeftRight className="w-3 h-3 text-blue-500 shrink-0" />
+                      <span>&gt;{debitAccHierarchy?.accountName || 'Dest'}</span>
+                    </div>
+                  );
+                } else {
+                  categoryDisplayNode = (
+                    <div className="text-[11px] text-slate-600 font-semibold truncate">
+                      {creditAccHierarchy?.singleLine || 'Source'} &gt; {debitAccHierarchy?.singleLine || 'Dest'}
+                    </div>
+                  );
+                }
+              }
+
+              // Account Name & Balance (Right Below)
+              const accountDisplayName = displayAccount
+                ? LanguageHelper.getLocalizedName(displayAccount.nameEn, displayAccount.nameBn, languageMode)
+                : 'Account';
 
               return (
                 <div
                   key={tx.id}
                   onClick={() => onOpenEditTransaction(tx.id)}
-                  className="p-4 hover:bg-slate-50/90 cursor-pointer transition-colors flex items-center justify-between gap-3 text-xs"
+                  className="p-4 hover:bg-slate-50/90 cursor-pointer transition-colors flex items-start justify-between gap-3 text-xs"
                 >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-9 h-9 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 mt-0.5 ${
-                        isIncome
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : isTransfer
-                          ? 'bg-blue-100 text-blue-700'
-                          : 'bg-rose-100 text-rose-700'
-                      }`}
-                    >
-                      {isIncome ? <TrendingUp className="w-4 h-4" /> : isTransfer ? <ArrowLeftRight className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                  {/* Left Section: Name, Categories, Labels (Round Shape) & Notes */}
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    {/* Left Top: Name + Status Icon */}
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 text-sm sm:text-base truncate">
+                        {transactionName}
+                      </span>
+                      {getStatusIcon(tx.status)}
+                      {isFee && (
+                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] font-bold">
+                          Fee
+                        </span>
+                      )}
                     </div>
 
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-sm">
-                          {tx.payeePayer || tx.note || 'Journal Entry'}
-                        </span>
-                        {getStatusIcon(tx.status)}
+                    {/* Left Below: Categories ("Groups > Category") */}
+                    {categoryDisplayNode && (
+                      <div className="flex items-center gap-1.5">
+                        <FolderTree className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        {categoryDisplayNode}
                       </div>
+                    )}
 
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                        <span>{new Date(tx.dateEpochMs).toLocaleDateString()}</span>
-                        {cat && (
-                          <>
-                            <span>•</span>
-                            <span className="font-medium text-slate-700">
-                              {LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode)}
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Double-Entry Account Flow Description */}
-                      <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                        {isTransfer ? (
-                          <span>
-                            From {creditAcc?.nameEn || 'N/A'} → To {debitAcc?.nameEn || 'N/A'}
-                          </span>
-                        ) : isIncome ? (
-                          <span>Credited to {debitAcc?.nameEn || 'General'}</span>
-                        ) : (
-                          <span>Debited from {creditAcc?.nameEn || 'General'}</span>
-                        )}
-                      </div>
-
-                      {/* Tags */}
+                    {/* Below Categories: Labels (in a round shape) on left, and just right notes if any */}
+                    <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                      {/* Round shape Labels */}
                       {tx.tags && tx.tags.length > 0 && (
-                        <div className="flex items-center gap-1 pt-1 flex-wrap">
-                          {tx.tags.map((tg, i) => (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {tx.tags.map((tag, idx) => (
                             <span
-                              key={i}
-                              className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[10px] font-medium"
+                              key={idx}
+                              className="px-2.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full text-[11px] font-medium border border-slate-200/80 shadow-2xs"
                             >
-                              #{tg}
+                              {tag}
                             </span>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Notes (just right of labels) */}
+                      {tx.note && (
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 italic truncate max-w-xs">
+                          <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{tx.note}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
+                  {/* Right Section: Right Top: Amount (with color & sign), Right Below: Account name and Amount of this account (after this transaction) */}
+                  <div className="text-right shrink-0 min-w-[110px] sm:min-w-[140px] space-y-1">
+                    {/* Right Top: Amount (with color and sign) */}
                     <div
                       className={`text-sm sm:text-base font-extrabold font-mono tracking-tight ${
                         isIncome
                           ? 'text-emerald-600'
                           : isTransfer
                           ? 'text-blue-600'
+                          : isFee
+                          ? 'text-amber-600'
                           : 'text-rose-600'
                       }`}
                     >
                       {isIncome ? '+' : isTransfer ? '' : '-'}
                       {LanguageHelper.formatCurrency(tx.amount, languageMode)}
                     </div>
-                    <div className="text-[10px] text-slate-400 capitalize">{tx.type.toLowerCase()}</div>
+
+                    {/* Right Below: Account Name and Post-Transaction Balance */}
+                    <div className="text-[11px] text-slate-500 leading-tight">
+                      <div className="font-medium text-slate-700 truncate max-w-[130px] sm:max-w-[160px] ml-auto">
+                        {accountDisplayName}
+                      </div>
+                      <div className="font-mono text-[10px] text-slate-400">
+                        {LanguageHelper.formatCurrency(runningBalance, languageMode)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
