@@ -407,6 +407,56 @@ fun AddEditTransactionSheet(
         }
     }
 
+    val executeSave: () -> Unit = {
+        val parsedAmt = amountText.toDoubleOrNull() ?: amount
+        if (parsedAmt > 0) {
+            val fallbackGroup = categories.firstOrNull {
+                val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
+            } ?: relevantCategories.firstOrNull()
+
+            val finalCategoryId = if (txType != TransactionType.TRANSFER) {
+                selectedCategoryId ?: fallbackGroup?.id
+            } else null
+
+            val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
+                selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
+            } else null
+
+            val tx = Transaction(
+                id = existingTransaction?.id ?: 0L,
+                type = txType,
+                amount = parsedAmt,
+                dateEpochMs = selectedDateEpochMs,
+                note = note.trim(),
+                referenceNo = labelTag.trim(),
+                payeeOrPayer = payee.trim(),
+                attachmentUri = attachmentUri.trim(),
+                status = status,
+                debitAccountId = when (txType) {
+                    TransactionType.EXPENSE -> null
+                    TransactionType.INCOME -> debitAccountId
+                    TransactionType.TRANSFER -> debitAccountId
+                },
+                creditAccountId = when (txType) {
+                    TransactionType.EXPENSE -> creditAccountId
+                    TransactionType.INCOME -> null
+                    TransactionType.TRANSFER -> creditAccountId
+                },
+                categoryId = finalCategoryId,
+                subCategoryId = finalSubCategoryId
+            )
+            onSave(tx)
+            onDismiss()
+        } else {
+            Toast.makeText(
+                context,
+                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount first",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
@@ -546,7 +596,25 @@ fun AddEditTransactionSheet(
                                 }
                             }
 
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            // Top Bar Save Icon Button
+                            IconButton(
+                                onClick = executeSave,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .testTag("btn_top_save_transaction")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Save,
+                                    contentDescription = "Save Transaction",
+                                    tint = typePrimaryColor,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+
                             if (existingTransaction != null && onDelete != null) {
+                                Spacer(modifier = Modifier.width(4.dp))
                                 IconButton(onClick = { showDeleteConfirmDialog = true }) {
                                     Icon(
                                         Icons.Default.Delete,
@@ -1481,7 +1549,7 @@ fun AddEditTransactionSheet(
                                     .size(46.dp)
                                     .testTag("save_transaction_btn")
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = "Save", modifier = Modifier.size(24.dp))
+                                Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(24.dp))
                             }
                         }
                     }

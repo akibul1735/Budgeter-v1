@@ -383,28 +383,13 @@ fun MainAppContainer(
                                                 }
                                             }
                                         }
-                                        // Quick Tab Customization Button
-                                        IconButton(
-                                            onClick = { showTabCustomizationDialog = true },
-                                            modifier = Modifier.testTag("btn_tab_customization")
-                                        ) {
+                                        IconButton(onClick = { showGlobalCalculator = true }) {
                                             Icon(
-                                                Icons.Default.ViewCarousel,
-                                                contentDescription = "Customize Navigation Tabs",
+                                                Icons.Default.Calculate,
+                                                contentDescription = "Calculator",
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                        IconButton(onClick = { showThemeFontSettings = true }) {
-                                            Icon(
-                                                Icons.Default.Palette,
-                                                contentDescription = "Theme & Fonts",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                        LanguageSelector(
-                                            currentMode = languageMode,
-                                            onModeSelected = { viewModel.setLanguageMode(it) }
-                                        )
                                     },
                                     colors = TopAppBarDefaults.topAppBarColors(
                                         containerColor = MaterialTheme.colorScheme.surface
@@ -606,10 +591,6 @@ fun MainAppContainer(
                                     IconButton(onClick = { showGlobalCalculator = true }) {
                                         Icon(Icons.Default.Calculate, contentDescription = "Calculator")
                                     }
-                                    LanguageSelector(
-                                        currentMode = languageMode,
-                                        onModeSelected = { viewModel.setLanguageMode(it) }
-                                    )
                                 }
                             )
                         },
@@ -748,19 +729,9 @@ fun MainAppContainer(
                                     }
                                 },
                                 actions = {
-                                    IconButton(onClick = { showTabCustomizationDialog = true }) {
-                                        Icon(Icons.Default.ViewCarousel, contentDescription = "Tabs", tint = MaterialTheme.colorScheme.primary)
-                                    }
                                     IconButton(onClick = { showGlobalCalculator = true }) {
                                         Icon(Icons.Default.Calculate, contentDescription = "Calculator")
                                     }
-                                    IconButton(onClick = { showThemeFontSettings = true }) {
-                                        Icon(Icons.Default.Palette, contentDescription = "Theme", tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    LanguageSelector(
-                                        currentMode = languageMode,
-                                        onModeSelected = { viewModel.setLanguageMode(it) }
-                                    )
                                 }
                             )
                         },
