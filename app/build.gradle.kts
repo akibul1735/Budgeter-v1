@@ -59,13 +59,11 @@ android {
         keyPassword = System.getenv("KEY_PASSWORD") ?: storePasswordEnv
       }
     }
-    if (debugKeystoreFile.exists()) {
-      create("debugConfig") {
-        storeFile = debugKeystoreFile
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
-      }
+    create("debugConfig") {
+      storeFile = file("${rootDir}/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
     }
   }
 
@@ -78,17 +76,11 @@ android {
       if (releaseKeystore != null && releaseKeystore.exists() && hasReleaseSecret) {
         signingConfig = signingConfigs.getByName("release")
       } else {
-        val debugConfig = signingConfigs.findByName("debugConfig")
-        if (debugConfig != null && debugConfig.storeFile?.exists() == true) {
-          signingConfig = debugConfig
-        }
+        signingConfig = signingConfigs.getByName("debugConfig")
       }
     }
     debug {
-      val debugConfig = signingConfigs.findByName("debugConfig")
-      if (debugConfig != null && debugConfig.storeFile?.exists() == true) {
-        signingConfig = debugConfig
-      }
+      signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
   compileOptions {
