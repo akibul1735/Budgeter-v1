@@ -36,7 +36,10 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         @Volatile
-        private var INSTANCE: AppDatabase? = null
+        private var REAL_INSTANCE: AppDatabase? = null
+
+        @Volatile
+        private var DEMO_INSTANCE: AppDatabase? = null
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -66,8 +69,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
+        fun getDatabase(context: Context, scope: CoroutineScope, isDemoMode: Boolean = true): AppDatabase {
+            return if (isDemoMode) {
+                getDemoDatabase(context, scope)
+            } else {
+                getRealDatabase(context, scope)
+            }
+        }
+
+        fun getRealDatabase(context: Context, scope: CoroutineScope): AppDatabase {
+            return REAL_INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
@@ -77,7 +88,7 @@ abstract class AppDatabase : RoomDatabase() {
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
-                            INSTANCE?.let { database ->
+                            REAL_INSTANCE?.let { database ->
                                 scope.launch(Dispatchers.IO) {
                                     DatabaseInitializer.seedInitialData(
                                         database.accountDao(),
@@ -90,9 +101,65 @@ abstract class AppDatabase : RoomDatabase() {
                     })
                     .fallbackToDestructiveMigration(true)
                     .build()
-                INSTANCE = instance
+                REAL_INSTANCE = instance
                 instance
             }
+        }
+
+        fun getDemoDatabase(context: Context, scope: CoroutineScope): AppDatabase {
+            return DEMO_INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "budgeter_demo_db"
+                )
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addCallback(object : Callback() {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
+                            super.onCreate(db)
+                            DEMO_INSTANCE?.let { database ->
+                                scope.launch(Dispatchers.IO) {
+                                    DemoDatabaseInitializer.seedDemoData(
+                                        database.accountDao(),
+                                        database.categoryDao(),
+                                        database.transactionDao(),
+                                        database.recurringBillDao(),
+                                        database.monthlyBudgetDao()
+                                    )
+                                }
+                            }
+                        }
+                    })
+                    .fallbackToDestructiveMigration(true)
+                    .build()
+                DEMO_INSTANCE = instance
+
+                // Verify demo data is populated
+                scope.launch(Dispatchers.IO) {
+                    DemoDatabaseInitializer.seedDemoData(
+                        instance.accountDao(),
+                        instance.categoryDao(),
+                        instance.transactionDao(),
+                        instance.recurringBillDao(),
+                        instance.monthlyBudgetDao()
+                    )
+                }
+
+                instance
+            }
+        }
+
+        suspend fun resetDemoDatabase(context: Context, scope: CoroutineScope): AppDatabase {
+            val db = getDemoDatabase(context, scope)
+            db.clearAllTables()
+            DemoDatabaseInitializer.seedDemoData(
+                db.accountDao(),
+                db.categoryDao(),
+                db.transactionDao(),
+                db.recurringBillDao(),
+                db.monthlyBudgetDao()
+            )
+            return db
         }
     }
 }

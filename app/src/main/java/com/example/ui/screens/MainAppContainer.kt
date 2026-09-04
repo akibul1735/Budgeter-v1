@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Warning
@@ -144,6 +145,7 @@ fun MainAppContainer(
     val monthlyBudgets by viewModel.monthlyBudgets.collectAsStateWithLifecycle()
     val selectedBudgetYear by viewModel.selectedBudgetYear.collectAsStateWithLifecycle()
     val selectedBudgetMonth by viewModel.selectedBudgetMonth.collectAsStateWithLifecycle()
+    val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -300,6 +302,33 @@ fun MainAppContainer(
                                     }
                                 },
                                 actions = {
+                                    if (isDemoMode) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                                            modifier = Modifier
+                                                .padding(end = 4.dp)
+                                                .clickable { viewModel.setDemoMode(false) }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .background(MaterialTheme.colorScheme.tertiary, CircleShape)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "DEMO",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                                )
+                                            }
+                                        }
+                                    }
                                     IconButton(onClick = { showThemeFontSettings = true }) {
                                         Icon(
                                             Icons.Default.Palette,
@@ -1019,6 +1048,74 @@ private fun DrawerContent(
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
+
+        // DEMO MODE ENVIRONMENT CONTROL
+        val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = if (isDemoMode) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Demo Mode",
+                            tint = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ডেমো মোড (নমুনা ডাটা)" else "Demo Mode (Sample Data)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isDemoMode) "Active (Real data isolated)" else "Off (Using real database)",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = isDemoMode,
+                        onCheckedChange = { viewModel.setDemoMode(it) }
+                    )
+                }
+
+                if (isDemoMode) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { viewModel.resetDemoData() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "ডেমো ডাটা রিসেট করুন" else "Reset Sample Demo Data",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
 
         Text(
             text = "TOOLS & STYLING",

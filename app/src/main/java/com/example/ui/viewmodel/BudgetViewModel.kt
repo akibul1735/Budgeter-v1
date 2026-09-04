@@ -55,10 +55,51 @@ sealed interface BackupUiState {
 
 class BudgetViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: BudgetRepository
     private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
     private val appPrefs = application.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
     private val backupPrefs: BackupPreferences = BackupPreferences.getInstance(application)
+
+    // Demo Mode: Default is true so every feature gets rich demo data from now on!
+    private val _isDemoMode = MutableStateFlow(appPrefs.getBoolean("app_is_demo_mode", true))
+    val isDemoMode: StateFlow<Boolean> = _isDemoMode.asStateFlow()
+
+    private fun createRepository(isDemo: Boolean): BudgetRepository {
+        val db = AppDatabase.getDatabase(getApplication(), viewModelScope, isDemoMode = isDemo)
+        return BudgetRepository(
+            accountDao = db.accountDao(),
+            categoryDao = db.categoryDao(),
+            transactionDao = db.transactionDao(),
+            recurringBillDao = db.recurringBillDao(),
+            monthlyBudgetDao = db.monthlyBudgetDao()
+        )
+    }
+
+    private val _activeRepository = MutableStateFlow(createRepository(_isDemoMode.value))
+    val activeRepo: BudgetRepository get() = _activeRepository.value
+
+    fun setDemoMode(enabled: Boolean) {
+        _isDemoMode.value = enabled
+        appPrefs.edit().putBoolean("app_is_demo_mode", enabled).apply()
+        val newRepo = createRepository(enabled)
+        _activeRepository.value = newRepo
+        viewModelScope.launch {
+            newRepo.ensureOthersGroupIntegrity()
+        }
+    }
+
+    fun resetDemoData() {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            try {
+                AppDatabase.resetDemoDatabase(getApplication(), viewModelScope)
+                val newRepo = createRepository(isDemo = true)
+                _activeRepository.value = newRepo
+                _backupUiState.value = BackupUiState.Success("Demo data reset to fresh sample defaults!")
+            } catch (e: Exception) {
+                _backupUiState.value = BackupUiState.Error("Reset failed: ${e.localizedMessage}")
+            }
+        }
+    }
 
     val themeConfig: StateFlow<AppThemeConfig> = themePrefs.themeConfig
     val backupSettingsConfig: StateFlow<BackupSettingsConfig> = backupPrefs.config
@@ -70,16 +111,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setFontPreset(fontPreset: FontPreset) = themePrefs.setFontPreset(fontPreset)
 
     init {
-        val db = AppDatabase.getDatabase(application, viewModelScope)
-        repository = BudgetRepository(
-            accountDao = db.accountDao(),
-            categoryDao = db.categoryDao(),
-            transactionDao = db.transactionDao(),
-            recurringBillDao = db.recurringBillDao(),
-            monthlyBudgetDao = db.monthlyBudgetDao()
-        )
         viewModelScope.launch {
-            repository.ensureOthersGroupIntegrity()
+            activeRepo.ensureOthersGroupIntegrity()
         }
     }
 
@@ -93,11 +126,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     @OptIn(ExperimentalCoroutinesApi::class)
     val monthlyBudgets: StateFlow<List<MonthlyBudget>> = combine(
         _selectedBudgetYear,
-        _selectedBudgetMonth
-    ) { year, month ->
-        Pair(year, month)
-    }.flatMapLatest { (year, month) ->
-        repository.getMonthlyBudgets(year, month)
+        _selectedBudgetMonth,
+        _activeRepository
+    ) { year, month, repo ->
+        Triple(year, month, repo)
+    }.flatMapLatest { (year, month, repo) ->
+        repo.getMonthlyBudgets(year, month)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -142,15 +176,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 isEnabled = isEnabled,
                 updatedAt = System.currentTimeMillis()
             )
-            repository.saveMonthlyBudget(budget)
-            SyncManager.triggerInstantJsonSync(getApplication())
+            activeRepo.saveMonthlyBudget(budget)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun saveMultipleMonthlyBudgets(budgets: List<MonthlyBudget>) {
         viewModelScope.launch {
-            budgets.forEach { repository.saveMonthlyBudget(it) }
-            SyncManager.triggerInstantJsonSync(getApplication())
+            budgets.forEach { activeRepo.saveMonthlyBudget(it) }
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
@@ -162,13 +200,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 prevM = 12
                 prevY -= 1
             }
-            repository.copyBudgets(
+            activeRepo.copyBudgets(
                 fromYear = prevY,
                 fromMonth = prevM,
                 toYear = _selectedBudgetYear.value,
                 toMonth = _selectedBudgetMonth.value
             )
-            SyncManager.triggerInstantJsonSync(getApplication())
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
@@ -196,7 +236,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         _backupUiState.value = BackupUiState.Idle
     }
 
-    val financialOverview: StateFlow<FinancialOverview> = repository.financialOverview
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val financialOverview: StateFlow<FinancialOverview> = _activeRepository
+        .flatMapLatest { it.financialOverview }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -213,35 +255,45 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             )
         )
 
-    val accountsWithBalances: StateFlow<List<AccountWithBalance>> = repository.accountsWithBalances
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val accountsWithBalances: StateFlow<List<AccountWithBalance>> = _activeRepository
+        .flatMapLatest { it.accountsWithBalances }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val allAccounts: StateFlow<List<Account>> = repository.allAccounts
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val allAccounts: StateFlow<List<Account>> = _activeRepository
+        .flatMapLatest { it.allAccounts }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val allCategories: StateFlow<List<Category>> = repository.allCategories
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val allCategories: StateFlow<List<Category>> = _activeRepository
+        .flatMapLatest { it.allCategories }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val transactionsWithDetails: StateFlow<List<TransactionWithDetails>> = repository.transactionsWithDetails
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val transactionsWithDetails: StateFlow<List<TransactionWithDetails>> = _activeRepository
+        .flatMapLatest { it.transactionsWithDetails }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    val recurringBillsWithDetails: StateFlow<List<RecurringBillWithDetails>> = repository.recurringBillsWithDetails
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val recurringBillsWithDetails: StateFlow<List<RecurringBillWithDetails>> = _activeRepository
+        .flatMapLatest { it.recurringBillsWithDetails }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -251,88 +303,110 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun saveTransaction(transaction: Transaction) {
         viewModelScope.launch {
             if (transaction.id == 0L) {
-                repository.insertTransaction(transaction)
+                activeRepo.insertTransaction(transaction)
             } else {
-                repository.updateTransaction(transaction)
+                activeRepo.updateTransaction(transaction)
             }
-            SyncManager.triggerInstantJsonSync(getApplication())
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
-            repository.deleteTransaction(transaction)
-            SyncManager.triggerInstantJsonSync(getApplication())
+            activeRepo.deleteTransaction(transaction)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun saveAccount(account: Account) {
         viewModelScope.launch {
             if (account.id == 0L) {
-                repository.insertAccount(account)
+                activeRepo.insertAccount(account)
             } else {
-                repository.updateAccount(account)
+                activeRepo.updateAccount(account)
             }
-            SyncManager.triggerInstantJsonSync(getApplication())
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun deleteAccount(account: Account) {
         viewModelScope.launch {
-            repository.deleteAccount(account)
-            SyncManager.triggerInstantJsonSync(getApplication())
+            activeRepo.deleteAccount(account)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun saveCategory(category: Category) {
         viewModelScope.launch {
             if (category.id == 0L) {
-                repository.insertCategory(category)
+                activeRepo.insertCategory(category)
             } else {
-                repository.updateCategory(category)
+                activeRepo.updateCategory(category)
             }
-            SyncManager.triggerInstantJsonSync(getApplication())
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
-            repository.deleteCategory(category)
-            SyncManager.triggerInstantJsonSync(getApplication())
+            activeRepo.deleteCategory(category)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun saveRecurringBill(bill: RecurringBill) {
         viewModelScope.launch {
             if (bill.id == 0L) {
-                repository.insertRecurringBill(bill)
+                activeRepo.insertRecurringBill(bill)
             } else {
-                repository.updateRecurringBill(bill)
+                activeRepo.updateRecurringBill(bill)
             }
-            SyncManager.triggerInstantJsonSync(getApplication())
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun deleteRecurringBill(bill: RecurringBill) {
         viewModelScope.launch {
-            repository.deleteRecurringBill(bill)
-            SyncManager.triggerInstantJsonSync(getApplication())
+            activeRepo.deleteRecurringBill(bill)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun payRecurringBill(bill: RecurringBill) {
         viewModelScope.launch {
-            repository.payRecurringBill(bill)
-            SyncManager.triggerInstantJsonSync(getApplication())
+            activeRepo.payRecurringBill(bill)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
         }
     }
 
     fun triggerInstantSync() {
-        SyncManager.triggerInstantJsonSync(getApplication())
+        if (!_isDemoMode.value) {
+            SyncManager.triggerInstantJsonSync(getApplication())
+        }
     }
 
     fun trigger24hDatabaseBackup() {
-        SyncManager.forceImmediateDatabaseBackup(getApplication())
+        if (!_isDemoMode.value) {
+            SyncManager.forceImmediateDatabaseBackup(getApplication())
+        }
     }
 
     fun createLocalBackup(onFileReady: (File) -> Unit) {
@@ -341,11 +415,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val file = BackupManager.createLocalBackupFile(
                     context = getApplication(),
-                    accountDao = repository.accountDao,
-                    categoryDao = repository.categoryDao,
-                    transactionDao = repository.transactionDao,
-                    recurringBillDao = repository.recurringBillDao,
-                    monthlyBudgetDao = repository.monthlyBudgetDao
+                    accountDao = activeRepo.accountDao,
+                    categoryDao = activeRepo.categoryDao,
+                    transactionDao = activeRepo.transactionDao,
+                    recurringBillDao = activeRepo.recurringBillDao,
+                    monthlyBudgetDao = activeRepo.monthlyBudgetDao
                 )
                 _backupUiState.value = BackupUiState.Success("Backup created successfully: ${file.name}")
                 onFileReady(file)
@@ -361,11 +435,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val success = BackupManager.exportBackupToUri(
                 context = getApplication(),
                 uri = uri,
-                accountDao = repository.accountDao,
-                categoryDao = repository.categoryDao,
-                transactionDao = repository.transactionDao,
-                recurringBillDao = repository.recurringBillDao,
-                monthlyBudgetDao = repository.monthlyBudgetDao
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao
             )
             if (success) {
                 _backupUiState.value = BackupUiState.Success("Backup exported successfully to storage")
@@ -381,11 +455,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val result = BackupManager.restoreBackupFromUri(
                 context = getApplication(),
                 uri = uri,
-                accountDao = repository.accountDao,
-                categoryDao = repository.categoryDao,
-                transactionDao = repository.transactionDao,
-                recurringBillDao = repository.recurringBillDao,
-                monthlyBudgetDao = repository.monthlyBudgetDao
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Restored $count records successfully!")
@@ -427,10 +501,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val result = GoogleDriveService.uploadBackupToDrive(
                 context = getApplication(),
                 account = account,
-                accountDao = repository.accountDao,
-                categoryDao = repository.categoryDao,
-                transactionDao = repository.transactionDao,
-                recurringBillDao = repository.recurringBillDao
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao
             )
             result.onSuccess { driveRes ->
                 _backupUiState.value = BackupUiState.Success("Database backed up to Google Drive (Visible 'Budgeter' folder & Hidden app folder)")
@@ -448,10 +522,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 context = getApplication(),
                 account = account,
                 fileId = backupFile.id,
-                accountDao = repository.accountDao,
-                categoryDao = repository.categoryDao,
-                transactionDao = repository.transactionDao,
-                recurringBillDao = repository.recurringBillDao
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Google Drive!")
@@ -478,7 +552,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun triggerQuickSync() {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
-            SyncManager.triggerInstantJsonSync(getApplication())
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
             val now = System.currentTimeMillis()
             backupPrefs.recordSyncTimestamp(now)
             _backupUiState.value = BackupUiState.Success("QuickSync completed successfully")
@@ -502,9 +578,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val result = DataImportHelper.importCsv(
                 context = getApplication(),
                 uri = uri,
-                accountDao = repository.accountDao,
-                categoryDao = repository.categoryDao,
-                transactionDao = repository.transactionDao
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Successfully imported $count transactions from CSV")
@@ -521,9 +597,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val result = DataImportHelper.importQif(
                 context = getApplication(),
                 uri = uri,
-                accountDao = repository.accountDao,
-                categoryDao = repository.categoryDao,
-                transactionDao = repository.transactionDao
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Successfully imported $count records from QIF file")
@@ -537,7 +613,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun resetAllData(onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
-            repository.resetDatabaseToDefaults()
+            activeRepo.resetDatabaseToDefaults()
             _backupUiState.value = BackupUiState.Success("All data reset to initial defaults successfully")
             onComplete()
         }
