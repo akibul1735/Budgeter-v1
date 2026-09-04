@@ -634,15 +634,20 @@ fun AccountGroupCard(
 
                     Spacer(modifier = Modifier.width(10.dp))
 
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = group.localizedName(languageMode),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 2,
+                                lineHeight = 17.sp,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             if (!group.isActive) {
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -839,16 +844,21 @@ fun AccountGroupCard(
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
                                                 Text(
                                                     text = sub.localizedName(languageMode),
                                                     fontSize = 13.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     color = if (sub.isActive && subIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                                                     textDecoration = if (!subIncluded) TextDecoration.LineThrough else TextDecoration.None,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    maxLines = 2,
+                                                    lineHeight = 16.sp,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f, fill = false)
                                                 )
                                                 if (!sub.isActive) {
                                                     Spacer(modifier = Modifier.width(4.dp))

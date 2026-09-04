@@ -207,7 +207,8 @@ fun BalanceSheetScreen(
                         baseAmount = balanceSheetData.totalAssetsBase,
                         currentAmount = balanceSheetData.totalAssetsCurrent,
                         currency = currency,
-                        headerColor = MaterialTheme.colorScheme.primary
+                        headerColor = MaterialTheme.colorScheme.primary,
+                        languageMode = languageMode
                     )
                 }
 
@@ -250,7 +251,8 @@ fun BalanceSheetScreen(
                         baseAmount = balanceSheetData.totalLiabilitiesBase,
                         currentAmount = balanceSheetData.totalLiabilitiesCurrent,
                         currency = currency,
-                        headerColor = SolidExpense
+                        headerColor = SolidExpense,
+                        languageMode = languageMode
                     )
                 }
 
@@ -448,7 +450,7 @@ private fun NetWorthSummaryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                     Text(
-                        text = "$currency ${LanguageHelper.formatCurrency(data.netWorthCurrent, languageMode)}",
+                        text = LanguageHelper.formatCurrency(data.netWorthCurrent, languageMode),
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense
@@ -500,13 +502,13 @@ private fun NetWorthSummaryCard(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "$currency ${LanguageHelper.formatCurrency(data.totalAssetsCurrent, languageMode)}",
+                        text = LanguageHelper.formatCurrency(data.totalAssetsCurrent, languageMode),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Prev: $currency ${LanguageHelper.formatCurrency(data.totalAssetsBase, languageMode)}",
+                        text = "Prev: ${LanguageHelper.formatCurrency(data.totalAssetsBase, languageMode)}",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -524,13 +526,13 @@ private fun NetWorthSummaryCard(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "$currency ${LanguageHelper.formatCurrency(data.totalLiabilitiesCurrent, languageMode)}",
+                        text = LanguageHelper.formatCurrency(data.totalLiabilitiesCurrent, languageMode),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = SolidExpense
                     )
                     Text(
-                        text = "Prev: $currency ${LanguageHelper.formatCurrency(data.totalLiabilitiesBase, languageMode)}",
+                        text = "Prev: ${LanguageHelper.formatCurrency(data.totalLiabilitiesBase, languageMode)}",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -668,7 +670,8 @@ private fun SectionHeader(
     baseAmount: Double,
     currentAmount: Double,
     currency: String,
-    headerColor: Color
+    headerColor: Color,
+    languageMode: LanguageMode = LanguageMode.ENGLISH
 ) {
     val delta = currentAmount - baseAmount
     val isUp = delta > 0.001
@@ -691,7 +694,7 @@ private fun SectionHeader(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "$currency ${LanguageHelper.formatCurrency(baseAmount, LanguageMode.ENGLISH)}",
+                text = LanguageHelper.formatCurrency(baseAmount, languageMode),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
@@ -699,7 +702,7 @@ private fun SectionHeader(
             Spacer(modifier = Modifier.width(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "$currency ${LanguageHelper.formatCurrency(currentAmount, LanguageMode.ENGLISH)}",
+                    text = LanguageHelper.formatCurrency(currentAmount, languageMode),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -724,7 +727,7 @@ private fun BalanceSheetGroupItem(
     onEditSubAccount: (Account) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Parent Account Row (e.g., Cash 45% BDT 890.00 BDT 5,205.00 ▲)
+        // Parent Account Row (e.g., Cash 45% ৳890.00 ৳5,205.00 ▲)
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = Color.Transparent,
@@ -747,7 +750,7 @@ private fun BalanceSheetGroupItem(
 
                 // Account Name with Group Icon Indicator
                 Row(
-                    modifier = Modifier.weight(1.1f),
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -770,13 +773,15 @@ private fun BalanceSheetGroupItem(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 2,
+                        lineHeight = 16.sp,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
 
                     // % Share badge
                     if (group.percentageShare > 0) {
+                        Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(4.dp),
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
@@ -792,21 +797,23 @@ private fun BalanceSheetGroupItem(
                     }
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 // Comparative Amounts
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
                     Text(
-                        text = "$currency ${LanguageHelper.formatCurrency(group.baseBalance, languageMode)}",
+                        text = LanguageHelper.formatCurrency(group.baseBalance, languageMode),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "$currency ${LanguageHelper.formatCurrency(group.currentBalance, languageMode)}",
+                            text = LanguageHelper.formatCurrency(group.currentBalance, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
@@ -893,7 +900,7 @@ private fun SubAccountRowItem(
     ) {
         // Account Name & % badge
         Row(
-            modifier = Modifier.weight(1.1f),
+            modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -901,8 +908,10 @@ private fun SubAccountRowItem(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Normal,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2,
+                lineHeight = 15.sp,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
 
             if (row.percentageShare > 0) {
@@ -922,20 +931,22 @@ private fun SubAccountRowItem(
             }
         }
 
+        Spacer(modifier = Modifier.width(8.dp))
+
         // Base & Current Balances
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End
         ) {
             Text(
-                text = "$currency ${LanguageHelper.formatCurrency(row.baseBalance, languageMode)}",
+                text = LanguageHelper.formatCurrency(row.baseBalance, languageMode),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "$currency ${LanguageHelper.formatCurrency(row.currentBalance, languageMode)}",
+                    text = LanguageHelper.formatCurrency(row.currentBalance, languageMode),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface

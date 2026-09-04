@@ -175,13 +175,17 @@ fun FavoriteAccountsCard(
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    maxLines = 2,
+                                    lineHeight = 17.sp,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                             }
 
+                            Spacer(modifier = Modifier.width(8.dp))
+
                             Text(
-                                text = "BDT ${String.format(Locale.US, "%,.2f", balance)}",
+                                text = LanguageHelper.formatCurrency(balance, languageMode),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = balanceColor

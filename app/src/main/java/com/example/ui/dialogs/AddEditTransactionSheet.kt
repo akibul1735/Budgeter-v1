@@ -1470,7 +1470,7 @@ fun AddEditTransactionSheet(
                                     .size(38.dp)
                                     .testTag("save_transaction_btn")
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = "Save", modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(20.dp))
                             }
                         }
                     } else {

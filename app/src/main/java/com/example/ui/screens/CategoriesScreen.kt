@@ -265,14 +265,19 @@ fun CategoriesScreen(
 
                                 Spacer(modifier = Modifier.width(12.dp))
 
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
                                         Text(
                                             text = parent.localizedName(languageMode),
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            maxLines = 2,
+                                            lineHeight = 18.sp,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Surface(
@@ -392,8 +397,10 @@ fun CategoriesScreen(
                                                     text = subCat.localizedName(languageMode),
                                                     fontSize = 13.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    maxLines = 2,
+                                                    lineHeight = 16.sp,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f, fill = false)
                                                 )
                                             }
 

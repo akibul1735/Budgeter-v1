@@ -7,6 +7,14 @@ object LanguageHelper {
 
     private val bnDigits = charArrayOf('০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯')
 
+    @Volatile
+    var activeCurrencyConfig: CurrencyConfig = CurrencyConfig()
+        private set
+
+    fun updateCurrencyConfig(config: CurrencyConfig) {
+        activeCurrencyConfig = config
+    }
+
     fun formatNumber(value: Double, mode: LanguageMode, includeDecimals: Boolean = true): String {
         val df = if (includeDecimals) DecimalFormat("#,##0.00") else DecimalFormat("#,##0")
         val formatted = df.format(value)
@@ -17,14 +25,53 @@ object LanguageHelper {
         }
     }
 
-    fun formatCurrency(amount: Double, mode: LanguageMode, currencySymbol: String = "৳"): String {
+    fun formatCurrency(
+        amount: Double,
+        mode: LanguageMode,
+        overrideSymbol: String? = null,
+        overrideDisplayMode: CurrencyDisplayMode? = null,
+        overrideCode: String? = null
+    ): String {
+        val config = activeCurrencyConfig
+        val symbol = overrideSymbol ?: config.activeSymbol
+        val code = overrideCode ?: config.activeCode
+        val displayMode = overrideDisplayMode ?: config.displayMode
+
         val formattedNum = formatNumber(Math.abs(amount), mode)
-        val symbol = when (mode) {
-            LanguageMode.BANGLA -> "৳"
-            LanguageMode.ENGLISH -> currencySymbol
-            LanguageMode.BILINGUAL -> "৳"
+        val isNegative = amount < 0
+        val sign = if (isNegative) "-" else ""
+
+        val prefix = when (displayMode) {
+            CurrencyDisplayMode.SYMBOL_ONLY -> symbol
+            CurrencyDisplayMode.CODE_ONLY -> "$code "
+            CurrencyDisplayMode.CODE_AND_SYMBOL -> "$code $symbol"
+            CurrencyDisplayMode.NONE -> ""
         }
-        return if (amount < 0) "-$symbol$formattedNum" else "$symbol$formattedNum"
+        return "$sign$prefix$formattedNum"
+    }
+
+    /**
+     * Splits or formats long account/category/label titles across up to 2 lines cleanly
+     * if the text exceeds the threshold.
+     */
+    fun splitTwoLines(text: String, maxFirstLineChars: Int = 18): String {
+        if (text.length <= maxFirstLineChars || !text.contains(" ")) return text
+        val words = text.split(" ")
+        val line1 = StringBuilder()
+        val line2 = StringBuilder()
+        var currentLen = 0
+
+        for ((index, word) in words.withIndex()) {
+            if (currentLen + word.length <= maxFirstLineChars || index == 0) {
+                if (line1.isNotEmpty()) line1.append(" ")
+                line1.append(word)
+                currentLen += word.length + 1
+            } else {
+                if (line2.isNotEmpty()) line2.append(" ")
+                line2.append(word)
+            }
+        }
+        return if (line2.isEmpty()) line1.toString() else "${line1.toString()}\n${line2.toString()}"
     }
 
     fun toBanglaDigits(input: String): String {

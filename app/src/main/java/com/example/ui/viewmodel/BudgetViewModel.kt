@@ -29,6 +29,10 @@ import com.example.util.AutofillPreferences
 import com.example.util.BackupManager
 import com.example.util.BackupPreferences
 import com.example.util.BackupSettingsConfig
+import com.example.util.CurrencyConfig
+import com.example.util.CurrencyDisplayMode
+import com.example.util.CurrencyItem
+import com.example.util.CurrencyPreferences
 import com.example.util.DataImportHelper
 import com.example.util.DriveBackupResult
 import com.example.util.GoogleDriveBackupFile
@@ -76,10 +80,24 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val tabPrefs: TabPreferences = TabPreferences.getInstance(application)
     private val accountCalcPrefs: AccountCalculationPreferences = AccountCalculationPreferences.getInstance(application)
     private val dashboardPrefs: DashboardPreferences = DashboardPreferences.getInstance(application)
+    private val currencyPrefs: CurrencyPreferences = CurrencyPreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
     val dashboardConfig: StateFlow<DashboardConfig> = dashboardPrefs.config
+    val currencyConfig: StateFlow<CurrencyConfig> = currencyPrefs.config
+
+    fun setCurrency(currency: CurrencyItem) {
+        currencyPrefs.setCurrency(currency)
+    }
+
+    fun setCurrencyDisplayMode(mode: CurrencyDisplayMode) {
+        currencyPrefs.setDisplayMode(mode)
+    }
+
+    fun setCustomCurrency(code: String, symbol: String) {
+        currencyPrefs.setCustomCurrency(code, symbol)
+    }
 
     fun toggleDashboardCard(card: DashboardCardType, visible: Boolean) {
         dashboardPrefs.toggleCardVisibility(card, visible)

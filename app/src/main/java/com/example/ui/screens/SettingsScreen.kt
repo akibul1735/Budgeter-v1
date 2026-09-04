@@ -68,6 +68,18 @@ import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
 import com.example.ui.viewmodel.BudgetViewModel
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import com.example.util.CurrencyConfig
+import com.example.util.CurrencyDisplayMode
+import com.example.util.CurrencyItem
+import com.example.util.CurrencyPreferences
 import com.example.util.LanguageHelper
 
 @Composable
@@ -81,6 +93,9 @@ fun SettingsScreen(
 ) {
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
+    val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
+    var customCodeInput by remember(currencyConfig) { mutableStateOf(currencyConfig.customCode) }
+    var customSymbolInput by remember(currencyConfig) { mutableStateOf(currencyConfig.customSymbol) }
 
     LazyColumn(
         modifier = Modifier
@@ -323,7 +338,155 @@ fun SettingsScreen(
             }
         }
 
-        // Section 6: Demo Mode Environment
+        // Section 6: Currency & Symbol Preferences
+        item {
+            SettingsCategoryCard(
+                title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা ও প্রতীক সেটিংস" else "Currency & Symbol Settings",
+                icon = Icons.Default.Payments
+            ) {
+                // Live preview banner
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "বর্তমান ফরম্যাট প্রিভিউ" else "Current Display Preview",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                            Text(
+                                text = LanguageHelper.formatCurrency(45000.00, languageMode),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Text(
+                                text = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Display Mode selection (Symbol only, Code only, Both, Hide)
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রদর্শনের নিয়ম" else "Display Mode (Show / Hide / Symbol)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    CurrencyDisplayMode.values().forEach { mode ->
+                        FilterChip(
+                            selected = currencyConfig.displayMode == mode,
+                            onClick = { viewModel.setCurrencyDisplayMode(mode) },
+                            label = {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) mode.titleBn else mode.titleEn,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = if (currencyConfig.displayMode == mode) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Popular Currencies
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "জনপ্রিয় মুদ্রা নির্বাচন করুন" else "Popular Currencies & Symbols",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(CurrencyPreferences.POPULAR_CURRENCIES) { item ->
+                        val isSelected = currencyConfig.selectedCode == item.code && currencyConfig.customSymbol.isBlank()
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { viewModel.setCurrency(item) },
+                            label = {
+                                Text(
+                                    text = "${item.symbol} ${item.code}",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Custom Symbol & Code Fields
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "কাস্টম কোড বা প্রতীক দিন" else "Custom Currency Code / Symbol",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = customCodeInput,
+                        onValueChange = {
+                            customCodeInput = it
+                            viewModel.setCustomCurrency(it, customSymbolInput)
+                        },
+                        label = { Text("Code (e.g. BDT)", fontSize = 11.sp) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = customSymbolInput,
+                        onValueChange = {
+                            customSymbolInput = it
+                            viewModel.setCustomCurrency(customCodeInput, it)
+                        },
+                        label = { Text("Symbol (e.g. ৳)", fontSize = 11.sp) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // Section 7: Demo Mode Environment
         item {
             SettingsCategoryCard(
                 title = if (languageMode == LanguageMode.BANGLA) "ডেমো স্যান্ডবক্স ও টেস্ট ডাটা" else "Demo Sandbox & Sample Data",
