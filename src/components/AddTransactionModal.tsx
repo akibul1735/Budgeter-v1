@@ -3,7 +3,7 @@ import {
   X,
   TrendingDown,
   TrendingUp,
-  SwapHoriz,
+  ArrowLeftRight,
   Calendar,
   Tag,
   FileText,
@@ -259,7 +259,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <SwapHoriz className="w-4 h-4" />
+                <ArrowLeftRight className="w-4 h-4" />
                 <span>{LanguageHelper.getString('transfer', languageMode)}</span>
               </button>
             </div>

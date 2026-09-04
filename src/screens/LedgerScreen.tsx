@@ -6,7 +6,7 @@ import {
   Plus,
   TrendingDown,
   TrendingUp,
-  SwapHoriz,
+  ArrowLeftRight,
   CheckCircle2,
   AlertCircle,
   HelpCircle,
@@ -304,7 +304,7 @@ export const LedgerScreen: React.FC<LedgerScreenProps> = ({
                           : 'bg-rose-100 text-rose-700'
                       }`}
                     >
-                      {isIncome ? <TrendingUp className="w-4 h-4" /> : isTransfer ? <SwapHoriz className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      {isIncome ? <TrendingUp className="w-4 h-4" /> : isTransfer ? <ArrowLeftRight className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                     </div>
 
                     <div className="space-y-0.5">
