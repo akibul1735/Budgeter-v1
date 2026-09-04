@@ -336,9 +336,27 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateTransactions(transactions: List<Transaction>) {
+        viewModelScope.launch {
+            activeRepo.updateTransactions(transactions)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
             activeRepo.deleteTransaction(transaction)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun deleteTransactions(transactions: List<Transaction>) {
+        viewModelScope.launch {
+            activeRepo.deleteTransactions(transactions)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
             }

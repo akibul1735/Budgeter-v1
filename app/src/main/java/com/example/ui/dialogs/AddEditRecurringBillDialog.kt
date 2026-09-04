@@ -96,6 +96,7 @@ fun AddEditRecurringBillDialog(
     var selectedCategoryId by remember { mutableStateOf(existingBill?.categoryId) }
 
     var showDatePicker by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
     var recurrenceDropdownExpanded by remember { mutableStateOf(false) }
@@ -127,7 +128,7 @@ fun AddEditRecurringBillDialog(
                     )
                 }
                 if (existingBill != null && onDelete != null) {
-                    IconButton(onClick = { onDelete(existingBill); onDismiss() }) {
+                    IconButton(onClick = { showDeleteConfirmDialog = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "Delete", tint = SolidExpense)
                     }
                 }
@@ -389,6 +390,31 @@ fun AddEditRecurringBillDialog(
                 showDatePicker = false
             },
             onDismiss = { showDatePicker = false }
+        )
+    }
+
+    if (showDeleteConfirmDialog && existingBill != null && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text(LanguageHelper.getString("delete", languageMode)) },
+            text = { Text("Are you sure you want to delete this recurring bill? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(existingBill)
+                        showDeleteConfirmDialog = false
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(LanguageHelper.getString("delete", languageMode))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text(LanguageHelper.getString("cancel", languageMode))
+                }
+            }
         )
     }
 }

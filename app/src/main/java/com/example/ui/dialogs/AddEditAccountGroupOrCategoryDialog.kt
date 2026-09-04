@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -39,6 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -119,6 +121,7 @@ fun AddEditAccountGroupOrCategoryDialog(
 
     var showIconPicker by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var groupDropdownExpanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -447,10 +450,7 @@ fun AddEditAccountGroupOrCategoryDialog(
                 ) {
                     if (existingAccount != null && onDelete != null && !existingAccount.isSystem) {
                         Button(
-                            onClick = {
-                                onDelete(existingAccount)
-                                onDismiss()
-                            },
+                            onClick = { showDeleteConfirmDialog = true },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -518,6 +518,31 @@ fun AddEditAccountGroupOrCategoryDialog(
                 showDatePicker = false
             },
             onDismiss = { showDatePicker = false }
+        )
+    }
+
+    if (showDeleteConfirmDialog && existingAccount != null && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text(LanguageHelper.getString("delete", languageMode)) },
+            text = { Text("Are you sure you want to delete this account? All associated records may be affected.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(existingAccount)
+                        showDeleteConfirmDialog = false
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(LanguageHelper.getString("delete", languageMode))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text(LanguageHelper.getString("cancel", languageMode))
+                }
+            }
         )
     }
 }

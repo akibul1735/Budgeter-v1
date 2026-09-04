@@ -1569,9 +1569,13 @@ private fun ScreenRouter(
         AppView.LEDGER -> LedgerScreen(
             transactions = transactionsWithDetails,
             languageMode = languageMode,
+            allCategories = allCategories,
+            allAccounts = allAccounts,
             accountsWithBalances = accountsWithBalances,
             onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
-            onTransactionClick = onEditTransaction
+            onTransactionClick = onEditTransaction,
+            onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) },
+            onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
         )
         AppView.BALANCE_SHEET -> BalanceSheetScreen(
             accounts = allAccounts,

@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -26,6 +27,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +68,7 @@ fun AddEditCategoryDialog(
     }
     var isSubCategory by remember { mutableStateOf(parentId != null) }
     var parentDropdownExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -228,10 +231,7 @@ fun AddEditCategoryDialog(
                 ) {
                     if (existingCategory != null && onDelete != null && !existingCategory.isSystem) {
                         Button(
-                            onClick = {
-                                onDelete(existingCategory)
-                                onDismiss()
-                            },
+                            onClick = { showDeleteConfirmDialog = true },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -269,5 +269,30 @@ fun AddEditCategoryDialog(
                 }
             }
         }
+    }
+
+    if (showDeleteConfirmDialog && existingCategory != null && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text(LanguageHelper.getString("delete", languageMode)) },
+            text = { Text("Are you sure you want to delete this category? All associated records may be affected.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete(existingCategory)
+                        showDeleteConfirmDialog = false
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(LanguageHelper.getString("delete", languageMode))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text(LanguageHelper.getString("cancel", languageMode))
+                }
+            }
+        )
     }
 }
