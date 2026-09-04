@@ -36,6 +36,14 @@ import com.example.util.GoogleDriveService
 import com.example.util.AccountCalcConfig
 import com.example.util.AccountCalculationPreferences
 import com.example.util.AppTab
+import com.example.util.BudgetChartShape
+import com.example.util.BudgetSummaryType
+import com.example.util.CalendarDisplayMode
+import com.example.util.DailySummaryMode
+import com.example.util.DailySummaryPeriod
+import com.example.util.DashboardCardType
+import com.example.util.DashboardConfig
+import com.example.util.DashboardPreferences
 import com.example.util.NavigationTabConfig
 import com.example.util.TabPosition
 import com.example.util.TabPreferences
@@ -67,9 +75,62 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val backupPrefs: BackupPreferences = BackupPreferences.getInstance(application)
     private val tabPrefs: TabPreferences = TabPreferences.getInstance(application)
     private val accountCalcPrefs: AccountCalculationPreferences = AccountCalculationPreferences.getInstance(application)
+    private val dashboardPrefs: DashboardPreferences = DashboardPreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
+    val dashboardConfig: StateFlow<DashboardConfig> = dashboardPrefs.config
+
+    fun toggleDashboardCard(card: DashboardCardType, visible: Boolean) {
+        dashboardPrefs.toggleCardVisibility(card, visible)
+    }
+
+    fun reorderDashboardCards(newOrder: List<DashboardCardType>) {
+        dashboardPrefs.reorderCards(newOrder)
+    }
+
+    fun moveDashboardCard(fromIndex: Int, toIndex: Int) {
+        dashboardPrefs.moveCard(fromIndex, toIndex)
+    }
+
+    fun setDailySummarySettings(
+        mode: DailySummaryMode,
+        period: DailySummaryPeriod,
+        showValues: Boolean,
+        showAverages: Boolean
+    ) {
+        dashboardPrefs.setDailySummarySettings(mode, period, showValues, showAverages)
+    }
+
+    fun setBudgetSummarySettings(
+        shape: BudgetChartShape,
+        categoryType: BudgetSummaryType,
+        maxCategories: Int,
+        showPercentages: Boolean,
+        showTodayPace: Boolean
+    ) {
+        dashboardPrefs.setBudgetSummarySettings(shape, categoryType, maxCategories, showPercentages, showTodayPace)
+    }
+
+    fun setFavoriteAccounts(accountIds: Set<Long>) {
+        dashboardPrefs.setFavoriteAccounts(accountIds)
+    }
+
+    fun toggleFavoriteAccount(accountId: Long) {
+        dashboardPrefs.toggleFavoriteAccount(accountId)
+    }
+
+    fun setCalendarSettings(
+        mode: CalendarDisplayMode,
+        showIncome: Boolean,
+        showExpense: Boolean
+    ) {
+        dashboardPrefs.setCalendarSettings(mode, showIncome, showExpense)
+    }
+
+    fun resetDashboardDefaults() {
+        dashboardPrefs.resetToDefaults()
+    }
 
     fun setAccountIncludeStatus(accountId: Long, isIncluded: Boolean) {
         accountCalcPrefs.setIncludeStatus(accountId, isIncluded)

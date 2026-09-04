@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
@@ -183,6 +184,7 @@ fun MainAppContainer(
     val languageMode by viewModel.languageMode.collectAsStateWithLifecycle()
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val tabConfig by viewModel.tabConfig.collectAsStateWithLifecycle()
+    val dashboardConfig by viewModel.dashboardConfig.collectAsStateWithLifecycle()
     val overview by viewModel.financialOverview.collectAsStateWithLifecycle()
     val accountsWithBalances by viewModel.accountsWithBalances.collectAsStateWithLifecycle()
     val allAccounts by viewModel.allAccounts.collectAsStateWithLifecycle()
@@ -222,6 +224,7 @@ fun MainAppContainer(
     var showThemeFontSettings by remember { mutableStateOf(false) }
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
+    var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
 
     val selectView: (AppView) -> Unit = { targetView ->
         if (currentView != targetView) {
@@ -513,7 +516,8 @@ fun MainAppContainer(
                                 },
                                 onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
-                                onOpenAutofillSettings = { showAutofillSettingsDialog = true }
+                                onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                dashboardConfig = dashboardConfig
                             )
                         }
                     }
@@ -661,7 +665,8 @@ fun MainAppContainer(
                                 },
                                 onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
-                                onOpenAutofillSettings = { showAutofillSettingsDialog = true }
+                                onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                dashboardConfig = dashboardConfig
                             )
                         }
                     }
@@ -684,6 +689,7 @@ fun MainAppContainer(
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 onOpenTabCustomizer = { showTabCustomizationDialog = true },
+                                onOpenDashboardCustomizer = { showDashboardCustomizerDialog = true },
                                 accountsCount = allAccounts.size,
                                 expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
                                 incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
@@ -810,7 +816,8 @@ fun MainAppContainer(
                                 },
                                 onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
-                                onOpenAutofillSettings = { showAutofillSettingsDialog = true }
+                                onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                dashboardConfig = dashboardConfig
                             )
                         }
                     }
@@ -904,6 +911,17 @@ fun MainAppContainer(
             languageMode = languageMode,
             onConfigChange = { autofillPrefs.updateConfig(it) },
             onDismiss = { showAutofillSettingsDialog = false }
+        )
+    }
+
+    if (showDashboardCustomizerDialog) {
+        com.example.ui.screens.dashboard.CustomizeDashboardCardsDialog(
+            config = dashboardConfig,
+            languageMode = languageMode,
+            onDismiss = { showDashboardCustomizerDialog = false },
+            onToggleCard = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
+            onMoveCard = { from, to -> viewModel.moveDashboardCard(from, to) },
+            onResetDefaults = { viewModel.resetDashboardDefaults() }
         )
     }
 }
@@ -1113,6 +1131,7 @@ private fun DrawerContent(
     onOpenThemeFontSettings: () -> Unit,
     onOpenAutofillSettings: () -> Unit,
     onOpenTabCustomizer: () -> Unit,
+    onOpenDashboardCustomizer: () -> Unit = {},
     accountsCount: Int,
     expensesCount: Int,
     incomeCount: Int,
@@ -1411,6 +1430,15 @@ private fun DrawerContent(
             onClick = onOpenTabCustomizer
         )
 
+        // DASHBOARD CARDS CUSTOMIZATION
+        DrawerItemRow(
+            title = LanguageHelper.getString("customize_cards", languageMode),
+            icon = Icons.Default.DashboardCustomize,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = false,
+            onClick = onOpenDashboardCustomizer
+        )
+
         // Backup, Restore & Sync
         DrawerItemRow(
             title = "Backup, Restore & Sync",
@@ -1577,17 +1605,29 @@ private fun ScreenRouter(
     onEditCategory: (Category) -> Unit,
     onOpenTabCustomizer: () -> Unit = {},
     onOpenThemeFontSettings: () -> Unit = {},
-    onOpenAutofillSettings: () -> Unit = {}
+    onOpenAutofillSettings: () -> Unit = {},
+    dashboardConfig: com.example.util.DashboardConfig = com.example.util.DashboardConfig()
 ) {
     when (currentView) {
         AppView.DASHBOARD -> DashboardScreen(
             overview = overview,
             accountsWithBalances = accountsWithBalances,
             recentTransactions = transactionsWithDetails,
+            allCategories = allCategories,
+            monthlyBudgets = monthlyBudgets,
+            dashboardConfig = dashboardConfig,
             languageMode = languageMode,
             onAddTransactionClick = onAddTransactionWithType,
             onTransactionClick = onEditTransaction,
-            onViewAllTransactionsClick = { onNavigate(AppView.LEDGER) }
+            onViewAllTransactionsClick = { onNavigate(AppView.LEDGER) },
+            onAccountClick = onEditAccount,
+            onToggleCardVisibility = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
+            onReorderCards = { from, to -> viewModel.moveDashboardCard(from, to) },
+            onUpdateDailySummarySettings = { m, p, sv, sa -> viewModel.setDailySummarySettings(m, p, sv, sa) },
+            onUpdateBudgetSummarySettings = { s, t, mc, sp, tp -> viewModel.setBudgetSummarySettings(s, t, mc, sp, tp) },
+            onUpdateCalendarSettings = { dm, si, se -> viewModel.setCalendarSettings(dm, si, se) },
+            onUpdateFavoriteAccounts = { favs -> viewModel.setFavoriteAccounts(favs) },
+            onResetDashboardDefaults = { viewModel.resetDashboardDefaults() }
         )
         AppView.LEDGER -> LedgerScreen(
             transactions = transactionsWithDetails,
