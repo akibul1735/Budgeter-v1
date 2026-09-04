@@ -32,6 +32,8 @@ import com.example.util.DataImportHelper
 import com.example.util.DriveBackupResult
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
+import com.example.util.AccountCalcConfig
+import com.example.util.AccountCalculationPreferences
 import com.example.util.AppTab
 import com.example.util.NavigationTabConfig
 import com.example.util.TabPosition
@@ -63,8 +65,30 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val appPrefs = application.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
     private val backupPrefs: BackupPreferences = BackupPreferences.getInstance(application)
     private val tabPrefs: TabPreferences = TabPreferences.getInstance(application)
+    private val accountCalcPrefs: AccountCalculationPreferences = AccountCalculationPreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
+    val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
+
+    fun setAccountIncludeStatus(accountId: Long, isIncluded: Boolean) {
+        accountCalcPrefs.setIncludeStatus(accountId, isIncluded)
+    }
+
+    fun setAccountAdjustment(accountId: Long, adjustment: Double) {
+        accountCalcPrefs.setAdjustment(accountId, adjustment)
+    }
+
+    fun setAccountCalcSetting(accountId: Long, isIncluded: Boolean, adjustment: Double) {
+        accountCalcPrefs.setSetting(accountId, isIncluded, adjustment)
+    }
+
+    fun resetAccountCalculation(accountId: Long) {
+        accountCalcPrefs.resetAccount(accountId)
+    }
+
+    fun resetAllAccountCalculations() {
+        accountCalcPrefs.resetAll()
+    }
 
     fun setTabPosition(position: TabPosition) {
         tabPrefs.setPosition(position)

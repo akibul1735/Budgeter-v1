@@ -200,6 +200,24 @@ object LanguageHelper {
         "tab_customization" to Trans("Navigation Tabs", "ট্যাব কাস্টমাইজেশন"),
         "tab_position" to Trans("Tab Position", "ট্যাব অবস্থান"),
         "tab_position_top" to Trans("Top Bar", "উপরে"),
-        "tab_position_bottom" to Trans("Bottom Bar", "নিচে")
+        "tab_position_bottom" to Trans("Bottom Bar", "নিচে"),
+        "account_calculation" to Trans("Account Calculation", "অ্যাকাউন্ট হিসাব গণনা"),
+        "include_in_calculation" to Trans("Include in Calculation", "হিসাবে অন্তর্ভুক্ত করুন"),
+        "exclude_from_calculation" to Trans("Exclude from Calculation", "হিসাব থেকে বাদ দিন"),
+        "included" to Trans("Included", "যুক্ত"),
+        "excluded" to Trans("Excluded", "বাদ"),
+        "adjust_calculation" to Trans("Adjust Amount", "অ্যামাউন্ট অ্যাডজাস্ট"),
+        "effective_amount" to Trans("Effective Amount", "কার্যকর অ্যামাউন্ট"),
+        "actual_balance" to Trans("Original Balance", "মূল ব্যালেন্স"),
+        "adjustment_amount" to Trans("Adjustment", "অ্যাডজাস্টমেন্ট"),
+        "calculated_net_worth" to Trans("Calculated Net Worth", "কার্যকর মোট হিসাব (Net Worth)"),
+        "actual_net_worth" to Trans("Original Net Worth", "মূল মোট হিসাব"),
+        "calculated_assets" to Trans("Calculated Assets", "কার্যকর সম্পদ"),
+        "calculated_liabilities" to Trans("Calculated Liabilities", "কার্যকর দায়"),
+        "calc_adjust_note" to Trans("Adjusted amount only applies to calculation; original account balance will not change.", "অ্যাডজাস্টকৃত অ্যামাউন্ট শুধু মোট হিসাবের জন্য প্রযোজ্য হবে; মূল অ্যাকাউন্ট ব্যালেন্স পরিবর্তন হবে না।"),
+        "reset_calculation" to Trans("Reset All", "সব রিসেট"),
+        "target_calc_balance" to Trans("Target Calculation Amount", "কাঙ্ক্ষিত কার্যকর পরিমাণ"),
+        "quick_adjust" to Trans("Quick Adjustment", "দ্রুত অ্যাডজাস্ট"),
+        "calculation_adjusted" to Trans("Adjusted for Calc", "হিসাবে অ্যাডজাস্টকৃত")
     )
 }

@@ -22,11 +22,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -43,6 +47,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -55,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,24 +68,35 @@ import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.dialogs.AccountCalculationDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.util.AccountCalcConfig
+import com.example.util.AccountCalcSetting
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 
 @Composable
 fun AccountsScreen(
     accountsWithBalances: List<AccountWithBalance>,
+    accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
     languageMode: LanguageMode,
     onAddAccountClick: () -> Unit,
     onAddSubAccountClick: (Account) -> Unit,
     onEditAccountClick: (Account) -> Unit,
-    onToggleActiveStatus: ((Account, Boolean) -> Unit)? = null
+    onToggleActiveStatus: ((Account, Boolean) -> Unit)? = null,
+    onToggleIncludeStatus: ((Account, Boolean) -> Unit)? = null,
+    onSaveCalculationSetting: ((Account, Boolean, Double) -> Unit)? = null,
+    onResetAccountCalculation: ((Account) -> Unit)? = null,
+    onResetAllCalculations: (() -> Unit)? = null
 ) {
     var isEditMode by remember { mutableStateOf(false) }
     var selectedTypeFilter by remember { mutableStateOf<AccountType?>(null) }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
+
+    // State for Adjust Calculation Dialog
+    var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
 
     // Separate active and inactive accounts
     val activeAccounts = remember(accountsWithBalances) {
@@ -90,14 +107,44 @@ fun AccountsScreen(
         accountsWithBalances.filter { !it.account.isActive }
     }
 
-    // Totals calculation
-    val totalAssets = remember(activeAccounts) {
+    // Helper to compute effective balance for a sub-account
+    fun computeEffectiveSubBalance(subItem: AccountWithBalance): Double {
+        val setting = accountCalcConfig.getSetting(subItem.account.id)
+        if (!setting.isIncluded) return 0.0
+        return subItem.currentBalance + setting.adjustmentAmount
+    }
+
+    // Helper to compute effective balance for a group
+    fun computeEffectiveGroupBalance(groupItem: AccountWithBalance): Double {
+        val groupSetting = accountCalcConfig.getSetting(groupItem.account.id)
+        if (!groupSetting.isIncluded) return 0.0
+
+        if (groupItem.subAccounts.isEmpty()) {
+            return groupItem.currentBalance + groupSetting.adjustmentAmount
+        }
+
+        val activeSubs = groupItem.subAccounts.filter { it.account.isActive }
+        val sumSubs = activeSubs.sumOf { computeEffectiveSubBalance(it) }
+        return sumSubs + groupSetting.adjustmentAmount
+    }
+
+    // Actual Totals (Unmodified)
+    val actualTotalAssets = remember(activeAccounts) {
         activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { it.currentBalance }
     }
-    val totalLiabilities = remember(activeAccounts) {
+    val actualTotalLiabilities = remember(activeAccounts) {
         activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { it.currentBalance }
     }
-    val netWorth = totalAssets - totalLiabilities
+    val actualNetWorth = actualTotalAssets - actualTotalLiabilities
+
+    // Calculated Totals (Reflecting Include/Exclude & Adjustments)
+    val calculatedTotalAssets = remember(activeAccounts, accountCalcConfig) {
+        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeEffectiveGroupBalance(it) }
+    }
+    val calculatedTotalLiabilities = remember(activeAccounts, accountCalcConfig) {
+        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { computeEffectiveGroupBalance(it) }
+    }
+    val calculatedNetWorth = calculatedTotalAssets - calculatedTotalLiabilities
 
     val displayedActiveList = remember(activeAccounts, selectedTypeFilter) {
         if (selectedTypeFilter == null) activeAccounts
@@ -109,6 +156,27 @@ fun AccountsScreen(
         else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
     }
 
+    val hasCustomizations = accountCalcConfig.hasAnyCustomizations
+
+    // Show Calculation Adjustment Dialog if requested
+    calcDialogTarget?.let { (account, actualBal) ->
+        AccountCalculationDialog(
+            account = account,
+            actualBalance = actualBal,
+            currentSetting = accountCalcConfig.getSetting(account.id),
+            languageMode = languageMode,
+            onDismiss = { calcDialogTarget = null },
+            onSave = { isIncluded, adj ->
+                onSaveCalculationSetting?.invoke(account, isIncluded, adj)
+                calcDialogTarget = null
+            },
+            onReset = {
+                onResetAccountCalculation?.invoke(account)
+                calcDialogTarget = null
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -116,7 +184,7 @@ fun AccountsScreen(
         contentPadding = PaddingValues(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // --- 1. Net Worth Card (Net Worth: Assets - Liabilities) ---
+        // --- 1. Account Calculation Summary Card (Net Worth & Assets/Liabilities) ---
         item {
             Card(
                 modifier = Modifier
@@ -128,19 +196,79 @@ fun AccountsScreen(
                 Column(
                     modifier = Modifier.padding(18.dp)
                 ) {
-                    Text(
-                        text = "Net Worth",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = LanguageHelper.formatCurrency(netWorth, languageMode),
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
+                                    else LanguageHelper.getString("net_worth", languageMode),
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (hasCustomizations) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color.White.copy(alpha = 0.25f))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = LanguageHelper.getString("calculation_adjusted", languageMode),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = LanguageHelper.formatCurrency(calculatedNetWorth, languageMode),
+                                color = Color.White,
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+
+                        // Reset button if customized
+                        if (hasCustomizations && onResetAllCalculations != null) {
+                            OutlinedButton(
+                                onClick = onResetAllCalculations,
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = Color.White.copy(alpha = 0.15f),
+                                    contentColor = Color.White
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Icon(Icons.Default.RestartAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = LanguageHelper.getString("reset_calculation", languageMode),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    if (hasCustomizations) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${LanguageHelper.getString("actual_net_worth", languageMode)}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.75f)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
@@ -165,7 +293,8 @@ fun AccountsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Assets",
+                                    text = if (hasCustomizations) LanguageHelper.getString("calculated_assets", languageMode)
+                                    else LanguageHelper.getString("assets", languageMode),
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -173,18 +302,25 @@ fun AccountsScreen(
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = LanguageHelper.formatCurrency(totalAssets, languageMode),
+                                text = LanguageHelper.formatCurrency(calculatedTotalAssets, languageMode),
                                 color = SolidIncome,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                            if (hasCustomizations && calculatedTotalAssets != actualTotalAssets) {
+                                Text(
+                                    text = "Orig: ${LanguageHelper.formatCurrency(actualTotalAssets, languageMode)}",
+                                    fontSize = 10.sp,
+                                    color = Color.White.copy(alpha = 0.65f)
+                                )
+                            }
                         }
 
                         // Divider line
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
-                                .height(32.dp)
+                                .height(36.dp)
                                 .background(Color.White.copy(alpha = 0.2f))
                         )
 
@@ -192,7 +328,8 @@ fun AccountsScreen(
                         Column(horizontalAlignment = Alignment.End) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Liabilities",
+                                    text = if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
+                                    else LanguageHelper.getString("liabilities", languageMode),
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -207,18 +344,25 @@ fun AccountsScreen(
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = LanguageHelper.formatCurrency(totalLiabilities, languageMode),
+                                text = LanguageHelper.formatCurrency(calculatedTotalLiabilities, languageMode),
                                 color = SolidExpense,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                            if (hasCustomizations && calculatedTotalLiabilities != actualTotalLiabilities) {
+                                Text(
+                                    text = "Orig: ${LanguageHelper.formatCurrency(actualTotalLiabilities, languageMode)}",
+                                    fontSize = 10.sp,
+                                    color = Color.White.copy(alpha = 0.65f)
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        // --- 2. Action Bar: "Add Account" & "Edit Button" ---
+        // --- 2. Action Bar: "Add Account" & "Edit Accounts" ---
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -270,7 +414,7 @@ fun AccountsScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isEditMode) "Done" else "Edit Accounts",
+                        text = if (isEditMode) LanguageHelper.getString("done", languageMode) else "Manage Active",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
@@ -343,18 +487,22 @@ fun AccountsScreen(
             items(displayedActiveList, key = { it.account.id }) { groupItem ->
                 AccountGroupCard(
                     groupItem = groupItem,
+                    accountCalcConfig = accountCalcConfig,
+                    effectiveBalance = computeEffectiveGroupBalance(groupItem),
                     isEditMode = isEditMode,
                     isExpanded = expandedMap[groupItem.account.id] ?: true,
                     languageMode = languageMode,
                     onToggleExpand = { expandedMap[groupItem.account.id] = !(expandedMap[groupItem.account.id] ?: true) },
                     onEditAccount = onEditAccountClick,
                     onAddSubAccount = onAddSubAccountClick,
-                    onToggleActiveStatus = onToggleActiveStatus
+                    onToggleActiveStatus = onToggleActiveStatus,
+                    onToggleIncludeStatus = onToggleIncludeStatus,
+                    onRequestAdjustCalculation = { acc, bal -> calcDialogTarget = Pair(acc, bal) }
                 )
             }
         }
 
-        // --- 5. Inactive Accounts Section (Show inactive accounts separately by types, groups) ---
+        // --- 5. Inactive Accounts Section ---
         if (displayedInactiveList.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -383,6 +531,8 @@ fun AccountsScreen(
             items(displayedInactiveList, key = { "inactive_${it.account.id}" }) { inactiveGroup ->
                 AccountGroupCard(
                     groupItem = inactiveGroup,
+                    accountCalcConfig = accountCalcConfig,
+                    effectiveBalance = computeEffectiveGroupBalance(inactiveGroup),
                     isEditMode = isEditMode,
                     isExpanded = expandedMap[inactiveGroup.account.id] ?: false,
                     isInactiveSection = true,
@@ -390,7 +540,9 @@ fun AccountsScreen(
                     onToggleExpand = { expandedMap[inactiveGroup.account.id] = !(expandedMap[inactiveGroup.account.id] ?: false) },
                     onEditAccount = onEditAccountClick,
                     onAddSubAccount = onAddSubAccountClick,
-                    onToggleActiveStatus = onToggleActiveStatus
+                    onToggleActiveStatus = onToggleActiveStatus,
+                    onToggleIncludeStatus = onToggleIncludeStatus,
+                    onRequestAdjustCalculation = { acc, bal -> calcDialogTarget = Pair(acc, bal) }
                 )
             }
         }
@@ -400,6 +552,8 @@ fun AccountsScreen(
 @Composable
 fun AccountGroupCard(
     groupItem: AccountWithBalance,
+    accountCalcConfig: AccountCalcConfig,
+    effectiveBalance: Double,
     isEditMode: Boolean,
     isExpanded: Boolean,
     isInactiveSection: Boolean = false,
@@ -407,9 +561,16 @@ fun AccountGroupCard(
     onToggleExpand: () -> Unit,
     onEditAccount: (Account) -> Unit,
     onAddSubAccount: (Account) -> Unit,
-    onToggleActiveStatus: ((Account, Boolean) -> Unit)?
+    onToggleActiveStatus: ((Account, Boolean) -> Unit)?,
+    onToggleIncludeStatus: ((Account, Boolean) -> Unit)?,
+    onRequestAdjustCalculation: (Account, Double) -> Unit
 ) {
     val group = groupItem.account
+    val groupSetting = accountCalcConfig.getSetting(group.id)
+    val isIncluded = groupSetting.isIncluded
+    val adjustment = groupSetting.adjustmentAmount
+    val isAdjusted = adjustment != 0.0
+
     val typeColor = when (group.type) {
         AccountType.ASSET -> SolidIncome
         AccountType.LIABILITY -> SolidExpense
@@ -428,7 +589,7 @@ fun AccountGroupCard(
         elevation = CardDefaults.cardElevation(defaultElevation = if (isInactiveSection) 0.dp else 1.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Group Row: [Active Switch/Icon] [Group Name] : [Total Group Amount]
+            // Group Row: [Active Switch / Icon] [Group Name] : [Total Group Amount / Calc Status]
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -443,7 +604,7 @@ fun AccountGroupCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Edit Mode: Active/Inactive Button on Left Side
+                    // Edit Mode: Active/Inactive Switch
                     if (isEditMode) {
                         Switch(
                             checked = group.isActive,
@@ -465,13 +626,13 @@ fun AccountGroupCard(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(typeColor.copy(alpha = if (isInactiveSection) 0.08f else 0.15f)),
+                            .background(typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = IconHelper.getIconByName(group.iconName),
                             contentDescription = null,
-                            tint = if (isInactiveSection) MaterialTheme.colorScheme.outline else typeColor,
+                            tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -484,7 +645,7 @@ fun AccountGroupCard(
                                 text = group.localizedName(languageMode),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isInactiveSection) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                                color = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -501,26 +662,100 @@ fun AccountGroupCard(
                                         .padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
+                            if (!isIncluded) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = LanguageHelper.getString("excluded", languageMode),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidExpense,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(SolidExpense.copy(alpha = 0.12f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
                         }
-                        Text(
-                            text = if (group.type == AccountType.ASSET) "Assets Group" else "Liabilities Group",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (group.type == AccountType.ASSET) "Assets Group" else "Liabilities Group",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (isAdjusted && isIncluded) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "• Adj: ${if (adjustment > 0) "+" else ""}${LanguageHelper.formatCurrency(adjustment, languageMode)}",
+                                    fontSize = 10.sp,
+                                    color = SolidPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                     }
                 }
 
-                // Total Group Amount + Expand/Edit icon
+                // Balance display & Quick Calc Actions
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = LanguageHelper.formatCurrency(groupItem.currentBalance, languageMode),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (isInactiveSection) MaterialTheme.colorScheme.onSurfaceVariant
-                        else if (group.type == AccountType.LIABILITY) SolidExpense else SolidIncome
-                    )
+                    Column(horizontalAlignment = Alignment.End) {
+                        // Effective / Calculated Balance
+                        Text(
+                            text = LanguageHelper.formatCurrency(
+                                if (isIncluded) effectiveBalance else groupItem.currentBalance,
+                                languageMode
+                            ),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                            color = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline
+                            else if (group.type == AccountType.LIABILITY) SolidExpense else SolidIncome
+                        )
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                        // Original Balance if adjusted
+                        if (isAdjusted && isIncluded) {
+                            Text(
+                                text = "Base: ${LanguageHelper.formatCurrency(groupItem.currentBalance, languageMode)}",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // Calculation Controls (Include / Exclude & Adjust)
+                    if (!isEditMode && !isInactiveSection) {
+                        // Include/Exclude Toggle Button
+                        IconButton(
+                            onClick = { onToggleIncludeStatus?.invoke(group, !isIncluded) },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("group_calc_toggle_${group.id}")
+                        ) {
+                            Icon(
+                                imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = if (isIncluded) "Exclude from Calc" else "Include in Calc",
+                                tint = if (isIncluded) SolidIncome else SolidExpense,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        // Adjust Amount Button (Only if included and has direct balance / group)
+                        IconButton(
+                            onClick = { onRequestAdjustCalculation(group, groupItem.currentBalance) },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("group_calc_adjust_${group.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Adjust Calculation",
+                                tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
 
                     if (isEditMode) {
                         IconButton(
@@ -549,9 +784,8 @@ fun AccountGroupCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp, start = if (isEditMode) 8.dp else 12.dp)
+                        .padding(top = 8.dp, start = if (isEditMode) 4.dp else 8.dp)
                 ) {
-                    // Active Categories or Inactive Categories
                     val displayedSubAccounts = if (isEditMode || isInactiveSection) {
                         groupItem.subAccounts
                     } else {
@@ -561,18 +795,27 @@ fun AccountGroupCard(
                     if (displayedSubAccounts.isNotEmpty()) {
                         displayedSubAccounts.forEach { subItem ->
                             val sub = subItem.account
+                            val subSetting = accountCalcConfig.getSetting(sub.id)
+                            val subIncluded = subSetting.isIncluded
+                            val subAdjustment = subSetting.adjustmentAmount
+                            val subAdjusted = subAdjustment != 0.0
+                            val subEffectiveBal = if (subIncluded) subItem.currentBalance + subAdjustment else 0.0
+
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 3.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { onEditAccount(sub) },
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                    .clickable {
+                                        if (isEditMode) onEditAccount(sub)
+                                        else onRequestAdjustCalculation(sub, subItem.currentBalance)
+                                    },
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (subIncluded) 0.45f else 0.2f)
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        .padding(horizontal = 8.dp, vertical = 7.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
@@ -600,17 +843,18 @@ fun AccountGroupCard(
                                         Icon(
                                             imageVector = IconHelper.getIconByName(sub.iconName),
                                             contentDescription = null,
-                                            tint = if (sub.isActive) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                            tint = if (sub.isActive && subIncluded) SolidPrimary else MaterialTheme.colorScheme.outline,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    text = "- ${sub.localizedName(languageMode)}",
+                                                    text = sub.localizedName(languageMode),
                                                     fontSize = 13.sp,
                                                     fontWeight = FontWeight.SemiBold,
-                                                    color = if (sub.isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                                    color = if (sub.isActive && subIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                                                    textDecoration = if (!subIncluded) TextDecoration.LineThrough else TextDecoration.None,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
@@ -623,20 +867,78 @@ fun AccountGroupCard(
                                                         fontWeight = FontWeight.Bold
                                                     )
                                                 }
+                                                if (!subIncluded) {
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = LanguageHelper.getString("excluded", languageMode),
+                                                        fontSize = 9.sp,
+                                                        color = SolidExpense,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                            if (subAdjusted && subIncluded) {
+                                                Text(
+                                                    text = "Base: ${LanguageHelper.formatCurrency(subItem.currentBalance, languageMode)} (${if (subAdjustment > 0) "+" else ""}${LanguageHelper.formatCurrency(subAdjustment, languageMode)})",
+                                                    fontSize = 10.sp,
+                                                    color = SolidPrimary,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
                                             }
                                         }
                                     }
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = LanguageHelper.formatCurrency(subItem.currentBalance, languageMode),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (sub.isActive) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline
-                                        )
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = LanguageHelper.formatCurrency(
+                                                    if (subIncluded) subEffectiveBal else subItem.currentBalance,
+                                                    languageMode
+                                                ),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                textDecoration = if (!subIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                                color = if (!sub.isActive || !subIncluded) MaterialTheme.colorScheme.outline
+                                                else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(4.dp))
+
+                                        // Sub-Account Calculation Controls
+                                        if (!isEditMode && !isInactiveSection) {
+                                            // Include / Exclude Button
+                                            IconButton(
+                                                onClick = { onToggleIncludeStatus?.invoke(sub, !subIncluded) },
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .testTag("sub_calc_toggle_${sub.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (subIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                    contentDescription = if (subIncluded) "Exclude" else "Include",
+                                                    tint = if (subIncluded) SolidIncome else SolidExpense,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+
+                                            // Adjust Button
+                                            IconButton(
+                                                onClick = { onRequestAdjustCalculation(sub, subItem.currentBalance) },
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .testTag("sub_calc_adjust_${sub.id}")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Tune,
+                                                    contentDescription = "Adjust Calculation",
+                                                    tint = if (subAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
 
                                         if (isEditMode) {
-                                            Spacer(modifier = Modifier.width(4.dp))
                                             IconButton(
                                                 onClick = { onEditAccount(sub) },
                                                 modifier = Modifier.size(24.dp)

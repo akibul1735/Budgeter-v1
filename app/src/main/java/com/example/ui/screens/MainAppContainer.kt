@@ -198,6 +198,7 @@ fun MainAppContainer(
     val selectedBudgetYear by viewModel.selectedBudgetYear.collectAsStateWithLifecycle()
     val selectedBudgetMonth by viewModel.selectedBudgetMonth.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
+    val accountCalcConfig by viewModel.accountCalcConfig.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -462,6 +463,7 @@ fun MainAppContainer(
                                 viewModel = viewModel,
                                 overview = overview,
                                 accountsWithBalances = accountsWithBalances,
+                                accountCalcConfig = accountCalcConfig,
                                 allAccounts = allAccounts,
                                 allCategories = allCategories,
                                 transactionsWithDetails = transactionsWithDetails,
@@ -606,6 +608,7 @@ fun MainAppContainer(
                                 viewModel = viewModel,
                                 overview = overview,
                                 accountsWithBalances = accountsWithBalances,
+                                accountCalcConfig = accountCalcConfig,
                                 allAccounts = allAccounts,
                                 allCategories = allCategories,
                                 transactionsWithDetails = transactionsWithDetails,
@@ -751,6 +754,7 @@ fun MainAppContainer(
                                 viewModel = viewModel,
                                 overview = overview,
                                 accountsWithBalances = accountsWithBalances,
+                                accountCalcConfig = accountCalcConfig,
                                 allAccounts = allAccounts,
                                 allCategories = allCategories,
                                 transactionsWithDetails = transactionsWithDetails,
@@ -1538,6 +1542,7 @@ private fun ScreenRouter(
     viewModel: BudgetViewModel,
     overview: com.example.data.repository.FinancialOverview,
     accountsWithBalances: List<com.example.data.repository.AccountWithBalance>,
+    accountCalcConfig: com.example.util.AccountCalcConfig,
     allAccounts: List<Account>,
     allCategories: List<Category>,
     transactionsWithDetails: List<com.example.data.model.TransactionWithDetails>,
@@ -1637,12 +1642,25 @@ private fun ScreenRouter(
         )
         AppView.ACCOUNTS -> AccountsScreen(
             accountsWithBalances = accountsWithBalances,
+            accountCalcConfig = accountCalcConfig,
             languageMode = languageMode,
             onAddAccountClick = { onAddAccount(null) },
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
             onToggleActiveStatus = { acc, active ->
                 viewModel.saveAccount(acc.copy(isActive = active))
+            },
+            onToggleIncludeStatus = { acc, isIncluded ->
+                viewModel.setAccountIncludeStatus(acc.id, isIncluded)
+            },
+            onSaveCalculationSetting = { acc, isIncluded, adjustment ->
+                viewModel.setAccountCalcSetting(acc.id, isIncluded, adjustment)
+            },
+            onResetAccountCalculation = { acc ->
+                viewModel.resetAccountCalculation(acc.id)
+            },
+            onResetAllCalculations = {
+                viewModel.resetAllAccountCalculations()
             }
         )
         AppView.CATEGORIES -> CategoriesScreen(
