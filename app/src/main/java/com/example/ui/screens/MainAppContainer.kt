@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,8 +28,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
@@ -39,8 +43,12 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,7 +70,11 @@ import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -83,6 +95,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -99,27 +112,57 @@ import com.example.ui.dialogs.AddEditAccountGroupOrCategoryDialog
 import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
 import com.example.ui.dialogs.AutofillSettingsDialog
+import com.example.ui.dialogs.TabCustomizationDialog
 import com.example.ui.dialogs.ThemeFontSettingsDialog
 import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidTransfer
 import com.example.ui.viewmodel.BudgetViewModel
+import com.example.util.AppTab
 import com.example.util.AutofillPreferences
 import com.example.util.LanguageHelper
+import com.example.util.NavigationTabConfig
+import com.example.util.TabPosition
 import kotlinx.coroutines.launch
 
 enum class AppView {
     DASHBOARD,
     LEDGER,
+    BALANCE_SHEET,
     BUDGET,
     BUDGET_MAKER,
     REPORTS,
+    LABELS,
+    ITEMS_SUMMARY,
+    RECURRING_BILLS,
     ACCOUNTS,
     EXPENSES,
     INCOME,
-    RECURRING_BILLS,
     BACKUP_SYNC
+}
+
+fun AppTab.toAppView(): AppView = when (this) {
+    AppTab.MAIN -> AppView.DASHBOARD
+    AppTab.TRANSACTIONS -> AppView.LEDGER
+    AppTab.BALANCE_SHEET -> AppView.BALANCE_SHEET
+    AppTab.BUDGET -> AppView.BUDGET
+    AppTab.NET_EARNINGS -> AppView.REPORTS
+    AppTab.LABELS -> AppView.LABELS
+    AppTab.ITEMS_SUMMARY -> AppView.ITEMS_SUMMARY
+    AppTab.REMINDERS -> AppView.RECURRING_BILLS
+}
+
+fun AppView.toAppTab(): AppTab? = when (this) {
+    AppView.DASHBOARD -> AppTab.MAIN
+    AppView.LEDGER -> AppTab.TRANSACTIONS
+    AppView.BALANCE_SHEET -> AppTab.BALANCE_SHEET
+    AppView.BUDGET -> AppTab.BUDGET
+    AppView.REPORTS -> AppTab.NET_EARNINGS
+    AppView.LABELS -> AppTab.LABELS
+    AppView.ITEMS_SUMMARY -> AppTab.ITEMS_SUMMARY
+    AppView.RECURRING_BILLS -> AppTab.REMINDERS
+    else -> null
 }
 
 enum class WindowSizeClassType {
@@ -135,6 +178,7 @@ fun MainAppContainer(
 ) {
     val languageMode by viewModel.languageMode.collectAsStateWithLifecycle()
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
+    val tabConfig by viewModel.tabConfig.collectAsStateWithLifecycle()
     val overview by viewModel.financialOverview.collectAsStateWithLifecycle()
     val accountsWithBalances by viewModel.accountsWithBalances.collectAsStateWithLifecycle()
     val allAccounts by viewModel.allAccounts.collectAsStateWithLifecycle()
@@ -172,6 +216,7 @@ fun MainAppContainer(
     var showGlobalCalculator by remember { mutableStateOf(false) }
     var showThemeFontSettings by remember { mutableStateOf(false) }
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
+    var showTabCustomizationDialog by remember { mutableStateOf(false) }
 
     val selectView: (AppView) -> Unit = { targetView ->
         if (currentView != targetView) {
@@ -187,6 +232,7 @@ fun MainAppContainer(
 
     val handleBackPress: () -> Unit = {
         when {
+            showTabCustomizationDialog -> showTabCustomizationDialog = false
             showAddTransactionSheet -> showAddTransactionSheet = false
             showAddAccountDialog -> showAddAccountDialog = false
             showAddCategoryDialog -> showAddCategoryDialog = false
@@ -221,15 +267,7 @@ fun MainAppContainer(
         handleBackPress()
     }
 
-    val bottomNavItems = listOf(
-        Triple(LanguageHelper.getString("main", languageMode), Icons.Default.Dashboard, AppView.DASHBOARD),
-        Triple(LanguageHelper.getString("transactions", languageMode), Icons.AutoMirrored.Filled.ReceiptLong, AppView.LEDGER),
-        Triple(LanguageHelper.getString("budget", languageMode), Icons.Default.Assessment, AppView.BUDGET),
-        Triple(LanguageHelper.getString("budget_maker", languageMode), Icons.Default.Calculate, AppView.BUDGET_MAKER),
-        Triple(LanguageHelper.getString("balance_sheet", languageMode), Icons.Default.AccountBalance, AppView.ACCOUNTS)
-    )
-
-    val isSubView = currentView in listOf(AppView.REPORTS, AppView.ACCOUNTS, AppView.EXPENSES, AppView.INCOME, AppView.RECURRING_BILLS, AppView.BACKUP_SYNC)
+    val isSubView = currentView in listOf(AppView.EXPENSES, AppView.INCOME, AppView.BACKUP_SYNC, AppView.BUDGET_MAKER)
 
     // Window Width Adaptive Layout Container
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -241,7 +279,7 @@ fun MainAppContainer(
 
         when (windowSizeClass) {
             WindowSizeClassType.COMPACT -> {
-                // PHONE LAYOUT: Modal Navigation Drawer + Scaffold + Bottom Nav
+                // PHONE LAYOUT: Modal Navigation Drawer + Top/Bottom Tab Bar based on User Preference
                 ModalNavigationDrawer(
                     drawerState = drawerState,
                     drawerContent = {
@@ -268,6 +306,10 @@ fun MainAppContainer(
                                     showAutofillSettingsDialog = true
                                     scope.launch { drawerState.close() }
                                 },
+                                onOpenTabCustomizer = {
+                                    showTabCustomizationDialog = true
+                                    scope.launch { drawerState.close() }
+                                },
                                 accountsCount = allAccounts.size,
                                 expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
                                 incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
@@ -282,92 +324,102 @@ fun MainAppContainer(
                 ) {
                     Scaffold(
                         topBar = {
-                            TopAppBar(
-                                title = {
-                                    Text(
-                                        text = getViewTitle(currentView, languageMode),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp
-                                    )
-                                },
-                                navigationIcon = {
-                                    if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
-                                        IconButton(onClick = handleBackPress) {
-                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                                        }
-                                    } else {
-                                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                            Icon(Icons.Default.Menu, contentDescription = "Menu")
-                                        }
-                                    }
-                                },
-                                actions = {
-                                    if (isDemoMode) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = MaterialTheme.colorScheme.tertiaryContainer,
-                                            modifier = Modifier
-                                                .padding(end = 4.dp)
-                                                .clickable { viewModel.setDemoMode(false) }
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(6.dp)
-                                                        .background(MaterialTheme.colorScheme.tertiary, CircleShape)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = "DEMO",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                                )
+                            Column {
+                                TopAppBar(
+                                    title = {
+                                        Text(
+                                            text = getViewTitle(currentView, languageMode),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp
+                                        )
+                                    },
+                                    navigationIcon = {
+                                        if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
+                                            IconButton(onClick = handleBackPress) {
+                                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                            }
+                                        } else {
+                                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                                Icon(Icons.Default.Menu, contentDescription = "Menu")
                                             }
                                         }
-                                    }
-                                    IconButton(onClick = { showThemeFontSettings = true }) {
-                                        Icon(
-                                            Icons.Default.Palette,
-                                            contentDescription = "Theme & Fonts",
-                                            tint = MaterialTheme.colorScheme.primary
+                                    },
+                                    actions = {
+                                        if (isDemoMode) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                                modifier = Modifier
+                                                    .padding(end = 4.dp)
+                                                    .clickable { viewModel.setDemoMode(false) }
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(6.dp)
+                                                            .background(MaterialTheme.colorScheme.tertiary, CircleShape)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = "DEMO",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        // Quick Tab Customization Button
+                                        IconButton(
+                                            onClick = { showTabCustomizationDialog = true },
+                                            modifier = Modifier.testTag("btn_tab_customization")
+                                        ) {
+                                            Icon(
+                                                Icons.Default.ViewCarousel,
+                                                contentDescription = "Customize Navigation Tabs",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        IconButton(onClick = { showThemeFontSettings = true }) {
+                                            Icon(
+                                                Icons.Default.Palette,
+                                                contentDescription = "Theme & Fonts",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        LanguageSelector(
+                                            currentMode = languageMode,
+                                            onModeSelected = { viewModel.setLanguageMode(it) }
                                         )
-                                    }
-                                    LanguageSelector(
-                                        currentMode = languageMode,
-                                        onModeSelected = { viewModel.setLanguageMode(it) }
+                                    },
+                                    colors = TopAppBarDefaults.topAppBarColors(
+                                        containerColor = MaterialTheme.colorScheme.surface
                                     )
-                                },
-                                colors = TopAppBarDefaults.topAppBarColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
                                 )
-                            )
+
+                                // TOP NAVIGATION TAB ROW (When Position is TOP)
+                                if (tabConfig.position == TabPosition.TOP && !isSubView) {
+                                    TopNavigationBarRow(
+                                        visibleTabs = tabConfig.visibleTabs,
+                                        currentView = currentView,
+                                        languageMode = languageMode,
+                                        onSelectTab = { tab -> selectView(tab.toAppView()) }
+                                    )
+                                }
+                            }
                         },
                         bottomBar = {
-                            if (!isSubView) {
-                                NavigationBar(
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                    tonalElevation = 4.dp
-                                ) {
-                                    bottomNavItems.forEach { (label, icon, view) ->
-                                        val isSelected = currentView == view
-                                        NavigationBarItem(
-                                            selected = isSelected,
-                                            onClick = { selectView(view) },
-                                            icon = { Icon(icon, contentDescription = label) },
-                                            label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
-                                            colors = NavigationBarItemDefaults.colors(
-                                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                                indicatorColor = MaterialTheme.colorScheme.primary
-                                            ),
-                                            modifier = Modifier.testTag("nav_${view.name.lowercase()}")
-                                        )
-                                    }
-                                }
+                            // BOTTOM NAVIGATION TAB ROW (When Position is BOTTOM)
+                            if (tabConfig.position == TabPosition.BOTTOM && !isSubView) {
+                                BottomNavigationBarRow(
+                                    visibleTabs = tabConfig.visibleTabs,
+                                    currentView = currentView,
+                                    languageMode = languageMode,
+                                    onSelectTab = { tab -> selectView(tab.toAppView()) }
+                                )
                             }
                         },
                         floatingActionButton = {
@@ -465,31 +517,25 @@ fun MainAppContainer(
                     NavigationRail(
                         containerColor = MaterialTheme.colorScheme.surface,
                         header = {
-                            IconButton(onClick = { showThemeFontSettings = true }) {
-                                Icon(Icons.Default.Palette, contentDescription = "Theme", tint = MaterialTheme.colorScheme.primary)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                IconButton(onClick = { showTabCustomizationDialog = true }) {
+                                    Icon(Icons.Default.ViewCarousel, contentDescription = "Tabs", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { showThemeFontSettings = true }) {
+                                    Icon(Icons.Default.Palette, contentDescription = "Theme", tint = MaterialTheme.colorScheme.primary)
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxHeight()
                     ) {
-                        AppView.values().forEach { view ->
+                        tabConfig.visibleTabs.forEach { tab ->
+                            val view = tab.toAppView()
                             val isSelected = currentView == view
-                            val icon = when (view) {
-                                AppView.DASHBOARD -> Icons.Default.Dashboard
-                                AppView.LEDGER -> Icons.AutoMirrored.Filled.ReceiptLong
-                                AppView.BUDGET -> Icons.Default.Assessment
-                                AppView.BUDGET_MAKER -> Icons.Default.Calculate
-                                AppView.REPORTS -> Icons.Default.Assessment
-                                AppView.ACCOUNTS -> Icons.Default.AccountBalance
-                                AppView.EXPENSES -> Icons.Default.Category
-                                AppView.INCOME -> Icons.Default.Payments
-                                AppView.RECURRING_BILLS -> Icons.Default.EventRepeat
-                                AppView.BACKUP_SYNC -> Icons.Default.CloudSync
-                            }
                             NavigationRailItem(
                                 selected = isSelected,
                                 onClick = { selectView(view) },
-                                icon = { Icon(icon, contentDescription = view.name) },
-                                label = { Text(view.name.take(4), fontSize = 10.sp) },
+                                icon = { Icon(tab.icon, contentDescription = tab.getTitle(languageMode)) },
+                                label = { Text(tab.getTitle(languageMode).take(6), fontSize = 10.sp) },
                                 colors = NavigationRailItemDefaults.colors(
                                     selectedIconColor = MaterialTheme.colorScheme.onPrimary,
                                     indicatorColor = MaterialTheme.colorScheme.primary
@@ -610,12 +656,12 @@ fun MainAppContainer(
             }
 
             WindowSizeClassType.EXPANDED -> {
-                // EXPANDED TABLET / DESKTOP LAYOUT: Permanent Navigation Drawer + Wide Canvas
+                // LARGE TABLET / DESKTOP LAYOUT: Permanent Navigation Drawer
                 PermanentNavigationDrawer(
                     drawerContent = {
                         PermanentDrawerSheet(
-                            modifier = Modifier.width(280.dp),
-                            drawerContainerColor = MaterialTheme.colorScheme.surface
+                            drawerContainerColor = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.width(280.dp)
                         ) {
                             DrawerContent(
                                 viewModel = viewModel,
@@ -624,6 +670,7 @@ fun MainAppContainer(
                                 onOpenCalculator = { showGlobalCalculator = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                 accountsCount = allAccounts.size,
                                 expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
                                 incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
@@ -648,11 +695,14 @@ fun MainAppContainer(
                                     }
                                 },
                                 actions = {
-                                    IconButton(onClick = { showThemeFontSettings = true }) {
-                                        Icon(Icons.Default.Palette, contentDescription = "Theme & Fonts", tint = MaterialTheme.colorScheme.primary)
+                                    IconButton(onClick = { showTabCustomizationDialog = true }) {
+                                        Icon(Icons.Default.ViewCarousel, contentDescription = "Tabs", tint = MaterialTheme.colorScheme.primary)
                                     }
                                     IconButton(onClick = { showGlobalCalculator = true }) {
-                                        Icon(Icons.Default.Calculate, contentDescription = "Calculator", tint = MaterialTheme.colorScheme.primary)
+                                        Icon(Icons.Default.Calculate, contentDescription = "Calculator")
+                                    }
+                                    IconButton(onClick = { showThemeFontSettings = true }) {
+                                        Icon(Icons.Default.Palette, contentDescription = "Theme", tint = MaterialTheme.colorScheme.primary)
                                     }
                                     LanguageSelector(
                                         currentMode = languageMode,
@@ -753,6 +803,18 @@ fun MainAppContainer(
     }
 
     // Modal Dialogs
+    if (showTabCustomizationDialog) {
+        TabCustomizationDialog(
+            config = tabConfig,
+            languageMode = languageMode,
+            onPositionChanged = { viewModel.setTabPosition(it) },
+            onToggleTab = { tab, enabled -> viewModel.toggleTab(tab, enabled) },
+            onReorderTab = { from, to -> viewModel.reorderTab(from, to) },
+            onResetDefaults = { viewModel.resetTabDefaults() },
+            onDismiss = { showTabCustomizationDialog = false }
+        )
+    }
+
     if (showAddTransactionSheet) {
         AddEditTransactionSheet(
             accounts = allAccounts,
@@ -830,13 +892,168 @@ fun MainAppContainer(
 }
 
 @Composable
+private fun TopNavigationBarRow(
+    visibleTabs: List<AppTab>,
+    currentView: AppView,
+    languageMode: LanguageMode,
+    onSelectTab: (AppTab) -> Unit
+) {
+    val selectedIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        ScrollableTabRow(
+            selectedTabIndex = if (selectedIndex >= 0) selectedIndex else 0,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+            edgePadding = 8.dp,
+            divider = {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            },
+            indicator = { tabPositions ->
+                if (selectedIndex in tabPositions.indices) {
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedIndex]),
+                        color = MaterialTheme.colorScheme.primary,
+                        height = 3.dp
+                    )
+                }
+            }
+        ) {
+            visibleTabs.forEach { tab ->
+                val isSelected = currentView == tab.toAppView()
+                Tab(
+                    selected = isSelected,
+                    onClick = { onSelectTab(tab) },
+                    icon = {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = tab.getTitle(languageMode),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = tab.getTitle(languageMode),
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    },
+                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                    unselectedContentColor = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.testTag("top_nav_${tab.id}")
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomNavigationBarRow(
+    visibleTabs: List<AppTab>,
+    currentView: AppView,
+    languageMode: LanguageMode,
+    onSelectTab: (AppTab) -> Unit
+) {
+    if (visibleTabs.size <= 5) {
+        NavigationBar(
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 4.dp
+        ) {
+            visibleTabs.forEach { tab ->
+                val view = tab.toAppView()
+                val isSelected = currentView == view
+                NavigationBarItem(
+                    selected = isSelected,
+                    onClick = { onSelectTab(tab) },
+                    icon = { Icon(tab.icon, contentDescription = tab.getTitle(languageMode)) },
+                    label = {
+                        Text(
+                            tab.getTitle(languageMode),
+                            fontSize = 10.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.testTag("bottom_nav_${tab.id}")
+                )
+            }
+        }
+    } else {
+        val selectedIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 4.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+        ) {
+            ScrollableTabRow(
+                selectedTabIndex = if (selectedIndex >= 0) selectedIndex else 0,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 8.dp,
+                divider = {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                },
+                indicator = { tabPositions ->
+                    if (selectedIndex in tabPositions.indices) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedIndex]),
+                            color = MaterialTheme.colorScheme.primary,
+                            height = 3.dp
+                        )
+                    }
+                }
+            ) {
+                visibleTabs.forEach { tab ->
+                    val isSelected = currentView == tab.toAppView()
+                    Tab(
+                        selected = isSelected,
+                        onClick = { onSelectTab(tab) },
+                        icon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.getTitle(languageMode),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = tab.getTitle(languageMode),
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                        },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.testTag("bottom_nav_${tab.id}")
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun AppFab(
     currentView: AppView,
     onAddTransaction: () -> Unit,
     onAddAccount: () -> Unit,
     onAddCategory: (CategoryType) -> Unit
 ) {
-    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
+    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER, AppView.LABELS, AppView.ITEMS_SUMMARY, AppView.BALANCE_SHEET, AppView.REPORTS)) {
         FloatingActionButton(
             onClick = onAddTransaction,
             containerColor = MaterialTheme.colorScheme.primary,
@@ -878,6 +1095,7 @@ private fun DrawerContent(
     onOpenCalculator: () -> Unit,
     onOpenThemeFontSettings: () -> Unit,
     onOpenAutofillSettings: () -> Unit,
+    onOpenTabCustomizer: () -> Unit,
     accountsCount: Int,
     expensesCount: Int,
     incomeCount: Int,
@@ -916,7 +1134,7 @@ private fun DrawerContent(
                         color = Color.White.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = "v3.4",
+                            text = "v3.6",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -962,22 +1180,23 @@ private fun DrawerContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "MENU & MANAGEMENT",
+            text = "MAIN VIEWS (8 TABS)",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
-        // Navigation Items
+        // 1. Main
         DrawerItemRow(
-            title = LanguageHelper.getString("dashboard", languageMode),
+            title = LanguageHelper.getString("main", languageMode),
             icon = Icons.Default.Dashboard,
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = currentView == AppView.DASHBOARD,
             onClick = { onSelectView(AppView.DASHBOARD) }
         )
 
+        // 2. Transactions
         DrawerItemRow(
             title = LanguageHelper.getString("transactions", languageMode),
             icon = Icons.AutoMirrored.Filled.ReceiptLong,
@@ -986,29 +1205,71 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.LEDGER) }
         )
 
+        // 3. Balance Sheet
+        DrawerItemRow(
+            title = LanguageHelper.getString("balance_sheet", languageMode),
+            icon = Icons.Default.AccountBalance,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = "$accountsCount",
+            isSelected = currentView == AppView.BALANCE_SHEET,
+            onClick = { onSelectView(AppView.BALANCE_SHEET) }
+        )
+
+        // 4. Budget
         DrawerItemRow(
             title = LanguageHelper.getString("budget", languageMode),
-            icon = Icons.Default.Assessment,
+            icon = Icons.Default.ShoppingBag,
             iconTint = MaterialTheme.colorScheme.primary,
             badge = if (budgetCount > 0) "$budgetCount" else null,
             isSelected = currentView == AppView.BUDGET,
             onClick = { onSelectView(AppView.BUDGET) }
         )
 
+        // 5. Net Earnings
         DrawerItemRow(
-            title = LanguageHelper.getString("budget_maker", languageMode),
-            icon = Icons.Default.Calculate,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.BUDGET_MAKER,
-            onClick = { onSelectView(AppView.BUDGET_MAKER) }
-        )
-
-        DrawerItemRow(
-            title = LanguageHelper.getString("reports", languageMode),
-            icon = Icons.Default.Assessment,
+            title = LanguageHelper.getString("net_earnings", languageMode),
+            icon = Icons.Default.Assignment,
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = currentView == AppView.REPORTS,
             onClick = { onSelectView(AppView.REPORTS) }
+        )
+
+        // 6. Labels
+        DrawerItemRow(
+            title = LanguageHelper.getString("labels", languageMode),
+            icon = Icons.Default.Tag,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.LABELS,
+            onClick = { onSelectView(AppView.LABELS) }
+        )
+
+        // 7. Items Summary
+        DrawerItemRow(
+            title = LanguageHelper.getString("items_summary", languageMode),
+            icon = Icons.Default.Bookmark,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.ITEMS_SUMMARY,
+            onClick = { onSelectView(AppView.ITEMS_SUMMARY) }
+        )
+
+        // 8. Reminders
+        DrawerItemRow(
+            title = LanguageHelper.getString("reminders", languageMode),
+            icon = Icons.Default.Alarm,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = "$recurringCount",
+            isSelected = currentView == AppView.RECURRING_BILLS,
+            onClick = { onSelectView(AppView.RECURRING_BILLS) }
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
+
+        Text(
+            text = "MANAGEMENT & CONFIG",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
         DrawerItemRow(
@@ -1039,12 +1300,11 @@ private fun DrawerContent(
         )
 
         DrawerItemRow(
-            title = "Recurring & Bills",
-            icon = Icons.Default.EventRepeat,
+            title = LanguageHelper.getString("budget_maker", languageMode),
+            icon = Icons.Default.Calculate,
             iconTint = MaterialTheme.colorScheme.primary,
-            badge = "$recurringCount",
-            isSelected = currentView == AppView.RECURRING_BILLS,
-            onClick = { onSelectView(AppView.RECURRING_BILLS) }
+            isSelected = currentView == AppView.BUDGET_MAKER,
+            onClick = { onSelectView(AppView.BUDGET_MAKER) }
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
@@ -1099,108 +1359,37 @@ private fun DrawerContent(
                     Spacer(modifier = Modifier.height(8.dp))
                     androidx.compose.material3.OutlinedButton(
                         onClick = { viewModel.resetDemoData() },
-                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ডেমো ডাটা রিসেট করুন" else "Reset Sample Demo Data",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            text = if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা পুনরায় লোড করুন" else "Reset Sample Demo Data",
+                            fontSize = 11.sp
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "TOOLS & STYLING",
+            text = "PREFERENCES & TOOLS",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.outline,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
-        // Quick Sync in Menu with Last Sync Timestamp
-        val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
-        val lastSyncStr = if (backupConfig.lastSyncTimestamp > 0L) {
-            java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(backupConfig.lastSyncTimestamp))
-        } else "Never"
-
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-                .clickable { viewModel.triggerQuickSync() }
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Sync,
-                        contentDescription = "Quick Sync",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = "Quick Sync",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            text = "Last: $lastSyncStr",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                        )
-                    }
-                }
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 4.dp)
-                ) {
-                    Text(
-                        text = "Sync",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-        }
-
-        // 7 Themes & Fonts Customizer
+        // TAB CUSTOMIZATION (TOP / BOTTOM & TAB TOGGLES)
         DrawerItemRow(
-            title = if (languageMode == LanguageMode.BANGLA) "থিম ও ফন্ট কাস্টমাইজ" else "Theme & Font Styling",
-            icon = Icons.Default.Palette,
+            title = LanguageHelper.getString("tab_customization", languageMode),
+            icon = Icons.Default.ViewCarousel,
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = false,
-            onClick = onOpenThemeFontSettings
-        )
-
-        // Autofill Settings
-        DrawerItemRow(
-            title = LanguageHelper.getString("autofill_settings", languageMode),
-            icon = Icons.Default.AutoAwesome,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = false,
-            onClick = onOpenAutofillSettings
+            onClick = onOpenTabCustomizer
         )
 
         // Backup, Restore & Sync
@@ -1212,16 +1401,34 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.BACKUP_SYNC) }
         )
 
+        // Autofill Settings
+        DrawerItemRow(
+            title = LanguageHelper.getString("autofill_settings", languageMode),
+            icon = Icons.Default.AutoAwesome,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = false,
+            onClick = onOpenAutofillSettings
+        )
+
+        // Theme & Font Settings
+        DrawerItemRow(
+            title = "Theme & Typography",
+            icon = Icons.Default.Palette,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = false,
+            onClick = onOpenThemeFontSettings
+        )
+
         // Calculator
         DrawerItemRow(
-            title = LanguageHelper.getString("calculator", languageMode),
+            title = "Popup Calculator",
             icon = Icons.Default.Calculate,
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = false,
             onClick = onOpenCalculator
         )
 
-        // Language toggle
+        // Quick Sync
         NavigationDrawerItem(
             label = {
                 Row(
@@ -1229,20 +1436,43 @@ private fun DrawerContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(LanguageHelper.getString("language", languageMode), fontWeight = FontWeight.Medium)
+                    Text(text = "Quick JSON Sync")
+                    Icon(
+                        Icons.Default.Sync,
+                        contentDescription = "Sync",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            },
+            icon = { Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            selected = false,
+            onClick = { viewModel.triggerQuickSync() },
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+        )
+
+        // Language Switcher
+        NavigationDrawerItem(
+            label = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = LanguageHelper.getString("language", languageMode))
                     Text(
                         text = when (languageMode) {
                             LanguageMode.ENGLISH -> "EN"
                             LanguageMode.BANGLA -> "বাং"
-                            LanguageMode.BILINGUAL -> "EN/বাং"
+                            LanguageMode.BILINGUAL -> "Both"
                         },
-                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             },
-            icon = { Icon(Icons.Default.Translate, contentDescription = null) },
+            icon = { Icon(Icons.Default.Translate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             selected = false,
             onClick = {
                 val nextMode = when (languageMode) {
@@ -1343,6 +1573,15 @@ private fun ScreenRouter(
             onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
             onTransactionClick = onEditTransaction
         )
+        AppView.BALANCE_SHEET -> BalanceSheetScreen(
+            accounts = allAccounts,
+            transactions = transactionsWithDetails.map { it.transaction },
+            languageMode = languageMode,
+            onAddAccountClick = { onAddAccount(null) },
+            onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
+            onEditAccountClick = onEditAccount,
+            onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) }
+        )
         AppView.BUDGET -> BudgetTrackingScreen(
             viewModel = viewModel,
             allCategories = allCategories,
@@ -1376,6 +1615,21 @@ private fun ScreenRouter(
             accountsWithBalances = accountsWithBalances,
             languageMode = languageMode
         )
+        AppView.LABELS -> LabelsScreen(
+            transactions = transactionsWithDetails,
+            languageMode = languageMode,
+            onTransactionClick = onEditTransaction
+        )
+        AppView.ITEMS_SUMMARY -> ItemsScreen(
+            transactions = transactionsWithDetails,
+            languageMode = languageMode,
+            onTransactionClick = onEditTransaction
+        )
+        AppView.RECURRING_BILLS -> RecurringBillsScreen(
+            viewModel = viewModel,
+            bills = recurringBills,
+            languageMode = languageMode
+        )
         AppView.ACCOUNTS -> AccountsScreen(
             accountsWithBalances = accountsWithBalances,
             languageMode = languageMode,
@@ -1402,11 +1656,6 @@ private fun ScreenRouter(
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory
         )
-        AppView.RECURRING_BILLS -> RecurringBillsScreen(
-            viewModel = viewModel,
-            bills = recurringBills,
-            languageMode = languageMode
-        )
         AppView.BACKUP_SYNC -> BackupSyncSettingsScreen(
             viewModel = viewModel,
             languageMode = languageMode,
@@ -1419,13 +1668,16 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
     return when (view) {
         AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
         AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
+        AppView.BALANCE_SHEET -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
         AppView.BUDGET_MAKER -> LanguageHelper.getString("budget_maker", languageMode)
-        AppView.REPORTS -> LanguageHelper.getString("reports", languageMode)
-        AppView.ACCOUNTS -> LanguageHelper.getString("balance_sheet", languageMode)
+        AppView.REPORTS -> LanguageHelper.getString("net_earnings", languageMode)
+        AppView.LABELS -> LanguageHelper.getString("labels", languageMode)
+        AppView.ITEMS_SUMMARY -> LanguageHelper.getString("items_summary", languageMode)
+        AppView.RECURRING_BILLS -> LanguageHelper.getString("reminders", languageMode)
+        AppView.ACCOUNTS -> LanguageHelper.getString("accounts", languageMode)
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
         AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
-        AppView.RECURRING_BILLS -> "Recurring Bills"
         AppView.BACKUP_SYNC -> "Backup, Restore & Sync"
     }
 }

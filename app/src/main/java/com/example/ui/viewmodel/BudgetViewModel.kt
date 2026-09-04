@@ -32,6 +32,10 @@ import com.example.util.DataImportHelper
 import com.example.util.DriveBackupResult
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
+import com.example.util.AppTab
+import com.example.util.NavigationTabConfig
+import com.example.util.TabPosition
+import com.example.util.TabPreferences
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +62,25 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
     private val appPrefs = application.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
     private val backupPrefs: BackupPreferences = BackupPreferences.getInstance(application)
+    private val tabPrefs: TabPreferences = TabPreferences.getInstance(application)
+
+    val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
+
+    fun setTabPosition(position: TabPosition) {
+        tabPrefs.setPosition(position)
+    }
+
+    fun toggleTab(tab: AppTab, enabled: Boolean): Boolean {
+        return tabPrefs.toggleTab(tab, enabled)
+    }
+
+    fun reorderTab(fromIndex: Int, toIndex: Int) {
+        tabPrefs.reorderTab(fromIndex, toIndex)
+    }
+
+    fun resetTabDefaults() {
+        tabPrefs.resetToDefaults()
+    }
 
     // Demo Mode: Default is true so every feature gets rich demo data from now on!
     private val _isDemoMode = MutableStateFlow(appPrefs.getBoolean("app_is_demo_mode", true))

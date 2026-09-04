@@ -192,6 +192,14 @@ object LanguageHelper {
         "language" to Trans("Language", "ভাষা"),
         "english" to Trans("English", "ইংরেজি"),
         "bangla" to Trans("বাংলা", "বাংলা"),
-        "bilingual" to Trans("Bilingual (Both)", "উভয় ভাষা (Bilingual)")
+        "bilingual" to Trans("Bilingual (Both)", "উভয় ভাষা (Bilingual)"),
+        "net_earnings" to Trans("Net Earnings", "নেট আয় ও লাভ"),
+        "labels" to Trans("Labels", "লেবেলসমূহ"),
+        "items_summary" to Trans("Items Summary", "আইটেম সামারি"),
+        "reminders" to Trans("Reminders", "রিমাইন্ডার ও বিল"),
+        "tab_customization" to Trans("Navigation Tabs", "ট্যাব কাস্টমাইজেশন"),
+        "tab_position" to Trans("Tab Position", "ট্যাব অবস্থান"),
+        "tab_position_top" to Trans("Top Bar", "উপরে"),
+        "tab_position_bottom" to Trans("Bottom Bar", "নিচে")
     )
 }
