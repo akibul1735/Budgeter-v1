@@ -84,6 +84,8 @@ import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.AmountBreakdownDialog
 import com.example.ui.dialogs.AmountDetailInfo
 import com.example.ui.dialogs.BreakdownItem
+import com.example.ui.dialogs.BudgetSummaryPreviewDialog
+import com.example.ui.dialogs.DailySummaryDetailDialog
 import com.example.ui.dialogs.FormulaStep
 import com.example.ui.screens.dashboard.BudgetSummaryCard
 import com.example.ui.screens.dashboard.BudgetSummarySettingsDialog
@@ -142,6 +144,8 @@ fun DashboardScreen(
     var showBudgetSettingsDialog by remember { mutableStateOf(false) }
     var showCalendarSettingsDialog by remember { mutableStateOf(false) }
     var showFavoriteAccountsPicker by remember { mutableStateOf(false) }
+    var showDailySummaryDetail by remember { mutableStateOf(false) }
+    var showBudgetSummaryPreview by remember { mutableStateOf(false) }
 
     // State for clicking any amount anywhere on the dashboard to view formula and transactions breakdown
     var activeAmountDetail by remember { mutableStateOf<AmountDetailInfo?>(null) }
@@ -631,6 +635,7 @@ fun DashboardScreen(
                                         )
                                     },
                                     onOpenSettings = { showDailySettingsDialog = true },
+                                    onCardClick = { showDailySummaryDetail = true },
                                     onDayClick = { daySummary ->
                                         val calTarget = Calendar.getInstance().apply { timeInMillis = daySummary.dateEpochMs }
                                         val dayTxs = recentTransactions.filter {
@@ -676,7 +681,8 @@ fun DashboardScreen(
                                             dashboardConfig.budgetShowTodayPace
                                         )
                                     },
-                                    onOpenSettings = { showBudgetSettingsDialog = true }
+                                    onOpenSettings = { showBudgetSettingsDialog = true },
+                                    onCardClick = { showBudgetSummaryPreview = true }
                                 )
                             }
                         }
@@ -890,6 +896,33 @@ fun DashboardScreen(
             languageMode = languageMode,
             onDismiss = { showStandAloneCalculator = false },
             onValueConfirmed = { /* Standalone calculator */ }
+        )
+    }
+
+    if (showBudgetSummaryPreview) {
+        BudgetSummaryPreviewDialog(
+            transactions = recentTransactions,
+            allCategories = allCategories,
+            monthlyBudgets = monthlyBudgets,
+            accounts = accountsWithBalances.map { it.account },
+            languageMode = languageMode,
+            onDismiss = { showBudgetSummaryPreview = false },
+            onTransactionClick = { txItem ->
+                showBudgetSummaryPreview = false
+                onTransactionClick(txItem.transaction)
+            }
+        )
+    }
+
+    if (showDailySummaryDetail) {
+        DailySummaryDetailDialog(
+            transactions = recentTransactions,
+            languageMode = languageMode,
+            onDismiss = { showDailySummaryDetail = false },
+            onTransactionClick = { txItem ->
+                showDailySummaryDetail = false
+                onTransactionClick(txItem.transaction)
+            }
         )
     }
 }

@@ -95,7 +95,8 @@ fun BudgetSummaryCard(
     showTodayPace: Boolean,
     languageMode: LanguageMode,
     onCategoryTypeChange: (BudgetSummaryType) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onCardClick: (() -> Unit)? = null
 ) {
     var showDropdownMenu by remember { mutableStateOf(false) }
 
@@ -258,16 +259,31 @@ fun BudgetSummaryCard(
                     }
                 }
 
-                IconButton(
-                    onClick = onOpenSettings,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "Budget Summary Chart Settings",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onCardClick != null) {
+                        IconButton(
+                            onClick = onCardClick,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInFull,
+                                contentDescription = "Open Budget Summary Preview",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Budget Summary Chart Settings",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 

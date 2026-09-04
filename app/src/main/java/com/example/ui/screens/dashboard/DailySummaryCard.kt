@@ -82,7 +82,8 @@ fun DailySummaryCard(
     onModeChange: (DailySummaryMode) -> Unit,
     onPeriodChange: (DailySummaryPeriod) -> Unit,
     onOpenSettings: () -> Unit,
-    onDayClick: (DaySummaryData) -> Unit = {}
+    onDayClick: (DaySummaryData) -> Unit = {},
+    onCardClick: (() -> Unit)? = null
 ) {
     var showDropdownMenu by remember { mutableStateOf(false) }
 
@@ -262,16 +263,31 @@ fun DailySummaryCard(
                 }
 
                 // Chart Settings Icon
-                IconButton(
-                    onClick = onOpenSettings,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Tune,
-                        contentDescription = "Daily Summary Chart Settings",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onCardClick != null) {
+                        IconButton(
+                            onClick = onCardClick,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInFull,
+                                contentDescription = "Open Daily Summary Preview",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Daily Summary Chart Settings",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 

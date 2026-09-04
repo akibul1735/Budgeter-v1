@@ -14,6 +14,7 @@ import {
   Zap,
   Info,
   HelpCircle,
+  Maximize2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -36,6 +37,8 @@ import {
   AccountType,
 } from '../types';
 import { LanguageHelper } from '../utils/languageHelper';
+import { BudgetSummaryPreviewModal } from '../components/BudgetSummaryPreviewModal';
+import { DailySummaryDetailModal } from '../components/DailySummaryDetailModal';
 
 interface DashboardScreenProps {
   onOpenNewTransaction: () => void;
@@ -63,6 +66,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   } = useBudget();
 
   const [showFormulaBreakdown, setShowFormulaBreakdown] = useState(false);
+  const [showBudgetSummaryPreview, setShowBudgetSummaryPreview] = useState(false);
+  const [showDailySummaryDetail, setShowDailySummaryDetail] = useState(false);
 
   // Daily Chart Data for the month or last 7 days
   const dailyData = useMemo(() => {
@@ -388,7 +393,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               return (
                 <div
                   key={card}
-                  className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-xs flex flex-col"
+                  className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-xs flex flex-col transition-all hover:border-slate-300"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -397,9 +402,20 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       </h3>
                       <p className="text-xs text-slate-500">Income vs Expense activity per day</p>
                     </div>
+                    <button
+                      onClick={() => setShowDailySummaryDetail(true)}
+                      className="px-2.5 py-1 text-xs text-sky-600 bg-sky-50 hover:bg-sky-100 rounded-xl font-semibold flex items-center gap-1 transition-colors"
+                      title="Open full daily breakdown preview"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>Preview</span>
+                    </button>
                   </div>
 
-                  <div className="h-56 w-full">
+                  <div
+                    className="h-56 w-full cursor-pointer"
+                    onClick={() => setShowDailySummaryDetail(true)}
+                  >
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94A3B8" />
@@ -426,7 +442,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
               return (
                 <div
                   key={card}
-                  className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-xs flex flex-col"
+                  className="p-5 bg-white rounded-3xl border border-slate-200/80 shadow-xs flex flex-col transition-all hover:border-slate-300"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -435,13 +451,23 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       </h3>
                       <p className="text-xs text-slate-500">Category spending breakdown</p>
                     </div>
-                    <button
-                      onClick={() => setCurrentTab(AppTab.BUDGET)}
-                      className="text-xs text-emerald-600 font-semibold hover:underline flex items-center gap-0.5"
-                    >
-                      <span>View All</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowBudgetSummaryPreview(true)}
+                        className="px-2.5 py-1 text-xs text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-xl font-semibold flex items-center gap-1 transition-colors"
+                        title="Open interactive chart & table preview"
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>Preview</span>
+                      </button>
+                      <button
+                        onClick={() => setCurrentTab(AppTab.BUDGET)}
+                        className="text-xs text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-0.5"
+                      >
+                        <span>View All</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   {budgetChartData.length === 0 ? (
@@ -449,7 +475,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       No expense data recorded this month.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4">
+                    <div
+                      className="grid grid-cols-1 sm:grid-cols-2 items-center gap-4 cursor-pointer"
+                      onClick={() => setShowBudgetSummaryPreview(true)}
+                    >
                       <div className="h-44 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
@@ -730,6 +759,25 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           }
         })}
       </div>
+
+      {/* Interactive Preview Modals */}
+      <BudgetSummaryPreviewModal
+        isOpen={showBudgetSummaryPreview}
+        onClose={() => setShowBudgetSummaryPreview(false)}
+        onSelectTransaction={(txId) => {
+          setShowBudgetSummaryPreview(false);
+          onOpenEditTransaction(txId);
+        }}
+      />
+
+      <DailySummaryDetailModal
+        isOpen={showDailySummaryDetail}
+        onClose={() => setShowDailySummaryDetail(false)}
+        onSelectTransaction={(txId) => {
+          setShowDailySummaryDetail(false);
+          onOpenEditTransaction(txId);
+        }}
+      />
     </div>
   );
 };
