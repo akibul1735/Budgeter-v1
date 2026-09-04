@@ -430,12 +430,17 @@ fun LabelsScreen(
                                         )
                                     }
                                 }
-                                val isExp = tx.type == TransactionType.EXPENSE
+                                val isPositiveEffect = when (tx.type) {
+                                    TransactionType.EXPENSE -> tx.amount < 0
+                                    TransactionType.INCOME -> tx.amount >= 0
+                                    TransactionType.TRANSFER -> false
+                                }
+                                val sign = if (isPositiveEffect) "+" else "-"
                                 Text(
-                                    text = "${if (isExp) "-" else "+"}৳ ${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
+                                    text = "$sign${LanguageHelper.formatCurrency(Math.abs(tx.amount), languageMode)}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isExp) SolidExpense else SolidIncome
+                                    color = if (isPositiveEffect) SolidIncome else SolidExpense
                                 )
                             }
                         }

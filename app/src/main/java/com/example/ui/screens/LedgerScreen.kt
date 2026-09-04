@@ -1631,15 +1631,26 @@ private fun TransactionRowItem(
         }
     }
 
-    val sign = when (tx.type) {
-        TransactionType.EXPENSE -> "-"
-        TransactionType.INCOME -> "+"
-        TransactionType.TRANSFER -> ""
+    val isPositiveEffect = when (tx.type) {
+        TransactionType.EXPENSE -> tx.amount < 0
+        TransactionType.INCOME -> tx.amount >= 0
+        TransactionType.TRANSFER -> false
     }
-    val amtColor = when (tx.type) {
-        TransactionType.EXPENSE -> SolidExpense
-        TransactionType.INCOME -> SolidIncome
-        TransactionType.TRANSFER -> SolidTransfer
+    val isNegativeEffect = when (tx.type) {
+        TransactionType.EXPENSE -> tx.amount >= 0
+        TransactionType.INCOME -> tx.amount < 0
+        TransactionType.TRANSFER -> false
+    }
+    val sign = when {
+        tx.type == TransactionType.TRANSFER -> ""
+        isPositiveEffect -> "+"
+        isNegativeEffect -> "-"
+        else -> ""
+    }
+    val amtColor = when {
+        tx.type == TransactionType.TRANSFER -> SolidTransfer
+        isPositiveEffect -> SolidIncome
+        else -> SolidExpense
     }
 
     val rowBg = if (isSelected) {
@@ -1786,7 +1797,7 @@ private fun TransactionRowItem(
         // Right: Amount and Account Info
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = "$sign${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
+                text = "$sign${LanguageHelper.formatCurrency(Math.abs(tx.amount), languageMode)}",
                 fontSize = if (rowStyle == LedgerRowStyle.COMPACT) 12.sp else 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = amtColor

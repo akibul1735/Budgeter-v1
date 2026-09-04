@@ -559,20 +559,32 @@ fun CalendarSummaryCard(
                                             )
                                         }
 
-                                        val sign = when (tx.type) {
-                                            TransactionType.EXPENSE -> "-"
-                                            TransactionType.INCOME -> "+"
-                                            TransactionType.TRANSFER -> ""
+                                        val isPositiveEffect = when (tx.type) {
+                                            TransactionType.EXPENSE -> tx.amount < 0
+                                            TransactionType.INCOME -> tx.amount >= 0
+                                            TransactionType.TRANSFER -> false
+                                        }
+                                        val isNegativeEffect = when (tx.type) {
+                                            TransactionType.EXPENSE -> tx.amount >= 0
+                                            TransactionType.INCOME -> tx.amount < 0
+                                            TransactionType.TRANSFER -> false
+                                        }
+                                        val sign = when {
+                                            tx.type == TransactionType.TRANSFER -> ""
+                                            isPositiveEffect -> "+"
+                                            isNegativeEffect -> "-"
+                                            else -> ""
+                                        }
+                                        val amtColor = when {
+                                            tx.type == TransactionType.TRANSFER -> SolidTransfer
+                                            isPositiveEffect -> SolidIncome
+                                            else -> SolidExpense
                                         }
                                         Text(
-                                            text = "$sign${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
+                                            text = "$sign${LanguageHelper.formatCurrency(Math.abs(tx.amount), languageMode)}",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = when (tx.type) {
-                                                TransactionType.EXPENSE -> SolidExpense
-                                                TransactionType.INCOME -> SolidIncome
-                                                TransactionType.TRANSFER -> SolidTransfer
-                                            }
+                                            color = amtColor
                                         )
                                     }
                                 }

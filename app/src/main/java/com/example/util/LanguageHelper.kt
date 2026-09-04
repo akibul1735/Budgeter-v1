@@ -18,13 +18,13 @@ object LanguageHelper {
     }
 
     fun formatCurrency(amount: Double, mode: LanguageMode, currencySymbol: String = "৳"): String {
-        val formattedNum = formatNumber(amount, mode)
+        val formattedNum = formatNumber(Math.abs(amount), mode)
         val symbol = when (mode) {
             LanguageMode.BANGLA -> "৳"
             LanguageMode.ENGLISH -> currencySymbol
             LanguageMode.BILINGUAL -> "৳"
         }
-        return "$symbol$formattedNum"
+        return if (amount < 0) "-$symbol$formattedNum" else "$symbol$formattedNum"
     }
 
     fun toBanglaDigits(input: String): String {
@@ -296,6 +296,10 @@ object LanguageHelper {
         "filter_balanced" to Trans("Balanced", "ভারসাম্যপূর্ণ"),
         "no_accounts_match" to Trans("No accounts match the selected filter", "ফিল্টারের সাথে কোনো হিসাব মেলেনি"),
         "transfer_money" to Trans("Transfer Money", "টাকা স্থানান্তর"),
-        "move" to Trans("Move", "স্থানান্তর")
+        "move" to Trans("Move", "স্থানান্তর"),
+        "revert_expense_hint" to Trans("Revert / Decrease Expense (Refund)", "খরচ হ্রাস / রিভার্ট (রিফান্ড)"),
+        "revert_income_hint" to Trans("Revert / Decrease Income (Deduction)", "আয় হ্রাস / রিভার্ট (কর্তন)"),
+        "normal_expense_hint" to Trans("Normal Expense (−)", "স্বাভাবিক খরচ (−)"),
+        "normal_income_hint" to Trans("Normal Income (+)", "স্বাভাবিক আয় (+)")
     )
 }

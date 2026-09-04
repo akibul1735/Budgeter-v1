@@ -21,6 +21,9 @@ import com.example.ui.screens.BudgetScreen
 import com.example.ui.screens.BudgetTrackingScreen
 import com.example.ui.screens.MainAppContainer
 import com.example.ui.viewmodel.BudgetViewModel
+import androidx.compose.ui.test.performTextInput
+import com.example.ui.dialogs.AddEditTransactionSheet
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,6 +36,68 @@ class BudgetScreensTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Test
+    fun testRevertExpenseWithPlusSign() {
+        val cat = Category(id = 1, nameEn = "Food", nameBn = "খাবার", iconName = "Restaurant", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = null)
+        val acc = Account(id = 1, nameEn = "Cash", nameBn = "ক্যাশ", type = AccountType.ASSET)
+        var savedTx: Transaction? = null
+
+        composeTestRule.setContent {
+            AddEditTransactionSheet(
+                accounts = listOf(acc),
+                categories = listOf(cat),
+                languageMode = LanguageMode.ENGLISH,
+                onDismiss = {},
+                onSave = { savedTx = it }
+            )
+        }
+
+        // Enter amount 150
+        composeTestRule.onNodeWithTag("tx_amount_input").performTextInput("150")
+        // Tap the '+' button to revert/decrease expense (refund)
+        composeTestRule.onNodeWithTag("tx_sign_plus_btn").performClick()
+        // Save
+        composeTestRule.onNodeWithTag("save_transaction_btn").performClick()
+
+        org.junit.Assert.assertNotNull(savedTx)
+        assertEquals(TransactionType.EXPENSE, savedTx?.type)
+        assertEquals(-150.0, savedTx?.amount ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun testRevertIncomeWithMinusSign() {
+        val cat = Category(id = 2, nameEn = "Salary", nameBn = "বেতন", iconName = "Payments", colorHex = "#4CAF50", type = CategoryType.INCOME, parentId = null)
+        val acc = Account(id = 1, nameEn = "Cash", nameBn = "ক্যাশ", type = AccountType.ASSET)
+        var savedTx: Transaction? = null
+
+        composeTestRule.setContent {
+            AddEditTransactionSheet(
+                accounts = listOf(acc),
+                categories = listOf(cat),
+                languageMode = LanguageMode.ENGLISH,
+                existingTransaction = Transaction(
+                    id = 0,
+                    amount = 200.0,
+                    type = TransactionType.INCOME,
+                    categoryId = 2,
+                    debitAccountId = 1,
+                    dateEpochMs = System.currentTimeMillis()
+                ),
+                onDismiss = {},
+                onSave = { savedTx = it }
+            )
+        }
+
+        // Tap the '-' button to revert/decrease income
+        composeTestRule.onNodeWithTag("tx_sign_minus_btn").performClick()
+        // Save
+        composeTestRule.onNodeWithTag("save_transaction_btn").performClick()
+
+        org.junit.Assert.assertNotNull(savedTx)
+        assertEquals(TransactionType.INCOME, savedTx?.type)
+        assertEquals(-200.0, savedTx?.amount ?: 0.0, 0.001)
+    }
 
     @Test
     fun testBudgetTrackingScreenWithMultipleCategoriesAndDuplicateNames() {
