@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -12,6 +12,8 @@ import {
   CreditCard,
   Plus,
   Zap,
+  Info,
+  HelpCircle,
 } from 'lucide-react';
 import {
   BarChart,
@@ -59,6 +61,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     paymentSourceAnalysis,
     setCurrentTab,
   } = useBudget();
+
+  const [showFormulaBreakdown, setShowFormulaBreakdown] = useState(false);
 
   // Daily Chart Data for the month or last 7 days
   const dailyData = useMemo(() => {
@@ -260,6 +264,120 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             )}
           </div>
         </div>
+      </section>
+
+      {/* Expendable & Expected Expendable Summary */}
+      <section className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-4 sm:p-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          {/* Card 1: Expendable */}
+          <div
+            onClick={() => setShowFormulaBreakdown((prev) => !prev)}
+            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+              financialOverview.expendable >= 0
+                ? 'bg-emerald-50/50 border-emerald-200/70 hover:bg-emerald-50/80'
+                : 'bg-rose-50/50 border-rose-200/70 hover:bg-rose-50/80'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className={`text-xs font-bold truncate flex-1 min-w-0 ${
+                  financialOverview.expendable >= 0 ? 'text-emerald-950' : 'text-rose-950'
+                }`}
+              >
+                {LanguageHelper.getString('expendable', languageMode)}
+              </span>
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-extrabold tracking-wide whitespace-nowrap shrink-0 select-none ${
+                  financialOverview.expendable >= 0
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-rose-600 text-white'
+                }`}
+              >
+                {financialOverview.expendable >= 0 ? 'Safe' : 'Deficit'}
+              </span>
+            </div>
+
+            <div className="mt-2.5 flex items-center gap-2">
+              <span
+                className={`text-xl sm:text-2xl font-extrabold font-mono tracking-tight ${
+                  financialOverview.expendable >= 0 ? 'text-emerald-900' : 'text-rose-900'
+                }`}
+              >
+                {LanguageHelper.formatCurrency(financialOverview.expendable, languageMode)}
+              </span>
+              <Info className="w-4 h-4 text-slate-400 shrink-0" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">Available minus committed budgets</div>
+          </div>
+
+          {/* Card 2: Expected Expendable */}
+          <div
+            onClick={() => setShowFormulaBreakdown((prev) => !prev)}
+            className="p-4 rounded-2xl bg-sky-50/50 border border-sky-200/70 hover:bg-sky-50/80 transition-all cursor-pointer"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-sky-950 truncate flex-1 min-w-0">
+                {LanguageHelper.getString('expected_expendable', languageMode)}
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-200/80 text-sky-900 whitespace-nowrap shrink-0 select-none">
+                +Income
+              </span>
+            </div>
+
+            <div className="mt-2.5 flex items-center gap-2">
+              <span className="text-xl sm:text-2xl font-extrabold text-sky-900 font-mono tracking-tight">
+                {LanguageHelper.formatCurrency(financialOverview.expectedExpendable, languageMode)}
+              </span>
+              <Info className="w-4 h-4 text-sky-500 shrink-0" />
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">Expendable + Expected Month Income</div>
+          </div>
+        </div>
+
+        {/* Calculation Breakdown Walkthrough */}
+        {showFormulaBreakdown && (
+          <div className="mt-3.5 pt-3.5 border-t border-slate-200/80 bg-slate-50/70 rounded-xl p-3.5 text-xs space-y-2">
+            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+              <HelpCircle className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{LanguageHelper.getString('expendable_breakdown', languageMode)}</span>
+            </div>
+            <div className="space-y-1 text-slate-600 font-mono text-[11px]">
+              <div>
+                • Available Money = Total Assets (
+                <span className="font-bold text-slate-900">
+                  {LanguageHelper.formatCurrency(financialOverview.availableMoney, languageMode)}
+                </span>
+                )
+              </div>
+              <div>
+                • Total Expense Budget ={' '}
+                <span className="font-bold text-slate-900">
+                  {LanguageHelper.formatCurrency(financialOverview.totalExpenseBudget, languageMode)}
+                </span>
+              </div>
+              <div>
+                • Additional / Over-Budget Cost ={' '}
+                <span className="font-bold text-slate-900">
+                  {LanguageHelper.formatCurrency(financialOverview.additionalCost, languageMode)}
+                </span>
+              </div>
+              <div className="text-emerald-700 font-bold bg-emerald-50/80 p-1.5 rounded-lg">
+                • Expendable = Available − (Budget + Over-Budget) ={' '}
+                {LanguageHelper.formatCurrency(financialOverview.expendable, languageMode)}
+              </div>
+              <div>
+                • Potential Income ={' '}
+                <span className="font-bold text-slate-900">
+                  {LanguageHelper.formatCurrency(financialOverview.potentialIncome, languageMode)}
+                </span>
+              </div>
+              <div className="text-sky-700 font-bold bg-sky-50/80 p-1.5 rounded-lg">
+                • Expected Expendable = Expendable + Potential Income ={' '}
+                {LanguageHelper.formatCurrency(financialOverview.expectedExpendable, languageMode)}
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Render Configured Dashboard Cards */}

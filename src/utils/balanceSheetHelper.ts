@@ -7,6 +7,8 @@ import {
   Transaction,
   TransactionType,
   TransactionStatus,
+  MonthlyBudget,
+  BudgetAdjustment,
 } from '../types';
 
 export class BalanceSheetHelper {
@@ -14,7 +16,10 @@ export class BalanceSheetHelper {
     accounts: Account[],
     transactions: Transaction[],
     selectedYear?: number,
-    selectedMonth?: number
+    selectedMonth?: number,
+    categories: Category[] = [],
+    monthlyBudgets: MonthlyBudget[] = [],
+    budgetAdjustments: BudgetAdjustment[] = []
   ): {
     accountBalances: Map<number, number>;
     overview: FinancialOverview;
@@ -127,6 +132,46 @@ export class BalanceSheetHelper {
     const netWorth = totalAssets - totalLiabilities;
     const isLedgerBalanced = Math.abs(totalDebits - totalCredits) < 0.01;
 
+    // Budget Calculations
+    let totalExpenseBudget = 0;
+    const expenseCategories = categories.filter((c) => c.type === 'EXPENSE' || c.type === CategoryType.EXPENSE);
+    expenseCategories.forEach((cat) => {
+      const mb = monthlyBudgets.find(
+        (b) => b.categoryId === cat.id && b.year === targetYear && b.month === targetMonth
+      );
+      const baseBudget = mb ? mb.budgetAmount : cat.monthlyBudget || 0;
+      totalExpenseBudget += baseBudget;
+    });
+
+    // Additional cost (over-budget amount)
+    let additionalCost = 0;
+    expenseCategories.forEach((cat) => {
+      const spent = transactions
+        .filter(
+          (t) =>
+            t.status !== TransactionStatus.VOID &&
+            t.categoryId === cat.id &&
+            t.type === TransactionType.EXPENSE &&
+            new Date(t.dateEpochMs).getFullYear() === targetYear &&
+            new Date(t.dateEpochMs).getMonth() + 1 === targetMonth
+        )
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const mb = monthlyBudgets.find(
+        (b) => b.categoryId === cat.id && b.year === targetYear && b.month === targetMonth
+      );
+      const budget = mb ? mb.budgetAmount : cat.monthlyBudget || 0;
+      if (spent > budget) {
+        additionalCost += spent - budget;
+      }
+    });
+
+    const availableMoney = totalAssets;
+    const committedExpenses = totalExpenseBudget + additionalCost;
+    const expendable = availableMoney - committedExpenses;
+    const potentialIncome = monthlyIncome;
+    const expectedExpendable = expendable + potentialIncome;
+
     const overview: FinancialOverview = {
       totalAssets,
       totalLiabilities,
@@ -137,8 +182,14 @@ export class BalanceSheetHelper {
       isLedgerBalanced,
       totalDebits,
       totalCredits,
-      expendableCash: Math.max(0, totalAssets - totalLiabilities),
-      committedBudget: 0,
+      expendableCash: Math.max(0, expendable),
+      committedBudget: totalExpenseBudget,
+      expendable,
+      expectedExpendable,
+      availableMoney,
+      totalExpenseBudget,
+      additionalCost,
+      potentialIncome,
     };
 
     return {

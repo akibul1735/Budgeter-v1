@@ -1552,7 +1552,8 @@ private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     if (item.isMultiAccountSplit) {
                         Spacer(modifier = Modifier.width(4.dp))
@@ -1565,6 +1566,8 @@ private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode
                                 fontSize = 9.sp,
                                 color = MaterialTheme.colorScheme.tertiary,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
@@ -1579,6 +1582,8 @@ private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode
                                 text = if (languageMode == LanguageMode.BANGLA) "বিল" else "Bill",
                                 fontSize = 9.sp,
                                 color = MaterialTheme.colorScheme.tertiary,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }

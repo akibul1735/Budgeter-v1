@@ -198,6 +198,12 @@ export interface FinancialOverview {
   totalCredits: number;
   expendableCash: number;
   committedBudget: number;
+  expendable: number;
+  expectedExpendable: number;
+  availableMoney: number;
+  totalExpenseBudget: number;
+  additionalCost: number;
+  potentialIncome: number;
 }
 
 export interface AccountWithBalance {

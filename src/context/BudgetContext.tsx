@@ -474,8 +474,16 @@ export const BudgetProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Derived Calculations
   const { accountBalances, overview: financialOverview } = useMemo(() => {
-    return BalanceSheetHelper.calculateBalances(accounts, transactions, selectedYear, selectedMonth);
-  }, [accounts, transactions, selectedYear, selectedMonth]);
+    return BalanceSheetHelper.calculateBalances(
+      accounts,
+      transactions,
+      selectedYear,
+      selectedMonth,
+      categories,
+      monthlyBudgets,
+      budgetAdjustments
+    );
+  }, [accounts, transactions, selectedYear, selectedMonth, categories, monthlyBudgets, budgetAdjustments]);
 
   const accountsWithBalances: AccountWithBalance[] = useMemo(() => {
     return accounts.map((account) => {
