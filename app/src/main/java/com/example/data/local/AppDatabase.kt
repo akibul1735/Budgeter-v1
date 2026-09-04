@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.Account
+import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
@@ -21,9 +22,10 @@ import kotlinx.coroutines.launch
         Category::class,
         Transaction::class,
         RecurringBill::class,
-        MonthlyBudget::class
+        MonthlyBudget::class,
+        BudgetAdjustment::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -33,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun recurringBillDao(): RecurringBillDao
     abstract fun monthlyBudgetDao(): MonthlyBudgetDao
+    abstract fun budgetAdjustmentDao(): BudgetAdjustmentDao
 
     companion object {
         @Volatile
@@ -69,6 +72,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `monthly_budgets` ADD COLUMN `previousAmount` REAL NOT NULL DEFAULT 0.0")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `budget_adjustments` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `year` INTEGER NOT NULL,
+                        `month` INTEGER NOT NULL,
+                        `itemType` TEXT NOT NULL,
+                        `itemId` INTEGER NOT NULL,
+                        `previousAmount` REAL NOT NULL,
+                        `adjustedAmount` REAL NOT NULL,
+                        `difference` REAL NOT NULL DEFAULT 0.0,
+                        `note` TEXT NOT NULL DEFAULT '',
+                        `timestamp` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_budget_adjustments_year_month_itemType_itemId` ON `budget_adjustments` (`year`, `month`, `itemType`, `itemId`)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope, isDemoMode: Boolean = true): AppDatabase {
             return if (isDemoMode) {
                 getDemoDatabase(context, scope)
@@ -84,7 +112,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_double_entry_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -113,7 +141,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_demo_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

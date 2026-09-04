@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import com.example.data.local.AccountDao
+import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
@@ -8,6 +9,7 @@ import com.example.data.local.TransactionDao
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.BillStatus
+import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.MonthlyBudget
@@ -28,7 +30,17 @@ data class FinancialOverview(
     val monthlyNetSavings: Double,
     val totalDebits: Double,
     val totalCredits: Double,
-    val isLedgerBalanced: Boolean
+    val isLedgerBalanced: Boolean,
+    val availableMoney: Double = 0.0,
+    val totalExpenseBudget: Double = 0.0,
+    val totalIncomeBudget: Double = 0.0,
+    val remainingExpenses: Double = 0.0,
+    val additionalCost: Double = 0.0,
+    val potentialIncome: Double = 0.0,
+    val expendable: Double = 0.0,
+    val expectedExpendable: Double = 0.0,
+    val liabilitiesChange: Double = 0.0,
+    val hasBudgetConfigured: Boolean = false
 )
 
 data class AccountWithBalance(
@@ -49,7 +61,8 @@ class BudgetRepository(
     val categoryDao: CategoryDao,
     val transactionDao: TransactionDao,
     val recurringBillDao: RecurringBillDao,
-    val monthlyBudgetDao: MonthlyBudgetDao
+    val monthlyBudgetDao: MonthlyBudgetDao,
+    val budgetAdjustmentDao: BudgetAdjustmentDao
 ) {
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
@@ -59,14 +72,89 @@ class BudgetRepository(
     fun getMonthlyBudgets(year: Int, month: Int): Flow<List<MonthlyBudget>> =
         monthlyBudgetDao.getBudgetsForMonth(year, month)
 
+    fun getBudgetAdjustments(year: Int, month: Int): Flow<List<BudgetAdjustment>> =
+        budgetAdjustmentDao.getAdjustmentsForMonth(year, month)
+
+    fun getBudgetAdjustmentsForItem(year: Int, month: Int, itemType: String, itemId: Long): Flow<List<BudgetAdjustment>> =
+        budgetAdjustmentDao.getAdjustmentsForItem(year, month, itemType, itemId)
+
     suspend fun saveMonthlyBudget(budget: MonthlyBudget): Long =
         monthlyBudgetDao.upsertBudget(budget)
+
+    suspend fun saveBudgetAdjustment(
+        year: Int,
+        month: Int,
+        itemType: String,
+        itemId: Long,
+        newAmount: Double,
+        isEnabled: Boolean = true,
+        note: String = ""
+    ): Long {
+        val existing = monthlyBudgetDao.getBudget(year, month, itemType, itemId)
+        val oldAmount = existing?.budgetedAmount ?: 0.0
+        val prevAmount = if (existing != null && existing.previousAmount > 0) existing.previousAmount else oldAmount
+
+        val updatedBudget = MonthlyBudget(
+            id = existing?.id ?: 0,
+            year = year,
+            month = month,
+            itemType = itemType,
+            itemId = itemId,
+            budgetedAmount = newAmount,
+            previousAmount = if (prevAmount > 0) prevAmount else oldAmount,
+            isEnabled = isEnabled,
+            updatedAt = System.currentTimeMillis()
+        )
+        val budgetId = monthlyBudgetDao.upsertBudget(updatedBudget)
+
+        if (oldAmount != newAmount) {
+            budgetAdjustmentDao.insertAdjustment(
+                BudgetAdjustment(
+                    year = year,
+                    month = month,
+                    itemType = itemType,
+                    itemId = itemId,
+                    previousAmount = oldAmount,
+                    adjustedAmount = newAmount,
+                    difference = newAmount - oldAmount,
+                    note = note,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
+        return budgetId
+    }
+
+    suspend fun resetBudgetToPrevious(year: Int, month: Int, itemType: String, itemId: Long) {
+        val existing = monthlyBudgetDao.getBudget(year, month, itemType, itemId)
+        if (existing != null && existing.previousAmount > 0) {
+            val prev = existing.previousAmount
+            val updated = existing.copy(
+                budgetedAmount = prev,
+                updatedAt = System.currentTimeMillis()
+            )
+            monthlyBudgetDao.upsertBudget(updated)
+            budgetAdjustmentDao.insertAdjustment(
+                BudgetAdjustment(
+                    year = year,
+                    month = month,
+                    itemType = itemType,
+                    itemId = itemId,
+                    previousAmount = existing.budgetedAmount,
+                    adjustedAmount = prev,
+                    difference = prev - existing.budgetedAmount,
+                    note = "Reset to previous budget",
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+        }
+    }
 
     suspend fun copyBudgets(fromYear: Int, fromMonth: Int, toYear: Int, toMonth: Int) {
         val previous = monthlyBudgetDao.getBudgetsForMonthSnapshot(fromYear, fromMonth)
         if (previous.isNotEmpty()) {
             val copied = previous.map {
-                it.copy(id = 0, year = toYear, month = toMonth, updatedAt = System.currentTimeMillis())
+                it.copy(id = 0, year = toYear, month = toMonth, previousAmount = it.budgetedAmount, updatedAt = System.currentTimeMillis())
             }
             monthlyBudgetDao.upsertBudgets(copied)
         }
@@ -163,8 +251,10 @@ class BudgetRepository(
 
     val financialOverview: Flow<FinancialOverview> = combine(
         accountsWithBalances,
-        allTransactions
-    ) { accountsWithBal, txs ->
+        allTransactions,
+        allCategories,
+        allAccounts
+    ) { accountsWithBal, txs, categories, accounts ->
         var totalAssets = 0.0
         var totalLiabilities = 0.0
 
@@ -208,6 +298,82 @@ class BudgetRepository(
 
         val isLedgerBalanced = Math.abs(totalDebits - totalCredits) < 0.001
 
+        val cal = java.util.Calendar.getInstance()
+        val currentYear = cal.get(java.util.Calendar.YEAR)
+        val currentMonth = cal.get(java.util.Calendar.MONTH) + 1
+
+        val budgets = monthlyBudgetDao.getBudgetsForMonthSnapshot(currentYear, currentMonth)
+        val budgetMap = budgets.associateBy { "${it.itemType}_${it.itemId}" }
+
+        val expenseCategories = categories.filter { it.type == CategoryType.EXPENSE && it.parentId != null }
+        val incomeCategories = categories.filter { it.type == CategoryType.INCOME && it.parentId != null }
+
+        var totalExpenseBudget = 0.0
+        var totalRemainingExpenses = 0.0
+        var totalAdditionalCost = 0.0
+
+        // Aggregate actual monthly expense per category
+        val expenseTxsByCat = mutableMapOf<Long, Double>()
+        for (tx in monthlyTxs.filter { it.type == TransactionType.EXPENSE }) {
+            val catId = tx.subCategoryId ?: tx.categoryId
+            if (catId != null) {
+                expenseTxsByCat[catId] = (expenseTxsByCat[catId] ?: 0.0) + tx.amount
+            } else {
+                totalAdditionalCost += tx.amount
+            }
+        }
+
+        for (cat in expenseCategories) {
+            val budgetEntry = budgetMap["EXPENSE_${cat.id}"]
+            val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
+            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val spent = expenseTxsByCat[cat.id] ?: 0.0
+
+            if (budgetLimit > 0) {
+                totalExpenseBudget += budgetLimit
+                if (spent > budgetLimit) {
+                    totalAdditionalCost += (spent - budgetLimit)
+                } else {
+                    totalRemainingExpenses += (budgetLimit - spent)
+                }
+            } else {
+                if (spent > 0) {
+                    totalAdditionalCost += spent
+                }
+            }
+        }
+
+        var totalIncomeBudget = 0.0
+        for (cat in incomeCategories) {
+            val budgetEntry = budgetMap["INCOME_${cat.id}"]
+            val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
+            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            if (budgetLimit > 0) {
+                totalIncomeBudget += budgetLimit
+            }
+        }
+
+        val availableMoney = totalAssets
+        val hasBudgetConfigured = totalExpenseBudget > 0 || budgets.isNotEmpty()
+        val totalCommittedExpenses = if (hasBudgetConfigured) {
+            totalExpenseBudget + totalAdditionalCost
+        } else {
+            monthlyExpense
+        }
+
+        val expendable = availableMoney - totalCommittedExpenses
+        val potentialIncome = if (totalIncomeBudget > monthlyIncome) (totalIncomeBudget - monthlyIncome) else 0.0
+        val expectedExpendable = expendable + potentialIncome
+
+        var liabilitiesChange = 0.0
+        val liabilityAccountIds = accounts.filter { it.type == AccountType.LIABILITY }.map { it.id }.toSet()
+        for (tx in monthlyTxs) {
+            val isDebitLiab = tx.debitAccountId != null && liabilityAccountIds.contains(tx.debitAccountId)
+            val isCreditLiab = tx.creditAccountId != null && liabilityAccountIds.contains(tx.creditAccountId)
+            if (isCreditLiab) liabilitiesChange += tx.amount
+            if (isDebitLiab) liabilitiesChange -= tx.amount
+        }
+
         FinancialOverview(
             totalAssets = totalAssets,
             totalLiabilities = totalLiabilities,
@@ -217,7 +383,17 @@ class BudgetRepository(
             monthlyNetSavings = monthlyNetSavings,
             totalDebits = totalDebits,
             totalCredits = totalCredits,
-            isLedgerBalanced = isLedgerBalanced
+            isLedgerBalanced = isLedgerBalanced,
+            availableMoney = availableMoney,
+            totalExpenseBudget = totalExpenseBudget,
+            totalIncomeBudget = totalIncomeBudget,
+            remainingExpenses = totalRemainingExpenses,
+            additionalCost = totalAdditionalCost,
+            potentialIncome = potentialIncome,
+            expendable = expendable,
+            expectedExpendable = expectedExpendable,
+            liabilitiesChange = liabilitiesChange,
+            hasBudgetConfigured = hasBudgetConfigured
         )
     }
 

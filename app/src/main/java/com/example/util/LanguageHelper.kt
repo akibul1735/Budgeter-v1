@@ -218,6 +218,24 @@ object LanguageHelper {
         "reset_calculation" to Trans("Reset All", "সব রিসেট"),
         "target_calc_balance" to Trans("Target Calculation Amount", "কাঙ্ক্ষিত কার্যকর পরিমাণ"),
         "quick_adjust" to Trans("Quick Adjustment", "দ্রুত অ্যাডজাস্ট"),
-        "calculation_adjusted" to Trans("Adjusted for Calc", "হিসাবে অ্যাডজাস্টকৃত")
+        "calculation_adjusted" to Trans("Adjusted for Calc", "হিসাবে অ্যাডজাস্টকৃত"),
+        "expendable" to Trans("Expendable", "ব্যয়যোগ্য অর্থ"),
+        "expected_expendable" to Trans("Expected Expendable", "প্রত্যাশিত ব্যয়যোগ্য অর্থ"),
+        "budget_adjustment" to Trans("Budget Adjustment", "বাজেট সমন্বয়"),
+        "previous_budget" to Trans("Previous Budget", "পূর্ববর্তী বাজেট"),
+        "adjusted_budget" to Trans("Adjusted Budget", "সমন্বয়কৃত বাজেট"),
+        "adjustment_history" to Trans("Adjustment History", "সমন্বয় ইতিহাস"),
+        "remaining_expenses" to Trans("Remaining Expenses", "অবশিষ্ট ব্যয়"),
+        "additional_cost" to Trans("Additional / Over Budget", "অতিরিক্ত খরচ"),
+        "potential_income" to Trans("Potential Income", "সম্ভাব্য আয়"),
+        "liabilities_change" to Trans("Liabilities Change", "দায় পরিবর্তন"),
+        "increase" to Trans("Increase", "বৃদ্ধি"),
+        "decrease" to Trans("Decrease", "হ্রাস"),
+        "reset_to_previous" to Trans("Reset to Previous", "পূর্বের বাজেটে ফেরত যান"),
+        "expendable_breakdown" to Trans("Expendable Breakdown", "ব্যয়যোগ্য অর্থের বিশ্লেষণ"),
+        "financial_overview" to Trans("Financial Overview", "আর্থিক পর্যালোচনা"),
+        "current_assets" to Trans("Current Assets", "বর্তমান সম্পদ"),
+        "committed_expenses" to Trans("Committed Expenses", "নির্ধারিত ব্যয়"),
+        "adjust_budget" to Trans("Adjust Budget", "বাজেট সমন্বয় করুন")
     )
 }

@@ -422,11 +422,17 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
+                            viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                amount = amount,
+                                newAmount = amount,
                                 isEnabled = enabled
+                            )
+                        },
+                        onResetBudget = { item ->
+                            viewModel.resetBudgetToPrevious(
+                                itemType = item.itemType,
+                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -454,11 +460,17 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
+                            viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                amount = amount,
+                                newAmount = amount,
                                 isEnabled = enabled
+                            )
+                        },
+                        onResetBudget = { item ->
+                            viewModel.resetBudgetToPrevious(
+                                itemType = item.itemType,
+                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -486,11 +498,17 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
+                            viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                amount = amount,
+                                newAmount = amount,
                                 isEnabled = enabled
+                            )
+                        },
+                        onResetBudget = { item ->
+                            viewModel.resetBudgetToPrevious(
+                                itemType = item.itemType,
+                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -518,11 +536,17 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
+                            viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                amount = amount,
+                                newAmount = amount,
                                 isEnabled = enabled
+                            )
+                        },
+                        onResetBudget = { item ->
+                            viewModel.resetBudgetToPrevious(
+                                itemType = item.itemType,
+                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -678,6 +702,7 @@ private fun CategoriesBudgetEntryView(
     onNextMonth: () -> Unit,
     onShowHelp: () -> Unit,
     onSaveBudget: (BudgetTargetItem, Double, Boolean) -> Unit,
+    onResetBudget: (BudgetTargetItem) -> Unit = {},
     onSaveMultiple: (List<MonthlyBudget>) -> Unit
 ) {
     // Map monthly budget items: "itemType_itemId" -> MonthlyBudget
@@ -979,6 +1004,9 @@ private fun CategoriesBudgetEntryView(
                         sectionColor = sectionColor,
                         onSaveBudget = { amtMonthly, isEnabled ->
                             onSaveBudget(item, amtMonthly, isEnabled)
+                        },
+                        onResetBudget = {
+                            onResetBudget(item)
                         }
                     )
 
@@ -1006,7 +1034,8 @@ private fun BudgetItemRow(
     suggestions: List<BudgetSuggestionOption>,
     languageMode: LanguageMode,
     sectionColor: Color,
-    onSaveBudget: (amountMonthly: Double, isEnabled: Boolean) -> Unit
+    onSaveBudget: (amountMonthly: Double, isEnabled: Boolean) -> Unit,
+    onResetBudget: () -> Unit = {}
 ) {
     var itemFrequency by remember(globalFrequency) { mutableStateOf(globalFrequency) }
     var showFreqDropdown by remember { mutableStateOf(false) }
@@ -1118,7 +1147,68 @@ private fun BudgetItemRow(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            // Budget Adjustment Badge: Previous Budget vs Adjusted Budget
+            val prevAmt = savedBudget?.previousAmount
+            if (prevAmt != null && kotlin.math.abs(prevAmt - currentMonthlyAmt) > 0.01) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "${LanguageHelper.getString("previous_budget", languageMode)}: ${LanguageHelper.formatCurrency(prevAmt, languageMode)}",
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(text = "➔", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline)
+                        Text(
+                            text = "${LanguageHelper.getString("adjusted_budget", languageMode)}: ${LanguageHelper.formatCurrency(currentMonthlyAmt, languageMode)}",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandBlue
+                        )
+                    }
+
+                    // Reset button to revert to previous budget
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onResetBudget() }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.RestartAlt,
+                                contentDescription = "Reset to previous",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = LanguageHelper.getString("reset_to_previous", languageMode),
+                                fontSize = 9.5.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // ROW 2: Frequency Dropdown + Touch-Swipeable Sliding Amounts + Manual Entry Calculator Button
             Row(

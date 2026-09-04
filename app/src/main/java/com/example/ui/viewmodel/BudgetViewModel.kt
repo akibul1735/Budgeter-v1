@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
 import com.example.data.model.Account
+import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.MonthlyBudget
@@ -117,7 +118,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             categoryDao = db.categoryDao(),
             transactionDao = db.transactionDao(),
             recurringBillDao = db.recurringBillDao(),
-            monthlyBudgetDao = db.monthlyBudgetDao()
+            monthlyBudgetDao = db.monthlyBudgetDao(),
+            budgetAdjustmentDao = db.budgetAdjustmentDao()
         )
     }
 
@@ -185,6 +187,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         initialValue = emptyList()
     )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val budgetAdjustments: StateFlow<List<BudgetAdjustment>> = combine(
+        _selectedBudgetYear,
+        _selectedBudgetMonth,
+        _activeRepository
+    ) { year, month, repo ->
+        Triple(year, month, repo)
+    }.flatMapLatest { (year, month, repo) ->
+        repo.getBudgetAdjustments(year, month)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     fun setBudgetYearMonth(year: Int, month: Int) {
         _selectedBudgetYear.value = year
         _selectedBudgetMonth.value = month.coerceIn(1, 12)
@@ -224,6 +241,37 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 updatedAt = System.currentTimeMillis()
             )
             activeRepo.saveMonthlyBudget(budget)
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun saveBudgetAdjustment(itemType: String, itemId: Long, newAmount: Double, isEnabled: Boolean = true, note: String = "") {
+        viewModelScope.launch {
+            activeRepo.saveBudgetAdjustment(
+                year = _selectedBudgetYear.value,
+                month = _selectedBudgetMonth.value,
+                itemType = itemType,
+                itemId = itemId,
+                newAmount = newAmount,
+                isEnabled = isEnabled,
+                note = note
+            )
+            if (!_isDemoMode.value) {
+                SyncManager.triggerInstantJsonSync(getApplication())
+            }
+        }
+    }
+
+    fun resetBudgetToPrevious(itemType: String, itemId: Long) {
+        viewModelScope.launch {
+            activeRepo.resetBudgetToPrevious(
+                year = _selectedBudgetYear.value,
+                month = _selectedBudgetMonth.value,
+                itemType = itemType,
+                itemId = itemId
+            )
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
             }

@@ -27,6 +27,7 @@ data class MonthlyBudget(
     val itemType: String,
     val itemId: Long,
     val budgetedAmount: Double = 0.0,
+    val previousAmount: Double = 0.0,
     val isEnabled: Boolean = true,
     val updatedAt: Long = System.currentTimeMillis()
 )
