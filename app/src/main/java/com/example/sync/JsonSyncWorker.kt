@@ -26,7 +26,9 @@ class JsonSyncWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Starting instant JSON sync worker...")
-            val db = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO))
+            val appPrefs = applicationContext.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
+            val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", true)
+            val db = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO), isDemoMode = isDemoMode)
 
             // Create latest auto-sync json backup
             val accountDao = db.accountDao()

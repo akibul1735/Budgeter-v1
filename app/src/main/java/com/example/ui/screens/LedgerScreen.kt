@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,6 +55,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
@@ -958,8 +960,17 @@ fun LedgerScreen(
 
     // Batch Action Dialogs
     if (showBatchChangeNameDialog) {
+        val existingPayees = remember(transactions) {
+            transactions.map { it.transaction.payeeOrPayer }
+                .filter { it.isNotBlank() }
+                .groupBy { it.trim() }
+                .map { (name, list) -> Pair(name, list.size) }
+                .sortedByDescending { it.second }
+        }
         BatchChangeNameDialog(
             count = selectedTransactionIds.size,
+            existingPayeesWithCount = existingPayees,
+            languageMode = languageMode,
             onDismiss = { showBatchChangeNameDialog = false },
             onConfirm = { newName ->
                 val updated = selectedTransactions.map { it.transaction.copy(payeeOrPayer = newName) }
@@ -1815,29 +1826,293 @@ private fun TransactionRowItem(
 @Composable
 private fun BatchChangeNameDialog(
     count: Int,
+    existingPayeesWithCount: List<Pair<String, Int>>,
+    languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedName by remember { mutableStateOf("") }
+
+    val filteredSuggestions = remember(searchQuery, existingPayeesWithCount) {
+        val q = searchQuery.trim().lowercase()
+        if (q.isEmpty()) {
+            existingPayeesWithCount
+        } else {
+            existingPayeesWithCount.filter { it.first.lowercase().contains(q) }
+        }
+    }
+
+    val trimmedSearch = searchQuery.trim()
+    val isExactMatch = existingPayeesWithCount.any { it.first.equals(trimmedSearch, ignoreCase = true) }
+    val showCreateNewOption = trimmedSearch.isNotEmpty() && !isExactMatch
+
+    val activeName = if (selectedName.isNotBlank()) selectedName else trimmedSearch
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Change Name / Payee ($count items)", fontWeight = FontWeight.Bold) },
+        title = {
+            Column {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "নাম / গ্রহীতা পরিবর্তন করুন" else "Change Name / Payee",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "$count টি লেনদেন নির্বাচিত" else "$count items selected",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("New Name / Payee") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp)
+            ) {
+                // Search & input field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = {
+                        searchQuery = it
+                        selectedName = it
+                    },
+                    label = {
+                        Text(if (languageMode == LanguageMode.BANGLA) "নাম খুঁজুন বা নতুন লিখুন" else "Search or enter new name")
+                    },
+                    placeholder = {
+                        Text(if (languageMode == LanguageMode.BANGLA) "উদাঃ স্বপ্ন, বাজার, বেতন..." else "e.g. Walmart, Salary, Rent...")
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.primary)
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = {
+                                searchQuery = ""
+                                selectedName = ""
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("batch_change_name_input"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Section header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (searchQuery.isBlank()) {
+                            if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী এন্ট্রি সমূহ" else "Previous Entries"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "পরামর্শ ও ফলাফল" else "Suggestions & Results"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (existingPayeesWithCount.isNotEmpty()) {
+                        Text(
+                            text = "${existingPayeesWithCount.size} total",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Suggestions List
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Option 1: "Use as New Entry" if search text is not in existing items
+                    if (showCreateNewOption) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedName = trimmedSearch
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Icons.Default.Add,
+                                                contentDescription = "New",
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "নতুন এন্ট্রি হিসেবে যোগ করুন:" else "Create / Use as new entry:",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = "\"$trimmedSearch\"",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                    if (selectedName == trimmedSearch) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Existing entries
+                    if (filteredSuggestions.isEmpty() && !showCreateNewOption) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "কোন পূর্ববর্তী এন্ট্রি পাওয়া যায়নি" else "No previous entries found",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                    } else {
+                        items(filteredSuggestions) { (payeeName, countOccurrences) ->
+                            val isSelected = selectedName.equals(payeeName, ignoreCase = true) ||
+                                (selectedName.isBlank() && searchQuery.equals(payeeName, ignoreCase = true))
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+                                shadowElevation = if (isSelected) 1.dp else 0.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        searchQuery = payeeName
+                                        selectedName = payeeName
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                                            modifier = Modifier.size(30.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Default.History,
+                                                    contentDescription = null,
+                                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = payeeName,
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (countOccurrences > 0) {
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "$countOccurrences বার ব্যবহৃত" else "Used in $countOccurrences transactions",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(name.trim()) }) {
-                Text("Apply")
+            Button(
+                onClick = {
+                    if (activeName.isNotBlank()) {
+                        onConfirm(activeName)
+                    }
+                },
+                enabled = activeName.isNotBlank()
+            ) {
+                Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) {
+                Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+            }
         }
     )
 }

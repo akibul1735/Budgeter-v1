@@ -22,13 +22,23 @@ class DatabaseBackupWorker(
 
     companion object {
         private const val TAG = "DatabaseBackupWorker"
-        private const val DB_NAME = "budgeter_double_entry_db"
+        private const val REAL_DB_NAME = "budgeter_double_entry_db"
+        private const val DEMO_DB_NAME = "budgeter_demo_db"
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Starting SQLite DB 24h Backup Worker...")
-            val db = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO))
+            val appPrefs = applicationContext.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
+            val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", true)
+            val db = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO), isDemoMode = isDemoMode)
+
+            // Touch the database to guarantee it is opened and created on disk
+            try {
+                db.accountDao().getAccountCount()
+            } catch (e: Exception) {
+                Log.w(TAG, "DB touch warning: ${e.message}")
+            }
 
             // 1. Force a WAL checkpoint to flush all in-memory and WAL logs to disk
             try {
@@ -41,11 +51,20 @@ class DatabaseBackupWorker(
                 Log.w(TAG, "Could not run WAL checkpoint: ${e.message}")
             }
 
-            // 2. Source database file
-            val dbFile = applicationContext.getDatabasePath(DB_NAME)
+            // 2. Source database file (prefer active DB, fallback to alternative if exists)
+            val targetDbName = if (isDemoMode) DEMO_DB_NAME else REAL_DB_NAME
+            var dbFile = applicationContext.getDatabasePath(targetDbName)
             if (!dbFile.exists()) {
-                Log.e(TAG, "Database file does not exist at ${dbFile.absolutePath}")
-                return@withContext Result.failure()
+                val fallbackDbName = if (isDemoMode) REAL_DB_NAME else DEMO_DB_NAME
+                val fallbackFile = applicationContext.getDatabasePath(fallbackDbName)
+                if (fallbackFile.exists()) {
+                    dbFile = fallbackFile
+                }
+            }
+
+            if (!dbFile.exists()) {
+                Log.w(TAG, "Database file does not exist at ${dbFile.absolutePath} yet. Skipping backup until database is populated.")
+                return@withContext Result.success()
             }
 
             // 3. Target backup directory
