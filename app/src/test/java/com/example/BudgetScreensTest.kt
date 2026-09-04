@@ -136,16 +136,28 @@ class BudgetScreensTest {
     fun testBudgetScreenRendering() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         val viewModel = BudgetViewModel(app)
+        val cat = Category(id = 1, nameEn = "Food", nameBn = "খাবার", iconName = "Restaurant", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = null)
+        val subCat = Category(id = 2, nameEn = "Groceries", nameBn = "মুদি", iconName = "ShoppingCart", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = 1)
+        val acc = Account(id = 1, nameEn = "Cash", nameBn = "ক্যাশ", type = AccountType.ASSET)
 
         composeTestRule.setContent {
             BudgetScreen(
                 viewModel = viewModel,
+                allCategories = listOf(cat, subCat),
+                allAccounts = listOf(acc),
+                accountsWithBalances = listOf(AccountWithBalance(acc, 1000.0)),
+                transactionsWithDetails = emptyList(),
+                monthlyBudgets = emptyList(),
+                selectedYear = 2026,
+                selectedMonth = 9,
+                languageMode = LanguageMode.ENGLISH,
+                onEditTransaction = {},
                 onAddTransactionWithCategory = {},
-                onEditTransaction = {}
+                onAddTransactionWithAccount = {}
             )
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("budget_tracking_screen").assertExists()
+        composeTestRule.onNodeWithTag("budget_quick_action_fab").assertExists()
     }
 }
