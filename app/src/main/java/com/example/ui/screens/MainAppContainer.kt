@@ -87,6 +87,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -119,10 +120,10 @@ import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
-import com.example.ui.components.AutoHidingContainer
 import com.example.ui.components.LanguageSelector
+import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.PopupCalculatorDialog
-import com.example.ui.components.rememberAutoScrollVisibility
+import com.example.ui.components.rememberHeaderScrollState
 import com.example.ui.dialogs.AddEditAccountGroupOrCategoryDialog
 import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
@@ -274,7 +275,7 @@ fun MainAppContainer(
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
 
-    val autoScrollState = rememberAutoScrollVisibility()
+    val headerScrollState = rememberHeaderScrollState()
 
     val visibleTabs = tabConfig.visibleTabs
     val isTabInVisibleTabs = visibleTabs.any { it.toAppView() == currentView }
@@ -285,8 +286,9 @@ fun MainAppContainer(
         pageCount = { visibleTabs.size }
     )
 
-    // Sync pager when currentView changes programmatically
+    // Sync pager and show header when currentView changes programmatically
     LaunchedEffect(currentView, visibleTabs) {
+        headerScrollState.show()
         val targetIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
         if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
             pagerState.animateScrollToPage(targetIndex)
@@ -364,44 +366,44 @@ fun MainAppContainer(
     val isSubView = currentView in listOf(AppView.EXPENSES, AppView.INCOME, AppView.BACKUP_SYNC, AppView.BUDGET_MAKER)
 
     // Window Width Adaptive Layout Container
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val windowSizeClass = when {
-            maxWidth < 600.dp -> WindowSizeClassType.COMPACT
-            maxWidth < 840.dp -> WindowSizeClassType.MEDIUM
-            else -> WindowSizeClassType.EXPANDED
-        }
+    CompositionLocalProvider(LocalHeaderScrollState provides headerScrollState) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val windowSizeClass = when {
+                maxWidth < 600.dp -> WindowSizeClassType.COMPACT
+                maxWidth < 840.dp -> WindowSizeClassType.MEDIUM
+                else -> WindowSizeClassType.EXPANDED
+            }
 
-        when (windowSizeClass) {
-            WindowSizeClassType.COMPACT -> {
-                // PHONE LAYOUT: Modal Navigation Drawer + Top/Bottom Tab Bar based on User Preference
-                ModalNavigationDrawer(
-                    drawerState = drawerState,
-                    drawerContent = {
-                        ModalDrawerSheet(
-                            drawerContainerColor = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.width(300.dp)
-                        ) {
-                            DrawerContent(
-                                viewModel = viewModel,
-                                currentView = currentView,
-                                onSelectView = {
-                                    selectView(it)
-                                    scope.launch { drawerState.close() }
-                                },
-                                accountsCount = allAccounts.size,
-                                categoriesCount = allCategories.size,
-                                netWorth = overview.netWorth,
-                                isBalanced = overview.isLedgerBalanced,
-                                languageMode = languageMode
-                            )
+            when (windowSizeClass) {
+                WindowSizeClassType.COMPACT -> {
+                    // PHONE LAYOUT: Modal Navigation Drawer + Top/Bottom Tab Bar based on User Preference
+                    ModalNavigationDrawer(
+                        drawerState = drawerState,
+                        drawerContent = {
+                            ModalDrawerSheet(
+                                drawerContainerColor = MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.width(300.dp)
+                            ) {
+                                DrawerContent(
+                                    viewModel = viewModel,
+                                    currentView = currentView,
+                                    onSelectView = {
+                                        selectView(it)
+                                        scope.launch { drawerState.close() }
+                                    },
+                                    accountsCount = allAccounts.size,
+                                    categoriesCount = allCategories.size,
+                                    netWorth = overview.netWorth,
+                                    isBalanced = overview.isLedgerBalanced,
+                                    languageMode = languageMode
+                                )
+                            }
                         }
-                    }
-                ) {
-                    Scaffold(
-                        topBar = {
-                            // TOP NAVIGATION TAB ROW (When Position is TOP)
-                            if (tabConfig.position == TabPosition.TOP && !isSubView) {
-                                AutoHidingContainer(visibilityState = autoScrollState) {
+                    ) {
+                        Scaffold(
+                            topBar = {
+                                // TOP NAVIGATION TAB ROW (When Position is TOP)
+                                if (tabConfig.position == TabPosition.TOP && !isSubView) {
                                     TopNavigationBarRow(
                                         visibleTabs = tabConfig.visibleTabs,
                                         currentView = currentView,
@@ -409,12 +411,10 @@ fun MainAppContainer(
                                         onSelectTab = { tab -> selectView(tab.toAppView()) }
                                     )
                                 }
-                            }
-                        },
-                        bottomBar = {
-                            // BOTTOM NAVIGATION TAB ROW (When Position is BOTTOM)
-                            if (tabConfig.position == TabPosition.BOTTOM && !isSubView) {
-                                AutoHidingContainer(visibilityState = autoScrollState) {
+                            },
+                            bottomBar = {
+                                // BOTTOM NAVIGATION TAB ROW (When Position is BOTTOM)
+                                if (tabConfig.position == TabPosition.BOTTOM && !isSubView) {
                                     BottomNavigationBarRow(
                                         visibleTabs = tabConfig.visibleTabs,
                                         currentView = currentView,
@@ -422,36 +422,35 @@ fun MainAppContainer(
                                         onSelectTab = { tab -> selectView(tab.toAppView()) }
                                     )
                                 }
+                            },
+                            floatingActionButton = {
+                                AppFab(
+                                    currentView = currentView,
+                                    onAddTransaction = {
+                                        editingTransaction = null
+                                        presetTxType = TransactionType.EXPENSE
+                                        showAddTransactionSheet = true
+                                    },
+                                    onAddAccount = {
+                                        editingAccount = null
+                                        presetAccountParentId = null
+                                        showAddAccountDialog = true
+                                    },
+                                    onAddCategory = { type ->
+                                        editingCategory = null
+                                        presetCategoryType = type
+                                        presetCategoryParentId = null
+                                        showAddCategoryDialog = true
+                                    }
+                                )
                             }
-                        },
-                        floatingActionButton = {
-                            AppFab(
-                                currentView = currentView,
-                                onAddTransaction = {
-                                    editingTransaction = null
-                                    presetTxType = TransactionType.EXPENSE
-                                    showAddTransactionSheet = true
-                                },
-                                onAddAccount = {
-                                    editingAccount = null
-                                    presetAccountParentId = null
-                                    showAddAccountDialog = true
-                                },
-                                onAddCategory = { type ->
-                                    editingCategory = null
-                                    presetCategoryType = type
-                                    presetCategoryParentId = null
-                                    showAddCategoryDialog = true
-                                }
-                            )
-                        }
-                    ) { paddingValues ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(paddingValues)
-                                .nestedScroll(autoScrollState.nestedScrollConnection)
-                        ) {
+                        ) { paddingValues ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(paddingValues)
+                                    .nestedScroll(headerScrollState.nestedScrollConnection)
+                            ) {
                             if (isTabInVisibleTabs && visibleTabs.isNotEmpty()) {
                                 HorizontalPager(
                                     state = pagerState,
@@ -945,6 +944,7 @@ fun MainAppContainer(
             }
         }
     }
+}
 
     // Modal Dialogs
     if (showTabCustomizationDialog) {

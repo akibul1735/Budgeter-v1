@@ -74,19 +74,30 @@ fun AppTabHeader(
     onFilterClick: (() -> Unit)? = null,
     // Additional actions
     actions: @Composable (RowScope.() -> Unit)? = null,
+    // Auto-hiding control
+    autoHideOnScroll: Boolean = true,
     modifier: Modifier = Modifier,
     testTag: String = "app_tab_header"
 ) {
+    val headerScrollState = LocalHeaderScrollState.current
     var isSearchExpanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
     val searchSupported = onSearchQueryChange != null
 
-    Column(
+    // Header remains visible when user is searching or if autoHide is disabled
+    val forceVisible = !autoHideOnScroll || isSearchExpanded || !searchQuery.isNullOrEmpty()
+
+    AutoHidingHeaderContainer(
+        headerScrollState = headerScrollState,
+        forceVisible = forceVisible,
         modifier = modifier
-            .fillMaxWidth()
-            .testTag(testTag)
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(testTag)
+        ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -298,4 +309,5 @@ fun AppTabHeader(
             }
         }
     }
+}
 }
