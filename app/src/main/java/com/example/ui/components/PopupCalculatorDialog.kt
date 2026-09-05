@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +47,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.LanguageMode
 import com.example.util.CalculatorEvaluator
+import com.example.util.CalculatorPreferences
+import java.util.Locale
 
 @Composable
 fun PopupCalculatorDialog(
@@ -52,6 +57,10 @@ fun PopupCalculatorDialog(
     onDismiss: () -> Unit,
     onValueConfirmed: (Double) -> Unit
 ) {
+    val context = LocalContext.current
+    val calculatorPrefs = remember { CalculatorPreferences.getInstance(context) }
+    val frequentPercentages by calculatorPrefs.frequentPercentages.collectAsState()
+
     var expression by remember {
         mutableStateOf(
             if (initialValue > 0) {
@@ -61,6 +70,14 @@ fun PopupCalculatorDialog(
     }
     var previewResult by remember { mutableStateOf<Double?>(if (initialValue > 0) initialValue else null) }
     var hasError by remember { mutableStateOf(false) }
+
+    fun checkAndSavePercentage(expr: String) {
+        val match = Regex("""(\d+(?:\.\d+)?)%""").find(expr)
+        if (match != null) {
+            val pctStr = match.groupValues[1]
+            calculatorPrefs.addFrequentPercentage(pctStr)
+        }
+    }
 
     fun updateExpression(newExpr: String) {
         expression = newExpr
@@ -72,6 +89,7 @@ fun PopupCalculatorDialog(
             if (eval.isSuccess) {
                 previewResult = eval.getOrNull()
                 hasError = false
+                checkAndSavePercentage(newExpr)
             } else {
                 hasError = true
             }
@@ -91,6 +109,23 @@ fun PopupCalculatorDialog(
         updateExpression(expression + char)
     }
 
+    fun applyPercentageSuggestion(pctString: String) {
+        val pctValue = pctString.trim()
+        if (expression.isBlank()) {
+            updateExpression("0×$pctValue")
+        } else {
+            val lastChar = expression.takeLast(1)
+            if (lastChar == "+" || lastChar == "−" || lastChar == "-" || lastChar == "×" || lastChar == "÷") {
+                updateExpression(expression + pctValue)
+            } else if (lastChar == "%") {
+                updateExpression(expression + "×$pctValue")
+            } else {
+                updateExpression("$expression×$pctValue")
+            }
+        }
+        calculatorPrefs.addFrequentPercentage(pctValue)
+    }
+
     fun backspace() {
         if (expression.isNotEmpty()) {
             updateExpression(expression.dropLast(1))
@@ -104,7 +139,7 @@ fun PopupCalculatorDialog(
     fun addPreset(amount: Double) {
         val current = previewResult ?: 0.0
         val sum = current + amount
-        val formatted = if (sum % 1.0 == 0.0) sum.toLong().toString() else String.format("%.2f", sum).trimEnd('0').trimEnd('.')
+        val formatted = if (sum % 1.0 == 0.0) sum.toLong().toString() else String.format(Locale.US, "%.2f", sum).trimEnd('0').trimEnd('.')
         updateExpression(formatted)
     }
 
@@ -135,9 +170,9 @@ fun PopupCalculatorDialog(
                         .background(Color(0xFF5A725D))
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Quick Presets
+                // Quick Add Amount Presets (+10, +50, +100, +500, +1000)
                 val presets = listOf(10.0, 50.0, 100.0, 500.0, 1000.0)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -163,7 +198,7 @@ fun PopupCalculatorDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Deep Green Display Screen
                 Surface(
@@ -174,14 +209,21 @@ fun PopupCalculatorDialog(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalAlignment = Alignment.End
                     ) {
-                        // Formula / Sub-expression if multi-step
-                        if (expression.contains("+") || expression.contains("−") || expression.contains("-") || expression.contains("×") || expression.contains("÷") || expression.contains("%")) {
+                        val hasOperator = expression.contains("+") ||
+                                expression.contains("−") ||
+                                expression.contains("-") ||
+                                expression.contains("×") ||
+                                expression.contains("÷") ||
+                                expression.contains("%")
+
+                        // Formula / Sub-expression if operator or % is used
+                        if (hasOperator) {
                             Text(
                                 text = expression,
-                                fontSize = 15.sp,
+                                fontSize = 16.sp,
                                 fontFamily = FontFamily.SansSerif,
                                 fontWeight = FontWeight.Medium,
                                 color = Color(0xFFA5D6A7),
@@ -191,16 +233,18 @@ fun PopupCalculatorDialog(
                             Spacer(modifier = Modifier.height(2.dp))
                         }
 
-                        // Main Big Value Display
+                        // Main Big Value Display (Lively calculated result)
                         val displayValue = when {
                             hasError -> "Error"
                             expression.isEmpty() -> "0"
+                            !hasOperator -> expression
                             previewResult != null -> {
                                 val res = previewResult!!
-                                if (res % 1.0 == 0.0 && !expression.contains(".")) res.toLong().toString()
-                                else if (!expression.contains("+") && !expression.contains("−") && !expression.contains("-") && !expression.contains("×") && !expression.contains("÷")) expression
-                                else if (res % 1.0 == 0.0) res.toLong().toString()
-                                else String.format("%.2f", res).trimEnd('0').trimEnd('.')
+                                if (res % 1.0 == 0.0) {
+                                    res.toLong().toString()
+                                } else {
+                                    String.format(Locale.US, "%.2f", res)
+                                }
                             }
                             else -> expression
                         }
@@ -217,9 +261,69 @@ fun PopupCalculatorDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // 5x4 Keypad matching Image 2
+                // Frequent Percentage Suggestions Row (Between amount screen and keypad buttons)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .height(30.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF33573A))
+                            .padding(horizontal = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Percent,
+                                contentDescription = "Percent",
+                                tint = Color(0xFFC8E6C9),
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    LazyRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(frequentPercentages) { pct ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF2C4C34),
+                                modifier = Modifier
+                                    .height(30.dp)
+                                    .clickable { applyPercentageSuggestion(pct) }
+                                    .testTag("pct_chip_$pct")
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(horizontal = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = pct,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFE8F5E9)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 5x4 Keypad matching layout
                 // Colors definition
                 val numBgColor = Color(0xFFBCE0B8)     // Minty green for numbers
                 val numTextColor = Color(0xFF1E281E)   // Dark text

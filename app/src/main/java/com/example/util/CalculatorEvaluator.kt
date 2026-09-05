@@ -4,7 +4,11 @@ object CalculatorEvaluator {
 
     /**
      * Evaluates arithmetic expressions containing numbers, +, -, *, /, %, and decimals.
-     * Supports standard calculator percentage rules (e.g., 100 + 10% = 110, 100 * 10% = 10, 50% = 0.5).
+     * Supports standard calculator percentage rules:
+     * - Multiplications with percentage: e.g. 1000 * 1.85% = 18.5, 1200 * 1.85% = 22.2
+     * - Additions/Subtractions with percentage: e.g. 100 + 10% = 110.0, 1000 - 5% = 950.0
+     * - Standalone percentage: e.g. 50% = 0.5, 1.85% = 0.0185
+     * - Divisions with percentage: e.g. 100 / 50% = 200.0
      * Returns Result with Double value or Error message.
      */
     fun evaluate(expression: String): Result<Double> {
@@ -17,8 +21,8 @@ object CalculatorEvaluator {
 
         if (clean.isEmpty()) return Result.success(0.0)
 
-        // Strip trailing operator for live preview if user is currently typing
-        val parsable = clean.trimEnd('+', '-', '*', '/', '%')
+        // Strip trailing incomplete binary operators for live preview if user is currently typing
+        val parsable = clean.trimEnd('+', '-', '*', '/')
         if (parsable.isEmpty()) return Result.success(0.0)
 
         return try {
@@ -64,25 +68,21 @@ object CalculatorEvaluator {
                 when {
                     eat('+') -> {
                         val beforePos = pos
-                        val rightTerm = parseTerm()
-                        // Check if the term had a percentage applied
-                        if (beforePos < str.length && str.substring(beforePos - 1).contains("%")) {
-                            x += rightTerm
-                        } else if (hasPercentageInSegment(beforePos)) {
-                            x += (x * rightTerm)
+                        val (rightVal, hadPercent) = parseTermWithPercentCheck()
+                        if (hadPercent) {
+                            // If percentage in addition (e.g. 100 + 10%), it adds (x * rightVal) where rightVal was divided by 100
+                            x += (x * (rightVal * 100.0) / 100.0)
                         } else {
-                            x += rightTerm
+                            x += rightVal
                         }
                     }
                     eat('-') -> {
-                        val beforePos = pos
-                        val rightTerm = parseTerm()
-                        if (beforePos < str.length && str.substring(beforePos - 1).contains("%")) {
-                            x -= rightTerm
-                        } else if (hasPercentageInSegment(beforePos)) {
-                            x -= (x * rightTerm)
+                        val (rightVal, hadPercent) = parseTermWithPercentCheck()
+                        if (hadPercent) {
+                            // If percentage in subtraction (e.g. 100 - 10%), it subtracts (x * percentage)
+                            x -= (x * (rightVal * 100.0) / 100.0)
                         } else {
-                            x -= rightTerm
+                            x -= rightVal
                         }
                     }
                     else -> return x
@@ -90,26 +90,31 @@ object CalculatorEvaluator {
             }
         }
 
-        private fun hasPercentageInSegment(startIdx: Int): Boolean {
-            val endIdx = (pos).coerceAtMost(str.length)
-            if (startIdx in 0..endIdx) {
-                return str.substring(startIdx, endIdx).contains("%")
-            }
-            return false
+        private fun parseTermWithPercentCheck(): Pair<Double, Boolean> {
+            val startPos = pos
+            val rightTerm = parseTerm()
+            val segment = if (startPos in 0..str.length && pos in 0..str.length && startPos <= pos) {
+                str.substring(startPos, pos)
+            } else ""
+            val hadPercent = segment.contains("%")
+            return Pair(rightTerm, hadPercent)
         }
 
         private fun parseTerm(): Double {
             var x = parseFactor()
             while (true) {
                 when {
-                    eat('*') -> x *= parseFactor()
+                    eat('*') -> {
+                        val factor = parseFactor()
+                        x *= factor
+                    }
                     eat('/') -> {
                         val divisor = parseFactor()
                         if (divisor == 0.0) throw ArithmeticException("Division by zero")
                         x /= divisor
                     }
                     eat('%') -> {
-                        x = x / 100.0
+                        x /= 100.0
                     }
                     else -> return x
                 }
