@@ -12,6 +12,9 @@ data class SecurityConfig(
     val pinHash: String = "",
     val isBiometricEnabled: Boolean = false,
     val requireAuthForGroupDeletion: Boolean = true,
+    val requireAuthForMultiSelect: Boolean = true,
+    val requireAuthForTrashClear: Boolean = true,
+    val requireAuthForBackupRestore: Boolean = true,
     val lockTimeoutSeconds: Int = 0, // 0 = Immediately, 60 = 1 min, 300 = 5 mins, 900 = 15 mins
     val securityQuestion: String = "What is your favorite color?",
     val securityAnswerHash: String = ""
@@ -32,6 +35,9 @@ class SecurityPreferences(context: Context) {
             pinHash = prefs.getString(KEY_PIN_HASH, "") ?: "",
             isBiometricEnabled = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false),
             requireAuthForGroupDeletion = prefs.getBoolean(KEY_REQUIRE_AUTH_GROUP_DELETION, true),
+            requireAuthForMultiSelect = prefs.getBoolean(KEY_REQUIRE_AUTH_MULTI_SELECT, true),
+            requireAuthForTrashClear = prefs.getBoolean(KEY_REQUIRE_AUTH_TRASH_CLEAR, true),
+            requireAuthForBackupRestore = prefs.getBoolean(KEY_REQUIRE_AUTH_BACKUP_RESTORE, true),
             lockTimeoutSeconds = prefs.getInt(KEY_LOCK_TIMEOUT_SECONDS, 0),
             securityQuestion = prefs.getString(KEY_SECURITY_QUESTION, "What is your favorite color?") ?: "What is your favorite color?",
             securityAnswerHash = prefs.getString(KEY_SECURITY_ANSWER_HASH, "") ?: ""
@@ -71,6 +77,21 @@ class SecurityPreferences(context: Context) {
         _config.value = _config.value.copy(requireAuthForGroupDeletion = enabled)
     }
 
+    fun setRequireAuthForMultiSelect(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_REQUIRE_AUTH_MULTI_SELECT, enabled).apply()
+        _config.value = _config.value.copy(requireAuthForMultiSelect = enabled)
+    }
+
+    fun setRequireAuthForTrashClear(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_REQUIRE_AUTH_TRASH_CLEAR, enabled).apply()
+        _config.value = _config.value.copy(requireAuthForTrashClear = enabled)
+    }
+
+    fun setRequireAuthForBackupRestore(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_REQUIRE_AUTH_BACKUP_RESTORE, enabled).apply()
+        _config.value = _config.value.copy(requireAuthForBackupRestore = enabled)
+    }
+
     fun setLockTimeoutSeconds(seconds: Int) {
         prefs.edit().putInt(KEY_LOCK_TIMEOUT_SECONDS, seconds).apply()
         _config.value = _config.value.copy(lockTimeoutSeconds = seconds)
@@ -99,6 +120,9 @@ class SecurityPreferences(context: Context) {
         private const val KEY_PIN_HASH = "key_pin_hash"
         private const val KEY_BIOMETRIC_ENABLED = "key_biometric_enabled"
         private const val KEY_REQUIRE_AUTH_GROUP_DELETION = "key_require_auth_group_deletion"
+        private const val KEY_REQUIRE_AUTH_MULTI_SELECT = "key_require_auth_multi_select"
+        private const val KEY_REQUIRE_AUTH_TRASH_CLEAR = "key_require_auth_trash_clear"
+        private const val KEY_REQUIRE_AUTH_BACKUP_RESTORE = "key_require_auth_backup_restore"
         private const val KEY_LOCK_TIMEOUT_SECONDS = "key_lock_timeout_seconds"
         private const val KEY_SECURITY_QUESTION = "key_security_question"
         private const val KEY_SECURITY_ANSWER_HASH = "key_security_answer_hash"

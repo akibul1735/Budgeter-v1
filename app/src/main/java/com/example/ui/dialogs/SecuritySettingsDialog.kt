@@ -19,8 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
@@ -80,6 +82,9 @@ fun SecuritySettingsDialog(
     onVerifyPin: (String) -> Boolean,
     onSetBiometricEnabled: (Boolean) -> Unit,
     onSetRequireAuthForGroupDeletion: (Boolean) -> Unit,
+    onSetRequireAuthForMultiSelect: (Boolean) -> Unit = {},
+    onSetRequireAuthForTrashClear: (Boolean) -> Unit = {},
+    onSetRequireAuthForBackupRestore: (Boolean) -> Unit = {},
     onSetLockTimeoutSeconds: (Int) -> Unit,
     onSetSecurityRecovery: (String, String) -> Unit
 ) {
@@ -312,22 +317,22 @@ fun SecuritySettingsDialog(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.DeleteSweep,
+                                    imageVector = Icons.Default.Delete,
                                     contentDescription = null,
                                     tint = SolidPrimary,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Column {
                                     Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ডিলিটে পাসওয়ার্ড প্রয়োজন" else "Require Auth to Delete Groups",
+                                        text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ডিলিটে পাসওয়ার্ড প্রয়োজন" else "Group Delete Auth",
                                         fontWeight = FontWeight.SemiBold,
                                         fontSize = 14.sp
                                     )
                                     Text(
                                         text = if (languageMode == LanguageMode.BANGLA)
-                                            "যেকোনো গ্রুপ (একাউন্ট/ক্যাটাগরি গ্রুপ) ডিলিট করতে পিন বা ফিঙ্গারপ্রিন্ট লাগবে। একক আইটেমে কেবল নিশ্চিতকরণ লাগবে।"
+                                            "যেকোনো গ্রুপ (একাউন্ট/ক্যাটাগরি গ্রুপ) ডিলিট করতে পাসওয়ার্ড বা ফিঙ্গারপ্রিন্ট লাগবে।"
                                         else
-                                            "Deleting any group requires PIN/Fingerprint. Other individual items only need confirmation.",
+                                            "Require PIN/Fingerprint when deleting account or category groups.",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
@@ -339,6 +344,171 @@ fun SecuritySettingsDialog(
                                 onCheckedChange = { onSetRequireAuthForGroupDeletion(it) },
                                 colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary),
                                 modifier = Modifier.testTag("switch_group_deletion_auth")
+                            )
+                        }
+                    }
+                }
+
+                // 5. Multi-Select Changes & Delete Protection Rule
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Checklist,
+                                    contentDescription = null,
+                                    tint = SolidPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "মাল্টি-সিলেক্ট পরিবর্তন বা ডিলিট সুরক্ষা" else "Multi-Select Changes & Delete Auth",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA)
+                                            "একসাথে একাধিক লেনদেন পরিবর্তন বা ব্যাচ ডিলিটে পাসওয়ার্ড বা ফিঙ্গারপ্রিন্ট লাগবে।"
+                                        else
+                                            "Require PIN/Fingerprint when batch updating or batch deleting selected items.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            Switch(
+                                checked = securityConfig.requireAuthForMultiSelect,
+                                onCheckedChange = { onSetRequireAuthForMultiSelect(it) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary),
+                                modifier = Modifier.testTag("switch_multi_select_auth")
+                            )
+                        }
+                    }
+                }
+
+                // 6. Trash Empty & Permanent Delete Protection
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.RestoreFromTrash,
+                                    contentDescription = null,
+                                    tint = SolidPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ খালি ও স্থায়ী ডিলিট সুরক্ষা" else "Empty Trash & Permanent Delete Auth",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA)
+                                            "ট্র্যাশ থেকে আইটেম স্থায়ীভাবে মুছে ফেলতে বা ট্র্যাশ খালি করতে অথেনটিকেশন লাগবে।"
+                                        else
+                                            "Require PIN/Fingerprint when emptying trash or permanently purging records.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            Switch(
+                                checked = securityConfig.requireAuthForTrashClear,
+                                onCheckedChange = { onSetRequireAuthForTrashClear(it) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary),
+                                modifier = Modifier.testTag("switch_trash_clear_auth")
+                            )
+                        }
+                    }
+                }
+
+                // 7. Backup Restore & Data Reset Protection
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Backup,
+                                    contentDescription = null,
+                                    tint = SolidPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "ব্যাকআপ রিস্টোর ও রিসেট সুরক্ষা" else "Backup Restore & Reset Auth",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA)
+                                            "ব্যাকআপ ফাইল রিস্টোর বা ডেটা রিসেট করার সময় পাসওয়ার্ড বা ফিঙ্গারপ্রিন্ট লাগবে।"
+                                        else
+                                            "Require PIN/Fingerprint when restoring backups or wiping app database.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            Switch(
+                                checked = securityConfig.requireAuthForBackupRestore,
+                                onCheckedChange = { onSetRequireAuthForBackupRestore(it) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary),
+                                modifier = Modifier.testTag("switch_backup_restore_auth")
                             )
                         }
                     }

@@ -117,6 +117,7 @@ import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.DatePickerModal
 import com.example.ui.components.PopupCalculatorDialog
+import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidExpenseContainer
 import com.example.ui.theme.SolidIncome
@@ -127,6 +128,7 @@ import com.example.ui.theme.SolidTransfer
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.SecurityConfig
 import java.util.Calendar
 
 enum class LedgerRowStyle {
@@ -158,6 +160,8 @@ fun LedgerScreen(
     allCategories: List<Category> = emptyList(),
     allAccounts: List<Account> = emptyList(),
     accountsWithBalances: List<AccountWithBalance> = emptyList(),
+    securityConfig: SecurityConfig = SecurityConfig(),
+    onVerifyPin: (String) -> Boolean = { true },
     onAddTransactionClick: () -> Unit,
     onTransactionClick: (Transaction) -> Unit,
     onUpdateTransactions: (List<Transaction>) -> Unit = {},
@@ -1149,38 +1153,25 @@ fun LedgerScreen(
     }
 
     if (showBatchDeleteConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showBatchDeleteConfirmDialog = false },
-            title = {
-                Text(
-                    text = "Delete Transactions",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "লেনদেন মুছে ফেলবেন?" else "Delete Transactions",
+            message = if (languageMode == LanguageMode.BANGLA)
+                "${selectedTransactionIds.size} টি নির্বাচিত লেনদেন মুছে ফেলা হবে। এই কাজ পুনরায় ফিরিয়ে আনা যাবে না।"
+            else
+                "Are you sure you want to delete ${selectedTransactionIds.size} selected transaction(s)? This action cannot be undone.",
+            confirmButtonText = LanguageHelper.getString("delete", languageMode),
+            isDestructive = true,
+            requiresAuth = securityConfig.requireAuthForGroupDeletion || securityConfig.requireAuthForMultiSelect,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = onVerifyPin,
+            onConfirm = {
+                val toDelete = selectedTransactions.map { it.transaction }
+                onDeleteTransactions(toDelete)
+                showBatchDeleteConfirmDialog = false
+                selectedTransactionIds = emptySet()
             },
-            text = {
-                Text(
-                    text = "Are you sure you want to delete ${selectedTransactionIds.size} selected transaction(s)? This action cannot be undone."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val toDelete = selectedTransactions.map { it.transaction }
-                        onDeleteTransactions(toDelete)
-                        showBatchDeleteConfirmDialog = false
-                        selectedTransactionIds = emptySet()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text(LanguageHelper.getString("delete", languageMode))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBatchDeleteConfirmDialog = false }) {
-                    Text(LanguageHelper.getString("cancel", languageMode))
-                }
-            }
+            onDismiss = { showBatchDeleteConfirmDialog = false }
         )
     }
 }

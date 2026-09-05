@@ -843,6 +843,9 @@ fun SettingsScreen(
             onVerifyPin = { viewModel.verifySecurityPin(it) },
             onSetBiometricEnabled = { viewModel.setBiometricEnabled(it) },
             onSetRequireAuthForGroupDeletion = { viewModel.setRequireAuthForGroupDeletion(it) },
+            onSetRequireAuthForMultiSelect = { viewModel.setRequireAuthForMultiSelect(it) },
+            onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
+            onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
             onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
             onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) }
         )

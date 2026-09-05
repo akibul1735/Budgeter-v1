@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccessTime
@@ -98,6 +99,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -118,10 +120,12 @@ import java.util.Locale
 fun BackupSyncSettingsScreen(
     viewModel: BudgetViewModel,
     languageMode: LanguageMode,
-    backupUiState: BackupUiState
+    backupUiState: BackupUiState,
+    onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val config by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
+    val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
     val signedInAccount by viewModel.signedInGoogleAccount.collectAsStateWithLifecycle()
     val driveBackups by viewModel.driveBackups.collectAsStateWithLifecycle()
 
@@ -208,6 +212,26 @@ fun BackupSyncSettingsScreen(
         contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // TOP APP BAR / BACK NAVIGATION
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "ব্যাকআপ ও ক্লাউড সিঙ্ক" else "Backup & Cloud Sync",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
         // TOP HERO: QUICK SYNC & STATUS BANNER
         item {
             Card(
@@ -1069,35 +1093,27 @@ fun BackupSyncSettingsScreen(
         )
     }
 
-    // 4. Drive Restore Confirmation Dialog
+    // 4. Drive Restore Confirmation Dialog (Protected by Security Auth)
     restoreConfirmDriveFile?.let { backupFile ->
-        AlertDialog(
-            onDismissRequest = { restoreConfirmDriveFile = null },
-            title = { Text("Restore From Google Drive?", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "This will restore '${backupFile.name}' into Budgeter. Current local data will be replaced with this snapshot.",
-                    fontSize = 13.sp
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        signedInAccount?.let { acc ->
-                            viewModel.restoreFromGoogleDrive(acc, backupFile)
-                        }
-                        restoreConfirmDriveFile = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
-                ) {
-                    Text("Confirm Restore")
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ থেকে পুনরুদ্ধার?" else "Restore From Google Drive?",
+            message = if (languageMode == LanguageMode.BANGLA)
+                "'${backupFile.name}' বাজেটারে পুনরুদ্ধার করা হবে। বর্তমান স্থানীয় ডেটা এই স্ন্যাপশট দ্বারা প্রতিস্থাপিত হবে।"
+            else
+                "This will restore '${backupFile.name}' into Budgeter. Current local data will be replaced with this snapshot.",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "পুনরুদ্ধার নিশ্চিত করুন" else "Confirm Restore",
+            isDestructive = false,
+            requiresAuth = securityConfig.requireAuthForBackupRestore,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onConfirm = {
+                signedInAccount?.let { acc ->
+                    viewModel.restoreFromGoogleDrive(acc, backupFile)
                 }
+                restoreConfirmDriveFile = null
             },
-            dismissButton = {
-                TextButton(onClick = { restoreConfirmDriveFile = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { restoreConfirmDriveFile = null }
         )
     }
 
@@ -1133,49 +1149,25 @@ fun BackupSyncSettingsScreen(
         )
     }
 
-    // 6. Reset Data Confirmation Dialog
+    // 6. Reset Data Confirmation Dialog (Protected by Security Auth)
     if (showResetConfirmationDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetConfirmationDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Reset All Data?", fontWeight = FontWeight.Bold, color = SolidExpense)
-                }
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "সমস্ত ডেটা রিসেট করবেন?" else "Reset All Data?",
+            message = if (languageMode == LanguageMode.BANGLA)
+                "এটি সমস্ত লেনদেন, পুনরাবৃত্তিমূলক বিল, মাসিক বাজেট এবং কাস্টম অ্যাকাউন্ট মুছে ফেলবে এবং অ্যাপকে ডিফল্ট কাঠামোতে ফিরিয়ে আনবে। এই কাজ পুনরায় ফিরিয়ে আনা যাবে না।"
+            else
+                "This will completely erase all transactions, recurring bills, monthly budgets, and custom accounts, restoring the application back to its default clean structure. This action cannot be undone.",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "হ্যাঁ, সব রিসেট করুন" else "Yes, Reset Everything",
+            isDestructive = true,
+            requiresAuth = securityConfig.requireAuthForBackupRestore || securityConfig.requireAuthForTrashClear,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onConfirm = {
+                viewModel.resetAllData()
+                showResetConfirmationDialog = false
             },
-            text = {
-                Column {
-                    Text(
-                        "This will completely erase all transactions, recurring bills, monthly budgets, and custom accounts, restoring the application back to its default clean structure.",
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "⚠️ This action cannot be undone unless you have a recent backup file.",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SolidExpense
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.resetAllData()
-                        showResetConfirmationDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SolidExpense)
-                ) {
-                    Text("Yes, Reset Everything", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetConfirmationDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showResetConfirmationDialog = false }
         )
     }
 }

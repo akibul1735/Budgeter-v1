@@ -354,76 +354,14 @@ fun MainAppContainer(
                 ) {
                     Scaffold(
                         topBar = {
-                            Column {
-                                TopAppBar(
-                                    title = {
-                                        Text(
-                                            text = getViewTitle(currentView, languageMode),
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp
-                                        )
-                                    },
-                                    navigationIcon = {
-                                        if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
-                                            IconButton(onClick = handleBackPress) {
-                                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                                            }
-                                        } else {
-                                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                                Icon(Icons.Default.Menu, contentDescription = "Menu")
-                                            }
-                                        }
-                                    },
-                                    actions = {
-                                        if (isDemoMode) {
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                                modifier = Modifier
-                                                    .padding(end = 4.dp)
-                                                    .clickable { viewModel.setDemoMode(false) }
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(6.dp)
-                                                            .background(MaterialTheme.colorScheme.tertiary, CircleShape)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = "DEMO",
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        IconButton(onClick = { showGlobalCalculator = true }) {
-                                            Icon(
-                                                Icons.Default.Calculate,
-                                                contentDescription = "Calculator",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    },
-                                    colors = TopAppBarDefaults.topAppBarColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    )
+                            // TOP NAVIGATION TAB ROW (When Position is TOP)
+                            if (tabConfig.position == TabPosition.TOP && !isSubView) {
+                                TopNavigationBarRow(
+                                    visibleTabs = tabConfig.visibleTabs,
+                                    currentView = currentView,
+                                    languageMode = languageMode,
+                                    onSelectTab = { tab -> selectView(tab.toAppView()) }
                                 )
-
-                                // TOP NAVIGATION TAB ROW (When Position is TOP)
-                                if (tabConfig.position == TabPosition.TOP && !isSubView) {
-                                    TopNavigationBarRow(
-                                        visibleTabs = tabConfig.visibleTabs,
-                                        currentView = currentView,
-                                        languageMode = languageMode,
-                                        onSelectTab = { tab -> selectView(tab.toAppView()) }
-                                    )
-                                }
                             }
                         },
                         bottomBar = {
@@ -479,6 +417,10 @@ fun MainAppContainer(
                                 monthlyBudgets = monthlyBudgets,
                                 selectedBudgetYear = selectedBudgetYear,
                                 selectedBudgetMonth = selectedBudgetMonth,
+                                isDemoMode = isDemoMode,
+                                onOpenDrawer = { scope.launch { drawerState.open() } },
+                                onExitDemoMode = { viewModel.setDemoMode(false) },
+                                onBack = handleBackPress,
                                 onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
@@ -596,23 +538,6 @@ fun MainAppContainer(
                     }
 
                     Scaffold(
-                        topBar = {
-                            TopAppBar(
-                                title = { Text(getViewTitle(currentView, languageMode), fontWeight = FontWeight.Bold) },
-                                navigationIcon = {
-                                    if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
-                                        IconButton(onClick = handleBackPress) {
-                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                                        }
-                                    }
-                                },
-                                actions = {
-                                    IconButton(onClick = { showGlobalCalculator = true }) {
-                                        Icon(Icons.Default.Calculate, contentDescription = "Calculator")
-                                    }
-                                }
-                            )
-                        },
                         floatingActionButton = {
                             AppFab(
                                 currentView = currentView,
@@ -655,6 +580,10 @@ fun MainAppContainer(
                                 monthlyBudgets = monthlyBudgets,
                                 selectedBudgetYear = selectedBudgetYear,
                                 selectedBudgetMonth = selectedBudgetMonth,
+                                isDemoMode = isDemoMode,
+                                onOpenDrawer = { scope.launch { drawerState.open() } },
+                                onExitDemoMode = { viewModel.setDemoMode(false) },
+                                onBack = handleBackPress,
                                 onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
@@ -729,23 +658,6 @@ fun MainAppContainer(
                     }
                 ) {
                     Scaffold(
-                        topBar = {
-                            TopAppBar(
-                                title = { Text(getViewTitle(currentView, languageMode), fontWeight = FontWeight.Bold) },
-                                navigationIcon = {
-                                    if (currentView != AppView.DASHBOARD || viewHistory.size > 1) {
-                                        IconButton(onClick = handleBackPress) {
-                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                                        }
-                                    }
-                                },
-                                actions = {
-                                    IconButton(onClick = { showGlobalCalculator = true }) {
-                                        Icon(Icons.Default.Calculate, contentDescription = "Calculator")
-                                    }
-                                }
-                            )
-                        },
                         floatingActionButton = {
                             AppFab(
                                 currentView = currentView,
@@ -788,6 +700,10 @@ fun MainAppContainer(
                                 monthlyBudgets = monthlyBudgets,
                                 selectedBudgetYear = selectedBudgetYear,
                                 selectedBudgetMonth = selectedBudgetMonth,
+                                isDemoMode = isDemoMode,
+                                onOpenDrawer = { scope.launch { drawerState.open() } },
+                                onExitDemoMode = { viewModel.setDemoMode(false) },
+                                onBack = handleBackPress,
                                 onNavigate = { selectView(it) },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
@@ -1448,6 +1364,10 @@ private fun ScreenRouter(
     monthlyBudgets: List<com.example.data.model.MonthlyBudget>,
     selectedBudgetYear: Int,
     selectedBudgetMonth: Int,
+    isDemoMode: Boolean = false,
+    onOpenDrawer: () -> Unit = {},
+    onExitDemoMode: () -> Unit = {},
+    onBack: () -> Unit = {},
     onNavigate: (AppView) -> Unit,
     onEditTransaction: (Transaction) -> Unit,
     onAddTransactionWithType: (TransactionType) -> Unit,
@@ -1473,6 +1393,9 @@ private fun ScreenRouter(
             monthlyBudgets = monthlyBudgets,
             dashboardConfig = dashboardConfig,
             languageMode = languageMode,
+            isDemoMode = isDemoMode,
+            onOpenDrawer = onOpenDrawer,
+            onExitDemoMode = onExitDemoMode,
             onAddTransactionClick = onAddTransactionWithType,
             onTransactionClick = onEditTransaction,
             onViewAllTransactionsClick = { onNavigate(AppView.LEDGER) },
@@ -1485,17 +1408,22 @@ private fun ScreenRouter(
             onUpdateFavoriteAccounts = { favs -> viewModel.setFavoriteAccounts(favs) },
             onResetDashboardDefaults = { viewModel.resetDashboardDefaults() }
         )
-        AppView.LEDGER -> LedgerScreen(
-            transactions = transactionsWithDetails,
-            languageMode = languageMode,
-            allCategories = allCategories,
-            allAccounts = allAccounts,
-            accountsWithBalances = accountsWithBalances,
-            onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
-            onTransactionClick = onEditTransaction,
-            onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) },
-            onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
-        )
+        AppView.LEDGER -> {
+            val securityConfig = viewModel.securityConfig.collectAsStateWithLifecycle().value
+            LedgerScreen(
+                transactions = transactionsWithDetails,
+                languageMode = languageMode,
+                allCategories = allCategories,
+                allAccounts = allAccounts,
+                accountsWithBalances = accountsWithBalances,
+                securityConfig = securityConfig,
+                onVerifyPin = { viewModel.verifySecurityPin(it) },
+                onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
+                onTransactionClick = onEditTransaction,
+                onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) },
+                onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
+            )
+        }
         AppView.BALANCE_SHEET -> BalanceSheetScreen(
             accounts = allAccounts,
             transactions = transactionsWithDetails.map { it.transaction },
@@ -1650,11 +1578,13 @@ private fun ScreenRouter(
         AppView.BACKUP_SYNC -> BackupSyncSettingsScreen(
             viewModel = viewModel,
             languageMode = languageMode,
-            backupUiState = backupUiState
+            backupUiState = backupUiState,
+            onBack = onBack
         )
         AppView.SETTINGS -> SettingsScreen(
             viewModel = viewModel,
             languageMode = languageMode,
+            onBack = onBack,
             onNavigateToBackupSync = { onNavigate(AppView.BACKUP_SYNC) },
             onOpenTabCustomizer = onOpenTabCustomizer,
             onOpenThemeFontSettings = onOpenThemeFontSettings,
@@ -1663,7 +1593,7 @@ private fun ScreenRouter(
         AppView.TRASH -> TrashScreen(
             viewModel = viewModel,
             languageMode = languageMode,
-            onBack = { onNavigate(AppView.DASHBOARD) }
+            onBack = onBack
         )
     }
 }

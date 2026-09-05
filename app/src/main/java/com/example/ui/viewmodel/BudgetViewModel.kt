@@ -982,6 +982,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         securityPrefs.setRequireAuthForGroupDeletion(enabled)
     }
 
+    fun setRequireAuthForMultiSelect(enabled: Boolean) {
+        securityPrefs.setRequireAuthForMultiSelect(enabled)
+    }
+
+    fun setRequireAuthForTrashClear(enabled: Boolean) {
+        securityPrefs.setRequireAuthForTrashClear(enabled)
+    }
+
+    fun setRequireAuthForBackupRestore(enabled: Boolean) {
+        securityPrefs.setRequireAuthForBackupRestore(enabled)
+    }
+
     fun setLockTimeoutSeconds(seconds: Int) {
         securityPrefs.setLockTimeoutSeconds(seconds)
     }

@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -76,6 +77,7 @@ fun TrashScreen(
     onBack: () -> Unit
 ) {
     val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
+    val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
     var selectedFilter by remember { mutableStateOf<TrashItemType?>(null) }
     var showEmptyTrashDialog by remember { mutableStateOf(false) }
     var itemToDeletePermanently by remember { mutableStateOf<TrashedItem?>(null) }
@@ -227,40 +229,25 @@ fun TrashScreen(
         }
     }
 
-    // Confirm Empty Trash Dialog
+    // Confirm Empty Trash Dialog (with Security Protection)
     if (showEmptyTrashDialog) {
-        AlertDialog(
-            onDismissRequest = { showEmptyTrashDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "সব মুছে ফেলবেন?" else "Empty all trash?",
-                    fontWeight = FontWeight.Bold
-                )
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ খালি করুন" else "Empty All Trash?",
+            message = if (languageMode == LanguageMode.BANGLA)
+                "ট্র্যাশের সমস্ত আইটেম চিরতরে মুছে ফেলা হবে। এই কাজ পুনরায় ফিরিয়ে আনা যাবে না।"
+            else
+                "All items in the trash will be permanently deleted. This action cannot be undone.",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "সব মুছুন" else "Empty All",
+            isDestructive = true,
+            requiresAuth = securityConfig.requireAuthForTrashClear,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onConfirm = {
+                viewModel.emptyTrash()
+                showEmptyTrashDialog = false
             },
-            text = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA)
-                        "ট্র্যাশের সমস্ত আইটেম চিরতরে মুছে ফেলা হবে। এই কাজ পুনরায় ফিরিয়ে আনা যাবে না।"
-                    else
-                        "All items in the trash will be permanently deleted. This action cannot be undone."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.emptyTrash()
-                        showEmptyTrashDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SolidExpense)
-                ) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "সব মুছুন" else "Empty All")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEmptyTrashDialog = false }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
-                }
-            }
+            onDismiss = { showEmptyTrashDialog = false }
         )
     }
 

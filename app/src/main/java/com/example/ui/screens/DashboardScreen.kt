@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Savings
@@ -126,6 +127,9 @@ fun DashboardScreen(
     monthlyBudgets: List<MonthlyBudget> = emptyList(),
     dashboardConfig: DashboardConfig,
     languageMode: LanguageMode,
+    isDemoMode: Boolean = false,
+    onOpenDrawer: () -> Unit = {},
+    onExitDemoMode: () -> Unit = {},
     onAddTransactionClick: (TransactionType) -> Unit,
     onTransactionClick: (Transaction) -> Unit,
     onViewAllTransactionsClick: () -> Unit,
@@ -586,11 +590,86 @@ fun DashboardScreen(
             .fillMaxSize()
             .testTag("dashboard_screen")
     ) {
+        // Dashboard Top Header (Drawer Menu, App Branding, Demo Indicator)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = onOpenDrawer,
+                    modifier = Modifier.testTag("dashboard_menu_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Open Navigation Menu",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFFD700),
+                    shadowElevation = 1.dp,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "৳",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF4A3800)
+                        )
+                    }
+                }
+
+                Text(
+                    text = LanguageHelper.getString("app_name", languageMode),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            if (isDemoMode) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier
+                        .clickable { onExitDemoMode() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(MaterialTheme.colorScheme.tertiary, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "DEMO",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .weight(1f),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Render Cards dynamically based on user configuration order and visibility
