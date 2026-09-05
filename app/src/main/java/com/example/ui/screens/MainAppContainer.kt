@@ -40,6 +40,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DashboardCustomize
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
@@ -145,7 +147,8 @@ enum class AppView {
     ITEMS_SUMMARY,
     RECURRING_BILLS,
     BACKUP_SYNC,
-    SETTINGS
+    SETTINGS,
+    TRASH
 }
 
 fun AppTab.toAppView(): AppView = when (this) {
@@ -305,27 +308,8 @@ fun MainAppContainer(
                                     selectView(it)
                                     scope.launch { drawerState.close() }
                                 },
-                                onOpenCalculator = {
-                                    showGlobalCalculator = true
-                                    scope.launch { drawerState.close() }
-                                },
-                                onOpenThemeFontSettings = {
-                                    showThemeFontSettings = true
-                                    scope.launch { drawerState.close() }
-                                },
-                                onOpenAutofillSettings = {
-                                    showAutofillSettingsDialog = true
-                                    scope.launch { drawerState.close() }
-                                },
-                                onOpenTabCustomizer = {
-                                    showTabCustomizationDialog = true
-                                    scope.launch { drawerState.close() }
-                                },
                                 accountsCount = allAccounts.size,
-                                expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
-                                incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
-                                recurringCount = recurringBills.size,
-                                budgetCount = monthlyBudgets.size,
+                                categoriesCount = allCategories.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
                                 languageMode = languageMode
@@ -700,16 +684,8 @@ fun MainAppContainer(
                                 viewModel = viewModel,
                                 currentView = currentView,
                                 onSelectView = { selectView(it) },
-                                onOpenCalculator = { showGlobalCalculator = true },
-                                onOpenThemeFontSettings = { showThemeFontSettings = true },
-                                onOpenAutofillSettings = { showAutofillSettingsDialog = true },
-                                onOpenTabCustomizer = { showTabCustomizationDialog = true },
-                                onOpenDashboardCustomizer = { showDashboardCustomizerDialog = true },
                                 accountsCount = allAccounts.size,
-                                expensesCount = allCategories.count { it.type == CategoryType.EXPENSE && it.parentId == null },
-                                incomeCount = allCategories.count { it.type == CategoryType.INCOME && it.parentId == null },
-                                recurringCount = recurringBills.size,
-                                budgetCount = monthlyBudgets.size,
+                                categoriesCount = allCategories.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
                                 languageMode = languageMode
@@ -1163,26 +1139,34 @@ private fun DrawerContent(
     viewModel: BudgetViewModel,
     currentView: AppView,
     onSelectView: (AppView) -> Unit,
-    onOpenCalculator: () -> Unit,
-    onOpenThemeFontSettings: () -> Unit,
-    onOpenAutofillSettings: () -> Unit,
-    onOpenTabCustomizer: () -> Unit,
-    onOpenDashboardCustomizer: () -> Unit = {},
     accountsCount: Int,
-    expensesCount: Int,
-    incomeCount: Int,
-    recurringCount: Int,
-    budgetCount: Int = 0,
+    categoriesCount: Int,
     netWorth: Double,
     isBalanced: Boolean,
     languageMode: LanguageMode
 ) {
+    val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
+    val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
+
+    val lastSyncFormatted = remember(backupConfig.lastSyncTimestamp, languageMode) {
+        if (backupConfig.lastSyncTimestamp == 0L) {
+            if (languageMode == LanguageMode.BANGLA) "কখনও নয়" else "Never"
+        } else {
+            val diff = System.currentTimeMillis() - backupConfig.lastSyncTimestamp
+            if (diff < 60_000L) {
+                if (languageMode == LanguageMode.BANGLA) "এইমাত্র" else "Just now"
+            } else {
+                com.example.util.DateUtils.formatDate(backupConfig.lastSyncTimestamp, languageMode)
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // Drawer Header with Theme Color
+        // Drawer Header with Theme Color and Gold Coin Taka Emblem
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1195,12 +1179,32 @@ private fun DrawerContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = LanguageHelper.getString("app_name", languageMode),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFFFFD700),
+                            shadowElevation = 2.dp,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "৳",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF4A3800)
+                                )
+                            }
+                        }
+                        Text(
+                            text = LanguageHelper.getString("app_name", languageMode),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    }
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = Color.White.copy(alpha = 0.2f)
@@ -1251,52 +1255,7 @@ private fun DrawerContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Text(
-            text = "MAIN VIEWS & STATS",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-        )
-
-        // 1. Main Dashboard
-        DrawerItemRow(
-            title = LanguageHelper.getString("main", languageMode),
-            icon = Icons.Default.Dashboard,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.DASHBOARD,
-            onClick = { onSelectView(AppView.DASHBOARD) }
-        )
-
-        // 2. Transactions
-        DrawerItemRow(
-            title = LanguageHelper.getString("transactions", languageMode),
-            icon = Icons.AutoMirrored.Filled.ReceiptLong,
-            iconTint = SolidTransfer,
-            isSelected = currentView == AppView.LEDGER,
-            onClick = { onSelectView(AppView.LEDGER) }
-        )
-
-        // 3. Payment Source Requirement Analysis
-        DrawerItemRow(
-            title = LanguageHelper.getString("payment_source", languageMode),
-            icon = Icons.Default.Payments,
-            iconTint = SolidTransfer,
-            isSelected = currentView == AppView.PAYMENT_SOURCE,
-            onClick = { onSelectView(AppView.PAYMENT_SOURCE) }
-        )
-
-        // 4. Balance Sheet (Stats)
-        DrawerItemRow(
-            title = LanguageHelper.getString("balance_sheet", languageMode),
-            icon = Icons.Default.AccountBalance,
-            iconTint = MaterialTheme.colorScheme.primary,
-            badge = "$accountsCount",
-            isSelected = currentView == AppView.BALANCE_SHEET,
-            onClick = { onSelectView(AppView.BALANCE_SHEET) }
-        )
-
-        // 4. Accounts (Create & Manage)
+        // 1. Accounts
         DrawerItemRow(
             title = LanguageHelper.getString("accounts", languageMode),
             icon = Icons.Default.AccountBalanceWallet,
@@ -1306,73 +1265,17 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.ACCOUNTS) }
         )
 
-        // 5. Budget (Stats & Tracking)
-        DrawerItemRow(
-            title = LanguageHelper.getString("budget", languageMode),
-            icon = Icons.Default.ShoppingBag,
-            iconTint = MaterialTheme.colorScheme.primary,
-            badge = if (budgetCount > 0) "$budgetCount" else null,
-            isSelected = currentView == AppView.BUDGET,
-            onClick = { onSelectView(AppView.BUDGET) }
-        )
-
-        // 6. Categories (Create & Manage)
+        // 2. Categories
         DrawerItemRow(
             title = LanguageHelper.getString("categories", languageMode),
             icon = Icons.Default.Category,
             iconTint = SolidExpense,
-            badge = "${expensesCount + incomeCount}",
+            badge = "$categoriesCount",
             isSelected = currentView == AppView.CATEGORIES,
             onClick = { onSelectView(AppView.CATEGORIES) }
         )
 
-        // 7. Net Earnings (Reports & Stats)
-        DrawerItemRow(
-            title = LanguageHelper.getString("net_earnings", languageMode),
-            icon = Icons.Default.Assignment,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.REPORTS,
-            onClick = { onSelectView(AppView.REPORTS) }
-        )
-
-        // 8. Labels
-        DrawerItemRow(
-            title = LanguageHelper.getString("labels", languageMode),
-            icon = Icons.Default.Tag,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.LABELS,
-            onClick = { onSelectView(AppView.LABELS) }
-        )
-
-        // 9. Items Summary
-        DrawerItemRow(
-            title = LanguageHelper.getString("items_summary", languageMode),
-            icon = Icons.Default.Bookmark,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.ITEMS_SUMMARY,
-            onClick = { onSelectView(AppView.ITEMS_SUMMARY) }
-        )
-
-        // 10. Reminders
-        DrawerItemRow(
-            title = LanguageHelper.getString("reminders", languageMode),
-            icon = Icons.Default.Alarm,
-            iconTint = MaterialTheme.colorScheme.primary,
-            badge = "$recurringCount",
-            isSelected = currentView == AppView.RECURRING_BILLS,
-            onClick = { onSelectView(AppView.RECURRING_BILLS) }
-        )
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
-
-        Text(
-            text = "MANAGEMENT & QUICK TOOLS",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-        )
-
+        // 3. Budget Maker
         DrawerItemRow(
             title = LanguageHelper.getString("budget_maker", languageMode),
             icon = Icons.Default.Calculate,
@@ -1381,83 +1284,16 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.BUDGET_MAKER) }
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
-
-        // DEMO MODE ENVIRONMENT CONTROL
-        val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = if (isDemoMode) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Demo Mode",
-                            tint = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ডেমো মোড (নমুনা ডাটা)" else "Demo Mode (Sample Data)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (isDemoMode) "Active (Real data isolated)" else "Off (Using real database)",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    }
-                    androidx.compose.material3.Switch(
-                        checked = isDemoMode,
-                        onCheckedChange = { viewModel.setDemoMode(it) }
-                    )
-                }
-
-                if (isDemoMode) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    androidx.compose.material3.OutlinedButton(
-                        onClick = { viewModel.resetDemoData() },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা পুনরায় লোড করুন" else "Reset Sample Demo Data",
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "PREFERENCES & TOOLS",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        // 4. Payment Source
+        DrawerItemRow(
+            title = LanguageHelper.getString("payment_source", languageMode),
+            icon = Icons.Default.Payments,
+            iconTint = SolidTransfer,
+            isSelected = currentView == AppView.PAYMENT_SOURCE,
+            onClick = { onSelectView(AppView.PAYMENT_SOURCE) }
         )
 
-        // Settings
+        // 5. Settings
         DrawerItemRow(
             title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
             icon = Icons.Default.Settings,
@@ -1466,61 +1302,9 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.SETTINGS) }
         )
 
-        // TAB CUSTOMIZATION (TOP / BOTTOM & TAB TOGGLES)
-        DrawerItemRow(
-            title = LanguageHelper.getString("tab_customization", languageMode),
-            icon = Icons.Default.ViewCarousel,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = false,
-            onClick = onOpenTabCustomizer
-        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
 
-        // DASHBOARD CARDS CUSTOMIZATION
-        DrawerItemRow(
-            title = LanguageHelper.getString("customize_cards", languageMode),
-            icon = Icons.Default.DashboardCustomize,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = false,
-            onClick = onOpenDashboardCustomizer
-        )
-
-        // Backup, Restore & Sync
-        DrawerItemRow(
-            title = "Backup, Restore & Sync",
-            icon = Icons.Default.CloudSync,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.BACKUP_SYNC,
-            onClick = { onSelectView(AppView.BACKUP_SYNC) }
-        )
-
-        // Autofill Settings
-        DrawerItemRow(
-            title = LanguageHelper.getString("autofill_settings", languageMode),
-            icon = Icons.Default.AutoAwesome,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = false,
-            onClick = onOpenAutofillSettings
-        )
-
-        // Theme & Font Settings
-        DrawerItemRow(
-            title = "Theme & Typography",
-            icon = Icons.Default.Palette,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = false,
-            onClick = onOpenThemeFontSettings
-        )
-
-        // Calculator
-        DrawerItemRow(
-            title = "Popup Calculator",
-            icon = Icons.Default.Calculate,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = false,
-            onClick = onOpenCalculator
-        )
-
-        // Quick Sync
+        // 6. Quick Sync (with last timestamp)
         NavigationDrawerItem(
             label = {
                 Row(
@@ -1528,7 +1312,17 @@ private fun DrawerContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Quick JSON Sync")
+                    Column {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কুইক সিঙ্ক" else "Quick Sync",
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Last: $lastSyncFormatted",
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
                     Icon(
                         Icons.Default.Sync,
                         contentDescription = "Sync",
@@ -1544,38 +1338,14 @@ private fun DrawerContent(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
         )
 
-        // Language Switcher
-        NavigationDrawerItem(
-            label = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = LanguageHelper.getString("language", languageMode))
-                    Text(
-                        text = when (languageMode) {
-                            LanguageMode.ENGLISH -> "EN"
-                            LanguageMode.BANGLA -> "বাং"
-                            LanguageMode.BILINGUAL -> "Both"
-                        },
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            icon = { Icon(Icons.Default.Translate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            selected = false,
-            onClick = {
-                val nextMode = when (languageMode) {
-                    LanguageMode.ENGLISH -> LanguageMode.BANGLA
-                    LanguageMode.BANGLA -> LanguageMode.BILINGUAL
-                    LanguageMode.BILINGUAL -> LanguageMode.ENGLISH
-                }
-                viewModel.setLanguageMode(nextMode)
-            },
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+        // 7. Trash
+        DrawerItemRow(
+            title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash",
+            icon = Icons.Default.DeleteOutline,
+            iconTint = if (trashedItems.isNotEmpty()) SolidExpense else MaterialTheme.colorScheme.outline,
+            badge = if (trashedItems.isNotEmpty()) "${trashedItems.size}" else null,
+            isSelected = currentView == AppView.TRASH,
+            onClick = { onSelectView(AppView.TRASH) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -1851,6 +1621,11 @@ private fun ScreenRouter(
             onOpenThemeFontSettings = onOpenThemeFontSettings,
             onOpenAutofillSettings = onOpenAutofillSettings
         )
+        AppView.TRASH -> TrashScreen(
+            viewModel = viewModel,
+            languageMode = languageMode,
+            onBack = { onNavigate(AppView.DASHBOARD) }
+        )
     }
 }
 
@@ -1872,5 +1647,6 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
         AppView.BACKUP_SYNC -> "Backup, Restore & Sync"
         AppView.SETTINGS -> LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" }
+        AppView.TRASH -> if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash & Recycle Bin"
     }
 }

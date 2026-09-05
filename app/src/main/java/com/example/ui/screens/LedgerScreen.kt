@@ -1936,11 +1936,8 @@ private fun TransactionRowItem(
 
             val accountLine = if (accountDisplay.isNotBlank()) {
                 if (accountBalance != null) {
-                    val balStr = if (accountBalance < 0) {
-                        "-${LanguageHelper.formatCurrency(kotlin.math.abs(accountBalance), languageMode)}"
-                    } else {
-                        LanguageHelper.formatCurrency(accountBalance, languageMode)
-                    }
+                    val balSign = if (accountBalance >= 0) "+" else "−"
+                    val balStr = "$balSign${LanguageHelper.formatCurrency(kotlin.math.abs(accountBalance), languageMode)}"
                     "$accountDisplay  $balStr"
                 } else {
                     accountDisplay

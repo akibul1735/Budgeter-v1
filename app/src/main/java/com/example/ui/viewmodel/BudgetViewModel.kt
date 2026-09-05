@@ -6,13 +6,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
 import com.example.data.model.Account
+import com.example.data.model.AccountType
 import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
+import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.BudgetRepository
@@ -85,12 +88,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val dashboardPrefs: DashboardPreferences = DashboardPreferences.getInstance(application)
     private val currencyPrefs: CurrencyPreferences = CurrencyPreferences.getInstance(application)
     private val displayFormatPrefs: DisplayFormatPreferences = DisplayFormatPreferences.getInstance(application)
+    private val trashManager: com.example.util.TrashManager = com.example.util.TrashManager.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
     val dashboardConfig: StateFlow<DashboardConfig> = dashboardPrefs.config
     val currencyConfig: StateFlow<CurrencyConfig> = currencyPrefs.config
     val displayFormatConfig: StateFlow<DisplayFormatConfig> = displayFormatPrefs.config
+    val trashedItems: StateFlow<List<com.example.util.TrashedItem>> = trashManager.trashedItems
 
     fun setItemDisplayFormat(format: ItemDisplayFormat) {
         displayFormatPrefs.setItemDisplayFormat(format)
@@ -535,6 +540,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
+            trashManager.addTransaction(transaction)
             activeRepo.deleteTransaction(transaction)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
@@ -544,6 +550,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteTransactions(transactions: List<Transaction>) {
         viewModelScope.launch {
+            transactions.forEach { trashManager.addTransaction(it) }
             activeRepo.deleteTransactions(transactions)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
@@ -577,6 +584,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteAccount(account: Account) {
         viewModelScope.launch {
+            trashManager.addAccount(account)
             activeRepo.deleteAccount(account)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
@@ -586,6 +594,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteAccounts(accounts: List<Account>) {
         viewModelScope.launch {
+            accounts.forEach { trashManager.addAccount(it) }
             activeRepo.deleteAccounts(accounts)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
@@ -619,6 +628,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
+            trashManager.addCategory(category)
             activeRepo.deleteCategory(category)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
@@ -628,11 +638,72 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteCategories(categories: List<Category>) {
         viewModelScope.launch {
+            categories.forEach { trashManager.addCategory(it) }
             activeRepo.deleteCategories(categories)
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
             }
         }
+    }
+
+    fun restoreTrashedItem(item: com.example.util.TrashedItem) {
+        viewModelScope.launch {
+            try {
+                when (item.type) {
+                    com.example.util.TrashItemType.TRANSACTION -> {
+                        val json = org.json.JSONObject(item.rawJsonData)
+                        val tx = Transaction(
+                            id = 0L,
+                            type = TransactionType.valueOf(json.optString("type", TransactionType.EXPENSE.name)),
+                            amount = json.optDouble("amount", 0.0),
+                            dateEpochMs = json.optLong("dateEpochMs", System.currentTimeMillis()),
+                            note = json.optString("note", ""),
+                            payeeOrPayer = json.optString("payeeOrPayer", ""),
+                            debitAccountId = if (json.has("debitAccountId") && !json.isNull("debitAccountId")) json.getLong("debitAccountId") else null,
+                            creditAccountId = if (json.has("creditAccountId") && !json.isNull("creditAccountId")) json.getLong("creditAccountId") else null,
+                            categoryId = if (json.has("categoryId") && !json.isNull("categoryId")) json.getLong("categoryId") else null
+                        )
+                        activeRepo.insertTransaction(tx)
+                    }
+                    com.example.util.TrashItemType.ACCOUNT -> {
+                        val json = org.json.JSONObject(item.rawJsonData)
+                        val acc = Account(
+                            id = 0L,
+                            nameEn = json.optString("nameEn", item.title),
+                            nameBn = json.optString("nameBn", ""),
+                            type = AccountType.valueOf(json.optString("type", AccountType.ASSET.name)),
+                            parentId = if (json.has("parentId") && !json.isNull("parentId")) json.getLong("parentId") else null
+                        )
+                        activeRepo.insertAccount(acc)
+                    }
+                    com.example.util.TrashItemType.CATEGORY -> {
+                        val json = org.json.JSONObject(item.rawJsonData)
+                        val cat = Category(
+                            id = 0L,
+                            nameEn = json.optString("nameEn", item.title),
+                            nameBn = json.optString("nameBn", ""),
+                            type = CategoryType.valueOf(json.optString("type", CategoryType.EXPENSE.name)),
+                            parentId = if (json.has("parentId") && !json.isNull("parentId")) json.getLong("parentId") else null
+                        )
+                        activeRepo.insertCategory(cat)
+                    }
+                }
+                trashManager.removeItem(item.id)
+                if (!_isDemoMode.value) {
+                    SyncManager.triggerInstantJsonSync(getApplication())
+                }
+            } catch (e: Exception) {
+                // If restore fails silently log
+            }
+        }
+    }
+
+    fun deleteTrashedItemPermanently(item: com.example.util.TrashedItem) {
+        trashManager.removeItem(item.id)
+    }
+
+    fun emptyTrash() {
+        trashManager.clearAll()
     }
 
     fun saveRecurringBill(bill: RecurringBill) {
