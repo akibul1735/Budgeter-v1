@@ -201,7 +201,13 @@ fun LedgerScreen(
     var showBatchDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     val accountBalanceMap: Map<Long, Double> = remember(accountsWithBalances) {
-        accountsWithBalances.associate { it.account.id to it.currentBalance }
+        val map = mutableMapOf<Long, Double>()
+        fun addAcc(awb: AccountWithBalance) {
+            map[awb.account.id] = awb.currentBalance
+            awb.subAccounts.forEach { addAcc(it) }
+        }
+        accountsWithBalances.forEach { addAcc(it) }
+        map
     }
 
     // Compute Date Bounds
@@ -832,36 +838,118 @@ fun LedgerScreen(
                                     val tx = item.transaction
                                     val isSelected = selectedTransactionIds.contains(tx.id)
 
-                                    TransactionRowItem(
-                                        item = item,
-                                        languageMode = languageMode,
-                                        rowStyle = rowStyle,
-                                        isSelected = isSelected,
-                                        isSelectionMode = isSelectionMode,
-                                        accountBalance = when (tx.type) {
+                                    if (tx.type == TransactionType.TRANSFER) {
+                                        val showSourceLeg = selectedAccountIdFilter == null || tx.creditAccountId == selectedAccountIdFilter
+                                        val showDestLeg = selectedAccountIdFilter == null || tx.debitAccountId == selectedAccountIdFilter
+                                        val transferTitle = if (tx.payeeOrPayer.isNotBlank()) tx.payeeOrPayer else (item.debitAccount?.localizedName(languageMode) ?: LanguageHelper.getString("transfer", languageMode))
+
+                                        if (showSourceLeg) {
+                                            val srcAccountName = item.creditAccount?.localizedName(languageMode) ?: "Source"
+                                            val srcBalance = tx.creditAccountId?.let { accountBalanceMap[it] }
+
+                                            TransactionRowItem(
+                                                item = item,
+                                                languageMode = languageMode,
+                                                rowStyle = rowStyle,
+                                                isSelected = isSelected,
+                                                isSelectionMode = isSelectionMode,
+                                                accountName = srcAccountName,
+                                                accountBalance = srcBalance,
+                                                overrideTitle = transferTitle,
+                                                overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
+                                                overrideSign = "−",
+                                                overrideAmtColor = SolidExpense,
+                                                onClick = {
+                                                    if (isSelectionMode) {
+                                                        selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
+                                                    } else {
+                                                        onTransactionClick(tx)
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
+                                                }
+                                            )
+                                        }
+
+                                        if (showSourceLeg && showDestLeg) {
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(start = 56.dp, end = 12.dp),
+                                                thickness = 0.5.dp,
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                            )
+                                        }
+
+                                        if (showDestLeg) {
+                                            val destAccountName = item.debitAccount?.localizedName(languageMode) ?: "Dest"
+                                            val destBalance = tx.debitAccountId?.let { accountBalanceMap[it] }
+
+                                            TransactionRowItem(
+                                                item = item,
+                                                languageMode = languageMode,
+                                                rowStyle = rowStyle,
+                                                isSelected = isSelected,
+                                                isSelectionMode = isSelectionMode,
+                                                accountName = destAccountName,
+                                                accountBalance = destBalance,
+                                                overrideTitle = transferTitle,
+                                                overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
+                                                overrideSign = "+",
+                                                overrideAmtColor = SolidIncome,
+                                                onClick = {
+                                                    if (isSelectionMode) {
+                                                        selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
+                                                    } else {
+                                                        onTransactionClick(tx)
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
+                                                }
+                                            )
+                                        }
+                                    } else {
+                                        val accName = when (tx.type) {
+                                            TransactionType.EXPENSE -> item.creditAccount?.localizedName(languageMode) ?: ""
+                                            TransactionType.INCOME -> item.debitAccount?.localizedName(languageMode) ?: ""
+                                            else -> ""
+                                        }
+                                        val accBalance = when (tx.type) {
                                             TransactionType.EXPENSE -> tx.creditAccountId?.let { accountBalanceMap[it] }
                                             TransactionType.INCOME -> tx.debitAccountId?.let { accountBalanceMap[it] }
-                                            TransactionType.TRANSFER -> tx.debitAccountId?.let { accountBalanceMap[it] }
-                                        },
-                                        onClick = {
-                                            if (isSelectionMode) {
+                                            else -> null
+                                        }
+
+                                        TransactionRowItem(
+                                            item = item,
+                                            languageMode = languageMode,
+                                            rowStyle = rowStyle,
+                                            isSelected = isSelected,
+                                            isSelectionMode = isSelectionMode,
+                                            accountName = accName,
+                                            accountBalance = accBalance,
+                                            overrideSign = if (tx.type == TransactionType.EXPENSE) "−" else "+",
+                                            overrideAmtColor = if (tx.type == TransactionType.EXPENSE) SolidExpense else SolidIncome,
+                                            onClick = {
+                                                if (isSelectionMode) {
+                                                    selectedTransactionIds = if (isSelected) {
+                                                        selectedTransactionIds - tx.id
+                                                    } else {
+                                                        selectedTransactionIds + tx.id
+                                                    }
+                                                } else {
+                                                    onTransactionClick(tx)
+                                                }
+                                            },
+                                            onLongClick = {
                                                 selectedTransactionIds = if (isSelected) {
                                                     selectedTransactionIds - tx.id
                                                 } else {
                                                     selectedTransactionIds + tx.id
                                                 }
-                                            } else {
-                                                onTransactionClick(tx)
                                             }
-                                        },
-                                        onLongClick = {
-                                            selectedTransactionIds = if (isSelected) {
-                                                selectedTransactionIds - tx.id
-                                            } else {
-                                                selectedTransactionIds + tx.id
-                                            }
-                                        }
-                                    )
+                                        )
+                                    }
 
                                     if (index < dayTxList.size - 1) {
                                         HorizontalDivider(
@@ -1576,7 +1664,12 @@ private fun TransactionRowItem(
     rowStyle: LedgerRowStyle = LedgerRowStyle.STANDARD,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    accountBalance: Double?,
+    accountName: String? = null,
+    accountBalance: Double? = null,
+    overrideTitle: String? = null,
+    overrideSubtitle: String? = null,
+    overrideSign: String? = null,
+    overrideAmtColor: Color? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
@@ -1593,7 +1686,7 @@ private fun TransactionRowItem(
         TransactionType.TRANSFER -> SolidPrimaryContainer
     }
 
-    val primaryTitle = if (tx.payeeOrPayer.isNotBlank()) {
+    val primaryTitle = overrideTitle ?: if (tx.payeeOrPayer.isNotBlank()) {
         tx.payeeOrPayer
     } else {
         when (tx.type) {
@@ -1607,7 +1700,7 @@ private fun TransactionRowItem(
         }
     }
 
-    val subTitle = when (tx.type) {
+    val subTitle = overrideSubtitle ?: when (tx.type) {
         TransactionType.EXPENSE -> {
             val cat = item.category?.localizedName(languageMode) ?: ""
             val sub = item.subCategory?.localizedName(languageMode)
@@ -1621,7 +1714,7 @@ private fun TransactionRowItem(
         TransactionType.TRANSFER -> LanguageHelper.getString("transfer", languageMode)
     }
 
-    val accountDisplay = when (tx.type) {
+    val accountDisplay = accountName ?: when (tx.type) {
         TransactionType.EXPENSE -> item.creditAccount?.localizedName(languageMode) ?: ""
         TransactionType.INCOME -> item.debitAccount?.localizedName(languageMode) ?: ""
         TransactionType.TRANSFER -> {
@@ -1641,13 +1734,13 @@ private fun TransactionRowItem(
         TransactionType.INCOME -> tx.amount < 0
         TransactionType.TRANSFER -> false
     }
-    val sign = when {
+    val sign = overrideSign ?: when {
         tx.type == TransactionType.TRANSFER -> ""
         isPositiveEffect -> "+"
-        isNegativeEffect -> "-"
+        isNegativeEffect -> "−"
         else -> ""
     }
-    val amtColor = when {
+    val amtColor = overrideAmtColor ?: when {
         tx.type == TransactionType.TRANSFER -> SolidTransfer
         isPositiveEffect -> SolidIncome
         else -> SolidExpense
@@ -1841,11 +1934,18 @@ private fun TransactionRowItem(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            val accountLine = if (accountBalance != null && tx.type != TransactionType.TRANSFER) {
-                "$accountDisplay  ${LanguageHelper.formatCurrency(accountBalance, languageMode)}"
-            } else {
-                accountDisplay
-            }
+            val accountLine = if (accountDisplay.isNotBlank()) {
+                if (accountBalance != null) {
+                    val balStr = if (accountBalance < 0) {
+                        "-${LanguageHelper.formatCurrency(kotlin.math.abs(accountBalance), languageMode)}"
+                    } else {
+                        LanguageHelper.formatCurrency(accountBalance, languageMode)
+                    }
+                    "$accountDisplay  $balStr"
+                } else {
+                    accountDisplay
+                }
+            } else ""
 
             if (accountLine.isNotBlank()) {
                 Text(
