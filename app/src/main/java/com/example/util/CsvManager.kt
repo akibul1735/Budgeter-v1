@@ -151,6 +151,17 @@ object CsvManager {
         "H:mm"
     )
 
+    internal fun cleanCategoryGroupName(group: String): String {
+        var cleaned = group.trim()
+        val prefixes = listOf("➤", "►", "•", "→", ">", "★", "▪", "■", "✔", "▶")
+        for (prefix in prefixes) {
+            if (cleaned.startsWith(prefix)) {
+                cleaned = cleaned.removePrefix(prefix).trim()
+            }
+        }
+        return if (cleaned.isNotEmpty()) cleaned else group.trim()
+    }
+
     /**
      * Parses the CSV file for preview before committing to database
      */
@@ -213,12 +224,20 @@ object CsvManager {
                 if (isDup) duplicateCount++
                 parsedRows.add(finalRow)
 
-                // Track new Category Groups & Categories
-                if (row.categoryGroup.isNotBlank() && !existingCatNames.contains(row.categoryGroup.lowercase().trim())) {
-                    newCatGroups.add(row.categoryGroup.trim())
-                }
-                if (row.category.isNotBlank() && !existingCatNames.contains(row.category.lowercase().trim())) {
-                    newCats.add(Pair(row.categoryGroup.trim(), row.category.trim()))
+                val cleanedCatGroup = cleanCategoryGroupName(row.categoryGroup)
+                val isTransferCat = row.category.equals("(Transfer)", ignoreCase = true) ||
+                        row.category.equals("Transfer", ignoreCase = true) ||
+                        cleanedCatGroup.equals("(Transfer)", ignoreCase = true) ||
+                        cleanedCatGroup.equals("Transfer", ignoreCase = true)
+
+                // Track new Category Groups & Categories (skip Transfer markers)
+                if (!isTransferCat && row.type != TransactionType.TRANSFER) {
+                    if (cleanedCatGroup.isNotBlank() && !existingCatNames.contains(cleanedCatGroup.lowercase())) {
+                        newCatGroups.add(cleanedCatGroup)
+                    }
+                    if (row.category.isNotBlank() && !existingCatNames.contains(row.category.lowercase().trim())) {
+                        newCats.add(Pair(cleanedCatGroup, row.category.trim()))
+                    }
                 }
 
                 // Track new Account Groups & Accounts
@@ -326,7 +345,16 @@ object CsvManager {
             var createdAccCount = 0
             var skippedDupCount = 0
 
-            val transactionsToInsert = mutableListOf<Transaction>()
+            // Helper container for two-pass transfer pairing
+            data class ResolvedImportItem(
+                val row: ParsedCsvRow,
+                val resolvedAccount: Account,
+                val resolvedCategory: Category?,
+                val isOutflow: Boolean,
+                var isProcessed: Boolean = false
+            )
+
+            val resolvedItems = mutableListOf<ResolvedImportItem>()
 
             for ((index, line) in dataLines.withIndex()) {
                 val tokens = parseCsvLine(line)
@@ -335,7 +363,7 @@ object CsvManager {
                 val row = parseRowFromTokens(tokens, headerMap, index + headerIndex + 2)
                 if (!row.isValid || row.amount <= 0.0) continue
 
-                // Check duplicate
+                // Check duplicate against DB
                 val isDup = existingTransactions.any { existing ->
                     existing.type == row.type &&
                             Math.abs(existing.amount - row.amount) < 0.01 &&
@@ -349,32 +377,32 @@ object CsvManager {
 
                 // 1. Resolve Account & Account Group
                 var resolvedAccount = defaultAccount
-                val isLiability = row.accountClass.lowercase().contains("liabilit") ||
-                        row.accountClass.lowercase().contains("loan") ||
-                        row.accountClass.lowercase().contains("credit") ||
-                        row.accountClass.lowercase().contains("debt") ||
-                        row.accountGroup.lowercase().contains("loan") ||
-                        row.accountGroup.lowercase().contains("credit") ||
-                        row.accountGroup.lowercase().contains("debt") ||
-                        row.account.lowercase().contains("loan") ||
-                        row.account.lowercase().contains("credit") ||
-                        row.account.lowercase().contains("debt")
+                val accClass = row.accountClass.lowercase()
+                val accGrp = row.accountGroup.lowercase()
+                val accNm = row.account.lowercase()
+                val isLiability = accClass.contains("liabilit") || accClass.contains("loan") ||
+                        accClass.contains("credit") || accClass.contains("debt") || accClass.contains("payable") ||
+                        accGrp.contains("liabilit") || accGrp.contains("loan") || accGrp.contains("credit") ||
+                        accGrp.contains("debt") || accGrp.contains("payable") ||
+                        accNm.contains("loan") || accNm.contains("credit") || accNm.contains("debt") || accNm.contains("payable")
                 val accType = if (isLiability) AccountType.LIABILITY else AccountType.ASSET
 
-                if (row.account.isNotBlank() && autoCreateEntities) {
-                    // Check if parent account group exists
+                val targetAccName = row.account.trim().ifEmpty { row.accountGroup.trim() }
+                val targetAccGroupName = row.accountGroup.trim()
+
+                if (targetAccName.isNotBlank() && autoCreateEntities) {
                     var parentAccId: Long? = null
-                    if (row.accountGroup.isNotBlank()) {
+                    if (targetAccGroupName.isNotBlank() && !targetAccGroupName.equals(targetAccName, ignoreCase = true)) {
                         val parent = accounts.find {
                             it.parentId == null &&
-                                    (it.nameEn.equals(row.accountGroup, ignoreCase = true) || it.nameBn.equals(row.accountGroup, ignoreCase = true))
+                                    (it.nameEn.equals(targetAccGroupName, ignoreCase = true) || it.nameBn.equals(targetAccGroupName, ignoreCase = true))
                         }
                         if (parent != null) {
                             parentAccId = parent.id
                         } else {
                             val newParent = Account(
-                                nameEn = row.accountGroup,
-                                nameBn = row.accountGroup,
+                                nameEn = targetAccGroupName,
+                                nameBn = targetAccGroupName,
                                 type = accType,
                                 parentId = null,
                                 iconName = if (isLiability) "CreditCard" else "AccountBalance",
@@ -388,9 +416,8 @@ object CsvManager {
                         }
                     }
 
-                    // Check if child account exists
                     val existingAcc = accounts.find {
-                        (it.nameEn.equals(row.account, ignoreCase = true) || it.nameBn.equals(row.account, ignoreCase = true)) &&
+                        (it.nameEn.equals(targetAccName, ignoreCase = true) || it.nameBn.equals(targetAccName, ignoreCase = true)) &&
                                 (parentAccId == null || it.parentId == parentAccId || it.parentId == null)
                     }
 
@@ -398,8 +425,8 @@ object CsvManager {
                         resolvedAccount = existingAcc
                     } else {
                         val newAcc = Account(
-                            nameEn = row.account,
-                            nameBn = row.account,
+                            nameEn = targetAccName,
+                            nameBn = targetAccName,
                             type = accType,
                             parentId = parentAccId,
                             iconName = if (isLiability) "CreditCard" else "AccountBalance",
@@ -411,35 +438,36 @@ object CsvManager {
                         resolvedAccount = savedAcc
                         createdAccCount++
                     }
-                } else if (row.account.isNotBlank()) {
+                } else if (targetAccName.isNotBlank()) {
                     resolvedAccount = accounts.find {
-                        it.nameEn.equals(row.account, ignoreCase = true) || it.nameBn.equals(row.account, ignoreCase = true)
+                        it.nameEn.equals(targetAccName, ignoreCase = true) || it.nameBn.equals(targetAccName, ignoreCase = true)
                     } ?: defaultAccount
                 }
 
                 // 2. Resolve Category & Category Group
                 val isTransfer = row.type == TransactionType.TRANSFER
+                val cleanedCatGroup = cleanCategoryGroupName(row.categoryGroup)
                 val isTransferCategory = row.category.equals("(Transfer)", ignoreCase = true) ||
                         row.category.equals("Transfer", ignoreCase = true) ||
-                        row.categoryGroup.equals("(Transfer)", ignoreCase = true) ||
-                        row.categoryGroup.equals("Transfer", ignoreCase = true)
+                        cleanedCatGroup.equals("(Transfer)", ignoreCase = true) ||
+                        cleanedCatGroup.equals("Transfer", ignoreCase = true)
 
                 var resolvedCategory: Category? = if (row.type == TransactionType.INCOME) defaultIncomeCat else defaultExpenseCat
                 if (!isTransfer && !isTransferCategory && row.category.isNotBlank() && autoCreateEntities) {
                     var parentCatId: Long? = null
                     val catType = if (row.type == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
 
-                    if (row.categoryGroup.isNotBlank()) {
+                    if (cleanedCatGroup.isNotBlank() && !cleanedCatGroup.equals(row.category.trim(), ignoreCase = true)) {
                         val parent = categories.find {
                             it.parentId == null && it.type == catType &&
-                                    (it.nameEn.equals(row.categoryGroup, ignoreCase = true) || it.nameBn.equals(row.categoryGroup, ignoreCase = true))
+                                    (it.nameEn.equals(cleanedCatGroup, ignoreCase = true) || it.nameBn.equals(cleanedCatGroup, ignoreCase = true))
                         }
                         if (parent != null) {
                             parentCatId = parent.id
                         } else {
                             val newParent = Category(
-                                nameEn = row.categoryGroup,
-                                nameBn = row.categoryGroup,
+                                nameEn = cleanedCatGroup,
+                                nameBn = cleanedCatGroup,
                                 type = catType,
                                 parentId = null,
                                 iconName = "Category",
@@ -463,8 +491,8 @@ object CsvManager {
                         resolvedCategory = existingCat
                     } else {
                         val newCat = Category(
-                            nameEn = row.category,
-                            nameBn = row.category,
+                            nameEn = row.category.trim(),
+                            nameBn = row.category.trim(),
                             type = catType,
                             parentId = parentCatId,
                             iconName = "Category",
@@ -484,105 +512,153 @@ object CsvManager {
                     resolvedCategory = null
                 }
 
-                // 3. Resolve Transfers / Double Entry
                 val rawAmt = parseAmount(row.rawAmount)
                 val isOutflow = rawAmt < 0 || row.rawAmount.contains("(") || row.type == TransactionType.EXPENSE
-                var sourceAcc: Account? = null
-                var destAcc: Account? = null
 
-                if (isTransfer) {
-                    if (isOutflow) {
-                        sourceAcc = resolvedAccount
-                        if (row.name.isNotBlank() && !isTransferCategory) {
-                            val counter = accounts.find {
-                                it.nameEn.equals(row.name, ignoreCase = true) || it.nameBn.equals(row.name, ignoreCase = true)
-                            }
-                            if (counter != null) {
-                                destAcc = counter
-                            } else if (autoCreateEntities) {
-                                val counterLiability = row.name.lowercase().contains("credit") || row.name.lowercase().contains("loan") || row.name.lowercase().contains("debt") || isLiability
-                                val newCounter = Account(
-                                    nameEn = row.name,
-                                    nameBn = row.name,
-                                    type = if (counterLiability) AccountType.LIABILITY else AccountType.ASSET,
-                                    parentId = resolvedAccount.parentId,
-                                    iconName = if (counterLiability) "CreditCard" else "AccountBalance",
-                                    colorHex = if (counterLiability) "#EF4444" else "#1E56A0"
-                                )
-                                val newCounterId = accountDao.insertAccount(newCounter)
-                                val savedCounter = newCounter.copy(id = newCounterId)
-                                accounts.add(savedCounter)
-                                createdAccCount++
-                                destAcc = savedCounter
-                            }
-                        }
-                    } else {
-                        destAcc = resolvedAccount
-                        if (row.name.isNotBlank() && !isTransferCategory) {
-                            val counter = accounts.find {
-                                it.nameEn.equals(row.name, ignoreCase = true) || it.nameBn.equals(row.name, ignoreCase = true)
-                            }
-                            if (counter != null) {
-                                sourceAcc = counter
-                            } else if (autoCreateEntities) {
-                                val counterLiability = row.name.lowercase().contains("credit") || row.name.lowercase().contains("loan") || row.name.lowercase().contains("debt") || isLiability
-                                val newCounter = Account(
-                                    nameEn = row.name,
-                                    nameBn = row.name,
-                                    type = if (counterLiability) AccountType.LIABILITY else AccountType.ASSET,
-                                    parentId = resolvedAccount.parentId,
-                                    iconName = if (counterLiability) "CreditCard" else "AccountBalance",
-                                    colorHex = if (counterLiability) "#EF4444" else "#1E56A0"
-                                )
-                                val newCounterId = accountDao.insertAccount(newCounter)
-                                val savedCounter = newCounter.copy(id = newCounterId)
-                                accounts.add(savedCounter)
-                                createdAccCount++
-                                sourceAcc = savedCounter
-                            }
-                        }
-                    }
-                }
-
-                // 4. Format Notes & Payee
-                val combinedNotes = buildString {
-                    if (row.notes.isNotBlank()) append(row.notes)
-                    if (row.labels.isNotBlank()) {
-                        if (isNotEmpty()) append(" • ")
-                        append("[Labels: ${row.labels}]")
-                    }
-                }
-
-                val statusEnum = when {
-                    row.status.lowercase().contains("reconciled") -> TransactionStatus.RECONCILED
-                    row.status.lowercase().contains("cleared") -> TransactionStatus.CLEARED
-                    row.status.lowercase().contains("void") -> TransactionStatus.VOID
-                    else -> TransactionStatus.NONE
-                }
-
-                val tx = Transaction(
-                    type = row.type,
-                    amount = row.amount,
-                    dateEpochMs = row.dateEpochMs,
-                    debitAccountId = when {
-                        isTransfer -> destAcc?.id
-                        row.type == TransactionType.EXPENSE -> null
-                        else -> resolvedAccount.id
-                    },
-                    creditAccountId = when {
-                        isTransfer -> sourceAcc?.id
-                        row.type == TransactionType.EXPENSE -> resolvedAccount.id
-                        else -> null
-                    },
-                    categoryId = resolvedCategory?.id,
-                    payeeOrPayer = row.name.ifEmpty { if (isTransfer) "Transfer" else "Imported" },
-                    note = combinedNotes.ifEmpty { "Imported from CSV" },
-                    status = statusEnum
+                resolvedItems.add(
+                    ResolvedImportItem(
+                        row = row,
+                        resolvedAccount = resolvedAccount,
+                        resolvedCategory = resolvedCategory,
+                        isOutflow = isOutflow
+                    )
                 )
+            }
 
-                transactionsToInsert.add(tx)
-                existingTransactions.add(tx)
-                importedCount++
+            // 3. Assemble and merge transactions
+            val transactionsToInsert = mutableListOf<Transaction>()
+
+            fun formatNotes(r: ParsedCsvRow): String = buildString {
+                if (r.notes.isNotBlank()) append(r.notes)
+                if (r.labels.isNotBlank()) {
+                    if (isNotEmpty()) append(" • ")
+                    append("[Labels: ${r.labels}]")
+                }
+            }
+
+            fun parseStatusEnum(statusStr: String): TransactionStatus = when {
+                statusStr.lowercase().contains("reconciled") -> TransactionStatus.RECONCILED
+                statusStr.lowercase().contains("cleared") -> TransactionStatus.CLEARED
+                statusStr.lowercase().contains("void") -> TransactionStatus.VOID
+                else -> TransactionStatus.NONE
+            }
+
+            for (i in 0 until resolvedItems.size) {
+                val itemA = resolvedItems[i]
+                if (itemA.isProcessed) continue
+
+                if (itemA.row.type == TransactionType.TRANSFER) {
+                    // Try to find a matching paired transfer in the batch
+                    var pairedIndex = -1
+                    for (j in (i + 1) until resolvedItems.size) {
+                        val itemB = resolvedItems[j]
+                        if (!itemB.isProcessed && itemB.row.type == TransactionType.TRANSFER) {
+                            val sameAmount = Math.abs(itemA.row.amount - itemB.row.amount) < 0.01
+                            val closeTime = Math.abs(itemA.row.dateEpochMs - itemB.row.dateEpochMs) <= 60000L
+                            val oppositeFlow = itemA.isOutflow != itemB.isOutflow
+                            val differentAccs = itemA.resolvedAccount.id != itemB.resolvedAccount.id
+
+                            if (sameAmount && closeTime && oppositeFlow && differentAccs) {
+                                pairedIndex = j
+                                break
+                            }
+                        }
+                    }
+
+                    if (pairedIndex != -1) {
+                        val itemB = resolvedItems[pairedIndex]
+                        val outflowItem = if (itemA.isOutflow) itemA else itemB
+                        val inflowItem = if (itemA.isOutflow) itemB else itemA
+
+                        val combinedName = when {
+                            outflowItem.row.name.isNotBlank() && !outflowItem.row.name.equals("Transfer", ignoreCase = true) -> outflowItem.row.name
+                            inflowItem.row.name.isNotBlank() && !inflowItem.row.name.equals("Transfer", ignoreCase = true) -> inflowItem.row.name
+                            else -> "Transfer"
+                        }
+
+                        val notesA = formatNotes(outflowItem.row)
+                        val notesB = formatNotes(inflowItem.row)
+                        val combinedNotes = when {
+                            notesA.isNotBlank() && notesB.isNotBlank() && notesA != notesB -> "$notesA • $notesB"
+                            notesA.isNotBlank() -> notesA
+                            notesB.isNotBlank() -> notesB
+                            else -> "Imported Transfer"
+                        }
+
+                        val stStr = if (outflowItem.row.status.isNotBlank()) outflowItem.row.status else inflowItem.row.status
+
+                        val tx = Transaction(
+                            type = TransactionType.TRANSFER,
+                            amount = outflowItem.row.amount,
+                            dateEpochMs = outflowItem.row.dateEpochMs,
+                            debitAccountId = inflowItem.resolvedAccount.id, // Destination account
+                            creditAccountId = outflowItem.resolvedAccount.id, // Source account
+                            categoryId = null,
+                            payeeOrPayer = combinedName,
+                            note = combinedNotes,
+                            status = parseStatusEnum(stStr)
+                        )
+                        transactionsToInsert.add(tx)
+                        existingTransactions.add(tx)
+                        importedCount++
+
+                        itemA.isProcessed = true
+                        itemB.isProcessed = true
+                    } else {
+                        // Unpaired standalone transfer row
+                        var sourceAcc: Account? = null
+                        var destAcc: Account? = null
+
+                        if (itemA.isOutflow) {
+                            sourceAcc = itemA.resolvedAccount
+                            if (itemA.row.name.isNotBlank()) {
+                                destAcc = accounts.find {
+                                    it.nameEn.equals(itemA.row.name, ignoreCase = true) || it.nameBn.equals(itemA.row.name, ignoreCase = true)
+                                }
+                            }
+                        } else {
+                            destAcc = itemA.resolvedAccount
+                            if (itemA.row.name.isNotBlank()) {
+                                sourceAcc = accounts.find {
+                                    it.nameEn.equals(itemA.row.name, ignoreCase = true) || it.nameBn.equals(itemA.row.name, ignoreCase = true)
+                                }
+                            }
+                        }
+
+                        val tx = Transaction(
+                            type = TransactionType.TRANSFER,
+                            amount = itemA.row.amount,
+                            dateEpochMs = itemA.row.dateEpochMs,
+                            debitAccountId = destAcc?.id,
+                            creditAccountId = sourceAcc?.id,
+                            categoryId = null,
+                            payeeOrPayer = itemA.row.name.ifEmpty { "Transfer" },
+                            note = formatNotes(itemA.row).ifEmpty { "Imported Transfer" },
+                            status = parseStatusEnum(itemA.row.status)
+                        )
+                        transactionsToInsert.add(tx)
+                        existingTransactions.add(tx)
+                        importedCount++
+                        itemA.isProcessed = true
+                    }
+                } else {
+                    // Non-transfer: EXPENSE or INCOME
+                    val tx = Transaction(
+                        type = itemA.row.type,
+                        amount = itemA.row.amount,
+                        dateEpochMs = itemA.row.dateEpochMs,
+                        debitAccountId = if (itemA.row.type == TransactionType.INCOME) itemA.resolvedAccount.id else null,
+                        creditAccountId = if (itemA.row.type == TransactionType.EXPENSE) itemA.resolvedAccount.id else null,
+                        categoryId = itemA.resolvedCategory?.id,
+                        payeeOrPayer = itemA.row.name.ifEmpty { if (itemA.row.type == TransactionType.INCOME) "Income" else "Expense" },
+                        note = formatNotes(itemA.row).ifEmpty { "Imported from CSV" },
+                        status = parseStatusEnum(itemA.row.status)
+                    )
+                    transactionsToInsert.add(tx)
+                    existingTransactions.add(tx)
+                    importedCount++
+                    itemA.isProcessed = true
+                }
             }
 
             if (transactionsToInsert.isNotEmpty()) {

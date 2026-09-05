@@ -50,7 +50,9 @@ jobs:
             chmod +x gradlew
           else
             gradle wrapper --gradle-version 9.3.1 || true
-            chmod +x gradlew || true
+            if [ -f "gradlew" ]; then
+              chmod +x gradlew
+            fi
           fi
 
       - name: Setup Environment & Secrets
@@ -79,7 +81,12 @@ jobs:
           fi
 
       - name: Run Unit & Robolectric Tests
-        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+        run: |
+          if [ -f "./gradlew" ]; then
+            ./gradlew testDebugUnitTest --no-daemon --stacktrace
+          else
+            gradle testDebugUnitTest --no-daemon --stacktrace
+          fi
 
       - name: Build Release APK
         env:
@@ -88,7 +95,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'budgeter' }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
         run: |
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleRelease --no-daemon --stacktrace
+          else
+            gradle assembleRelease --no-daemon --stacktrace
+          fi
 
       - name: Prepare Release Artifacts (APK)
         id: prepare-artifacts
