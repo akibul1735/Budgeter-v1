@@ -621,6 +621,22 @@ class BudgetRepository(
         )
     }
 
+    suspend fun getAllTransactionsWithDetailsSnapshot(): List<TransactionWithDetails> {
+        val txs = transactionDao.getAllTransactionsSnapshot()
+        val accounts = accountDao.getAllAccountsSnapshot().associateBy { it.id }
+        val categories = categoryDao.getAllCategoriesSnapshot().associateBy { it.id }
+
+        return txs.map { tx ->
+            TransactionWithDetails(
+                transaction = tx,
+                debitAccount = tx.debitAccountId?.let { accounts[it] },
+                creditAccount = tx.creditAccountId?.let { accounts[it] },
+                category = tx.categoryId?.let { categories[it] },
+                subCategory = tx.subCategoryId?.let { categories[it] }
+            )
+        }
+    }
+
     suspend fun resetDatabaseToDefaults() {
         transactionDao.deleteAll()
         recurringBillDao.deleteAll()

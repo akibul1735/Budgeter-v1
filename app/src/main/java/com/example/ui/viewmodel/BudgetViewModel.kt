@@ -32,6 +32,10 @@ import com.example.util.AutofillPreferences
 import com.example.util.BackupManager
 import com.example.util.BackupPreferences
 import com.example.util.BackupSettingsConfig
+import com.example.util.CsvExportConfig
+import com.example.util.CsvImportPreview
+import com.example.util.CsvImportResult
+import com.example.util.CsvManager
 import com.example.util.CurrencyConfig
 import com.example.util.CurrencyDisplayMode
 import com.example.util.CurrencyItem
@@ -920,24 +924,116 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setAutoSyncData(enabled: Boolean) = backupPrefs.setAutoSyncData(enabled)
     fun setWifiOnly(enabled: Boolean) = backupPrefs.setWifiOnly(enabled)
 
-    // Data Import: CSV (Excel)
-    fun importFromCsv(uri: Uri) {
+    // Data Import: CSV (Excel) & QIF
+    private val _csvImportPreview = MutableStateFlow<CsvImportPreview?>(null)
+    val csvImportPreview: StateFlow<CsvImportPreview?> = _csvImportPreview.asStateFlow()
+
+    private val _isImportingCsv = MutableStateFlow(false)
+    val isImportingCsv: StateFlow<Boolean> = _isImportingCsv.asStateFlow()
+
+    private val _pendingCsvUri = MutableStateFlow<Uri?>(null)
+    val pendingCsvUri: StateFlow<Uri?> = _pendingCsvUri.asStateFlow()
+
+    fun prepareCsvImport(uri: Uri) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
-            val result = DataImportHelper.importCsv(
+            _pendingCsvUri.value = uri
+            val result = CsvManager.parseCsvForPreview(
                 context = getApplication(),
                 uri = uri,
                 accountDao = activeRepo.accountDao,
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao
             )
-            result.onSuccess { count ->
-                _backupUiState.value = BackupUiState.Success("Successfully imported $count transactions from CSV")
+            result.onSuccess { preview ->
+                _backupUiState.value = BackupUiState.Idle
+                _csvImportPreview.value = preview
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("CSV Parsing failed: ${err.localizedMessage}")
+                _pendingCsvUri.value = null
+            }
+        }
+    }
+
+    fun confirmCsvImport(skipDuplicates: Boolean, autoCreateEntities: Boolean) {
+        val uri = _pendingCsvUri.value ?: return
+        viewModelScope.launch {
+            _isImportingCsv.value = true
+            _backupUiState.value = BackupUiState.Loading
+            val result = CsvManager.executeImport(
+                context = getApplication(),
+                uri = uri,
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                skipDuplicates = skipDuplicates,
+                autoCreateEntities = autoCreateEntities
+            )
+            _isImportingCsv.value = false
+            _csvImportPreview.value = null
+            _pendingCsvUri.value = null
+
+            result.onSuccess { res ->
+                val msg = buildString {
+                    append("Successfully imported ${res.importedCount} transactions")
+                    if (res.createdCategoriesCount > 0) append(", created ${res.createdCategoriesCount} categories")
+                    if (res.createdAccountsCount > 0) append(", created ${res.createdAccountsCount} accounts")
+                    if (res.skippedDuplicatesCount > 0) append(" (${res.skippedDuplicatesCount} duplicates skipped)")
+                }
+                _backupUiState.value = BackupUiState.Success(msg)
+                if (!_isDemoMode.value) {
+                    SyncManager.triggerInstantJsonSync(getApplication())
+                }
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("CSV Import failed: ${err.localizedMessage}")
             }
         }
     }
+
+    fun clearCsvImportPreview() {
+        _csvImportPreview.value = null
+        _pendingCsvUri.value = null
+    }
+
+    fun exportCsvToUri(uri: Uri, config: CsvExportConfig) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val allTxs = activeRepo.getAllTransactionsWithDetailsSnapshot()
+            val success = CsvManager.exportCsvToUri(
+                context = getApplication(),
+                uri = uri,
+                transactions = allTxs,
+                config = config,
+                currencyCode = currencyConfig.value.activeCode
+            )
+            if (success) {
+                _backupUiState.value = BackupUiState.Success("CSV file exported successfully to storage")
+            } else {
+                _backupUiState.value = BackupUiState.Error("CSV Export failed")
+            }
+        }
+    }
+
+    fun exportAndShareCsv(config: CsvExportConfig, onShareReady: (Uri) -> Unit) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val allTxs = activeRepo.getAllTransactionsWithDetailsSnapshot()
+            val shareUri = CsvManager.exportCsvToCacheAndGetShareUri(
+                context = getApplication(),
+                transactions = allTxs,
+                config = config,
+                currencyCode = currencyConfig.value.activeCode
+            )
+            if (shareUri != null) {
+                _backupUiState.value = BackupUiState.Idle
+                onShareReady(shareUri)
+            } else {
+                _backupUiState.value = BackupUiState.Error("Failed to prepare CSV for sharing")
+            }
+        }
+    }
+
+    fun importFromCsv(uri: Uri) = prepareCsvImport(uri)
 
     // Data Import: QIF
     fun importFromQif(uri: Uri) {

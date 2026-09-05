@@ -99,6 +99,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.components.CsvExportDialog
+import com.example.ui.components.CsvImportPreviewDialog
 import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -106,6 +108,7 @@ import com.example.ui.theme.SolidPrimary
 import com.example.ui.viewmodel.BackupUiState
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.BackupManager
+import com.example.util.CsvExportConfig
 import com.example.util.DriveBackupLocation
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
@@ -129,11 +132,19 @@ fun BackupSyncSettingsScreen(
     val signedInAccount by viewModel.signedInGoogleAccount.collectAsStateWithLifecycle()
     val driveBackups by viewModel.driveBackups.collectAsStateWithLifecycle()
 
+    val csvImportPreview by viewModel.csvImportPreview.collectAsStateWithLifecycle()
+    val isImportingCsv by viewModel.isImportingCsv.collectAsStateWithLifecycle()
+    val transactionsWithDetails by viewModel.transactionsWithDetails.collectAsStateWithLifecycle()
+    val allAccounts by viewModel.allAccounts.collectAsStateWithLifecycle()
+    val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
+
     var localBackups by remember { mutableStateOf<List<File>>(emptyList()) }
     var showProviderDialog by remember { mutableStateOf(false) }
     var showDirectoryDialog by remember { mutableStateOf(false) }
     var showDriveRestoreDialog by remember { mutableStateOf(false) }
     var showResetConfirmationDialog by remember { mutableStateOf(false) }
+    var showCsvExportDialog by remember { mutableStateOf(false) }
+    var pendingCsvExportConfig by remember { mutableStateOf<CsvExportConfig?>(null) }
     var restoreConfirmDriveFile by remember { mutableStateOf<GoogleDriveBackupFile?>(null) }
     var deleteConfirmDriveFile by remember { mutableStateOf<GoogleDriveBackupFile?>(null) }
 
@@ -188,6 +199,16 @@ fun BackupSyncSettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let { viewModel.importFromQif(it) }
+    }
+
+    val csvExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        uri?.let { destUri ->
+            pendingCsvExportConfig?.let { config ->
+                viewModel.exportCsvToUri(destUri, config)
+            }
+        }
     }
 
     val isLoading = backupUiState is BackupUiState.Loading
@@ -798,10 +819,10 @@ fun BackupSyncSettingsScreen(
         }
 
         // ==========================================
-        // 4. DATA IMPORT & RESET
+        // 4. DATA IMPORT & EXPORT
         // ==========================================
         item {
-            SettingsSectionHeader(title = "4. DATA IMPORT & RESET")
+            SettingsSectionHeader(title = if (languageMode == LanguageMode.BANGLA) "৪. ডেটা ইম্পোর্ট, এক্সপোর্ট ও রিসেট" else "4. DATA IMPORT, EXPORT & RESET")
         }
 
         item {
@@ -815,8 +836,8 @@ fun BackupSyncSettingsScreen(
                     SettingsListTile(
                         icon = Icons.Default.TableChart,
                         iconTint = SolidIncome,
-                        title = "Import from Excel (.csv)",
-                        subtitle = "Load transactions and categories from Excel or CSV spreadsheet",
+                        title = if (languageMode == LanguageMode.BANGLA) "CSV / এক্সেল থেকে ইম্পোর্ট" else "Import from Excel / CSV",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন, ক্যাটাগরি ও অ্যাকাউন্ট স্বয়ংক্রিয় প্রিভিউ সহ লোড করুন" else "Smart CSV import with auto-group creation and duplicate detection",
                         trailingContent = {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
@@ -826,7 +847,28 @@ fun BackupSyncSettingsScreen(
                             )
                         },
                         onClick = {
-                            csvFileLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "application/csv", "*/*"))
+                            csvFileLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "application/csv", "text/plain", "*/*"))
+                        }
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                    // Export to CSV
+                    SettingsListTile(
+                        icon = Icons.Default.FileDownload,
+                        iconTint = SolidPrimary,
+                        title = if (languageMode == LanguageMode.BANGLA) "CSV তে এক্সপোর্ট (কাস্টম ফিল্টার)" else "Export Transactions (Custom CSV)",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "সময়সীমা, ধরন ও কলাম নির্বাচন করে এক্সপোর্ট বা শেয়ার করুন" else "Select custom date range, transaction types, accounts, and columns",
+                        trailingContent = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
+                        onClick = {
+                            showCsvExportDialog = true
                         }
                     )
 
@@ -835,7 +877,7 @@ fun BackupSyncSettingsScreen(
                     // Import from QIF format
                     SettingsListTile(
                         icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                        iconTint = SolidPrimary,
+                        iconTint = MaterialTheme.colorScheme.primary,
                         title = "Import from QIF format",
                         subtitle = "Quicken Interchange Format (.qif) for bank exports",
                         trailingContent = {
@@ -1168,6 +1210,52 @@ fun BackupSyncSettingsScreen(
                 showResetConfirmationDialog = false
             },
             onDismiss = { showResetConfirmationDialog = false }
+        )
+    }
+
+    // 7. CSV Import Preview Dialog (Smart Import with duplicate check & auto-creation)
+    csvImportPreview?.let { preview ->
+        CsvImportPreviewDialog(
+            preview = preview,
+            languageMode = languageMode,
+            isImporting = isImportingCsv,
+            onConfirmImport = { skipDuplicates, autoCreateEntities ->
+                viewModel.confirmCsvImport(
+                    skipDuplicates = skipDuplicates,
+                    autoCreateEntities = autoCreateEntities
+                )
+            },
+            onDismiss = {
+                viewModel.clearCsvImportPreview()
+            }
+        )
+    }
+
+    // 8. CSV Export Configuration Dialog (Select range, types, columns & export/share)
+    if (showCsvExportDialog) {
+        CsvExportDialog(
+            allTransactions = transactionsWithDetails,
+            allAccounts = allAccounts,
+            allCategories = allCategories,
+            languageMode = languageMode,
+            onSaveToFile = { config ->
+                pendingCsvExportConfig = config
+                val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                csvExportLauncher.launch("Budgeter_Export_$dateStr.csv")
+                showCsvExportDialog = false
+            },
+            onShareCsv = { config ->
+                viewModel.exportAndShareCsv(config) { shareUri ->
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/csv"
+                        putExtra(Intent.EXTRA_STREAM, shareUri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(sendIntent, "Share CSV Export"))
+                }
+                showCsvExportDialog = false
+            },
+            onDismiss = { showCsvExportDialog = false }
         )
     }
 }
