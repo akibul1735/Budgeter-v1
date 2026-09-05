@@ -211,6 +211,7 @@ fun PaymentSourceScreen(
     }
 
     Scaffold(
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             if (onSaveCategoryAllocations != null) {
                 FloatingActionButton(

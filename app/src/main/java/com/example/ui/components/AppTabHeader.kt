@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,7 +29,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun AppTabHeader(
     title: String,
-    onOpenDrawer: () -> Unit,
+    onOpenDrawer: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     testTag: String = "app_tab_header",
     actions: @Composable (RowScope.() -> Unit)? = null
@@ -46,17 +48,32 @@ fun AppTabHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f, fill = false)
         ) {
-            IconButton(
-                onClick = onOpenDrawer,
-                modifier = Modifier
-                    .size(40.dp)
-                    .testTag("menu_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Open Navigation Menu",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+            if (onBack != null) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag("back_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            } else {
+                IconButton(
+                    onClick = onOpenDrawer,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .testTag("menu_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Open Navigation Menu",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
 
             Surface(

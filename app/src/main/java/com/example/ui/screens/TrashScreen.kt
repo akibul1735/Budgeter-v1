@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -87,143 +88,119 @@ fun TrashScreen(
         else trashedItems.filter { it.type == selectedFilter }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash & Recycle Bin",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "${trashedItems.size} টি মুছে ফেলা আইটেম" else "${trashedItems.size} deleted items",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    if (trashedItems.isNotEmpty()) {
-                        TextButton(
-                            onClick = { showEmptyTrashDialog = true },
-                            colors = ButtonDefaults.textButtonColors(contentColor = SolidExpense)
-                        ) {
-                            Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সব খালি করুন" else "Empty Trash",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .testTag("trash_screen")
-        ) {
-            // Filter chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = selectedFilter == null,
-                    onClick = { selectedFilter = null },
-                    label = { Text("All (${trashedItems.size})", fontSize = 11.sp) },
-                    shape = RoundedCornerShape(8.dp)
-                )
-                val txCount = trashedItems.count { it.type == TrashItemType.TRANSACTION }
-                FilterChip(
-                    selected = selectedFilter == TrashItemType.TRANSACTION,
-                    onClick = { selectedFilter = TrashItemType.TRANSACTION },
-                    label = { Text("Transactions ($txCount)", fontSize = 11.sp) },
-                    shape = RoundedCornerShape(8.dp)
-                )
-                val accCount = trashedItems.count { it.type == TrashItemType.ACCOUNT }
-                FilterChip(
-                    selected = selectedFilter == TrashItemType.ACCOUNT,
-                    onClick = { selectedFilter = TrashItemType.ACCOUNT },
-                    label = { Text("Accounts ($accCount)", fontSize = 11.sp) },
-                    shape = RoundedCornerShape(8.dp)
-                )
-            }
-
-            if (filteredItems.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp)
+            .testTag("trash_screen")
+    ) {
+        AppTabHeader(
+            title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash & Recycle Bin",
+            onBack = onBack,
+            actions = {
+                if (trashedItems.isNotEmpty()) {
+                    TextButton(
+                        onClick = { showEmptyTrashDialog = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = SolidExpense)
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(80.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteOutline,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(40.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ খালি" else "Trash is empty",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA)
-                                "মুছে ফেলা লেনদেন বা অ্যাকাউন্ট এখানে জমা থাকবে এবং পুনরুদ্ধার করা যাবে।"
-                            else
-                                "Deleted transactions and accounts will appear here and can be restored anytime.",
+                            text = if (languageMode == LanguageMode.BANGLA) "সব খালি করুন" else "Empty Trash",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+            }
+        )
+
+        // Filter chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedFilter == null,
+                onClick = { selectedFilter = null },
+                label = { Text("All (${trashedItems.size})", fontSize = 11.sp) },
+                shape = RoundedCornerShape(8.dp)
+            )
+            val txCount = trashedItems.count { it.type == TrashItemType.TRANSACTION }
+            FilterChip(
+                selected = selectedFilter == TrashItemType.TRANSACTION,
+                onClick = { selectedFilter = TrashItemType.TRANSACTION },
+                label = { Text("Transactions ($txCount)", fontSize = 11.sp) },
+                shape = RoundedCornerShape(8.dp)
+            )
+            val accCount = trashedItems.count { it.type == TrashItemType.ACCOUNT }
+            FilterChip(
+                selected = selectedFilter == TrashItemType.ACCOUNT,
+                onClick = { selectedFilter = TrashItemType.ACCOUNT },
+                label = { Text("Accounts ($accCount)", fontSize = 11.sp) },
+                shape = RoundedCornerShape(8.dp)
+            )
+        }
+
+        if (filteredItems.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    items(filteredItems, key = { it.id }) { item ->
-                        TrashItemCard(
-                            item = item,
-                            languageMode = languageMode,
-                            onRestore = { viewModel.restoreTrashedItem(item) },
-                            onDeletePermanently = { itemToDeletePermanently = item }
-                        )
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(80.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ খালি" else "Trash is empty",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "মুছে ফেলা লেনদেন বা অ্যাকাউন্ট এখানে জমা থাকবে এবং পুনরুদ্ধার করা যাবে।"
+                        else
+                            "Deleted transactions and accounts will appear here and can be restored anytime.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(filteredItems, key = { it.id }) { item ->
+                    TrashItemCard(
+                        item = item,
+                        languageMode = languageMode,
+                        onRestore = { viewModel.restoreTrashedItem(item) },
+                        onDeletePermanently = { itemToDeletePermanently = item }
+                    )
                 }
             }
         }

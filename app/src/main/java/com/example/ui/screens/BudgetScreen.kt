@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -108,6 +109,7 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -171,6 +173,8 @@ fun BudgetScreen(
     selectedMonth: Int,
     languageMode: LanguageMode,
     initialTab: Int = 0,
+    onOpenDrawer: () -> Unit = {},
+    onBack: () -> Unit = {},
     onEditTransaction: (Transaction) -> Unit,
     onAddTransactionWithCategory: (Category) -> Unit,
     onAddTransactionWithAccount: (Account) -> Unit
@@ -211,10 +215,26 @@ fun BudgetScreen(
         allAccounts.filter { it.parentId == null }.associateBy { it.id }
     }
 
+    val parentExpenseCatIdsWithChildren = remember(allCategories) {
+        allCategories.filter { it.type == CategoryType.EXPENSE && it.parentId != null }.mapNotNull { it.parentId }.toSet()
+    }
+    val parentIncomeCatIdsWithChildren = remember(allCategories) {
+        allCategories.filter { it.type == CategoryType.INCOME && it.parentId != null }.mapNotNull { it.parentId }.toSet()
+    }
+    val parentAssetAccIdsWithChildren = remember(allAccounts) {
+        allAccounts.filter { it.type == AccountType.ASSET && it.parentId != null }.mapNotNull { it.parentId }.toSet()
+    }
+    val parentLiabilityAccIdsWithChildren = remember(allAccounts) {
+        allAccounts.filter { it.type == AccountType.LIABILITY && it.parentId != null }.mapNotNull { it.parentId }.toSet()
+    }
+
     // 1. EXPENSES
-    val expenseItems = remember(allCategories, parentCatMap) {
-        allCategories.filter { it.type == CategoryType.EXPENSE && it.parentId != null }.map { cat ->
-            val group = parentCatMap[cat.parentId]?.nameEn ?: "Others"
+    val expenseItems = remember(allCategories, parentCatMap, parentExpenseCatIdsWithChildren) {
+        allCategories.filter {
+            it.type == CategoryType.EXPENSE && it.isActive &&
+            (it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id))
+        }.map { cat ->
+            val group = if (cat.parentId != null) parentCatMap[cat.parentId]?.nameEn ?: "Expenses" else "General Expenses"
             BudgetTargetItem(
                 id = cat.id,
                 nameEn = cat.nameEn,
@@ -229,9 +249,12 @@ fun BudgetScreen(
     }
 
     // 2. INCOMES
-    val incomeItems = remember(allCategories, parentCatMap) {
-        allCategories.filter { it.type == CategoryType.INCOME && it.parentId != null }.map { cat ->
-            val group = parentCatMap[cat.parentId]?.nameEn ?: "Others"
+    val incomeItems = remember(allCategories, parentCatMap, parentIncomeCatIdsWithChildren) {
+        allCategories.filter {
+            it.type == CategoryType.INCOME && it.isActive &&
+            (it.parentId != null || !parentIncomeCatIdsWithChildren.contains(it.id))
+        }.map { cat ->
+            val group = if (cat.parentId != null) parentCatMap[cat.parentId]?.nameEn ?: "Incomes" else "General Incomes"
             BudgetTargetItem(
                 id = cat.id,
                 nameEn = cat.nameEn,
@@ -246,9 +269,12 @@ fun BudgetScreen(
     }
 
     // 3. ASSETS
-    val assetItems = remember(allAccounts, parentAccMap) {
-        allAccounts.filter { it.type == AccountType.ASSET && it.parentId != null }.map { acc ->
-            val group = parentAccMap[acc.parentId]?.nameEn ?: "Assets"
+    val assetItems = remember(allAccounts, parentAccMap, parentAssetAccIdsWithChildren) {
+        allAccounts.filter {
+            it.type == AccountType.ASSET && it.isActive &&
+            (it.parentId != null || !parentAssetAccIdsWithChildren.contains(it.id))
+        }.map { acc ->
+            val group = if (acc.parentId != null) parentAccMap[acc.parentId]?.nameEn ?: "Accounts" else "Cash & Assets"
             BudgetTargetItem(
                 id = acc.id,
                 nameEn = acc.nameEn,
@@ -263,9 +289,12 @@ fun BudgetScreen(
     }
 
     // 4. LIABILITIES
-    val liabilityItems = remember(allAccounts, parentAccMap) {
-        allAccounts.filter { it.type == AccountType.LIABILITY && it.parentId != null }.map { acc ->
-            val group = parentAccMap[acc.parentId]?.nameEn ?: "Liabilities"
+    val liabilityItems = remember(allAccounts, parentAccMap, parentLiabilityAccIdsWithChildren) {
+        allAccounts.filter {
+            it.type == AccountType.LIABILITY && it.isActive &&
+            (it.parentId != null || !parentLiabilityAccIdsWithChildren.contains(it.id))
+        }.map { acc ->
+            val group = if (acc.parentId != null) parentAccMap[acc.parentId]?.nameEn ?: "Liabilities" else "Loans & Liabilities"
             BudgetTargetItem(
                 id = acc.id,
                 nameEn = acc.nameEn,
@@ -320,6 +349,7 @@ fun BudgetScreen(
     val actualSurplus = totalInflowsActual - totalOutflowsActual
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         floatingActionButton = {
             if (selectedTab in 0..3) {
@@ -401,6 +431,19 @@ fun BudgetScreen(
                 .padding(innerPadding)
                 .testTag("budget_screen")
         ) {
+            AppTabHeader(
+                title = if (languageMode == LanguageMode.BANGLA) "বাজেট মেকার" else "Budget Maker",
+                onOpenDrawer = onOpenDrawer,
+                actions = {
+                    IconButton(onClick = { showHelpDialog = true }) {
+                        Icon(
+                            Icons.Default.HelpOutline,
+                            contentDescription = "Help Guide",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
             when (selectedTab) {
                 0 -> {
                     // EXPENSE TAB

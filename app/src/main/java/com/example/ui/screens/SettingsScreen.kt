@@ -98,6 +98,8 @@ import com.example.util.DisplayFormatConfig
 import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
 
+import com.example.ui.components.AppTabHeader
+
 private val SectionHeaderColor = Color(0xFF4C7B5D)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,63 +133,29 @@ fun SettingsScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
     var showFaqDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFFFFD700),
-                            shadowElevation = 2.dp,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "৳",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF4A3800)
-                                )
-                            }
-                        }
-                        Text(
-                            text = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showFaqDialog = true }) {
-                        Icon(
-                            Icons.Default.HelpOutline,
-                            contentDescription = "Help",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        }
-    ) { innerPadding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp)
+            .testTag("settings_screen")
+    ) {
+        AppTabHeader(
+            title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
+            onBack = onBack,
+            actions = {
+                IconButton(onClick = { showFaqDialog = true }) {
+                    Icon(
+                        Icons.Default.HelpOutline,
+                        contentDescription = "Help",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        )
+
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .testTag("settings_screen"),
-            contentPadding = PaddingValues(bottom = 32.dp)
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
         ) {
             // Group 1: Localization
             item {
