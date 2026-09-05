@@ -103,6 +103,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -119,6 +122,7 @@ import com.example.ui.dialogs.AddEditTransactionSheet
 import com.example.ui.dialogs.AutofillSettingsDialog
 import com.example.ui.dialogs.TabCustomizationDialog
 import com.example.ui.dialogs.ThemeFontSettingsDialog
+import com.example.ui.screens.AppLockScreen
 import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -203,6 +207,37 @@ fun MainAppContainer(
     val selectedBudgetMonth by viewModel.selectedBudgetMonth.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
     val accountCalcConfig by viewModel.accountCalcConfig.collectAsStateWithLifecycle()
+    val isAppLocked by viewModel.isAppLocked.collectAsStateWithLifecycle()
+    val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.onAppForegrounded()
+                Lifecycle.Event.ON_STOP -> viewModel.onAppBackgrounded()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    if (isAppLocked && securityConfig.isAppLockEnabled && securityConfig.hasPin) {
+        AppLockScreen(
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) },
+            onUnlockSuccess = { viewModel.unlockApp() },
+            onResetPinAfterRecovery = { newPin ->
+                viewModel.setSecurityPin(newPin)
+            }
+        )
+        return
+    }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -873,6 +908,8 @@ fun MainAppContainer(
             languageMode = languageMode,
             existingAccount = editingAccount,
             defaultGroupId = presetAccountParentId,
+            securityConfig = securityConfig,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
             onDismiss = { showAddAccountDialog = false },
             onSave = { acc -> viewModel.saveAccount(acc) },
             onDelete = { acc -> viewModel.deleteAccount(acc) }
@@ -887,6 +924,8 @@ fun MainAppContainer(
             existingCategory = editingCategory,
             defaultType = presetCategoryType,
             defaultParentId = presetCategoryParentId,
+            securityConfig = securityConfig,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
             onDismiss = { showAddCategoryDialog = false },
             onSave = { cat -> viewModel.saveCategory(cat) },
             onDelete = { cat -> viewModel.deleteCategory(cat) }

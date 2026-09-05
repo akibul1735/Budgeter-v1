@@ -55,9 +55,12 @@ import com.example.util.DisplayFormatConfig
 import com.example.util.DisplayFormatPreferences
 import com.example.util.ItemDisplayFormat
 import com.example.util.NavigationTabConfig
+import com.example.util.SecurityConfig
+import com.example.util.SecurityPreferences
 import com.example.util.TabPosition
 import com.example.util.TabPreferences
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -89,6 +92,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val currencyPrefs: CurrencyPreferences = CurrencyPreferences.getInstance(application)
     private val displayFormatPrefs: DisplayFormatPreferences = DisplayFormatPreferences.getInstance(application)
     private val trashManager: com.example.util.TrashManager = com.example.util.TrashManager.getInstance(application)
+    private val securityPrefs: SecurityPreferences = SecurityPreferences(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
@@ -96,6 +100,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val currencyConfig: StateFlow<CurrencyConfig> = currencyPrefs.config
     val displayFormatConfig: StateFlow<DisplayFormatConfig> = displayFormatPrefs.config
     val trashedItems: StateFlow<List<com.example.util.TrashedItem>> = trashManager.trashedItems
+    val securityConfig: StateFlow<SecurityConfig> = securityPrefs.config
+
+    private val _isAppLocked = MutableStateFlow(securityPrefs.config.value.isAppLockEnabled && securityPrefs.config.value.hasPin)
+    val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
+    private var lastBackgroundEpochMs: Long = 0L
 
     fun setItemDisplayFormat(format: ItemDisplayFormat) {
         displayFormatPrefs.setItemDisplayFormat(format)
@@ -947,6 +956,70 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 _backupUiState.value = BackupUiState.Error("QIF Import failed: ${err.localizedMessage}")
             }
         }
+    }
+
+    // Security & App Lock
+    fun setAppLockEnabled(enabled: Boolean) {
+        securityPrefs.setAppLockEnabled(enabled)
+        if (!enabled) {
+            _isAppLocked.value = false
+        }
+    }
+
+    fun setSecurityPin(pin: String) {
+        securityPrefs.setPin(pin)
+    }
+
+    fun verifySecurityPin(pin: String): Boolean {
+        return securityPrefs.verifyPin(pin)
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        securityPrefs.setBiometricEnabled(enabled)
+    }
+
+    fun setRequireAuthForGroupDeletion(enabled: Boolean) {
+        securityPrefs.setRequireAuthForGroupDeletion(enabled)
+    }
+
+    fun setLockTimeoutSeconds(seconds: Int) {
+        securityPrefs.setLockTimeoutSeconds(seconds)
+    }
+
+    fun setSecurityRecovery(question: String, answer: String) {
+        securityPrefs.setSecurityRecovery(question, answer)
+    }
+
+    fun verifySecurityAnswer(answer: String): Boolean {
+        return securityPrefs.verifySecurityAnswer(answer)
+    }
+
+    fun unlockApp() {
+        _isAppLocked.value = false
+    }
+
+    fun lockApp() {
+        if (securityConfig.value.isAppLockEnabled && securityConfig.value.hasPin) {
+            _isAppLocked.value = true
+        }
+    }
+
+    fun onAppForegrounded() {
+        val config = securityConfig.value
+        if (config.isAppLockEnabled && config.hasPin) {
+            if (lastBackgroundEpochMs > 0L) {
+                val elapsedSeconds = (System.currentTimeMillis() - lastBackgroundEpochMs) / 1000
+                if (elapsedSeconds >= config.lockTimeoutSeconds) {
+                    _isAppLocked.value = true
+                }
+            } else {
+                _isAppLocked.value = true
+            }
+        }
+    }
+
+    fun onAppBackgrounded() {
+        lastBackgroundEpochMs = System.currentTimeMillis()
     }
 
     // Reset All Data to Initial Defaults

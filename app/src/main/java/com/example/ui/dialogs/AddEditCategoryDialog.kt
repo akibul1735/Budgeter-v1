@@ -63,6 +63,7 @@ import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.SecurityConfig
 
 private val categoryPresetColors = listOf(
     "#EF4444", "#F97316", "#F59E0B", "#10B981", "#06B6D4",
@@ -77,6 +78,8 @@ fun AddEditCategoryDialog(
     existingCategory: Category? = null,
     defaultType: CategoryType = CategoryType.EXPENSE,
     defaultParentId: Long? = null,
+    securityConfig: SecurityConfig = SecurityConfig(),
+    onVerifyPin: ((String) -> Boolean)? = null,
     onDismiss: () -> Unit,
     onSave: (Category) -> Unit,
     onDelete: ((Category) -> Unit)? = null
@@ -495,27 +498,32 @@ fun AddEditCategoryDialog(
     }
 
     if (showDeleteConfirmDialog && existingCategory != null && onDelete != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text(LanguageHelper.getString("delete", languageMode)) },
-            text = { Text("Are you sure you want to delete this category? All associated records may be affected.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onDelete(existingCategory)
-                        showDeleteConfirmDialog = false
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text(LanguageHelper.getString("delete", languageMode))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text(LanguageHelper.getString("cancel", languageMode))
-                }
-            }
-        )
+        val isGroup = existingCategory.parentId == null
+        if (isGroup) {
+            GroupDeletionAuthDialog(
+                groupName = existingCategory.localizedName(languageMode),
+                securityConfig = securityConfig,
+                languageMode = languageMode,
+                onVerifyPin = { onVerifyPin?.invoke(it) ?: true },
+                onConfirm = {
+                    onDelete(existingCategory)
+                    showDeleteConfirmDialog = false
+                    onDismiss()
+                },
+                onDismiss = { showDeleteConfirmDialog = false }
+            )
+        } else {
+            SimpleDeleteConfirmationDialog(
+                itemName = existingCategory.localizedName(languageMode),
+                itemTypeLabel = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
+                languageMode = languageMode,
+                onConfirm = {
+                    onDelete(existingCategory)
+                    showDeleteConfirmDialog = false
+                    onDismiss()
+                },
+                onDismiss = { showDeleteConfirmDialog = false }
+            )
+        }
     }
 }

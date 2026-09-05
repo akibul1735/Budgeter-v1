@@ -67,6 +67,7 @@ import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.SecurityConfig
 
 enum class AccountEntryMode {
     NEW_GROUP,
@@ -81,6 +82,8 @@ fun AddEditAccountGroupOrCategoryDialog(
     existingAccount: Account? = null,
     defaultGroupId: Long? = null,
     defaultType: AccountType = AccountType.ASSET,
+    securityConfig: SecurityConfig = SecurityConfig(),
+    onVerifyPin: ((String) -> Boolean)? = null,
     onDismiss: () -> Unit,
     onSave: (Account) -> Unit,
     onDelete: ((Account) -> Unit)? = null
@@ -522,27 +525,32 @@ fun AddEditAccountGroupOrCategoryDialog(
     }
 
     if (showDeleteConfirmDialog && existingAccount != null && onDelete != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text(LanguageHelper.getString("delete", languageMode)) },
-            text = { Text("Are you sure you want to delete this account? All associated records may be affected.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onDelete(existingAccount)
-                        showDeleteConfirmDialog = false
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text(LanguageHelper.getString("delete", languageMode))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text(LanguageHelper.getString("cancel", languageMode))
-                }
-            }
-        )
+        val isGroup = existingAccount.parentId == null
+        if (isGroup) {
+            GroupDeletionAuthDialog(
+                groupName = existingAccount.localizedName(languageMode),
+                securityConfig = securityConfig,
+                languageMode = languageMode,
+                onVerifyPin = { onVerifyPin?.invoke(it) ?: true },
+                onConfirm = {
+                    onDelete(existingAccount)
+                    showDeleteConfirmDialog = false
+                    onDismiss()
+                },
+                onDismiss = { showDeleteConfirmDialog = false }
+            )
+        } else {
+            SimpleDeleteConfirmationDialog(
+                itemName = existingAccount.localizedName(languageMode),
+                itemTypeLabel = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
+                languageMode = languageMode,
+                onConfirm = {
+                    onDelete(existingAccount)
+                    showDeleteConfirmDialog = false
+                    onDismiss()
+                },
+                onDismiss = { showDeleteConfirmDialog = false }
+            )
+        }
     }
 }

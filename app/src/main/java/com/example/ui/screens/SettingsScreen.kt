@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.dialogs.SecuritySettingsDialog
 import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.FontPreset
 import com.example.ui.theme.SolidExpense
@@ -115,6 +116,7 @@ fun SettingsScreen(
     val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
     val displayFormatConfig by viewModel.displayFormatConfig.collectAsStateWithLifecycle()
     val dashboardConfig by viewModel.dashboardConfig.collectAsStateWithLifecycle()
+    val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
 
     // Dialog States
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -832,31 +834,17 @@ fun SettingsScreen(
 
     // 9. Security Dialog
     if (showSecurityDialog) {
-        AlertDialog(
-            onDismissRequest = { showSecurityDialog = false },
-            title = { Text("Password & Fingerprint", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Enable App Lock (PIN / Biometrics)", fontSize = 13.sp)
-                        Switch(checked = false, onCheckedChange = {})
-                    }
-                    Text(
-                        text = "Secure your financial data with device screen lock or fingerprint authentication.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showSecurityDialog = false }) {
-                    Text("OK")
-                }
-            }
+        SecuritySettingsDialog(
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onDismiss = { showSecurityDialog = false },
+            onSetAppLockEnabled = { viewModel.setAppLockEnabled(it) },
+            onSetPin = { viewModel.setSecurityPin(it) },
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onSetBiometricEnabled = { viewModel.setBiometricEnabled(it) },
+            onSetRequireAuthForGroupDeletion = { viewModel.setRequireAuthForGroupDeletion(it) },
+            onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
+            onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) }
         )
     }
 
