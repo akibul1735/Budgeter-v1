@@ -117,7 +117,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v3.2.{0}', github.run_number) }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v3.6.{0}', github.run_number) }}
           name: "Budgeter-release"
           files: |
             build_output/Budgeter-release.apk
