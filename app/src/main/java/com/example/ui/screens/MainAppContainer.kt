@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -85,6 +87,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -93,6 +96,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -267,8 +271,44 @@ fun MainAppContainer(
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
 
+    val visibleTabs = tabConfig.visibleTabs
+    val isTabInVisibleTabs = visibleTabs.any { it.toAppView() == currentView }
+    val currentTabIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
+
+    val pagerState = rememberPagerState(
+        initialPage = if (currentTabIndex >= 0) currentTabIndex else 0,
+        pageCount = { visibleTabs.size }
+    )
+
+    // Sync pager when currentView changes programmatically
+    LaunchedEffect(currentView, visibleTabs) {
+        val targetIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
+        if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
+            pagerState.animateScrollToPage(targetIndex)
+        }
+    }
+
+    // Sync currentView when user swipes left/right between tabs
+    LaunchedEffect(pagerState, visibleTabs) {
+        snapshotFlow { pagerState.settledPage }.collect { page ->
+            if (page in visibleTabs.indices) {
+                val swipedTab = visibleTabs[page]
+                val swipedView = swipedTab.toAppView()
+                if (isTabInVisibleTabs && currentView != swipedView) {
+                    currentView = swipedView
+                }
+            }
+        }
+    }
+
     val selectView: (AppView) -> Unit = { targetView ->
         if (currentView != targetView) {
+            val tabIndex = visibleTabs.indexOfFirst { it.toAppView() == targetView }
+            if (tabIndex >= 0) {
+                scope.launch {
+                    pagerState.animateScrollToPage(tabIndex)
+                }
+            }
             if (targetView == AppView.DASHBOARD) {
                 viewHistory.clear()
                 viewHistory.add(AppView.DASHBOARD)
@@ -402,103 +442,210 @@ fun MainAppContainer(
                                 .fillMaxSize()
                                 .padding(paddingValues)
                         ) {
-                            ScreenRouter(
-                                currentView = currentView,
-                                viewModel = viewModel,
-                                overview = overview,
-                                accountsWithBalances = accountsWithBalances,
-                                accountCalcConfig = accountCalcConfig,
-                                allAccounts = allAccounts,
-                                allCategories = allCategories,
-                                transactionsWithDetails = transactionsWithDetails,
-                                recurringBills = recurringBills,
-                                languageMode = languageMode,
-                                backupUiState = backupUiState,
-                                monthlyBudgets = monthlyBudgets,
-                                selectedBudgetYear = selectedBudgetYear,
-                                selectedBudgetMonth = selectedBudgetMonth,
-                                isDemoMode = isDemoMode,
-                                onOpenDrawer = { scope.launch { drawerState.open() } },
-                                onExitDemoMode = { viewModel.setDemoMode(false) },
-                                onBack = handleBackPress,
-                                onNavigate = { selectView(it) },
-                                onEditTransaction = { tx ->
-                                    editingTransaction = tx
-                                    showAddTransactionSheet = true
-                                },
-                                onAddTransactionWithType = { type ->
-                                    presetTxType = type
-                                    editingTransaction = null
-                                    showAddTransactionSheet = true
-                                },
-                                onAddTransactionWithCategory = { cat ->
-                                    editingTransaction = null
-                                    presetTxType = if (cat.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME
-                                    showAddTransactionSheet = true
-                                },
-                                onAddTransactionWithAccount = { acc ->
-                                    editingTransaction = null
-                                    presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
-                                    showAddTransactionSheet = true
-                                },
-                                onExecuteTransfer = { fromAcc, toAcc, amt ->
-                                    presetTxType = TransactionType.TRANSFER
-                                    editingTransaction = Transaction(
-                                        type = TransactionType.TRANSFER,
-                                        amount = amt,
-                                        creditAccountId = fromAcc.id,
-                                        debitAccountId = toAcc.id,
-                                        dateEpochMs = System.currentTimeMillis(),
-                                        note = "Payment source fund allocation"
+                            if (isTabInVisibleTabs && visibleTabs.isNotEmpty()) {
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxSize()
+                                ) { page ->
+                                    val pageTab = visibleTabs.getOrNull(page)
+                                    val pageView = pageTab?.toAppView() ?: AppView.DASHBOARD
+                                    ScreenRouter(
+                                        currentView = pageView,
+                                        viewModel = viewModel,
+                                        overview = overview,
+                                        accountsWithBalances = accountsWithBalances,
+                                        accountCalcConfig = accountCalcConfig,
+                                        allAccounts = allAccounts,
+                                        allCategories = allCategories,
+                                        transactionsWithDetails = transactionsWithDetails,
+                                        recurringBills = recurringBills,
+                                        languageMode = languageMode,
+                                        backupUiState = backupUiState,
+                                        monthlyBudgets = monthlyBudgets,
+                                        selectedBudgetYear = selectedBudgetYear,
+                                        selectedBudgetMonth = selectedBudgetMonth,
+                                        isDemoMode = isDemoMode,
+                                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                                        onExitDemoMode = { viewModel.setDemoMode(false) },
+                                        onBack = handleBackPress,
+                                        onNavigate = { selectView(it) },
+                                        onEditTransaction = { tx ->
+                                            editingTransaction = tx
+                                            showAddTransactionSheet = true
+                                        },
+                                        onAddTransactionWithType = { type ->
+                                            presetTxType = type
+                                            editingTransaction = null
+                                            showAddTransactionSheet = true
+                                        },
+                                        onAddTransactionWithCategory = { cat ->
+                                            editingTransaction = null
+                                            presetTxType = if (cat.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME
+                                            showAddTransactionSheet = true
+                                        },
+                                        onAddTransactionWithAccount = { acc ->
+                                            editingTransaction = null
+                                            presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
+                                            showAddTransactionSheet = true
+                                        },
+                                        onExecuteTransfer = { fromAcc, toAcc, amt ->
+                                            presetTxType = TransactionType.TRANSFER
+                                            editingTransaction = Transaction(
+                                                type = TransactionType.TRANSFER,
+                                                amount = amt,
+                                                creditAccountId = fromAcc.id,
+                                                debitAccountId = toAcc.id,
+                                                dateEpochMs = System.currentTimeMillis(),
+                                                note = "Payment source fund allocation"
+                                            )
+                                            showAddTransactionSheet = true
+                                        },
+                                        onAddTransactionWithAccountAndType = { acc, txType ->
+                                            presetTxType = txType
+                                            editingTransaction = if (txType == TransactionType.EXPENSE) {
+                                                Transaction(
+                                                    type = txType,
+                                                    amount = 0.0,
+                                                    creditAccountId = acc.id,
+                                                    dateEpochMs = System.currentTimeMillis()
+                                                )
+                                            } else {
+                                                Transaction(
+                                                    type = txType,
+                                                    amount = 0.0,
+                                                    debitAccountId = acc.id,
+                                                    dateEpochMs = System.currentTimeMillis()
+                                                )
+                                            }
+                                            showAddTransactionSheet = true
+                                        },
+                                        onAddAccount = { parentId ->
+                                            editingAccount = null
+                                            presetAccountParentId = parentId
+                                            showAddAccountDialog = true
+                                        },
+                                        onEditAccount = { acc ->
+                                            editingAccount = acc
+                                            presetAccountParentId = acc.parentId
+                                            showAddAccountDialog = true
+                                        },
+                                        onAddCategory = { type, parentId ->
+                                            editingCategory = null
+                                            presetCategoryType = type
+                                            presetCategoryParentId = parentId
+                                            showAddCategoryDialog = true
+                                        },
+                                        onEditCategory = { cat ->
+                                            editingCategory = cat
+                                            presetCategoryType = cat.type
+                                            presetCategoryParentId = cat.parentId
+                                            showAddCategoryDialog = true
+                                        },
+                                        onOpenTabCustomizer = { showTabCustomizationDialog = true },
+                                        onOpenThemeFontSettings = { showThemeFontSettings = true },
+                                        onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                        dashboardConfig = dashboardConfig
                                     )
-                                    showAddTransactionSheet = true
-                                },
-                                onAddTransactionWithAccountAndType = { acc, txType ->
-                                    presetTxType = txType
-                                    editingTransaction = if (txType == TransactionType.EXPENSE) {
-                                        Transaction(
-                                            type = txType,
-                                            amount = 0.0,
-                                            creditAccountId = acc.id,
-                                            dateEpochMs = System.currentTimeMillis()
+                                }
+                            } else {
+                                ScreenRouter(
+                                    currentView = currentView,
+                                    viewModel = viewModel,
+                                    overview = overview,
+                                    accountsWithBalances = accountsWithBalances,
+                                    accountCalcConfig = accountCalcConfig,
+                                    allAccounts = allAccounts,
+                                    allCategories = allCategories,
+                                    transactionsWithDetails = transactionsWithDetails,
+                                    recurringBills = recurringBills,
+                                    languageMode = languageMode,
+                                    backupUiState = backupUiState,
+                                    monthlyBudgets = monthlyBudgets,
+                                    selectedBudgetYear = selectedBudgetYear,
+                                    selectedBudgetMonth = selectedBudgetMonth,
+                                    isDemoMode = isDemoMode,
+                                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                                    onExitDemoMode = { viewModel.setDemoMode(false) },
+                                    onBack = handleBackPress,
+                                    onNavigate = { selectView(it) },
+                                    onEditTransaction = { tx ->
+                                        editingTransaction = tx
+                                        showAddTransactionSheet = true
+                                    },
+                                    onAddTransactionWithType = { type ->
+                                        presetTxType = type
+                                        editingTransaction = null
+                                        showAddTransactionSheet = true
+                                    },
+                                    onAddTransactionWithCategory = { cat ->
+                                        editingTransaction = null
+                                        presetTxType = if (cat.type == CategoryType.EXPENSE) TransactionType.EXPENSE else TransactionType.INCOME
+                                        showAddTransactionSheet = true
+                                    },
+                                    onAddTransactionWithAccount = { acc ->
+                                        editingTransaction = null
+                                        presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
+                                        showAddTransactionSheet = true
+                                    },
+                                    onExecuteTransfer = { fromAcc, toAcc, amt ->
+                                        presetTxType = TransactionType.TRANSFER
+                                        editingTransaction = Transaction(
+                                            type = TransactionType.TRANSFER,
+                                            amount = amt,
+                                            creditAccountId = fromAcc.id,
+                                            debitAccountId = toAcc.id,
+                                            dateEpochMs = System.currentTimeMillis(),
+                                            note = "Payment source fund allocation"
                                         )
-                                    } else {
-                                        Transaction(
-                                            type = txType,
-                                            amount = 0.0,
-                                            debitAccountId = acc.id,
-                                            dateEpochMs = System.currentTimeMillis()
-                                        )
-                                    }
-                                    showAddTransactionSheet = true
-                                },
-                                onAddAccount = { parentId ->
-                                    editingAccount = null
-                                    presetAccountParentId = parentId
-                                    showAddAccountDialog = true
-                                },
-                                onEditAccount = { acc ->
-                                    editingAccount = acc
-                                    presetAccountParentId = acc.parentId
-                                    showAddAccountDialog = true
-                                },
-                                onAddCategory = { type, parentId ->
-                                    editingCategory = null
-                                    presetCategoryType = type
-                                    presetCategoryParentId = parentId
-                                    showAddCategoryDialog = true
-                                },
-                                onEditCategory = { cat ->
-                                    editingCategory = cat
-                                    presetCategoryType = cat.type
-                                    presetCategoryParentId = cat.parentId
-                                    showAddCategoryDialog = true
-                                },
-                                onOpenTabCustomizer = { showTabCustomizationDialog = true },
-                                onOpenThemeFontSettings = { showThemeFontSettings = true },
-                                onOpenAutofillSettings = { showAutofillSettingsDialog = true },
-                                dashboardConfig = dashboardConfig
-                            )
+                                        showAddTransactionSheet = true
+                                    },
+                                    onAddTransactionWithAccountAndType = { acc, txType ->
+                                        presetTxType = txType
+                                        editingTransaction = if (txType == TransactionType.EXPENSE) {
+                                            Transaction(
+                                                type = txType,
+                                                amount = 0.0,
+                                                creditAccountId = acc.id,
+                                                dateEpochMs = System.currentTimeMillis()
+                                            )
+                                        } else {
+                                            Transaction(
+                                                type = txType,
+                                                amount = 0.0,
+                                                debitAccountId = acc.id,
+                                                dateEpochMs = System.currentTimeMillis()
+                                            )
+                                        }
+                                        showAddTransactionSheet = true
+                                    },
+                                    onAddAccount = { parentId ->
+                                        editingAccount = null
+                                        presetAccountParentId = parentId
+                                        showAddAccountDialog = true
+                                    },
+                                    onEditAccount = { acc ->
+                                        editingAccount = acc
+                                        presetAccountParentId = acc.parentId
+                                        showAddAccountDialog = true
+                                    },
+                                    onAddCategory = { type, parentId ->
+                                        editingCategory = null
+                                        presetCategoryType = type
+                                        presetCategoryParentId = parentId
+                                        showAddCategoryDialog = true
+                                    },
+                                    onEditCategory = { cat ->
+                                        editingCategory = cat
+                                        presetCategoryType = cat.type
+                                        presetCategoryParentId = cat.parentId
+                                        showAddCategoryDialog = true
+                                    },
+                                    onOpenTabCustomizer = { showTabCustomizationDialog = true },
+                                    onOpenThemeFontSettings = { showThemeFontSettings = true },
+                                    onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                    dashboardConfig = dashboardConfig
+                                )
+                            }
                         }
                     }
                 }
@@ -1417,6 +1564,7 @@ private fun ScreenRouter(
                 allAccounts = allAccounts,
                 accountsWithBalances = accountsWithBalances,
                 securityConfig = securityConfig,
+                onOpenDrawer = onOpenDrawer,
                 onVerifyPin = { viewModel.verifySecurityPin(it) },
                 onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
                 onTransactionClick = onEditTransaction,
@@ -1428,6 +1576,7 @@ private fun ScreenRouter(
             accounts = allAccounts,
             transactions = transactionsWithDetails.map { it.transaction },
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onAddAccountClick = { onAddAccount(null) },
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
@@ -1443,6 +1592,7 @@ private fun ScreenRouter(
             selectedYear = selectedBudgetYear,
             selectedMonth = selectedBudgetMonth,
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onPrevMonth = { viewModel.prevBudgetMonth() },
             onNextMonth = { viewModel.nextBudgetMonth() },
             onSetCurrentMonth = {
@@ -1466,6 +1616,7 @@ private fun ScreenRouter(
             selectedYear = selectedBudgetYear,
             selectedMonth = selectedBudgetMonth,
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onNavigateToBudgetMaker = { onNavigate(AppView.BUDGET_MAKER) },
             onAddTransactionWithCategory = onAddTransactionWithCategory,
             onEditTransaction = onEditTransaction
@@ -1487,27 +1638,32 @@ private fun ScreenRouter(
         AppView.REPORTS -> ReportsScreen(
             overview = overview,
             accountsWithBalances = accountsWithBalances,
-            languageMode = languageMode
+            languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer
         )
         AppView.LABELS -> LabelsScreen(
             transactions = transactionsWithDetails,
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onTransactionClick = onEditTransaction
         )
         AppView.ITEMS_SUMMARY -> ItemsScreen(
             transactions = transactionsWithDetails,
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onTransactionClick = onEditTransaction
         )
         AppView.RECURRING_BILLS -> RecurringBillsScreen(
             viewModel = viewModel,
             bills = recurringBills,
-            languageMode = languageMode
+            languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer
         )
         AppView.ACCOUNTS -> AccountsScreen(
             accountsWithBalances = accountsWithBalances,
             accountCalcConfig = accountCalcConfig,
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onAddAccountClick = { onAddAccount(null) },
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
@@ -1537,6 +1693,7 @@ private fun ScreenRouter(
             categories = allCategories,
             languageMode = languageMode,
             initialTab = 0,
+            onOpenDrawer = onOpenDrawer,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory,
@@ -1551,6 +1708,7 @@ private fun ScreenRouter(
             categories = allCategories,
             languageMode = languageMode,
             initialTab = 0,
+            onOpenDrawer = onOpenDrawer,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory,
@@ -1565,6 +1723,7 @@ private fun ScreenRouter(
             categories = allCategories,
             languageMode = languageMode,
             initialTab = 1,
+            onOpenDrawer = onOpenDrawer,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory,

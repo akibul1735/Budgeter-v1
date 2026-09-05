@@ -63,6 +63,7 @@ import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.AccountCalculationDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -76,6 +77,7 @@ fun AccountsScreen(
     accountsWithBalances: List<AccountWithBalance>,
     accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
     languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {},
     onAddAccountClick: () -> Unit,
     onAddSubAccountClick: (Account) -> Unit,
     onEditAccountClick: (Account) -> Unit,
@@ -177,9 +179,17 @@ fun AccountsScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("accounts_screen"),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // --- Tab Header ---
+        item {
+            AppTabHeader(
+                title = LanguageHelper.getString("accounts", languageMode),
+                onOpenDrawer = onOpenDrawer
+            )
+        }
+
         // --- 1. Account Calculation Summary Card (Net Worth & Assets/Liabilities) ---
         item {
             Card(

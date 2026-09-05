@@ -47,6 +47,7 @@ import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.FinancialOverview
+import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidIncomeContainer
@@ -57,7 +58,8 @@ import com.example.util.LanguageHelper
 fun ReportsScreen(
     overview: FinancialOverview,
     accountsWithBalances: List<AccountWithBalance>,
-    languageMode: LanguageMode
+    languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -65,15 +67,14 @@ fun ReportsScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("reports_screen"),
-        contentPadding = PaddingValues(12.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Top Header
         item {
-            Text(
-                text = LanguageHelper.getString("reports", languageMode),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
+            AppTabHeader(
+                title = LanguageHelper.getString("reports", languageMode),
+                onOpenDrawer = onOpenDrawer
             )
         }
 

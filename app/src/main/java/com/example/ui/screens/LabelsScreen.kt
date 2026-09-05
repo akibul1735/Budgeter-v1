@@ -63,6 +63,7 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -102,6 +103,7 @@ data class AggregatedLabel(
 fun LabelsScreen(
     transactions: List<TransactionWithDetails>,
     languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {},
     onTransactionClick: (Transaction) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -235,6 +237,12 @@ fun LabelsScreen(
     val totalIncomeOverall = remember(aggregatedLabels) { aggregatedLabels.sumOf { it.totalIncome } }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        AppTabHeader(
+            title = LanguageHelper.getString("labels", languageMode),
+            onOpenDrawer = onOpenDrawer,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+        )
+
         // Top Search & Vast Filter Action Bar
         Surface(
             color = MaterialTheme.colorScheme.surface,

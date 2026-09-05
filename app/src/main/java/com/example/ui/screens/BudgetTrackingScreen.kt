@@ -99,6 +99,7 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -164,6 +165,7 @@ fun BudgetTrackingScreen(
     selectedYear: Int,
     selectedMonth: Int,
     languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {},
     onNavigateToBudgetMaker: () -> Unit,
     onAddTransactionWithCategory: (Category) -> Unit,
     onEditTransaction: (Transaction) -> Unit
@@ -397,6 +399,14 @@ fun BudgetTrackingScreen(
                 .testTag("budget_tracking_screen"),
             contentPadding = PaddingValues(bottom = 90.dp)
         ) {
+            // --- TAB HEADER ---
+            item {
+                AppTabHeader(
+                    title = LanguageHelper.getString("budget", languageMode),
+                    onOpenDrawer = onOpenDrawer
+                )
+            }
+
             // 1. TIMELINE & DATE RANGE HEADER
             item {
                 Surface(

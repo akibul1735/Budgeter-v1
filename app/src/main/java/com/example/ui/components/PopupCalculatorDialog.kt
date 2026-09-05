@@ -1,7 +1,9 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -143,14 +146,42 @@ fun PopupCalculatorDialog(
         updateExpression(formatted)
     }
 
+    val isDarkTheme = isSystemInDarkTheme() || MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    // Theme-Aware Color Palette
+    val dialogBg = if (isDarkTheme) Color(0xFF1E281E) else Color(0xFFF6FAF6)
+    val handleColor = if (isDarkTheme) Color(0xFF5A725D) else Color(0xFFB0C4B1)
+    val presetChipBg = if (isDarkTheme) Color(0xFF2B4D36) else Color(0xFFE2EFE2)
+    val presetChipLabel = if (isDarkTheme) Color(0xFFC8E6C9) else Color(0xFF1B5E20)
+    val screenBg = if (isDarkTheme) Color(0xFF264E36) else Color(0xFFE8F5E9)
+    val formulaTextColor = if (isDarkTheme) Color(0xFFA5D6A7) else Color(0xFF2E7D32)
+    val mainResultTextColor = if (hasError) (if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFD32F2F))
+                              else (if (isDarkTheme) Color(0xFFF1F8E9) else Color(0xFF1B5E20))
+    val percentIconBg = if (isDarkTheme) Color(0xFF33573A) else Color(0xFFDCEDDC)
+    val percentIconTint = if (isDarkTheme) Color(0xFFC8E6C9) else Color(0xFF1B5E20)
+    val percentChipBg = if (isDarkTheme) Color(0xFF2C4C34) else Color(0xFFE2EFE2)
+    val percentChipText = if (isDarkTheme) Color(0xFFE8F5E9) else Color(0xFF1B5E20)
+
+    // Keypad Button Colors
+    val numBgColor = if (isDarkTheme) Color(0xFFBCE0B8) else Color(0xFFFFFFFF)
+    val numTextColor = if (isDarkTheme) Color(0xFF1E281E) else Color(0xFF1C311E)
+    val opBgColor = if (isDarkTheme) Color(0xFFCCE4A8) else Color(0xFFD7ECD5)
+    val opTextColor = if (isDarkTheme) Color(0xFF1E281E) else Color(0xFF1B5E20)
+    val clearBgColor = if (isDarkTheme) Color(0xFFE55A2B) else Color(0xFFFF7043)
+    val clearTextColor = Color.White
+    val okBgColor = if (isDarkTheme) Color(0xFF43A047) else Color(0xFF2E7D32)
+    val okTextColor = Color.White
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color(0xFF1E281E),
+            color = dialogBg,
             tonalElevation = 8.dp,
+            shadowElevation = 10.dp,
+            border = if (!isDarkTheme) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD0E4D0)) else null,
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .testTag("popup_calculator_dialog")
@@ -167,7 +198,7 @@ fun PopupCalculatorDialog(
                         .width(36.dp)
                         .height(4.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF5A725D))
+                        .background(handleColor)
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -189,8 +220,8 @@ fun PopupCalculatorDialog(
                                 )
                             },
                             colors = AssistChipDefaults.assistChipColors(
-                                containerColor = Color(0xFF2B4D36),
-                                labelColor = Color(0xFFC8E6C9)
+                                containerColor = presetChipBg,
+                                labelColor = presetChipLabel
                             ),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.height(28.dp)
@@ -200,10 +231,11 @@ fun PopupCalculatorDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Deep Green Display Screen
+                // Display Screen
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF264E36),
+                    color = screenBg,
+                    border = if (!isDarkTheme) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC8E6C9)) else null,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -226,7 +258,7 @@ fun PopupCalculatorDialog(
                                 fontSize = 16.sp,
                                 fontFamily = FontFamily.SansSerif,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFFA5D6A7),
+                                color = formulaTextColor,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -254,7 +286,7 @@ fun PopupCalculatorDialog(
                             fontSize = 38.sp,
                             fontFamily = FontFamily.SansSerif,
                             fontWeight = FontWeight.Bold,
-                            color = if (hasError) Color(0xFFFF8A80) else Color(0xFFF1F8E9),
+                            color = mainResultTextColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -272,7 +304,7 @@ fun PopupCalculatorDialog(
                         modifier = Modifier
                             .height(30.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF33573A))
+                            .background(percentIconBg)
                             .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -283,7 +315,7 @@ fun PopupCalculatorDialog(
                             Icon(
                                 imageVector = Icons.Default.Percent,
                                 contentDescription = "Percent",
-                                tint = Color(0xFFC8E6C9),
+                                tint = percentIconTint,
                                 modifier = Modifier.size(13.dp)
                             )
                         }
@@ -299,7 +331,8 @@ fun PopupCalculatorDialog(
                         items(frequentPercentages) { pct ->
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF2C4C34),
+                                color = percentChipBg,
+                                border = if (!isDarkTheme) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC8E6C9)) else null,
                                 modifier = Modifier
                                     .height(30.dp)
                                     .clickable { applyPercentageSuggestion(pct) }
@@ -313,7 +346,7 @@ fun PopupCalculatorDialog(
                                         text = pct,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFFE8F5E9)
+                                        color = percentChipText
                                     )
                                 }
                             }
@@ -324,15 +357,6 @@ fun PopupCalculatorDialog(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // 5x4 Keypad matching layout
-                // Colors definition
-                val numBgColor = Color(0xFFBCE0B8)     // Minty green for numbers
-                val numTextColor = Color(0xFF1E281E)   // Dark text
-                val opBgColor = Color(0xFFCCE4A8)      // Pastel sage for operators & backspace
-                val opTextColor = Color(0xFF1E281E)    // Dark text
-                val clearBgColor = Color(0xFFE55A2B)   // Vibrant orange for C
-                val clearTextColor = Color(0xFF1E281E) // Dark text
-                val okBgColor = Color(0xFF43A047)      // Vibrant rich green for OK
-                val okTextColor = Color(0xFF1E281E)    // Dark text
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -440,6 +464,7 @@ private fun CalcButton(
     bg: Color,
     textColor: Color,
     modifier: Modifier = Modifier,
+    border: androidx.compose.foundation.BorderStroke? = null,
     onClick: () -> Unit
 ) {
     Box(
@@ -447,6 +472,7 @@ private fun CalcButton(
             .height(56.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(bg)
+            .then(if (border != null) Modifier.border(border, RoundedCornerShape(14.dp)) else Modifier)
             .clickable(onClick = onClick)
             .testTag("calc_btn_$text"),
         contentAlignment = Alignment.Center

@@ -115,6 +115,7 @@ import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.AppTabHeader
 import com.example.ui.components.DatePickerModal
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.SecurityAuthDialog
@@ -162,16 +163,17 @@ fun LedgerScreen(
     accountsWithBalances: List<AccountWithBalance> = emptyList(),
     securityConfig: SecurityConfig = SecurityConfig(),
     onVerifyPin: (String) -> Boolean = { true },
+    onOpenDrawer: () -> Unit = {},
     onAddTransactionClick: () -> Unit,
     onTransactionClick: (Transaction) -> Unit,
     onUpdateTransactions: (List<Transaction>) -> Unit = {},
     onDeleteTransactions: (List<Transaction>) -> Unit = {},
     onDeleteTransaction: (Transaction) -> Unit = {}
 ) {
-    // Search & Filter state
+    // Search & Filter state - long search bar auto open by default
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
-    var showSearchField by remember { mutableStateOf(false) }
+    var showSearchField by remember { mutableStateOf(true) }
     var selectedDatePreset by remember { mutableStateOf(LedgerDatePreset.ALL_TIME) }
     var minAmountFilter by remember { mutableDoubleStateOf(0.0) }
     var maxAmountFilter by remember { mutableDoubleStateOf(Double.MAX_VALUE) }
@@ -558,20 +560,11 @@ fun LedgerScreen(
             if (!isSelectionMode) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = LanguageHelper.getString("transactions", languageMode),
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                        AppTabHeader(
+                            title = LanguageHelper.getString("transactions", languageMode),
+                            onOpenDrawer = onOpenDrawer,
+                            actions = {
                                 if (filteredTransactions.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = CircleShape,
                                         color = MaterialTheme.colorScheme.surfaceVariant
@@ -585,9 +578,7 @@ fun LedgerScreen(
                                         )
                                     }
                                 }
-                            }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 // Multi-select mode trigger button
                                 IconButton(
                                     onClick = {
@@ -625,25 +616,46 @@ fun LedgerScreen(
                                     )
                                 }
                             }
-                        }
+                        )
 
                         if (showSearchField || searchQuery.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("Search for text in item name, payee or notes", fontSize = 12.sp) },
-                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp),
+                                placeholder = {
+                                    Text(
+                                        if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন (বিবরণ, প্রাপক, নোট বা ক্যাটাগরি)..."
+                                        else "Search transactions by payee, note, item or category...",
+                                        fontSize = 12.sp
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
                                 trailingIcon = {
                                     if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                        IconButton(
+                                            onClick = { searchQuery = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Clear",
+                                                modifier = Modifier.size(16.dp)
+                                            )
                                         }
                                     }
                                 },
                                 singleLine = true,
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                         }
 

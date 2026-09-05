@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
+import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -68,6 +69,7 @@ fun CategoriesScreen(
     categories: List<Category>,
     languageMode: LanguageMode,
     initialTab: Int = 0,
+    onOpenDrawer: () -> Unit = {},
     onAddCategoryClick: (CategoryType) -> Unit,
     onAddSubCategoryClick: (Category) -> Unit,
     onEditCategoryClick: (Category) -> Unit,
@@ -95,53 +97,40 @@ fun CategoriesScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("categories_screen"),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Top Header
+        // Top Tab Header
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = LanguageHelper.getString("categories", languageMode),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${parentCategories.size} ${if (selectedTab == 0) LanguageHelper.getString("expenses", languageMode) else LanguageHelper.getString("incomes", languageMode)} ${LanguageHelper.getString("categories", languageMode)}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+            AppTabHeader(
+                title = LanguageHelper.getString("categories", languageMode),
+                onOpenDrawer = onOpenDrawer,
+                actions = {
+                    Button(
+                        onClick = { onAddCategoryClick(currentType) },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedTab == 0) SolidExpense else SolidIncome
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.testTag("btn_add_category")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = LanguageHelper.getString("add_category", languageMode),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
-
-                Button(
-                    onClick = { onAddCategoryClick(currentType) },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedTab == 0) SolidExpense else SolidIncome
-                    ),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    modifier = Modifier.testTag("btn_add_category")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = LanguageHelper.getString("add_category", languageMode),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
+            )
         }
 
         // Tabs (Expenses / Incomes)

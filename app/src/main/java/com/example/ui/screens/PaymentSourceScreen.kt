@@ -105,6 +105,7 @@ import com.example.data.model.RequirementCalculationBasis
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -136,6 +137,7 @@ fun PaymentSourceScreen(
     selectedYear: Int,
     selectedMonth: Int,
     languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {},
     onPrevMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onSetCurrentMonth: () -> Unit,
@@ -245,7 +247,10 @@ fun PaymentSourceScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(4.dp))
+                AppTabHeader(
+                    title = LanguageHelper.getString("payment_sources", languageMode),
+                    onOpenDrawer = onOpenDrawer
+                )
             }
 
             // 1. Month Navigation Header

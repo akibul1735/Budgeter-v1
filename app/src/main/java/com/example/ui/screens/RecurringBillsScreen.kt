@@ -48,6 +48,7 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.TransactionType
+import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.AddEditRecurringBillDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -60,63 +61,88 @@ import com.example.util.LanguageHelper
 fun RecurringBillsScreen(
     viewModel: BudgetViewModel,
     bills: List<RecurringBillWithDetails>,
-    languageMode: LanguageMode
+    languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {}
 ) {
     var showAddBillDialog by remember { mutableStateOf(false) }
     var editingBill by remember { mutableStateOf<RecurringBill?>(null) }
     val allAccounts by viewModel.allAccounts.collectAsStateWithLifecycle()
     val allCategories by viewModel.allCategories.collectAsStateWithLifecycle()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (bills.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.EventRepeat,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(56.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "কোনো পুনরাবৃত্তিমূলক বিল নেই" else "No Recurring Bills Yet",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "বিদ্যুৎ, ইন্টারনেট, বাড়ি ভাড়া বা সাবস্ক্রিপশন যুক্ত করুন" else "Track electricity, rent, wifi, or recurring subscriptions",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            editingBill = null
-                            showAddBillDialog = true
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (languageMode == LanguageMode.BANGLA) "প্রথম বিল যোগ করুন" else "Add First Bill")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp)
+    ) {
+        AppTabHeader(
+            title = LanguageHelper.getString("recurring_bills", languageMode),
+            onOpenDrawer = onOpenDrawer,
+            actions = {
+                IconButton(
+                    onClick = {
+                        editingBill = null
+                        showAddBillDialog = true
                     }
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "Add Bill",
+                        tint = SolidPrimary
+                    )
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp),
-                contentPadding = PaddingValues(top = 10.dp, bottom = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (bills.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.EventRepeat,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(56.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কোনো পুনরাবৃত্তিমূলক বিল নেই" else "No Recurring Bills Yet",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "বিদ্যুৎ, ইন্টারনেট, বাড়ি ভাড়া বা সাবস্ক্রিপশন যুক্ত করুন" else "Track electricity, rent, wifi, or recurring subscriptions",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                editingBill = null
+                                showAddBillDialog = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (languageMode == LanguageMode.BANGLA) "প্রথম বিল যোগ করুন" else "Add First Bill")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                 items(bills, key = { it.bill.id }) { item ->
                     val bill = item.bill
                     val isExpense = bill.type == TransactionType.EXPENSE
@@ -206,19 +232,20 @@ fun RecurringBillsScreen(
         }
 
         // Floating Action Button
-        FloatingActionButton(
-            onClick = {
-                editingBill = null
-                showAddBillDialog = true
-            },
-            containerColor = SolidPrimary,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Bill")
+            FloatingActionButton(
+                onClick = {
+                    editingBill = null
+                    showAddBillDialog = true
+                },
+                containerColor = SolidPrimary,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Bill")
+            }
         }
     }
 

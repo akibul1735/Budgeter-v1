@@ -83,6 +83,7 @@ import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
+import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -103,6 +104,7 @@ fun BalanceSheetScreen(
     accounts: List<Account>,
     transactions: List<Transaction>,
     languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {},
     onAddAccountClick: () -> Unit,
     onAddSubAccountClick: (Account) -> Unit,
     onEditAccountClick: (Account) -> Unit,
@@ -164,8 +166,16 @@ fun BalanceSheetScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 88.dp)
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 88.dp)
         ) {
+            // Tab Header
+            item {
+                AppTabHeader(
+                    title = LanguageHelper.getString("balance_sheet", languageMode),
+                    onOpenDrawer = onOpenDrawer
+                )
+            }
+
             // 1. Top Net Worth Card
             item {
                 NetWorthSummaryCard(
