@@ -111,6 +111,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.Category
@@ -118,8 +119,10 @@ import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
+import com.example.ui.components.AutoHidingContainer
 import com.example.ui.components.LanguageSelector
 import com.example.ui.components.PopupCalculatorDialog
+import com.example.ui.components.rememberAutoScrollVisibility
 import com.example.ui.dialogs.AddEditAccountGroupOrCategoryDialog
 import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
@@ -271,6 +274,8 @@ fun MainAppContainer(
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
 
+    val autoScrollState = rememberAutoScrollVisibility()
+
     val visibleTabs = tabConfig.visibleTabs
     val isTabInVisibleTabs = visibleTabs.any { it.toAppView() == currentView }
     val currentTabIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
@@ -396,23 +401,27 @@ fun MainAppContainer(
                         topBar = {
                             // TOP NAVIGATION TAB ROW (When Position is TOP)
                             if (tabConfig.position == TabPosition.TOP && !isSubView) {
-                                TopNavigationBarRow(
-                                    visibleTabs = tabConfig.visibleTabs,
-                                    currentView = currentView,
-                                    languageMode = languageMode,
-                                    onSelectTab = { tab -> selectView(tab.toAppView()) }
-                                )
+                                AutoHidingContainer(visibilityState = autoScrollState) {
+                                    TopNavigationBarRow(
+                                        visibleTabs = tabConfig.visibleTabs,
+                                        currentView = currentView,
+                                        languageMode = languageMode,
+                                        onSelectTab = { tab -> selectView(tab.toAppView()) }
+                                    )
+                                }
                             }
                         },
                         bottomBar = {
                             // BOTTOM NAVIGATION TAB ROW (When Position is BOTTOM)
                             if (tabConfig.position == TabPosition.BOTTOM && !isSubView) {
-                                BottomNavigationBarRow(
-                                    visibleTabs = tabConfig.visibleTabs,
-                                    currentView = currentView,
-                                    languageMode = languageMode,
-                                    onSelectTab = { tab -> selectView(tab.toAppView()) }
-                                )
+                                AutoHidingContainer(visibilityState = autoScrollState) {
+                                    BottomNavigationBarRow(
+                                        visibleTabs = tabConfig.visibleTabs,
+                                        currentView = currentView,
+                                        languageMode = languageMode,
+                                        onSelectTab = { tab -> selectView(tab.toAppView()) }
+                                    )
+                                }
                             }
                         },
                         floatingActionButton = {
@@ -441,6 +450,7 @@ fun MainAppContainer(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(paddingValues)
+                                .nestedScroll(autoScrollState.nestedScrollConnection)
                         ) {
                             if (isTabInVisibleTabs && visibleTabs.isNotEmpty()) {
                                 HorizontalPager(

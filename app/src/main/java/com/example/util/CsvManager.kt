@@ -808,7 +808,7 @@ object CsvManager {
 
     // Helper functions
 
-    private fun detectHeaderMapping(lines: List<String>): Pair<Map<String, Int>, Int> {
+    internal fun detectHeaderMapping(lines: List<String>): Pair<Map<String, Int>, Int> {
         val headerMap = mutableMapOf<String, Int>()
         var headerIndex = 0
 
@@ -842,7 +842,7 @@ object CsvManager {
         return Pair(headerMap, headerIndex)
     }
 
-    private fun parseRowFromTokens(
+    internal fun parseRowFromTokens(
         tokens: List<String>,
         headerMap: Map<String, Int>,
         lineNo: Int
@@ -912,7 +912,7 @@ object CsvManager {
         )
     }
 
-    private fun parseCsvLine(line: String): List<String> {
+    internal fun parseCsvLine(line: String): List<String> {
         val tokens = mutableListOf<String>()
         val sb = StringBuilder()
         var inQuotes = false

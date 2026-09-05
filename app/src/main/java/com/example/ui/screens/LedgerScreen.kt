@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
@@ -562,7 +563,22 @@ fun LedgerScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         AppTabHeader(
                             title = LanguageHelper.getString("transactions", languageMode),
+                            tabIcon = Icons.AutoMirrored.Filled.ReceiptLong,
                             onOpenDrawer = onOpenDrawer,
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { searchQuery = it },
+                            searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন (নোট, পেয়ী, ক্যাটাগরি)..." else "Search transactions, notes, payees...",
+                            showSearchButton = true,
+                            showFilterButton = true,
+                            isFilterActive = hasActiveFilters,
+                            activeFilterCount = (if (selectedTypeFilter != null) 1 else 0) +
+                                    (if (selectedDatePreset != LedgerDatePreset.ALL_TIME) 1 else 0) +
+                                    (if (selectedCategoryIdFilter != null) 1 else 0) +
+                                    (if (selectedAccountIdFilter != null) 1 else 0) +
+                                    (if (selectedLabelFilter != null) 1 else 0) +
+                                    (if (selectedStatusFilter != null) 1 else 0) +
+                                    (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
+                            onFilterClick = { showFilterDialog = true },
                             actions = {
                                 if (filteredTransactions.isNotEmpty()) {
                                     Surface(
@@ -593,73 +609,10 @@ fun LedgerScreen(
                                         tint = MaterialTheme.colorScheme.outline
                                     )
                                 }
-
-                                IconButton(
-                                    onClick = { showSearchField = !showSearchField },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Search,
-                                        contentDescription = "Search",
-                                        tint = if (showSearchField || searchQuery.isNotEmpty()) SolidPrimary else MaterialTheme.colorScheme.outline
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { showFilterDialog = true },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Tune,
-                                        contentDescription = "Filter",
-                                        tint = if (hasActiveFilters) SolidPrimary else MaterialTheme.colorScheme.outline
-                                    )
-                                }
                             }
                         )
 
-                        if (showSearchField || searchQuery.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp),
-                                placeholder = {
-                                    Text(
-                                        if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন (বিবরণ, প্রাপক, নোট বা ক্যাটাগরি)..."
-                                        else "Search transactions by payee, note, item or category...",
-                                        fontSize = 12.sp
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Default.Search,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) {
-                                        IconButton(
-                                            onClick = { searchQuery = "" },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Close,
-                                                contentDescription = "Clear",
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         // Type Filter Chips (All, Expense, Income, Transfer)
                         Row(

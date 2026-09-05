@@ -29,15 +29,15 @@ class ExampleRobolectricTest {
     val headerLine = "Type\tDate\tSet Time\tName\tAmount\tCurrency\tExchange Rate\tCategory Group\tCategory\tAccount Class\tAccount Groups\tAccount\tNotes\tLabels\tStatus"
     val dataLine = "Transfer\t2026-09-04 21:54:00\t21:54\tRM Joha Kaka Credit\t-1000\tBDT\t1\t(Transfer)\t(Transfer)\tLiabilities\tResting Money\tRM Others\t\t\t"
 
-    val headerTokens = CsvManager.splitCsvLine(headerLine)
-    val dataTokens = CsvManager.splitCsvLine(dataLine)
+    val headerTokens = CsvManager.parseCsvLine(headerLine)
+    val dataTokens = CsvManager.parseCsvLine(dataLine)
 
-    val headerMap = CsvManager.detectHeaderMapping(headerTokens)
-    assertTrue("Header map should contain TYPE", headerMap.containsKey(CsvColumn.TYPE))
-    assertTrue("Header map should contain AMOUNT", headerMap.containsKey(CsvColumn.AMOUNT))
-    assertTrue("Header map should contain ACCOUNT_CLASS", headerMap.containsKey(CsvColumn.ACCOUNT_CLASS))
-    assertTrue("Header map should contain ACCOUNT_GROUPS", headerMap.containsKey(CsvColumn.ACCOUNT_GROUPS))
-    assertTrue("Header map should contain ACCOUNT", headerMap.containsKey(CsvColumn.ACCOUNT))
+    val (headerMap, _) = CsvManager.detectHeaderMapping(listOf(headerLine))
+    assertTrue("Header map should contain type", headerMap.containsKey("type"))
+    assertTrue("Header map should contain amount", headerMap.containsKey("amount"))
+    assertTrue("Header map should contain account_class", headerMap.containsKey("account_class"))
+    assertTrue("Header map should contain account_groups", headerMap.containsKey("account_groups"))
+    assertTrue("Header map should contain account", headerMap.containsKey("account"))
 
     val parsedRow = CsvManager.parseRowFromTokens(dataTokens, headerMap, 2)
     assertTrue("Parsed row must be valid", parsedRow.isValid)
