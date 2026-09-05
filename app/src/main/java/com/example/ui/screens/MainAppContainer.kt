@@ -120,6 +120,7 @@ import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
+import com.example.ui.components.AutoHidingHeaderContainer
 import com.example.ui.components.LanguageSelector
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.PopupCalculatorDialog
@@ -304,6 +305,7 @@ fun MainAppContainer(
                 val swipedTab = visibleTabs[page]
                 val swipedView = swipedTab.toAppView()
                 if (isTabInVisibleTabs && currentView != swipedView) {
+                    headerScrollState.show()
                     currentView = swipedView
                 }
             }
@@ -311,6 +313,7 @@ fun MainAppContainer(
     }
 
     val selectView: (AppView) -> Unit = { targetView ->
+        headerScrollState.show()
         if (currentView != targetView) {
             val tabIndex = visibleTabs.indexOfFirst { it.toAppView() == targetView }
             if (tabIndex >= 0) {
@@ -407,12 +410,14 @@ fun MainAppContainer(
                             topBar = {
                                 // TOP NAVIGATION TAB ROW (When Position is TOP)
                                 if (tabConfig.position == TabPosition.TOP && !isSubView) {
-                                    TopNavigationBarRow(
-                                        visibleTabs = tabConfig.visibleTabs,
-                                        currentView = currentView,
-                                        languageMode = languageMode,
-                                        onSelectTab = { tab -> selectView(tab.toAppView()) }
-                                    )
+                                    AutoHidingHeaderContainer(headerScrollState = headerScrollState) {
+                                        TopNavigationBarRow(
+                                            visibleTabs = tabConfig.visibleTabs,
+                                            currentView = currentView,
+                                            languageMode = languageMode,
+                                            onSelectTab = { tab -> selectView(tab.toAppView()) }
+                                        )
+                                    }
                                 }
                             },
                             bottomBar = {
@@ -725,6 +730,7 @@ fun MainAppContainer(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)
+                                .nestedScroll(headerScrollState.nestedScrollConnection)
                         ) {
                             ScreenRouter(
                                 currentView = currentView,
@@ -846,6 +852,7 @@ fun MainAppContainer(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(padding)
+                                .nestedScroll(headerScrollState.nestedScrollConnection)
                         ) {
                             ScreenRouter(
                                 currentView = currentView,

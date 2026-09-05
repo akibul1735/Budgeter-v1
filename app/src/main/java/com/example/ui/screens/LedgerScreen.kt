@@ -548,11 +548,63 @@ fun LedgerScreen(
                     }
                 }
             }
+        } else {
+            AppTabHeader(
+                title = LanguageHelper.getString("transactions", languageMode),
+                tabIcon = Icons.AutoMirrored.Filled.ReceiptLong,
+                onOpenDrawer = onOpenDrawer,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন (নোট, পেয়ী, ক্যাটাগরি)..." else "Search transactions, notes, payees...",
+                showSearchButton = true,
+                showFilterButton = true,
+                isFilterActive = hasActiveFilters,
+                activeFilterCount = (if (selectedTypeFilter != null) 1 else 0) +
+                        (if (selectedDatePreset != LedgerDatePreset.ALL_TIME) 1 else 0) +
+                        (if (selectedCategoryIdFilter != null) 1 else 0) +
+                        (if (selectedAccountIdFilter != null) 1 else 0) +
+                        (if (selectedLabelFilter != null) 1 else 0) +
+                        (if (selectedStatusFilter != null) 1 else 0) +
+                        (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
+                onFilterClick = { showFilterDialog = true },
+                actions = {
+                    if (filteredTransactions.isNotEmpty()) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = "${filteredTransactions.size}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    // Multi-select mode trigger button
+                    IconButton(
+                        onClick = {
+                            val firstId = filteredTransactions.firstOrNull()?.transaction?.id
+                            if (firstId != null) selectedTransactionIds = setOf(firstId)
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.CheckBox,
+                            contentDescription = "Select Mode",
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            )
         }
 
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .weight(1f)
                 .testTag("ledger_screen"),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -561,59 +613,6 @@ fun LedgerScreen(
             if (!isSelectionMode) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        AppTabHeader(
-                            title = LanguageHelper.getString("transactions", languageMode),
-                            tabIcon = Icons.AutoMirrored.Filled.ReceiptLong,
-                            onOpenDrawer = onOpenDrawer,
-                            searchQuery = searchQuery,
-                            onSearchQueryChange = { searchQuery = it },
-                            searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন (নোট, পেয়ী, ক্যাটাগরি)..." else "Search transactions, notes, payees...",
-                            showSearchButton = true,
-                            showFilterButton = true,
-                            isFilterActive = hasActiveFilters,
-                            activeFilterCount = (if (selectedTypeFilter != null) 1 else 0) +
-                                    (if (selectedDatePreset != LedgerDatePreset.ALL_TIME) 1 else 0) +
-                                    (if (selectedCategoryIdFilter != null) 1 else 0) +
-                                    (if (selectedAccountIdFilter != null) 1 else 0) +
-                                    (if (selectedLabelFilter != null) 1 else 0) +
-                                    (if (selectedStatusFilter != null) 1 else 0) +
-                                    (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
-                            onFilterClick = { showFilterDialog = true },
-                            actions = {
-                                if (filteredTransactions.isNotEmpty()) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.surfaceVariant
-                                    ) {
-                                        Text(
-                                            text = "${filteredTransactions.size}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-
-                                // Multi-select mode trigger button
-                                IconButton(
-                                    onClick = {
-                                        val firstId = filteredTransactions.firstOrNull()?.transaction?.id
-                                        if (firstId != null) selectedTransactionIds = setOf(firstId)
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.CheckBox,
-                                        contentDescription = "Select Mode",
-                                        tint = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
                         // Type Filter Chips (All, Expense, Income, Transfer)
                         Row(
                             modifier = Modifier.fillMaxWidth(),

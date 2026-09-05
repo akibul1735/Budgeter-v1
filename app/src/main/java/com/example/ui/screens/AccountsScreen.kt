@@ -176,22 +176,24 @@ fun AccountsScreen(
         )
     }
 
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .testTag("accounts_screen"),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .testTag("accounts_screen")
     ) {
-        // --- Tab Header ---
-        item {
-            AppTabHeader(
-                title = LanguageHelper.getString("accounts", languageMode),
-                onOpenDrawer = onOpenDrawer
-            )
-        }
+        AppTabHeader(
+            title = LanguageHelper.getString("accounts", languageMode),
+            onOpenDrawer = onOpenDrawer
+        )
 
-        // --- 1. Account Calculation Summary Card (Net Worth & Assets/Liabilities) ---
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // --- 1. Account Calculation Summary Card (Net Worth & Assets/Liabilities) ---
         item {
             Card(
                 modifier = Modifier
@@ -556,6 +558,7 @@ fun AccountsScreen(
             }
         }
     }
+}
 }
 
 @Composable

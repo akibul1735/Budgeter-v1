@@ -93,47 +93,49 @@ fun CategoriesScreen(
         categories.filter { it.type == currentType && it.parentId != null }.groupBy { it.parentId!! }
     }
 
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .testTag("categories_screen"),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .testTag("categories_screen")
     ) {
-        // Top Tab Header
-        item {
-            AppTabHeader(
-                title = LanguageHelper.getString("categories", languageMode),
-                onOpenDrawer = onOpenDrawer,
-                actions = {
-                    Button(
-                        onClick = { onAddCategoryClick(currentType) },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedTab == 0) SolidExpense else SolidIncome
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.testTag("btn_add_category")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = LanguageHelper.getString("add_category", languageMode),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+        AppTabHeader(
+            title = LanguageHelper.getString("categories", languageMode),
+            onOpenDrawer = onOpenDrawer,
+            actions = {
+                Button(
+                    onClick = { onAddCategoryClick(currentType) },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedTab == 0) SolidExpense else SolidIncome
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.testTag("btn_add_category")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = LanguageHelper.getString("add_category", languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
-            )
-        }
+            }
+        )
 
-        // Tabs (Expenses / Incomes)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Tabs (Expenses / Incomes)
         item {
             TabRow(
                 selectedTabIndex = selectedTab,
@@ -422,4 +424,5 @@ fun CategoriesScreen(
             }
         }
     }
+}
 }

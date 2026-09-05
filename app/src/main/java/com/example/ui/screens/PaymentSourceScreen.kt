@@ -241,21 +241,24 @@ fun PaymentSourceScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item {
-                AppTabHeader(
-                    title = LanguageHelper.getString("payment_sources", languageMode),
-                    onOpenDrawer = onOpenDrawer
-                )
-            }
+            AppTabHeader(
+                title = LanguageHelper.getString("payment_sources", languageMode),
+                onOpenDrawer = onOpenDrawer
+            )
 
-            // 1. Month Navigation Header
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // 1. Month Navigation Header
             item {
                 MonthNavigationCard(
                     year = selectedYear,
@@ -548,6 +551,7 @@ fun PaymentSourceScreen(
             }
         }
     }
+}
 
     // Help Dialog
     if (showHelpDialog) {

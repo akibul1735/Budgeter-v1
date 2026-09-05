@@ -74,6 +74,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -164,20 +165,20 @@ fun BalanceSheetScreen(
 
     val currency = "BDT"
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 88.dp)
-        ) {
-            // Tab Header
-            item {
-                AppTabHeader(
-                    title = LanguageHelper.getString("balance_sheet", languageMode),
-                    onOpenDrawer = onOpenDrawer
-                )
-            }
+    Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTabHeader(
+                title = LanguageHelper.getString("balance_sheet", languageMode),
+                onOpenDrawer = onOpenDrawer
+            )
 
-            // 1. Top Net Worth Card
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 88.dp)
+            ) {
+                // 1. Top Net Worth Card
             item {
                 NetWorthSummaryCard(
                     data = balanceSheetData,
@@ -296,6 +297,7 @@ fun BalanceSheetScreen(
                 }
             }
         }
+    }
 
         // Action Buttons: Quick Add Account and Add Transaction
         Column(

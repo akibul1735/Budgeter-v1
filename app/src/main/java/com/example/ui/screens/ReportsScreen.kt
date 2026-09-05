@@ -63,22 +63,24 @@ fun ReportsScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .testTag("reports_screen"),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .testTag("reports_screen")
     ) {
-        // Top Header
-        item {
-            AppTabHeader(
-                title = LanguageHelper.getString("reports", languageMode),
-                onOpenDrawer = onOpenDrawer
-            )
-        }
+        AppTabHeader(
+            title = LanguageHelper.getString("reports", languageMode),
+            onOpenDrawer = onOpenDrawer
+        )
 
-        // Tabs: Trial Balance, Balance Sheet, Income Statement
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Tabs: Trial Balance, Balance Sheet, Income Statement
         item {
             TabRow(
                 selectedTabIndex = selectedTab,
@@ -305,4 +307,5 @@ fun ReportsScreen(
             }
         }
     }
+}
 }

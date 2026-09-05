@@ -392,23 +392,21 @@ fun BudgetTrackingScreen(
     val isOverallOver = totalFlowBudget > 0 && totalFlowSpent > totalFlowBudget
     val overallDiff = kotlin.math.abs(totalFlowBudget - totalFlowSpent)
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .testTag("budget_tracking_screen"),
-            contentPadding = PaddingValues(bottom = 90.dp)
-        ) {
-            // --- TAB HEADER ---
-            item {
-                AppTabHeader(
-                    title = LanguageHelper.getString("budget", languageMode),
-                    onOpenDrawer = onOpenDrawer
-                )
-            }
+    Box(modifier = Modifier.fillMaxSize().testTag("budget_tracking_screen")) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTabHeader(
+                title = LanguageHelper.getString("budget", languageMode),
+                onOpenDrawer = onOpenDrawer
+            )
 
-            // 1. TIMELINE & DATE RANGE HEADER
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+                    .background(MaterialTheme.colorScheme.background),
+                contentPadding = PaddingValues(bottom = 90.dp)
+            ) {
+                // 1. TIMELINE & DATE RANGE HEADER
             item {
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
@@ -623,6 +621,7 @@ fun BudgetTrackingScreen(
                 }
             }
         }
+    }
 
         // 4. FLOATING ACTION BUTTONS (Floating Shopping Bag / Budget Maker & Quick Add +)
         Column(
