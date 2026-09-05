@@ -124,6 +124,7 @@ import com.example.ui.components.LanguageSelector
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.components.rememberHeaderScrollState
+import com.example.ui.dialogs.AccountTransactionsDetailDialog
 import com.example.ui.dialogs.AddEditAccountGroupOrCategoryDialog
 import com.example.ui.dialogs.AddEditCategoryDialog
 import com.example.ui.dialogs.AddEditTransactionSheet
@@ -263,6 +264,7 @@ fun MainAppContainer(
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<Account?>(null) }
     var presetAccountParentId by remember { mutableStateOf<Long?>(null) }
+    var selectedAccountForDetail by remember { mutableStateOf<Account?>(null) }
 
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
@@ -328,6 +330,7 @@ fun MainAppContainer(
 
     val handleBackPress: () -> Unit = {
         when {
+            selectedAccountForDetail != null -> selectedAccountForDetail = null
             showTabCustomizationDialog -> showTabCustomizationDialog = false
             showAddTransactionSheet -> showAddTransactionSheet = false
             showAddAccountDialog -> showAddAccountDialog = false
@@ -553,6 +556,7 @@ fun MainAppContainer(
                                         onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                         onOpenThemeFontSettings = { showThemeFontSettings = true },
                                         onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                        onAccountClick = { acc -> selectedAccountForDetail = acc },
                                         dashboardConfig = dashboardConfig
                                     )
                                 }
@@ -652,6 +656,7 @@ fun MainAppContainer(
                                     onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                     onOpenThemeFontSettings = { showThemeFontSettings = true },
                                     onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                    onAccountClick = { acc -> selectedAccountForDetail = acc },
                                     dashboardConfig = dashboardConfig
                                 )
                             }
@@ -785,6 +790,7 @@ fun MainAppContainer(
                                 onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                onAccountClick = { acc -> selectedAccountForDetail = acc },
                                 dashboardConfig = dashboardConfig
                             )
                         }
@@ -936,6 +942,7 @@ fun MainAppContainer(
                                 onOpenTabCustomizer = { showTabCustomizationDialog = true },
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
+                                onAccountClick = { acc -> selectedAccountForDetail = acc },
                                 dashboardConfig = dashboardConfig
                             )
                         }
@@ -1046,6 +1053,30 @@ fun MainAppContainer(
             onToggleCard = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
             onMoveCard = { from, to -> viewModel.moveDashboardCard(from, to) },
             onResetDefaults = { viewModel.resetDashboardDefaults() }
+        )
+    }
+
+    if (selectedAccountForDetail != null) {
+        AccountTransactionsDetailDialog(
+            account = selectedAccountForDetail!!,
+            allAccounts = allAccounts,
+            allTransactions = transactionsWithDetails,
+            languageMode = languageMode,
+            onDismiss = { selectedAccountForDetail = null },
+            onEditTransaction = { tx ->
+                editingTransaction = tx
+                showAddTransactionSheet = true
+            },
+            onAddTransactionForAccount = { acc: Account ->
+                editingTransaction = null
+                presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
+                showAddTransactionSheet = true
+            },
+            onEditAccount = { acc: Account ->
+                editingAccount = acc
+                presetAccountParentId = acc.parentId
+                showAddAccountDialog = true
+            }
         )
     }
 }
@@ -1539,6 +1570,7 @@ private fun ScreenRouter(
     onOpenTabCustomizer: () -> Unit = {},
     onOpenThemeFontSettings: () -> Unit = {},
     onOpenAutofillSettings: () -> Unit = {},
+    onAccountClick: ((Account) -> Unit)? = null,
     dashboardConfig: com.example.util.DashboardConfig = com.example.util.DashboardConfig()
 ) {
     when (currentView) {
@@ -1556,7 +1588,9 @@ private fun ScreenRouter(
             onAddTransactionClick = onAddTransactionWithType,
             onTransactionClick = onEditTransaction,
             onViewAllTransactionsClick = { onNavigate(AppView.LEDGER) },
-            onAccountClick = onEditAccount,
+            onAccountClick = { acc ->
+                if (onAccountClick != null) onAccountClick(acc) else onEditAccount(acc)
+            },
             onToggleCardVisibility = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
             onReorderCards = { from, to -> viewModel.moveDashboardCard(from, to) },
             onUpdateDailySummarySettings = { m, p, sv, sa -> viewModel.setDailySummarySettings(m, p, sv, sa) },
@@ -1590,7 +1624,8 @@ private fun ScreenRouter(
             onAddAccountClick = { onAddAccount(null) },
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
-            onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) }
+            onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
+            onAccountClick = onAccountClick
         )
         AppView.PAYMENT_SOURCE -> PaymentSourceScreen(
             allAccounts = allAccounts,
@@ -1614,7 +1649,8 @@ private fun ScreenRouter(
             onEditAccount = onEditAccount,
             onSaveCategoryAllocations = { categoryId, allocMap ->
                 viewModel.saveCategoryAccountAllocations(categoryId, allocMap)
-            }
+            },
+            onAccountClick = onAccountClick
         )
         AppView.BUDGET -> BudgetTrackingScreen(
             viewModel = viewModel,
@@ -1629,7 +1665,8 @@ private fun ScreenRouter(
             onOpenDrawer = onOpenDrawer,
             onNavigateToBudgetMaker = { onNavigate(AppView.BUDGET_MAKER) },
             onAddTransactionWithCategory = onAddTransactionWithCategory,
-            onEditTransaction = onEditTransaction
+            onEditTransaction = onEditTransaction,
+            onAccountClick = onAccountClick
         )
         AppView.BUDGET_MAKER -> BudgetScreen(
             viewModel = viewModel,
@@ -1645,7 +1682,8 @@ private fun ScreenRouter(
             onBack = onBack,
             onEditTransaction = onEditTransaction,
             onAddTransactionWithCategory = onAddTransactionWithCategory,
-            onAddTransactionWithAccount = onAddTransactionWithAccount
+            onAddTransactionWithAccount = onAddTransactionWithAccount,
+            onAccountClick = onAccountClick
         )
         AppView.REPORTS -> ReportsScreen(
             overview = overview,
@@ -1679,6 +1717,7 @@ private fun ScreenRouter(
             onAddAccountClick = { onAddAccount(null) },
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
+            onAccountClick = onAccountClick,
             onToggleActiveStatus = { acc, active ->
                 viewModel.saveAccount(acc.copy(isActive = active))
             },

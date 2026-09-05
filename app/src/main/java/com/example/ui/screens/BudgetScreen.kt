@@ -177,7 +177,8 @@ fun BudgetScreen(
     onBack: (() -> Unit)? = null,
     onEditTransaction: (Transaction) -> Unit,
     onAddTransactionWithCategory: (Category) -> Unit,
-    onAddTransactionWithAccount: (Account) -> Unit
+    onAddTransactionWithAccount: (Account) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
     var globalExpenseFrequency by remember { mutableStateOf(BudgetFrequency.MONTHLY) }
@@ -348,6 +349,15 @@ fun BudgetScreen(
     val totalInflowsActual = totalIncomesActual + totalAssetsActual
     val actualSurplus = totalInflowsActual - totalOutflowsActual
 
+    val handleBudgetItemClick: (BudgetTargetItem) -> Unit = { item ->
+        if (item.itemType == "ASSET" || item.itemType == "LIABILITY") {
+            val account = allAccounts.firstOrNull { it.id == item.id }
+            if (account != null) {
+                onAccountClick?.invoke(account)
+            }
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -476,6 +486,7 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
@@ -514,6 +525,7 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
@@ -552,6 +564,7 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
@@ -590,6 +603,7 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
                                 itemType = item.itemType,
@@ -756,6 +770,7 @@ private fun CategoriesBudgetEntryView(
     onPrevMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onShowHelp: () -> Unit,
+    onItemClick: ((BudgetTargetItem) -> Unit)? = null,
     onSaveBudget: (BudgetTargetItem, Double, Boolean) -> Unit,
     onResetBudget: (BudgetTargetItem) -> Unit = {},
     onSaveMultiple: (List<MonthlyBudget>) -> Unit
@@ -1057,6 +1072,7 @@ private fun CategoriesBudgetEntryView(
                         suggestions = suggestions,
                         languageMode = languageMode,
                         sectionColor = sectionColor,
+                        onItemClick = onItemClick,
                         onSaveBudget = { amtMonthly, isEnabled ->
                             onSaveBudget(item, amtMonthly, isEnabled)
                         },
@@ -1089,6 +1105,7 @@ private fun BudgetItemRow(
     suggestions: List<BudgetSuggestionOption>,
     languageMode: LanguageMode,
     sectionColor: Color,
+    onItemClick: ((BudgetTargetItem) -> Unit)? = null,
     onSaveBudget: (amountMonthly: Double, isEnabled: Boolean) -> Unit,
     onResetBudget: () -> Unit = {}
 ) {
@@ -1160,7 +1177,10 @@ private fun BudgetItemRow(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onItemClick?.invoke(item) }
                 ) {
                     // Circular Icon
                     Surface(

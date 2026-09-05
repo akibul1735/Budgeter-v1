@@ -168,7 +168,8 @@ fun BudgetTrackingScreen(
     onOpenDrawer: () -> Unit = {},
     onNavigateToBudgetMaker: () -> Unit,
     onAddTransactionWithCategory: (Category) -> Unit,
-    onEditTransaction: (Transaction) -> Unit
+    onEditTransaction: (Transaction) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     var showMonthPicker by remember { mutableStateOf(false) }
     var showTimelineMenu by remember { mutableStateOf(false) }
@@ -688,6 +689,10 @@ fun BudgetTrackingScreen(
             onOpenBudgetMaker = {
                 selectedCategoryForDetail = null
                 onNavigateToBudgetMaker()
+            },
+            onAccountClick = { acc ->
+                selectedCategoryForDetail = null
+                onAccountClick?.invoke(acc)
             }
         )
     }
@@ -1058,7 +1063,8 @@ private fun CategoryTransactionsDetailDialog(
     onDismiss: () -> Unit,
     onEditTransaction: (Transaction) -> Unit,
     onAddTransaction: () -> Unit,
-    onOpenBudgetMaker: () -> Unit
+    onOpenBudgetMaker: () -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1183,11 +1189,28 @@ private fun CategoryTransactionsDetailDialog(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Text(
-                                            text = dateStr,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = dateStr,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                            val acc = txDetails.debitAccount ?: txDetails.creditAccount
+                                            if (acc != null) {
+                                                Text(
+                                                    text = "• ${LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode)}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = BrandBlueLight,
+                                                    modifier = Modifier.clickable {
+                                                        onAccountClick?.invoke(acc)
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
                                     Text(
                                         text = LanguageHelper.formatCurrency(tx.amount, languageMode),

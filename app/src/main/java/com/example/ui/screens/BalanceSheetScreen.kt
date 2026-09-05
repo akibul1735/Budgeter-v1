@@ -108,7 +108,8 @@ fun BalanceSheetScreen(
     onAddAccountClick: () -> Unit,
     onAddSubAccountClick: (Account) -> Unit,
     onEditAccountClick: (Account) -> Unit,
-    onAddTransactionClick: () -> Unit
+    onAddTransactionClick: () -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -242,7 +243,8 @@ fun BalanceSheetScreen(
                             },
                             onAddSubAccount = { onAddSubAccountClick(group.parentAccount) },
                             onEditAccount = { onEditAccountClick(group.parentAccount) },
-                            onEditSubAccount = { onEditAccountClick(it) }
+                            onEditSubAccount = { onEditAccountClick(it) },
+                            onAccountClick = onAccountClick
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -286,7 +288,8 @@ fun BalanceSheetScreen(
                             },
                             onAddSubAccount = { onAddSubAccountClick(group.parentAccount) },
                             onEditAccount = { onEditAccountClick(group.parentAccount) },
-                            onEditSubAccount = { onEditAccountClick(it) }
+                            onEditSubAccount = { onEditAccountClick(it) },
+                            onAccountClick = onAccountClick
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -734,33 +737,43 @@ private fun BalanceSheetGroupItem(
     onToggleExpand: () -> Unit,
     onAddSubAccount: () -> Unit,
     onEditAccount: () -> Unit,
-    onEditSubAccount: (Account) -> Unit
+    onEditSubAccount: (Account) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         // Parent Account Row (e.g., Cash 45% ৳890.00 ৳5,205.00 ▲)
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = Color.Transparent,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onToggleExpand() }
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Expand/collapse icon
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
+                IconButton(
+                    onClick = onToggleExpand,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(2.dp))
 
-                // Account Name with Group Icon Indicator
+                // Account Name with Group Icon Indicator - Clickable to view transactions
                 Row(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable {
+                            if (isEditMode) onEditAccount() else onAccountClick?.invoke(group.parentAccount)
+                        }
+                        .padding(vertical = 2.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -872,7 +885,8 @@ private fun BalanceSheetGroupItem(
                             isEditMode = isEditMode,
                             currency = currency,
                             languageMode = languageMode,
-                            onEdit = { onEditSubAccount(subRow.account) }
+                            onEdit = { onEditSubAccount(subRow.account) },
+                            onAccountClick = onAccountClick
                         )
                     }
 
@@ -902,12 +916,17 @@ private fun SubAccountRowItem(
     isEditMode: Boolean,
     currency: String,
     languageMode: LanguageMode,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .clip(RoundedCornerShape(6.dp))
+            .clickable {
+                if (isEditMode) onEdit() else onAccountClick?.invoke(row.account)
+            }
+            .padding(vertical = 4.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Account Name & % badge

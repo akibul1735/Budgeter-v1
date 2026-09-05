@@ -144,7 +144,8 @@ fun PaymentSourceScreen(
     onExecuteTransfer: (fromAccount: Account, toAccount: Account, amount: Double) -> Unit,
     onAddTransactionWithAccount: (Account, TransactionType) -> Unit,
     onEditAccount: (Account) -> Unit,
-    onSaveCategoryAllocations: ((categoryId: Long, allocations: Map<Long, Double>) -> Unit)? = null
+    onSaveCategoryAllocations: ((categoryId: Long, allocations: Map<Long, Double>) -> Unit)? = null,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     var viewMode by remember { mutableStateOf(PaymentSourceViewMode.BY_ACCOUNT) }
     var calculationBasis by remember { mutableStateOf(RequirementCalculationBasis.BUDGET_AMOUNT) }
@@ -481,7 +482,9 @@ fun PaymentSourceScreen(
                             },
                             onAddExpense = { onAddTransactionWithAccount(analysis.account, TransactionType.EXPENSE) },
                             onAddIncome = { onAddTransactionWithAccount(analysis.account, TransactionType.INCOME) },
-                            onAccountClick = { onEditAccount(analysis.account) }
+                            onAccountClick = {
+                                if (onAccountClick != null) onAccountClick(analysis.account) else onEditAccount(analysis.account)
+                            }
                         )
                     }
                 }

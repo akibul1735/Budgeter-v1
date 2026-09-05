@@ -81,6 +81,7 @@ fun AccountsScreen(
     onAddAccountClick: () -> Unit,
     onAddSubAccountClick: (Account) -> Unit,
     onEditAccountClick: (Account) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null,
     onToggleActiveStatus: ((Account, Boolean) -> Unit)? = null,
     onToggleIncludeStatus: ((Account, Boolean) -> Unit)? = null,
     onSaveCalculationSetting: ((Account, Boolean, Double) -> Unit)? = null,
@@ -500,6 +501,7 @@ fun AccountsScreen(
                     languageMode = languageMode,
                     onToggleExpand = { expandedMap[groupItem.account.id] = !(expandedMap[groupItem.account.id] ?: true) },
                     onEditAccount = onEditAccountClick,
+                    onAccountClick = onAccountClick,
                     onAddSubAccount = onAddSubAccountClick,
                     onToggleActiveStatus = onToggleActiveStatus,
                     onToggleIncludeStatus = onToggleIncludeStatus,
@@ -545,6 +547,7 @@ fun AccountsScreen(
                     languageMode = languageMode,
                     onToggleExpand = { expandedMap[inactiveGroup.account.id] = !(expandedMap[inactiveGroup.account.id] ?: false) },
                     onEditAccount = onEditAccountClick,
+                    onAccountClick = onAccountClick,
                     onAddSubAccount = onAddSubAccountClick,
                     onToggleActiveStatus = onToggleActiveStatus,
                     onToggleIncludeStatus = onToggleIncludeStatus,
@@ -566,6 +569,7 @@ fun AccountGroupCard(
     languageMode: LanguageMode,
     onToggleExpand: () -> Unit,
     onEditAccount: (Account) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null,
     onAddSubAccount: (Account) -> Unit,
     onToggleActiveStatus: ((Account, Boolean) -> Unit)?,
     onToggleIncludeStatus: ((Account, Boolean) -> Unit)?,
@@ -601,6 +605,7 @@ fun AccountGroupCard(
                     .fillMaxWidth()
                     .clickable {
                         if (isEditMode) onEditAccount(group)
+                        else if (onAccountClick != null) onAccountClick(group)
                         else onToggleExpand()
                     },
                 verticalAlignment = Alignment.CenterVertically,
@@ -816,6 +821,7 @@ fun AccountGroupCard(
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable {
                                         if (isEditMode) onEditAccount(sub)
+                                        else if (onAccountClick != null) onAccountClick(sub)
                                         else onRequestAdjustCalculation(sub, subItem.currentBalance)
                                     },
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (subIncluded) 0.45f else 0.2f)
