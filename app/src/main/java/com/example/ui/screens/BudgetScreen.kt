@@ -174,7 +174,7 @@ fun BudgetScreen(
     languageMode: LanguageMode,
     initialTab: Int = 0,
     onOpenDrawer: () -> Unit = {},
-    onBack: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     onEditTransaction: (Transaction) -> Unit,
     onAddTransactionWithCategory: (Category) -> Unit,
     onAddTransactionWithAccount: (Account) -> Unit
@@ -368,16 +368,17 @@ fun BudgetScreen(
             }
         },
         bottomBar = {
-            // Modern Bottom Navigation Bar (Matching Expense & Income design with Assets & Liabilities)
+            // Modern Material 3 Bottom Navigation Bar
             Surface(
-                tonalElevation = 6.dp,
+                tonalElevation = 3.dp,
+                shadowElevation = 4.dp,
                 color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -399,26 +400,33 @@ fun BudgetScreen(
                             else -> MaterialTheme.colorScheme.primary
                         }
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) activeColor.copy(alpha = 0.12f) else Color.Transparent,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(16.dp))
                                 .clickable { selectedTab = index }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                                 .testTag("budget_bottom_tab_$index")
                         ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = title,
-                                tint = if (isSelected) activeColor else MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Text(
-                                text = title,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = title,
+                                    tint = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = title,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            }
                         }
                     }
                 }
@@ -434,8 +442,12 @@ fun BudgetScreen(
             AppTabHeader(
                 title = if (languageMode == LanguageMode.BANGLA) "বাজেট মেকার" else "Budget Maker",
                 onOpenDrawer = onOpenDrawer,
+                onBack = onBack,
                 actions = {
-                    IconButton(onClick = { showHelpDialog = true }) {
+                    IconButton(
+                        onClick = { showHelpDialog = true },
+                        modifier = Modifier.testTag("budget_help_button")
+                    ) {
                         Icon(
                             Icons.Default.HelpOutline,
                             contentDescription = "Help Guide",

@@ -36,11 +36,12 @@ enum class CsvColumn(val key: String, val header: String, val labelEn: String, v
     EXCHANGE_RATE("exchange_rate", "Exchange Rate", "Exchange Rate", "বিনিময় হার"),
     CATEGORY_GROUP("category_group", "Category Group", "Category Group", "ক্যাটাগরি গ্রুপ"),
     CATEGORY("category", "Category", "Category", "ক্যাটাগরি"),
+    ACCOUNT_CLASS("account_class", "Account Class", "Account Class", "অ্যাকাউন্ট শ্রেণি"),
+    ACCOUNT_GROUPS("account_groups", "Account Groups", "Account Groups", "অ্যাকাউন্ট গ্রুপ"),
     ACCOUNT("account", "Account", "Account", "অ্যাকাউন্ট"),
     NOTES("notes", "Notes", "Notes", "নোট"),
     LABELS("labels", "Labels", "Labels / Tags", "লেবেল"),
-    STATUS("status", "Status", "Status", "স্ট্যাটাস"),
-    ACCOUNT_GROUPS("account_groups", "Account Groups", "Account Groups", "অ্যাকাউন্ট গ্রুপ")
+    STATUS("status", "Status", "Status", "স্ট্যাটাস")
 }
 
 enum class CsvExportDateRange(val labelEn: String, val labelBn: String) {
@@ -80,6 +81,7 @@ data class ParsedCsvRow(
     val exchangeRate: Double,
     val categoryGroup: String,
     val category: String,
+    val accountClass: String = "",
     val accountGroup: String,
     val account: String,
     val notes: String,
@@ -111,6 +113,18 @@ data class CsvImportResult(
 object CsvManager {
 
     private val DATE_FORMATS = listOf(
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd HH:mm",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy/MM/dd HH:mm:ss",
+        "yyyy/MM/dd HH:mm",
+        "dd/MM/yyyy HH:mm:ss",
+        "dd/MM/yyyy HH:mm",
+        "MM/dd/yyyy HH:mm:ss",
+        "MM/dd/yyyy HH:mm",
+        "dd-MM-yyyy HH:mm:ss",
+        "dd-MM-yyyy HH:mm",
         "yyyy-MM-dd",
         "dd/MM/yyyy",
         "MM/dd/yyyy",
@@ -335,6 +349,18 @@ object CsvManager {
 
                 // 1. Resolve Account & Account Group
                 var resolvedAccount = defaultAccount
+                val isLiability = row.accountClass.lowercase().contains("liabilit") ||
+                        row.accountClass.lowercase().contains("loan") ||
+                        row.accountClass.lowercase().contains("credit") ||
+                        row.accountClass.lowercase().contains("debt") ||
+                        row.accountGroup.lowercase().contains("loan") ||
+                        row.accountGroup.lowercase().contains("credit") ||
+                        row.accountGroup.lowercase().contains("debt") ||
+                        row.account.lowercase().contains("loan") ||
+                        row.account.lowercase().contains("credit") ||
+                        row.account.lowercase().contains("debt")
+                val accType = if (isLiability) AccountType.LIABILITY else AccountType.ASSET
+
                 if (row.account.isNotBlank() && autoCreateEntities) {
                     // Check if parent account group exists
                     var parentAccId: Long? = null
@@ -346,13 +372,10 @@ object CsvManager {
                         if (parent != null) {
                             parentAccId = parent.id
                         } else {
-                            val isLiability = row.accountGroup.lowercase().contains("loan") ||
-                                    row.accountGroup.lowercase().contains("credit") ||
-                                    row.accountGroup.lowercase().contains("debt")
                             val newParent = Account(
                                 nameEn = row.accountGroup,
                                 nameBn = row.accountGroup,
-                                type = if (isLiability) AccountType.LIABILITY else AccountType.ASSET,
+                                type = accType,
                                 parentId = null,
                                 iconName = if (isLiability) "CreditCard" else "AccountBalance",
                                 colorHex = if (isLiability) "#EF4444" else "#1E56A0"
@@ -374,16 +397,13 @@ object CsvManager {
                     if (existingAcc != null) {
                         resolvedAccount = existingAcc
                     } else {
-                        val isLiability = row.account.lowercase().contains("loan") ||
-                                row.account.lowercase().contains("credit") ||
-                                row.account.lowercase().contains("debt")
                         val newAcc = Account(
                             nameEn = row.account,
                             nameBn = row.account,
-                            type = if (isLiability) AccountType.LIABILITY else AccountType.ASSET,
+                            type = accType,
                             parentId = parentAccId,
-                            iconName = "AccountBalance",
-                            colorHex = "#1E56A0"
+                            iconName = if (isLiability) "CreditCard" else "AccountBalance",
+                            colorHex = if (isLiability) "#EF4444" else "#1E56A0"
                         )
                         val newAccId = accountDao.insertAccount(newAcc)
                         val savedAcc = newAcc.copy(id = newAccId)
@@ -398,8 +418,14 @@ object CsvManager {
                 }
 
                 // 2. Resolve Category & Category Group
-                var resolvedCategory = if (row.type == TransactionType.INCOME) defaultIncomeCat else defaultExpenseCat
-                if (row.category.isNotBlank() && autoCreateEntities) {
+                val isTransfer = row.type == TransactionType.TRANSFER
+                val isTransferCategory = row.category.equals("(Transfer)", ignoreCase = true) ||
+                        row.category.equals("Transfer", ignoreCase = true) ||
+                        row.categoryGroup.equals("(Transfer)", ignoreCase = true) ||
+                        row.categoryGroup.equals("Transfer", ignoreCase = true)
+
+                var resolvedCategory: Category? = if (row.type == TransactionType.INCOME) defaultIncomeCat else defaultExpenseCat
+                if (!isTransfer && !isTransferCategory && row.category.isNotBlank() && autoCreateEntities) {
                     var parentCatId: Long? = null
                     val catType = if (row.type == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
 
@@ -450,13 +476,75 @@ object CsvManager {
                         resolvedCategory = savedCat
                         createdCatCount++
                     }
-                } else if (row.category.isNotBlank()) {
+                } else if (!isTransfer && !isTransferCategory && row.category.isNotBlank()) {
                     resolvedCategory = categories.find {
                         it.nameEn.equals(row.category, ignoreCase = true) || it.nameBn.equals(row.category, ignoreCase = true)
                     } ?: (if (row.type == TransactionType.INCOME) defaultIncomeCat else defaultExpenseCat)
+                } else if (isTransfer || isTransferCategory) {
+                    resolvedCategory = null
                 }
 
-                // 3. Format Notes & Payee
+                // 3. Resolve Transfers / Double Entry
+                val rawAmt = parseAmount(row.rawAmount)
+                val isOutflow = rawAmt < 0 || row.rawAmount.contains("(") || row.type == TransactionType.EXPENSE
+                var sourceAcc: Account? = null
+                var destAcc: Account? = null
+
+                if (isTransfer) {
+                    if (isOutflow) {
+                        sourceAcc = resolvedAccount
+                        if (row.name.isNotBlank() && !isTransferCategory) {
+                            val counter = accounts.find {
+                                it.nameEn.equals(row.name, ignoreCase = true) || it.nameBn.equals(row.name, ignoreCase = true)
+                            }
+                            if (counter != null) {
+                                destAcc = counter
+                            } else if (autoCreateEntities) {
+                                val counterLiability = row.name.lowercase().contains("credit") || row.name.lowercase().contains("loan") || row.name.lowercase().contains("debt") || isLiability
+                                val newCounter = Account(
+                                    nameEn = row.name,
+                                    nameBn = row.name,
+                                    type = if (counterLiability) AccountType.LIABILITY else AccountType.ASSET,
+                                    parentId = resolvedAccount.parentId,
+                                    iconName = if (counterLiability) "CreditCard" else "AccountBalance",
+                                    colorHex = if (counterLiability) "#EF4444" else "#1E56A0"
+                                )
+                                val newCounterId = accountDao.insertAccount(newCounter)
+                                val savedCounter = newCounter.copy(id = newCounterId)
+                                accounts.add(savedCounter)
+                                createdAccCount++
+                                destAcc = savedCounter
+                            }
+                        }
+                    } else {
+                        destAcc = resolvedAccount
+                        if (row.name.isNotBlank() && !isTransferCategory) {
+                            val counter = accounts.find {
+                                it.nameEn.equals(row.name, ignoreCase = true) || it.nameBn.equals(row.name, ignoreCase = true)
+                            }
+                            if (counter != null) {
+                                sourceAcc = counter
+                            } else if (autoCreateEntities) {
+                                val counterLiability = row.name.lowercase().contains("credit") || row.name.lowercase().contains("loan") || row.name.lowercase().contains("debt") || isLiability
+                                val newCounter = Account(
+                                    nameEn = row.name,
+                                    nameBn = row.name,
+                                    type = if (counterLiability) AccountType.LIABILITY else AccountType.ASSET,
+                                    parentId = resolvedAccount.parentId,
+                                    iconName = if (counterLiability) "CreditCard" else "AccountBalance",
+                                    colorHex = if (counterLiability) "#EF4444" else "#1E56A0"
+                                )
+                                val newCounterId = accountDao.insertAccount(newCounter)
+                                val savedCounter = newCounter.copy(id = newCounterId)
+                                accounts.add(savedCounter)
+                                createdAccCount++
+                                sourceAcc = savedCounter
+                            }
+                        }
+                    }
+                }
+
+                // 4. Format Notes & Payee
                 val combinedNotes = buildString {
                     if (row.notes.isNotBlank()) append(row.notes)
                     if (row.labels.isNotBlank()) {
@@ -476,10 +564,18 @@ object CsvManager {
                     type = row.type,
                     amount = row.amount,
                     dateEpochMs = row.dateEpochMs,
-                    debitAccountId = if (row.type == TransactionType.EXPENSE) null else resolvedAccount.id,
-                    creditAccountId = if (row.type == TransactionType.EXPENSE) resolvedAccount.id else null,
-                    categoryId = resolvedCategory.id,
-                    payeeOrPayer = row.name.ifEmpty { "Imported" },
+                    debitAccountId = when {
+                        isTransfer -> destAcc?.id
+                        row.type == TransactionType.EXPENSE -> null
+                        else -> resolvedAccount.id
+                    },
+                    creditAccountId = when {
+                        isTransfer -> sourceAcc?.id
+                        row.type == TransactionType.EXPENSE -> resolvedAccount.id
+                        else -> null
+                    },
+                    categoryId = resolvedCategory?.id,
+                    payeeOrPayer = row.name.ifEmpty { if (isTransfer) "Transfer" else "Imported" },
                     note = combinedNotes.ifEmpty { "Imported from CSV" },
                     status = statusEnum
                 )
@@ -543,13 +639,17 @@ object CsvManager {
                         if (cat.parentId != null) "Category Group" else cat.nameEn
                     } ?: ""
                     CsvColumn.CATEGORY -> item.category?.nameEn ?: ""
-                    CsvColumn.ACCOUNT -> {
+                    CsvColumn.ACCOUNT_CLASS -> {
                         val acc = if (tx.type == TransactionType.EXPENSE) item.creditAccount else item.debitAccount
-                        acc?.nameEn ?: ""
+                        if (acc?.type == AccountType.LIABILITY) "Liabilities" else "Assets"
                     }
                     CsvColumn.ACCOUNT_GROUPS -> {
                         val acc = if (tx.type == TransactionType.EXPENSE) item.creditAccount else item.debitAccount
                         if (acc?.parentId != null) "Accounts" else acc?.nameEn ?: ""
+                    }
+                    CsvColumn.ACCOUNT -> {
+                        val acc = if (tx.type == TransactionType.EXPENSE) item.creditAccount else item.debitAccount
+                        acc?.nameEn ?: ""
                     }
                     CsvColumn.NOTES -> tx.note
                     CsvColumn.LABELS -> ""
@@ -719,10 +819,11 @@ object CsvManager {
                 tokens.forEachIndexed { colIdx, colName ->
                     val cleanCol = colName.replace("_", " ").replace("-", " ")
                     when {
-                        cleanCol.contains("category group") || cleanCol.contains("cat group") || cleanCol.contains("parent category") -> headerMap["category_group"] = colIdx
-                        cleanCol.contains("account group") || cleanCol.contains("acc group") || cleanCol.contains("parent account") -> headerMap["account_groups"] = colIdx
-                        cleanCol.contains("set time") || cleanCol.contains("tx time") || cleanCol == "time" -> headerMap["set_time"] = colIdx
-                        cleanCol.contains("exchange rate") || cleanCol.contains("fx rate") -> headerMap["exchange_rate"] = colIdx
+                        cleanCol.contains("category group") || cleanCol.contains("category groups") || cleanCol.contains("cat group") || cleanCol.contains("cat groups") || cleanCol.contains("parent category") -> headerMap["category_group"] = colIdx
+                        cleanCol.contains("account class") || cleanCol.contains("acc class") || cleanCol == "class" || cleanCol.contains("account type") -> headerMap["account_class"] = colIdx
+                        cleanCol.contains("account group") || cleanCol.contains("account groups") || cleanCol.contains("acc group") || cleanCol.contains("acc groups") || cleanCol.contains("parent account") -> headerMap["account_groups"] = colIdx
+                        cleanCol == "set time" || cleanCol.contains("set time") || cleanCol.contains("tx time") || cleanCol == "time" -> headerMap["set_time"] = colIdx
+                        cleanCol.contains("exchange rate") || cleanCol.contains("fx rate") || cleanCol == "rate" -> headerMap["exchange_rate"] = colIdx
                         cleanCol.contains("type") -> headerMap["type"] = colIdx
                         cleanCol.contains("date") -> headerMap["date"] = colIdx
                         cleanCol.contains("amount") || cleanCol.contains("value") || cleanCol.contains("total") -> headerMap["amount"] = colIdx
@@ -760,11 +861,12 @@ object CsvManager {
         val fxRateStr = get("exchange_rate", 6)
         val catGroupStr = get("category_group", 7)
         val catStr = get("category", 8)
-        val accStr = get("account", 9)
-        val notesStr = get("notes", 10)
-        val labelsStr = get("labels", 11)
-        val statusStr = get("status", 12)
-        val accGroupStr = get("account_groups", 13)
+        val accClassStr = get("account_class", 9)
+        val accGroupStr = get("account_groups", 10)
+        val accStr = get("account", 11)
+        val notesStr = get("notes", 12)
+        val labelsStr = get("labels", 13)
+        val statusStr = get("status", 14)
 
         val rawAmount = parseAmount(amountStr)
         val isNegative = rawAmount < 0 || amountStr.contains("(") || typeStr.lowercase().contains("expense")
@@ -799,6 +901,7 @@ object CsvManager {
             exchangeRate = parsedFxRate,
             categoryGroup = catGroupStr,
             category = catStr,
+            accountClass = accClassStr,
             accountGroup = accGroupStr,
             account = accStr,
             notes = notesStr,

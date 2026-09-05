@@ -1631,6 +1631,8 @@ private fun ScreenRouter(
             selectedYear = selectedBudgetYear,
             selectedMonth = selectedBudgetMonth,
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
+            onBack = onBack,
             onEditTransaction = onEditTransaction,
             onAddTransactionWithCategory = onAddTransactionWithCategory,
             onAddTransactionWithAccount = onAddTransactionWithAccount
