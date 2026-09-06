@@ -111,9 +111,9 @@ fun ThemeFontSettingsDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 1. Theme Palettes (7 themes)
+            // 1. Theme Palettes (8 themes)
             Text(
-                text = if (isBangla) "🎨 থিম প্যালেট (৭টি কালার)" else "🎨 Theme Palettes (7 Colors)",
+                text = if (isBangla) "🎨 প্রিমিয়াম থিম প্যালেট (৮টি থিম)" else "🎨 Premium Theme Palettes (8 Themes)",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold

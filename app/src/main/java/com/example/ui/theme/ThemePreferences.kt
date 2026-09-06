@@ -9,13 +9,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 enum class ThemePalette(val displayNameEn: String, val displayNameBn: String, val primaryColor: Color) {
-    EMERALD("Emerald Forest", "পান্না সবুজ", Color(0xFF059669)),
-    SAPPHIRE("Sapphire Ocean", "নীলকান্তমণি", Color(0xFF2563EB)),
-    AMETHYST("Royal Amethyst", "রাজকীয় বেগুনী", Color(0xFF7C3AED)),
-    GOLDEN("Golden Amber", "সোনালী অম্বর", Color(0xFFD97706)),
-    CRIMSON("Crimson Ruby", "রক্তিম চুনী", Color(0xFFDC2626)),
-    TEAL("Teal Nordic", "নর্ডিক টিল", Color(0xFF0D9488)),
-    SUNSET("Sunset Coral", "সূর্যাস্ত কোরাল", Color(0xFFEA580C))
+    SOFT_PASTEL("Soft Pastel", "সফট প্যাস্টেল", Color(0xFF7E57C2)),
+    PREMIUM_GREEN("Premium Green", "প্রিমিয়াম গ্রিন", Color(0xFF15803D)),
+    ELEGANT_BLUE("Elegant Blue", "এলিগ্যান্ট ব্লু", Color(0xFF1D4ED8)),
+    WARM_NEUTRAL("Warm Neutral", "ওয়ার্ম নিউট্রাল", Color(0xFFB45309)),
+    MODERN_INDIGO("Modern Indigo", "মডার্ন ইন্ডিগো", Color(0xFF4F46E5)),
+    CALM_SAGE("Calm Sage", "কাম সেইজ", Color(0xFF3B7A57)),
+    SOPHISTICATED_DARK("Sophisticated Dark", "সোফিস্টিকেটেড ডার্ক", Color(0xFF27272A)),
+    MINIMAL_MONO("Minimal Monochrome", "মিনিমাল মনোক্রোম", Color(0xFF343A40))
 }
 
 enum class ThemeMode(val titleEn: String, val titleBn: String) {
@@ -40,7 +41,7 @@ enum class ColorIntensity(val titleEn: String, val titleBn: String) {
 }
 
 data class AppThemeConfig(
-    val palette: ThemePalette = ThemePalette.SAPPHIRE,
+    val palette: ThemePalette = ThemePalette.ELEGANT_BLUE,
     val mode: ThemeMode = ThemeMode.SYSTEM,
     val colorIntensity: ColorIntensity = ColorIntensity.VIVID,
     val dynamicColor: Boolean = false,
@@ -54,13 +55,22 @@ class ThemePreferences(context: Context) {
     val themeConfig: StateFlow<AppThemeConfig> = _themeConfig.asStateFlow()
 
     private fun loadConfig(): AppThemeConfig {
-        val paletteName = prefs.getString(KEY_PALETTE, ThemePalette.SAPPHIRE.name) ?: ThemePalette.SAPPHIRE.name
+        val paletteName = prefs.getString(KEY_PALETTE, ThemePalette.ELEGANT_BLUE.name) ?: ThemePalette.ELEGANT_BLUE.name
         val modeName = prefs.getString(KEY_MODE, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
         val intensityName = prefs.getString(KEY_INTENSITY, ColorIntensity.VIVID.name) ?: ColorIntensity.VIVID.name
         val dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, false)
         val fontName = prefs.getString(KEY_FONT, FontPreset.DEFAULT.name) ?: FontPreset.DEFAULT.name
 
-        val palette = try { ThemePalette.valueOf(paletteName) } catch (_: Exception) { ThemePalette.SAPPHIRE }
+        val palette = when (paletteName) {
+            "EMERALD" -> ThemePalette.PREMIUM_GREEN
+            "SAPPHIRE" -> ThemePalette.ELEGANT_BLUE
+            "AMETHYST" -> ThemePalette.SOFT_PASTEL
+            "GOLDEN" -> ThemePalette.WARM_NEUTRAL
+            "CRIMSON" -> ThemePalette.SOPHISTICATED_DARK
+            "TEAL" -> ThemePalette.CALM_SAGE
+            "SUNSET" -> ThemePalette.WARM_NEUTRAL
+            else -> try { ThemePalette.valueOf(paletteName) } catch (_: Exception) { ThemePalette.ELEGANT_BLUE }
+        }
         val mode = try { ThemeMode.valueOf(modeName) } catch (_: Exception) { ThemeMode.SYSTEM }
         val intensity = try { ColorIntensity.valueOf(intensityName) } catch (_: Exception) { ColorIntensity.VIVID }
         val font = try { FontPreset.valueOf(fontName) } catch (_: Exception) { FontPreset.DEFAULT }
