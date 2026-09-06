@@ -919,7 +919,8 @@ fun SettingsScreen(
             onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
             onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
             onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
-            onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) }
+            onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) },
+            onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) }
         )
     }
 

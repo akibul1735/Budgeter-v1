@@ -16,11 +16,14 @@ data class SecurityConfig(
     val requireAuthForTrashClear: Boolean = true,
     val requireAuthForBackupRestore: Boolean = true,
     val lockTimeoutSeconds: Int = 0, // 0 = Immediately, 60 = 1 min, 300 = 5 mins, 900 = 15 mins
-    val securityQuestion: String = "What is your favorite color?",
+    val securityQuestion: String = "What was the name of your first school?",
     val securityAnswerHash: String = ""
 ) {
     val hasPin: Boolean
         get() = pinHash.isNotBlank()
+
+    val hasRecoveryQuestion: Boolean
+        get() = securityAnswerHash.isNotBlank() && securityQuestion.isNotBlank()
 }
 
 class SecurityPreferences(context: Context) {

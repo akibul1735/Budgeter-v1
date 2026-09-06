@@ -409,7 +409,7 @@ fun AppLockScreen(
                         OutlinedTextField(
                             value = newPinInput,
                             onValueChange = { newPinInput = it.take(8) },
-                            label = { Text("New PIN") },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "নতুন পিন" else "New PIN") },
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                             singleLine = true,
@@ -419,7 +419,7 @@ fun AppLockScreen(
                         OutlinedTextField(
                             value = confirmPinInput,
                             onValueChange = { confirmPinInput = it.take(8) },
-                            label = { Text("Confirm PIN") },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "পিন নিশ্চিত করুন" else "Confirm PIN") },
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                             singleLine = true,
