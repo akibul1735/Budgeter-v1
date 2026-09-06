@@ -156,65 +156,11 @@ fun DashboardScreen(
     var activeAmountDetail by remember { mutableStateOf<AmountDetailInfo?>(null) }
 
     // Helper functions for building calculation breakdowns
-    fun openNetWorthBreakdown() {
-        val assetAccounts = accountsWithBalances.filter { it.account.type == AccountType.ASSET }
-        val liabilityAccounts = accountsWithBalances.filter { it.account.type == AccountType.LIABILITY }
-
-        val steps = listOf(
-            FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (ক্যাশ, ব্যাংক, ওয়ালেট)" else "Total Assets (Cash, Bank, Wallets)",
-                amount = overview.totalAssets,
-                operator = "+",
-                note = "${assetAccounts.size} accounts"
-            ),
-            FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "মোট দায় (ক্রেডিট কার্ড, ঋণ, বকেয়া)" else "Total Liabilities (Cards, Loans, Payables)",
-                amount = overview.totalLiabilities,
-                operator = "−",
-                note = "${liabilityAccounts.size} accounts"
-            ),
-            FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "নিট সম্পদ (সম্পদ − দায়)" else "Net Worth (Assets − Liabilities)",
-                amount = overview.netWorth,
-                operator = "=",
-                isHighlighted = true
-            )
-        )
-
-        val breakdown = accountsWithBalances.map { accItem ->
-            val isAsset = accItem.account.type == AccountType.ASSET
-            BreakdownItem(
-                name = accItem.account.localizedName(languageMode) + if (isAsset) " (Asset)" else " (Liability)",
-                amount = accItem.currentBalance,
-                iconName = accItem.account.iconName,
-                color = if (isAsset) SolidIncome else SolidExpense
-            )
-        }
-
-        activeAmountDetail = AmountDetailInfo(
-            title = if (languageMode == LanguageMode.BANGLA) "নিট সম্পদ হিসাব" else "Net Worth Calculation",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ থেকে মোট দায় বিয়োগ" else "Total Assets minus Total Liabilities",
-            totalAmount = overview.netWorth,
-            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                "নিট সম্পদ হলো আপনার সমস্ত সম্পদ (নগদ টাকা, ব্যাংক একাউন্ট, মোবাইল ব্যালেন্স) থেকে সমস্ত দেনা বা দায়ের (ঋণ, ক্রেডিট কার্ড) বিয়োগফল।"
-            else
-                "Net Worth measures your total financial health: the value of everything you own (Assets) minus everything you owe (Liabilities).",
-            formulaSteps = steps,
-            relatedBreakdownItems = breakdown,
-            relatedTransactions = recentTransactions,
-            statusTag = if (overview.isLedgerBalanced) "Balanced" else "Ledger Check"
-        )
-    }
-
     fun openAssetsBreakdown() {
-        val assetAccounts = accountsWithBalances.filter { it.account.type == AccountType.ASSET }
-        val steps = assetAccounts.map {
-            FormulaStep(
-                label = it.account.localizedName(languageMode),
-                amount = it.currentBalance,
-                operator = "+"
-            )
-        }
+        val assetAccounts = accountsWithBalances
+            .filter { it.account.type == AccountType.ASSET }
+            .sortedByDescending { it.currentBalance }
+
         val breakdown = assetAccounts.map {
             BreakdownItem(
                 name = it.account.localizedName(languageMode),
@@ -232,31 +178,28 @@ fun DashboardScreen(
 
         activeAmountDetail = AmountDetailInfo(
             title = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ ও একাউন্ট ব্যালেন্স" else "Total Assets & Accounts",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "সমস্ত অ্যাসেট একাউন্টের সমষ্টি" else "Sum of all active asset accounts",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "সমস্ত অ্যাসেট একাউন্টের সমষ্টি (বড় থেকে ছোট)" else "Asset accounts sorted from largest to smallest",
             totalAmount = overview.totalAssets,
             formulaExplanation = if (languageMode == LanguageMode.BANGLA)
                 "আপনার ক্যাশ, ব্যাংক ও মোবাইল ওয়ালেটের মোট বর্তমান ব্যালেন্সের যোগফল।"
             else
                 "Combined liquid and fixed balances across all cash, bank accounts, savings, and mobile wallets.",
-            formulaSteps = steps,
+            formulaSteps = emptyList(),
             relatedBreakdownItems = breakdown,
             relatedTransactions = assetTxs
         )
     }
 
     fun openLiabilitiesBreakdown() {
-        val liabilityAccounts = accountsWithBalances.filter { it.account.type == AccountType.LIABILITY }
-        val steps = liabilityAccounts.map {
-            FormulaStep(
-                label = it.account.localizedName(languageMode),
-                amount = it.currentBalance,
-                operator = "+"
-            )
-        }
+        val liabilityAccounts = accountsWithBalances
+            .filter { it.account.type == AccountType.LIABILITY }
+            .sortedByDescending { it.currentBalance }
+
         val breakdown = liabilityAccounts.map {
             BreakdownItem(
                 name = it.account.localizedName(languageMode),
                 amount = it.currentBalance,
+                percentage = if (overview.totalLiabilities > 0) (it.currentBalance / overview.totalLiabilities) * 100.0 else 0.0,
                 iconName = it.account.iconName,
                 color = SolidExpense
             )
@@ -269,16 +212,85 @@ fun DashboardScreen(
 
         activeAmountDetail = AmountDetailInfo(
             title = if (languageMode == LanguageMode.BANGLA) "মোট দায় ও ঋণ" else "Total Liabilities & Debts",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "ক্রেডিট কার্ড, ঋণ ও বকেয়ার সমষ্টি" else "Sum of all liability obligations",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "ক্রেডিট কার্ড, ঋণ ও বকেয়ার সমষ্টি (বড় থেকে ছোট)" else "Liability obligations sorted from largest to smallest",
             totalAmount = overview.totalLiabilities,
             formulaExplanation = if (languageMode == LanguageMode.BANGLA)
                 "আপনার ক্রেডিট কার্ডের খরচ, ব্যক্তিগত ঋণ ও অন্যান্য বকেয়া দায়ের যোগফল।"
             else
                 "Total unpaid balances across credit cards, loans, payables, and debts.",
-            formulaSteps = steps,
+            formulaSteps = emptyList(),
             relatedBreakdownItems = breakdown,
             relatedTransactions = liabilityTxs,
             customBadgeColor = SolidExpense
+        )
+    }
+
+    fun openNetWorthBreakdown() {
+        val assetAccounts = accountsWithBalances
+            .filter { it.account.type == AccountType.ASSET }
+            .sortedByDescending { it.currentBalance }
+        val liabilityAccounts = accountsWithBalances
+            .filter { it.account.type == AccountType.LIABILITY }
+            .sortedByDescending { it.currentBalance }
+
+        val steps = listOf(
+            FormulaStep(
+                label = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (ক্যাশ, ব্যাংক, ওয়ালেট)" else "Total Assets (Cash, Bank, Wallets)",
+                amount = overview.totalAssets,
+                operator = "+",
+                note = if (languageMode == LanguageMode.BANGLA) "${assetAccounts.size} টি একাউন্ট • বিস্তারিত দেখতে ট্যাপ করুন" else "${assetAccounts.size} accounts • Tap to view breakdown",
+                onClick = { openAssetsBreakdown() }
+            ),
+            FormulaStep(
+                label = if (languageMode == LanguageMode.BANGLA) "মোট দায় (ক্রেডিট কার্ড, ঋণ, বকেয়া)" else "Total Liabilities (Cards, Loans, Payables)",
+                amount = overview.totalLiabilities,
+                operator = "−",
+                note = if (languageMode == LanguageMode.BANGLA) "${liabilityAccounts.size} টি একাউন্ট • বিস্তারিত দেখতে ট্যাপ করুন" else "${liabilityAccounts.size} accounts • Tap to view breakdown",
+                onClick = { openLiabilitiesBreakdown() }
+            ),
+            FormulaStep(
+                label = if (languageMode == LanguageMode.BANGLA) "নিট সম্পদ (সম্পদ − দায়)" else "Net Worth (Assets − Liabilities)",
+                amount = overview.netWorth,
+                operator = "=",
+                isHighlighted = true
+            )
+        )
+
+        val breakdown = listOf(
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (Assets)" else "Total Assets (Cash, Bank, Wallets)",
+                amount = overview.totalAssets,
+                percentage = if (overview.totalAssets + overview.totalLiabilities > 0) (overview.totalAssets / (overview.totalAssets + overview.totalLiabilities)) * 100.0 else 100.0,
+                iconName = "account_balance_wallet",
+                color = SolidIncome,
+                count = assetAccounts.size,
+                note = if (languageMode == LanguageMode.BANGLA) "বড় থেকে ছোট সম্পদ একাউন্ট দেখতে ট্যাপ করুন" else "Tap to view asset accounts (largest to smallest)",
+                onClick = { openAssetsBreakdown() }
+            ),
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "মোট দায় (Liabilities)" else "Total Liabilities (Cards, Loans, Debts)",
+                amount = overview.totalLiabilities,
+                percentage = if (overview.totalAssets + overview.totalLiabilities > 0) (overview.totalLiabilities / (overview.totalAssets + overview.totalLiabilities)) * 100.0 else 0.0,
+                iconName = "credit_card",
+                color = SolidExpense,
+                count = liabilityAccounts.size,
+                note = if (languageMode == LanguageMode.BANGLA) "বড় থেকে ছোট দায় একাউন্ট দেখতে ট্যাপ করুন" else "Tap to view liability accounts (largest to smallest)",
+                onClick = { openLiabilitiesBreakdown() }
+            )
+        )
+
+        activeAmountDetail = AmountDetailInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "নিট সম্পদ হিসাব" else "Net Worth Calculation",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ থেকে মোট দায় বিয়োগ" else "Total Assets minus Total Liabilities",
+            totalAmount = overview.netWorth,
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "নিট সম্পদ হলো আপনার সমস্ত সম্পদ (নগদ টাকা, ব্যাংক একাউন্ট, মোবাইল ব্যালেন্স) থেকে সমস্ত দেনা বা দায়ের (ঋণ, ক্রেডিট কার্ড) বিয়োগফল। উপাদান দেখতে নিচে ট্যাপ করুন।"
+            else
+                "Net Worth measures your total financial health: the value of everything you own (Assets) minus everything you owe (Liabilities). Tap components to view details.",
+            formulaSteps = steps,
+            relatedBreakdownItems = breakdown,
+            relatedTransactions = recentTransactions,
+            statusTag = if (overview.isLedgerBalanced) "Balanced" else "Ledger Check"
         )
     }
 
@@ -295,7 +307,7 @@ fun DashboardScreen(
 
         val grouped = monthlyIncomeTxs.groupBy { it.category?.id }
         val breakdown = grouped.map { (catId, txList) ->
-            val catName = txList.firstOrNull()?.category?.localizedName(languageMode) ?: if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Uncategorized"
+            val catName = txList.firstOrNull()?.category?.localizedName(languageMode) ?: if (languageMode == LanguageMode.BANGLA) "অন্যান্য আয়" else "Uncategorized Income"
             val totalCatAmt = txList.sumOf { it.transaction.amount }
             BreakdownItem(
                 name = catName,
@@ -305,26 +317,17 @@ fun DashboardScreen(
                 color = SolidIncome,
                 count = txList.size
             )
-        }
-
-        val steps = breakdown.map {
-            FormulaStep(
-                label = it.name,
-                amount = it.amount,
-                operator = "+",
-                note = "${it.count} tx"
-            )
-        }
+        }.sortedByDescending { it.amount }
 
         activeAmountDetail = AmountDetailInfo(
             title = if (languageMode == LanguageMode.BANGLA) "চলতি মাসের মোট আয়" else "Monthly Inflow & Income",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "এই মাসের সমস্ত প্রাপ্ত আয়" else "Sum of all income transactions this month",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি অনুযায়ী আয় (বড় থেকে ছোট)" else "Income categories sorted from largest to smallest",
             totalAmount = overview.monthlyIncome,
             formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                "চলতি ক্যালেন্ডার মাসে প্রাপ্ত বেতন, ব্যবসা, বিনিয়োগ ও অন্যান্য সমস্ত আয়ের যোগফল।"
+                "চলতি ক্যালেন্ডার মাসে প্রাপ্ত বেতন, ব্যবসা, বিনিয়োগ ও অন্যান্য সমস্ত আয়ের ক্যাটাগরিভিত্তিক বিবরণ।"
             else
-                "Total income credited from salary, business profits, investments, gifts, and returns this month.",
-            formulaSteps = steps,
+                "Breakdown of all credited earnings and income streams for this month.",
+            formulaSteps = emptyList(),
             relatedBreakdownItems = breakdown,
             relatedTransactions = monthlyIncomeTxs,
             customBadgeColor = SolidIncome
@@ -344,7 +347,7 @@ fun DashboardScreen(
 
         val grouped = monthlyExpenseTxs.groupBy { it.category?.id }
         val breakdown = grouped.map { (catId, txList) ->
-            val catName = txList.firstOrNull()?.category?.localizedName(languageMode) ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ খরচ" else "Uncategorized"
+            val catName = txList.firstOrNull()?.category?.localizedName(languageMode) ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ খরচ" else "Uncategorized Expenses"
             val totalCatAmt = txList.sumOf { it.transaction.amount }
             BreakdownItem(
                 name = catName,
@@ -354,26 +357,17 @@ fun DashboardScreen(
                 color = SolidExpense,
                 count = txList.size
             )
-        }
-
-        val steps = breakdown.map {
-            FormulaStep(
-                label = it.name,
-                amount = it.amount,
-                operator = "+",
-                note = "${it.count} tx"
-            )
-        }
+        }.sortedByDescending { it.amount }
 
         activeAmountDetail = AmountDetailInfo(
             title = if (languageMode == LanguageMode.BANGLA) "চলতি মাসের মোট খরচ" else "Monthly Expenses & Outflows",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "এই মাসের সমস্ত খরচ" else "Sum of all expenses spent this month",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি অনুযায়ী খরচ (বড় থেকে ছোট)" else "Expense categories sorted from largest to smallest",
             totalAmount = overview.monthlyExpense,
             formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                "চলতি ক্যালেন্ডার মাসে বিভিন্ন খাতে খরচকৃত সমস্ত টাকার যোগফল।"
+                "চলতি ক্যালেন্ডার মাসে বিভিন্ন খাতে খরচকৃত টাকার ক্যাটাগরিভিত্তিক বিবরণ।"
             else
-                "Total money spent across utility bills, groceries, rent, transit, and daily purchases this month.",
-            formulaSteps = steps,
+                "Breakdown of all expenses and outflows incurred this month across active categories.",
+            formulaSteps = emptyList(),
             relatedBreakdownItems = breakdown,
             relatedTransactions = monthlyExpenseTxs,
             customBadgeColor = SolidExpense
@@ -381,36 +375,253 @@ fun DashboardScreen(
     }
 
     fun openNetSavingsBreakdown() {
+        val cal = Calendar.getInstance()
+        val currentMonth = cal.get(Calendar.MONTH)
+        val currentYear = cal.get(Calendar.YEAR)
+
+        val monthlyIncomeTxs = recentTransactions.filter {
+            if (it.transaction.type != TransactionType.INCOME) return@filter false
+            val txCal = Calendar.getInstance().apply { timeInMillis = it.transaction.dateEpochMs }
+            txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+        }
+        val monthlyExpenseTxs = recentTransactions.filter {
+            if (it.transaction.type != TransactionType.EXPENSE) return@filter false
+            val txCal = Calendar.getInstance().apply { timeInMillis = it.transaction.dateEpochMs }
+            txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+        }
+
         val steps = listOf(
             FormulaStep(
                 label = if (languageMode == LanguageMode.BANGLA) "মাসিক আয় (Inflow)" else "Monthly Income",
                 amount = overview.monthlyIncome,
-                operator = "+"
+                operator = "+",
+                note = if (languageMode == LanguageMode.BANGLA) "${monthlyIncomeTxs.size} টি লেনদেন • বিস্তারিত দেখতে ট্যাপ করুন" else "${monthlyIncomeTxs.size} tx • Tap to view categories",
+                onClick = { openIncomeBreakdown() }
             ),
             FormulaStep(
                 label = if (languageMode == LanguageMode.BANGLA) "মাসিক খরচ (Outflow)" else "Monthly Expenses",
                 amount = overview.monthlyExpense,
-                operator = "−"
+                operator = "−",
+                note = if (languageMode == LanguageMode.BANGLA) "${monthlyExpenseTxs.size} টি লেনদেন • বিস্তারিত দেখতে ট্যাপ করুন" else "${monthlyExpenseTxs.size} tx • Tap to view categories",
+                onClick = { openExpenseBreakdown() }
             ),
             FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "নিট ক্যাশ ফ্লো / সঞ্চয়" else "Net Cash Flow (Savings)",
+                label = if (languageMode == LanguageMode.BANGLA) "নিট ক্যাশ ফ্লো / নিট আয়" else "Net Earnings / Cash Flow",
                 amount = overview.monthlyNetSavings,
                 operator = "=",
                 isHighlighted = true
             )
         )
 
+        val breakdown = listOf(
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "মোট মাসিক আয় (Income)" else "Total Monthly Income",
+                amount = overview.monthlyIncome,
+                iconName = "trending_up",
+                color = SolidIncome,
+                count = monthlyIncomeTxs.size,
+                note = if (languageMode == LanguageMode.BANGLA) "বড় থেকে ছোট আয়ের ক্যাটাগরি দেখতে ট্যাপ করুন" else "Tap to view income categories (largest to smallest)",
+                onClick = { openIncomeBreakdown() }
+            ),
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "মোট মাসিক খরচ (Expenses)" else "Total Monthly Expenses",
+                amount = overview.monthlyExpense,
+                iconName = "trending_down",
+                color = SolidExpense,
+                count = monthlyExpenseTxs.size,
+                note = if (languageMode == LanguageMode.BANGLA) "বড় থেকে ছোট খরচের ক্যাটাগরি দেখতে ট্যাপ করুন" else "Tap to view expense categories (largest to smallest)",
+                onClick = { openExpenseBreakdown() }
+            )
+        )
+
         activeAmountDetail = AmountDetailInfo(
-            title = if (languageMode == LanguageMode.BANGLA) "মাসিক নিট সঞ্চয় হিসাব" else "Monthly Net Savings Breakdown",
+            title = if (languageMode == LanguageMode.BANGLA) "মাসিক নিট আয় / সঞ্চয় হিসাব" else "Net Earnings & Cash Flow",
             subtitle = if (languageMode == LanguageMode.BANGLA) "আয় থেকে খরচ বিয়োগ" else "Monthly Income minus Monthly Expenses",
             totalAmount = overview.monthlyNetSavings,
             formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                "মাসিক নিট সঞ্চয় বা ক্যাশ ফ্লো নির্দেশ করে এই মাসে আপনি খরচের পর কত টাকা বৃদ্ধি বা হ্রাস করেছেন।"
+                "মাসিক নিট আয় বা ক্যাশ ফ্লো হলো এই মাসে সমস্ত আয়ের যোগফল থেকে সমস্ত খরচের বিয়োগফল। উপাদান দেখতে নিচে ট্যাপ করুন।"
             else
-                "Net savings represents surplus funds retained from this month's earnings after paying all expenses.",
+                "Net Earnings represents surplus funds retained from this month's earnings after deducting all expenses. Tap components to view category details.",
             formulaSteps = steps,
-            relatedTransactions = recentTransactions,
+            relatedBreakdownItems = breakdown,
+            relatedTransactions = recentTransactions.filter {
+                val txCal = Calendar.getInstance().apply { timeInMillis = it.transaction.dateEpochMs }
+                txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+            },
             statusTag = if (overview.monthlyNetSavings >= 0) "Surplus" else "Deficit"
+        )
+    }
+
+    fun openAdditionalCostBreakdown() {
+        val cal = Calendar.getInstance()
+        val currentMonth = cal.get(Calendar.MONTH)
+        val currentYear = cal.get(Calendar.YEAR)
+
+        val monthlyExpenseTxs = recentTransactions.filter {
+            if (it.transaction.type != TransactionType.EXPENSE) return@filter false
+            val txCal = Calendar.getInstance().apply { timeInMillis = it.transaction.dateEpochMs }
+            txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+        }
+
+        val expenseCategories = allCategories.filter { it.type == CategoryType.EXPENSE }
+        val budgetMap = monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+
+        val expenseTxsByCat = mutableMapOf<Long, Double>()
+        val expenseTxsListByCat = mutableMapOf<Long, MutableList<TransactionWithDetails>>()
+        var uncategorizedSpent = 0.0
+        val uncategorizedTxs = mutableListOf<TransactionWithDetails>()
+
+        for (txItem in monthlyExpenseTxs) {
+            val catId = txItem.transaction.subCategoryId ?: txItem.transaction.categoryId
+            if (catId != null) {
+                expenseTxsByCat[catId] = (expenseTxsByCat[catId] ?: 0.0) + txItem.transaction.amount
+                expenseTxsListByCat.getOrPut(catId) { mutableListOf() }.add(txItem)
+            } else {
+                uncategorizedSpent += txItem.transaction.amount
+                uncategorizedTxs.add(txItem)
+            }
+        }
+
+        data class OverCostItem(
+            val categoryName: String,
+            val iconName: String?,
+            val budgetLimit: Double,
+            val actualSpent: Double,
+            val excessAmount: Double,
+            val isOverBudget: Boolean,
+            val txs: List<TransactionWithDetails>
+        )
+
+        val costItems = mutableListOf<OverCostItem>()
+
+        for (cat in expenseCategories.filter { it.parentId != null }) {
+            val budgetEntry = budgetMap["EXPENSE_${cat.id}"]
+            val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
+            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val spent = expenseTxsByCat[cat.id] ?: 0.0
+            val catTxs = expenseTxsListByCat[cat.id] ?: emptyList()
+
+            if (budgetLimit > 0) {
+                if (spent > budgetLimit) {
+                    val over = spent - budgetLimit
+                    costItems.add(
+                        OverCostItem(
+                            categoryName = cat.localizedName(languageMode),
+                            iconName = cat.iconName,
+                            budgetLimit = budgetLimit,
+                            actualSpent = spent,
+                            excessAmount = over,
+                            isOverBudget = true,
+                            txs = catTxs
+                        )
+                    )
+                }
+            } else {
+                if (spent > 0) {
+                    costItems.add(
+                        OverCostItem(
+                            categoryName = cat.localizedName(languageMode),
+                            iconName = cat.iconName,
+                            budgetLimit = 0.0,
+                            actualSpent = spent,
+                            excessAmount = spent,
+                            isOverBudget = false,
+                            txs = catTxs
+                        )
+                    )
+                }
+            }
+        }
+
+        if (uncategorizedSpent > 0) {
+            costItems.add(
+                OverCostItem(
+                    categoryName = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরিবিহীন খরচ" else "Uncategorized Expenses",
+                    iconName = "category",
+                    budgetLimit = 0.0,
+                    actualSpent = uncategorizedSpent,
+                    excessAmount = uncategorizedSpent,
+                    isOverBudget = false,
+                    txs = uncategorizedTxs
+                )
+            )
+        }
+
+        val sortedCostItems = costItems.sortedByDescending { it.excessAmount }
+
+        val formulaSteps = mutableListOf<FormulaStep>()
+        for (item in sortedCostItems) {
+            val note = if (item.isOverBudget) {
+                if (languageMode == LanguageMode.BANGLA)
+                    "বাজেট: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | খরচ: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)} (ওভার: +${LanguageHelper.formatCurrency(item.excessAmount, languageMode)})"
+                else
+                    "Budget: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | Spent: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)} (Over: +${LanguageHelper.formatCurrency(item.excessAmount, languageMode)})"
+            } else {
+                if (languageMode == LanguageMode.BANGLA)
+                    "বাজেট বরাদ্দ নেই (অতিরিক্ত) | খরচ: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+                else
+                    "No budget allocated (Additional) | Spent: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+            }
+
+            formulaSteps.add(
+                FormulaStep(
+                    label = item.categoryName + if (item.isOverBudget) " [Over Budget]" else " [Additional]",
+                    amount = item.excessAmount,
+                    operator = "+",
+                    note = note
+                )
+            )
+        }
+
+        if (formulaSteps.isNotEmpty()) {
+            formulaSteps.add(
+                FormulaStep(
+                    label = if (languageMode == LanguageMode.BANGLA) "মোট অতিরিক্ত ও ওভার-বাজেট" else "Total Additional & Over-Budget",
+                    amount = overview.additionalCost,
+                    operator = "=",
+                    isHighlighted = true
+                )
+            )
+        }
+
+        val breakdownItems = sortedCostItems.map { item ->
+            val note = if (item.isOverBudget) {
+                if (languageMode == LanguageMode.BANGLA)
+                    "বাজেট ছিল ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, খরচ হয়েছে ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+                else
+                    "Budget was ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, spent ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+            } else {
+                if (languageMode == LanguageMode.BANGLA)
+                    "বাজেট ছিল না, খরচ হয়েছে ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+                else
+                    "No budget set, spent ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+            }
+
+            BreakdownItem(
+                name = item.categoryName + if (item.isOverBudget) " (Over Budget)" else " (Additional)",
+                amount = item.excessAmount,
+                percentage = if (overview.additionalCost > 0) (item.excessAmount / overview.additionalCost) * 100.0 else 0.0,
+                iconName = item.iconName,
+                color = SolidExpense,
+                count = item.txs.size,
+                note = note
+            )
+        }
+
+        val allExcessTxs = sortedCostItems.flatMap { it.txs }.distinctBy { it.transaction.id }
+
+        activeAmountDetail = AmountDetailInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত ও ওভার-বাজেট খরচ" else "Additional & Over-Budget Cost",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রম ও বাজেটবিহীন খরচের হিসাব" else "Over-budget categories and unbudgeted expenditures",
+            totalAmount = overview.additionalCost,
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "এখানে নির্ধারিত মাসিক বাজেটের অতিরিক্ত খরচ (Over Budget) এবং যেসব খাতে কোনো বাজেট নির্ধারিত ছিল না সেইসব খরচের (Additional) বিস্তারিত দেখানো হয়েছে।"
+            else
+                "Breakdown of excess spending exceeding monthly category limits (Over Budget) and spending in unbudgeted categories (Additional).",
+            formulaSteps = formulaSteps,
+            relatedBreakdownItems = breakdownItems,
+            relatedTransactions = allExcessTxs,
+            customBadgeColor = if (overview.additionalCost > 0) SolidExpense else SolidIncome
         )
     }
 
@@ -422,14 +633,15 @@ fun DashboardScreen(
                 operator = "+"
             ),
             FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত অবশিষ্ট খরচ" else "Budgeted Expense Commitment",
+                label = if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত মোট খরচ" else "Budgeted Expense Commitment",
                 amount = overview.totalExpenseBudget,
                 operator = "−"
             ),
             FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "বাজেট বহির্ভূত অতিরিক্ত খরচ" else "Additional / Over-Budget Cost",
+                label = if (languageMode == LanguageMode.BANGLA) "বাজেট বহির্ভূত / অতিরিক্ত খরচ" else "Additional / Over-Budget Cost",
                 amount = overview.additionalCost,
-                operator = "−"
+                operator = "−",
+                onClick = { openAdditionalCostBreakdown() }
             ),
             FormulaStep(
                 label = if (languageMode == LanguageMode.BANGLA) "নিরাপদ খরচযোগ্য অর্থ" else "Safe Expendable Balance",
@@ -516,27 +728,6 @@ fun DashboardScreen(
                 "Sum of remaining unspent balances across all active category budgets for this month.",
             formulaSteps = steps,
             relatedTransactions = recentTransactions
-        )
-    }
-
-    fun openAdditionalCostBreakdown() {
-        activeAmountDetail = AmountDetailInfo(
-            title = if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত / ওভার-বাজেট খরচ" else "Additional / Over-Budget Cost",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "বাজেট সীমার অতিরিক্ত খরচ" else "Expenses exceeding category budget limits",
-            totalAmount = overview.additionalCost,
-            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                "নির্ধারিত বাজেটের চেয়ে যেসব ক্যাটাগরিতে বেশি খরচ করা হয়েছে তার যোগফল।"
-            else
-                "Total excess spending that crossed the monthly budget limits in over-budget categories.",
-            formulaSteps = listOf(
-                FormulaStep(
-                    label = if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত খরচ" else "Over-Budget Spending",
-                    amount = overview.additionalCost,
-                    operator = "="
-                )
-            ),
-            relatedTransactions = recentTransactions,
-            customBadgeColor = if (overview.additionalCost > 0) SolidExpense else SolidIncome
         )
     }
 
@@ -1702,11 +1893,10 @@ private fun FinancialIndicatorItem(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 9.dp)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
@@ -1715,7 +1905,18 @@ private fun FinancialIndicatorItem(
                     tint = iconTint,
                     modifier = Modifier.size(13.dp)
                 )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = label,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
                 if (trendIndicator != null) {
+                    Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = trendIndicator,
                         fontSize = 9.sp,
@@ -1724,17 +1925,7 @@ private fun FinancialIndicatorItem(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(3.dp))
-            Text(
-                text = label,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                lineHeight = 12.sp,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = LanguageHelper.formatCurrency(amount, languageMode),
                 fontSize = 12.sp,

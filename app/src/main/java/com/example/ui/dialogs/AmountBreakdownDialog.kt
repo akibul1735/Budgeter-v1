@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
@@ -92,7 +93,8 @@ data class FormulaStep(
     val amount: Double,
     val operator: String = "+", // "+", "−", "×", "=", etc.
     val isHighlighted: Boolean = false,
-    val note: String? = null
+    val note: String? = null,
+    val onClick: (() -> Unit)? = null
 )
 
 data class BreakdownItem(
@@ -101,7 +103,9 @@ data class BreakdownItem(
     val percentage: Double? = null,
     val iconName: String? = null,
     val color: Color? = null,
-    val count: Int? = null
+    val count: Int? = null,
+    val note: String? = null,
+    val onClick: (() -> Unit)? = null
 )
 
 @Composable
@@ -410,7 +414,12 @@ private fun CalculationBreakdownView(
 
             items(info.formulaSteps) { step ->
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = step.onClick != null) {
+                            step.onClick?.invoke()
+                        },
                     shape = RoundedCornerShape(12.dp),
                     color = if (step.isHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     border = if (step.isHighlighted) BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.5f)) else null
@@ -455,16 +464,27 @@ private fun CalculationBreakdownView(
                             }
                         }
 
-                        Text(
-                            text = LanguageHelper.formatCurrency(step.amount, languageMode),
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = when {
-                                step.operator == "−" -> SolidExpense
-                                step.operator == "+" -> SolidIncome
-                                else -> MaterialTheme.colorScheme.onSurface
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = LanguageHelper.formatCurrency(step.amount, languageMode),
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    step.operator == "−" -> SolidExpense
+                                    step.operator == "+" -> SolidIncome
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                            if (step.onClick != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(12.dp)
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -483,7 +503,12 @@ private fun CalculationBreakdownView(
 
             items(info.relatedBreakdownItems) { item ->
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(enabled = item.onClick != null) {
+                            item.onClick?.invoke()
+                        },
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
                 ) {
@@ -511,6 +536,13 @@ private fun CalculationBreakdownView(
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                                if (!item.note.isNullOrBlank()) {
+                                    Text(
+                                        text = item.note,
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
                                 if (item.count != null && item.count > 0) {
                                     Text(
                                         text = "${item.count} ${if (languageMode == LanguageMode.BANGLA) "টি এন্ট্রি" else "entries"}",
@@ -521,18 +553,29 @@ private fun CalculationBreakdownView(
                             }
                         }
 
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = LanguageHelper.formatCurrency(item.amount, languageMode),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = item.color ?: MaterialTheme.colorScheme.onSurface
-                            )
-                            if (item.percentage != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = String.format("%.1f%%", item.percentage),
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.outline
+                                    text = LanguageHelper.formatCurrency(item.amount, languageMode),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = item.color ?: MaterialTheme.colorScheme.onSurface
+                                )
+                                if (item.percentage != null) {
+                                    Text(
+                                        text = String.format("%.1f%%", item.percentage),
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                            if (item.onClick != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(12.dp)
                                 )
                             }
                         }
