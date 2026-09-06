@@ -367,6 +367,9 @@ object LanguageHelper {
         "no_categories_match" to Trans("No categories found", "কোনো ক্যাটাগরি পাওয়া যায়নি"),
         "search_categories" to Trans("Search categories...", "ক্যাটাগরি অনুসন্ধান..."),
         "fill_remaining" to Trans("Fill Remaining", "অবশিষ্ট পূরণ"),
-        "clear" to Trans("Clear", "মুছুন")
+        "clear" to Trans("Clear", "মুছুন"),
+        "spent" to Trans("Spent", "ব্যয়"),
+        "spent_amount" to Trans("Spent Amount", "ব্যয়কৃত পরিমাণ"),
+        "remaining" to Trans("Remaining", "অবশিষ্ট")
     )
 }

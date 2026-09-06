@@ -58,6 +58,7 @@ data class CategoryAccountSplit(
 data class CategoryAllocationAnalysis(
     val category: Category,
     val totalBudgetOrRequired: Double,
+    val totalBudgeted: Double = totalBudgetOrRequired,
     val totalActualSpent: Double,
     val totalRemaining: Double,
     val accountSplits: List<CategoryAccountSplit>,

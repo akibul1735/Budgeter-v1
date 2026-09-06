@@ -9,9 +9,12 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -189,18 +193,16 @@ fun PaymentSourceScreen(
     }
 
     // Budgeted and Remaining Amounts across all categories/requirements
-    val totalBudgetedAmount = remember(analysisOverview.categoryAllocations, analysisOverview.totalRequired) {
-        val catBudgetSum = analysisOverview.categoryAllocations.sumOf { it.totalBudgetOrRequired }
-        if (catBudgetSum > 0) catBudgetSum else analysisOverview.totalRequired
+    val totalBudgetedAmount = remember(analysisOverview.categoryAllocations) {
+        analysisOverview.categoryAllocations.sumOf { it.totalBudgeted }
     }
 
     val totalSpentAmount = remember(analysisOverview.categoryAllocations) {
         analysisOverview.categoryAllocations.sumOf { it.totalActualSpent }
     }
 
-    val totalRemainingAmount = remember(analysisOverview.categoryAllocations, totalBudgetedAmount, totalSpentAmount) {
-        val catRemainingSum = analysisOverview.categoryAllocations.sumOf { it.totalRemaining }
-        if (catRemainingSum > 0) catRemainingSum else maxOf(0.0, totalBudgetedAmount - totalSpentAmount)
+    val totalRemainingAmount = remember(analysisOverview.categoryAllocations) {
+        analysisOverview.categoryAllocations.sumOf { it.totalRemaining }
     }
 
     val filteredAnalyses = remember(analysisOverview.accountAnalyses, accountFilter, searchQuery) {
@@ -1061,7 +1063,9 @@ private fun CompactSearchAndFilterToolbar(
 
         // Filter chips row
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1307,17 +1311,19 @@ private fun CompactAccountRequirementCard(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     color = progressColor,
-                    maxLines = 1,
+                    maxLines = 2,
+                    lineHeight = 14.sp,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
 
                 if (analysis.itemizedExpenses.isNotEmpty() || analysis.itemizedIncomes.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(6.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clickable { onToggleExpand() }
-                            .padding(4.dp)
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = if (isExpanded) LanguageHelper.getString("hide_breakdown", languageMode) else LanguageHelper.getString("expand_breakdown", languageMode),
@@ -1409,26 +1415,36 @@ private fun CompactAccountRequirementCard(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                OutlinedButton(
+                // Quick Add Expense (-) Button
+                IconButton(
                     onClick = onAddExpense,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(11.dp), tint = SolidExpense)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(LanguageHelper.getString("expense", languageMode), fontSize = 10.5.sp, color = SolidExpense)
+                    Surface(
+                        shape = CircleShape,
+                        color = SolidExpense.copy(alpha = 0.12f),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Remove, contentDescription = LanguageHelper.getString("expense", languageMode), tint = SolidExpense, modifier = Modifier.size(15.dp))
+                        }
+                    }
                 }
 
-                OutlinedButton(
+                // Quick Add Income (+) Button
+                IconButton(
                     onClick = onAddIncome,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(11.dp), tint = SolidIncome)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(LanguageHelper.getString("income", languageMode), fontSize = 10.5.sp, color = SolidIncome)
+                    Surface(
+                        shape = CircleShape,
+                        color = SolidIncome.copy(alpha = 0.12f),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Add, contentDescription = LanguageHelper.getString("income", languageMode), tint = SolidIncome, modifier = Modifier.size(15.dp))
+                        }
+                    }
                 }
             }
         }
@@ -1508,6 +1524,7 @@ private fun CompactItemizedRow(item: AccountRequirementItem, languageMode: Langu
 /**
  * Compact Category Allocation Card (Under Categories Tab)
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CompactCategoryAllocationCard(
     categoryAlloc: CategoryAllocationAnalysis,
@@ -1520,10 +1537,23 @@ private fun CompactCategoryAllocationCard(
         MaterialTheme.colorScheme.primary
     }
 
+    val spentRatio = if (categoryAlloc.totalBudgeted > 0) {
+        (categoryAlloc.totalActualSpent / categoryAlloc.totalBudgeted).toFloat().coerceIn(0f, 1f)
+    } else if (categoryAlloc.totalActualSpent > 0) {
+        1.0f
+    } else {
+        0.0f
+    }
+
+    val isOverspent = categoryAlloc.totalBudgeted > 0 && categoryAlloc.totalActualSpent > categoryAlloc.totalBudgeted
+
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        border = BorderStroke(
+            1.dp,
+            if (isOverspent) SolidExpense.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+        ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1543,7 +1573,7 @@ private fun CompactCategoryAllocationCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(30.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
                             .background(categoryColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
@@ -1552,11 +1582,11 @@ private fun CompactCategoryAllocationCard(
                             imageVector = IconHelper.getIconByName(categoryAlloc.category.iconName),
                             contentDescription = null,
                             tint = categoryColor,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(17.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = categoryAlloc.category.localizedName(languageMode),
@@ -1582,25 +1612,18 @@ private fun CompactCategoryAllocationCard(
                                 }
                             }
                         }
-                        Text(
-                            text = "${LanguageHelper.getString("budgeted_amount", languageMode)}: ${LanguageHelper.formatCurrency(categoryAlloc.totalBudgetOrRequired, languageMode)}",
-                            fontSize = 10.5.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
                     }
                 }
 
-                Button(
+                Spacer(modifier = Modifier.width(6.dp))
+
+                OutlinedButton(
                     onClick = onEditSplit,
-                    shape = RoundedCornerShape(6.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
+                    shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(26.dp)
+                    modifier = Modifier.height(28.dp)
                 ) {
-                    Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(11.dp))
+                    Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(12.dp))
                     Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = LanguageHelper.getString("split", languageMode),
@@ -1610,14 +1633,97 @@ private fun CompactCategoryAllocationCard(
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Dual metric panel: Budgeted Amount from budget maker & Remaining Amount from the budget
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Budgeted Amount from budget maker of same month
+                        Column {
+                            Text(
+                                text = LanguageHelper.getString("budgeted_amount", languageMode),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = LanguageHelper.formatCurrency(categoryAlloc.totalBudgeted, languageMode),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidExpense
+                            )
+                        }
+
+                        // Spent Amount
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = LanguageHelper.getString("spent", languageMode),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = LanguageHelper.formatCurrency(categoryAlloc.totalActualSpent, languageMode),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Remaining Amount from the budget
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = LanguageHelper.getString("remaining_amount", languageMode),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = LanguageHelper.formatCurrency(categoryAlloc.totalRemaining, languageMode),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (categoryAlloc.totalRemaining > 0) SolidIncome else MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(5.dp))
+
+                    // Mini Progress Bar
+                    LinearProgressIndicator(
+                        progress = { spentRatio },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = if (isOverspent) SolidExpense else categoryColor,
+                        trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        strokeCap = StrokeCap.Round
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
 
             // Assigned Account Badges
             if (categoryAlloc.accountSplits.isNotEmpty()) {
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     categoryAlloc.accountSplits.forEach { split ->
                         val accColor = try {
@@ -1632,12 +1738,12 @@ private fun CompactCategoryAllocationCard(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                             ) {
                                 Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(accColor))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "${split.account.localizedName(languageMode)}: ${LanguageHelper.formatCurrency(split.allocatedAmount, languageMode)} (${split.percentageOfCategory.toInt()}%)",
+                                    text = "${split.account.localizedName(languageMode)}: ${LanguageHelper.formatCurrency(split.allocatedAmount, languageMode)}${if (categoryAlloc.isMultiAccount) " (${split.percentageOfCategory.toInt()}%)" else ""}",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
