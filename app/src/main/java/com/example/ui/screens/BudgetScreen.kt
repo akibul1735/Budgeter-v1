@@ -202,7 +202,8 @@ data class BudgetTargetItem(
 data class BudgetSuggestionOption(
     val index: Int,
     val amountMonthly: Double,
-    val pretext: String
+    val pretext: String,
+    val label: String = ""
 )
 
 data class EnhancedBudgetItem(
@@ -617,6 +618,7 @@ fun BudgetScreen(
                         items = expenseItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
                         languageMode = languageMode,
@@ -667,6 +669,7 @@ fun BudgetScreen(
                         items = liabilityItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
                         languageMode = languageMode,
@@ -717,6 +720,7 @@ fun BudgetScreen(
                         items = incomeItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
                         languageMode = languageMode,
@@ -767,6 +771,7 @@ fun BudgetScreen(
                         items = assetItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
                         languageMode = languageMode,
@@ -928,6 +933,7 @@ private fun CategoriesBudgetEntryView(
     items: List<BudgetTargetItem>,
     monthlyBudgets: List<MonthlyBudget>,
     allTransactions: List<TransactionWithDetails>,
+    accountsWithBalances: List<AccountWithBalance> = emptyList(),
     selectedYear: Int,
     selectedMonth: Int,
     languageMode: LanguageMode,
@@ -955,6 +961,11 @@ private fun CategoriesBudgetEntryView(
         monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
     }
 
+    // Account Balance Map from Balance Sheet
+    val accountBalanceMap = remember(accountsWithBalances) {
+        accountsWithBalances.associate { it.account.id to it.currentBalance }
+    }
+
     // Calculate month boundary timestamps
     val startOfMonthMs = remember(selectedYear, selectedMonth) {
         DateUtils.getStartOfMonth(selectedYear, selectedMonth)
@@ -964,32 +975,45 @@ private fun CategoriesBudgetEntryView(
     }
 
     // Build Enhanced items with pre-calculated insights, actuals, and suggestions
-    val enhancedItems = remember(items, monthlyBudgets, allTransactions, selectedYear, selectedMonth) {
+    val enhancedItems = remember(items, monthlyBudgets, allTransactions, accountsWithBalances, selectedYear, selectedMonth) {
         items.map { item ->
             val saved = budgetMap["${item.itemType}_${item.id}"]
             val currentAmt = saved?.budgetedAmount ?: item.defaultLimit
             val isEnabled = saved?.isEnabled ?: true
 
-            // Calculate actual transactions for this specific item in current month
-            val itemTxs = allTransactions.filter {
-                it.transaction.categoryId == item.id || it.transaction.subCategoryId == item.id ||
-                it.transaction.debitAccountId == item.id || it.transaction.creditAccountId == item.id
+            val isAssetOrLiability = item.itemType == "ASSET" || item.itemType == "LIABILITY"
+            val actualAmt: Double
+            val txCount: Int
+
+            if (isAssetOrLiability) {
+                // For Assets & Liabilities, actual amount is the actual balance from the balance sheet
+                actualAmt = accountBalanceMap[item.id] ?: 0.0
+                txCount = allTransactions.count {
+                    it.transaction.debitAccountId == item.id || it.transaction.creditAccountId == item.id
+                }
+            } else {
+                // Calculate actual transactions for this specific item in current month
+                val itemTxs = allTransactions.filter {
+                    it.transaction.categoryId == item.id || it.transaction.subCategoryId == item.id ||
+                    it.transaction.debitAccountId == item.id || it.transaction.creditAccountId == item.id
+                }
+                val currentMonthTxs = itemTxs.filter { it.transaction.dateEpochMs in startOfMonthMs..endOfMonthMs }
+                actualAmt = currentMonthTxs.sumOf { it.transaction.amount }
+                txCount = itemTxs.size
             }
-            val currentMonthTxs = itemTxs.filter { it.transaction.dateEpochMs in startOfMonthMs..endOfMonthMs }
-            val actualAmt = currentMonthTxs.sumOf { it.transaction.amount }
-            val txCount = itemTxs.size
 
             // Check if frequently budgeted in past months
             val pastBudgetCount = monthlyBudgets.count {
                 it.itemId == item.id && it.itemType == item.itemType && it.budgetedAmount > 0.0
             }
             val isFreqBudgeted = pastBudgetCount > 0 || item.defaultLimit > 0.0 || (saved?.budgetedAmount ?: 0.0) > 0.0
-            val isFreqExpensed = txCount > 0
+            val isFreqExpensed = txCount > 0 || (isAssetOrLiability && actualAmt != 0.0)
 
             val suggestions = calculateSuggestionsForItem(
                 itemId = item.id,
                 itemType = item.itemType,
                 defaultLimit = item.defaultLimit,
+                balanceSheetBalance = if (isAssetOrLiability) actualAmt else 0.0,
                 allTransactions = allTransactions,
                 selectedYear = selectedYear,
                 selectedMonth = selectedMonth,
@@ -1592,18 +1616,6 @@ private fun BudgetItemRow(
         if (found >= 0) found else -1
     }
 
-    val pretext = when {
-        activeIndex >= 0 && activeIndex < suggestions.size -> suggestions[activeIndex].pretext
-        else -> "Custom"
-    }
-
-    val centerIdx = if (activeIndex >= 0) activeIndex else 0
-    val prevIdx = if (centerIdx <= 0) suggestions.size - 1 else centerIdx - 1
-    val nextIdx = (centerIdx + 1) % suggestions.size
-
-    val prevMonthly = suggestions.getOrNull(prevIdx)?.amountMonthly ?: 500.0
-    val nextMonthly = suggestions.getOrNull(nextIdx)?.amountMonthly ?: 1500.0
-
     val parsedColor = remember(item.colorHex) {
         try {
             IconHelper.parseColorHex(item.colorHex)
@@ -1611,8 +1623,6 @@ private fun BudgetItemRow(
             sectionColor
         }
     }
-
-    var horizontalDragAccumulator by remember { mutableFloatStateOf(0f) }
 
     Card(
         shape = RoundedCornerShape(10.dp),
@@ -1671,7 +1681,7 @@ private fun BudgetItemRow(
                     )
                 }
 
-                // Right: Active Budget Display (with money pouch icon) + Checkbox
+                // Right: Active Budget Display (with wallet icon) + Checkbox
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1722,21 +1732,31 @@ private fun BudgetItemRow(
                 }
             }
 
-            // TIER 2: Insights Subtitle (Budget= ... • Actual= ... • Manual= ...)
-            val sublineText = buildString {
-                if (currentMonthlyAmt > 0) {
-                    append("Budget= ${(currentMonthlyAmt).toInt()} • ")
+            // TIER 2: Insights Subtitle
+            val isAssetOrLiability = item.itemType == "ASSET" || item.itemType == "LIABILITY"
+            val sublineText = if (isAssetOrLiability) {
+                buildString {
+                    append("Actual (Balance Sheet)= ${formatCompactCurrency(actualSpent, languageMode)}")
+                    if (currentMonthlyAmt > 0) {
+                        append(" • Target= ${formatCompactCurrency(currentMonthlyAmt, languageMode)}")
+                    }
                 }
-                append("Actual= ${(actualSpent).toInt()}")
-                if (manualBaseline > 0) {
-                    append(" • Manual= ${(manualBaseline).toInt()}")
+            } else {
+                buildString {
+                    if (currentMonthlyAmt > 0) {
+                        append("Budget= ${(currentMonthlyAmt).toInt()} • ")
+                    }
+                    append("Actual= ${(actualSpent).toInt()}")
+                    if (manualBaseline > 0) {
+                        append(" • Manual= ${(manualBaseline).toInt()}")
+                    }
                 }
             }
 
             Text(
                 text = sublineText,
                 fontSize = 11.5.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1808,13 +1828,13 @@ private fun BudgetItemRow(
                 }
             }
 
-            // TIER 3: Suggestions Checkmarks (Right) + Stepper / Frequency (Left) + Calculator Button
+            // TIER 3: Direct Amount Suggestion Buttons + Manual Option
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Frequency selector pill (For periodic flows)
+                // Left: Frequency selector pill (For periodic flows) or Asset/Liability label
                 if (isPeriodicFlow) {
                     Box {
                         Surface(
@@ -1867,111 +1887,94 @@ private fun BudgetItemRow(
                         }
                     }
                 } else {
-                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = if (item.itemType == "ASSET") "Asset Balance" else "Liability Balance",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
 
-                // Center/Right: Interactive Suggestion Checkmark Circles & Edit Calculator
+                // Right: Amount Suggestion Buttons & Manual Option
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    // Quick Suggestions: Take up to 3 prominent suggestions (Prev Month, Frequent, 3-Mo Avg)
+                    // Quick Suggestion Amount Buttons (take up to 3 suggestions)
                     val quickSuggestions = suggestions.take(3)
-                    quickSuggestions.forEachIndexed { sIdx, sugg ->
-                        val isSuggestionActive = kotlin.math.abs(currentMonthlyAmt - sugg.amountMonthly) < 0.5
+                    quickSuggestions.forEach { sugg ->
+                        val isSuggestionActive = kotlin.math.abs(currentMonthlyAmt - sugg.amountMonthly) < 0.5 && currentMonthlyAmt > 0.0
+                        val formattedAmount = formatCompactCurrency(sugg.amountMonthly, languageMode)
 
-                        IconButton(
-                            onClick = {
-                                onSaveBudget(sugg.amountMonthly, true)
-                            },
-                            modifier = Modifier.size(26.dp)
+                        Surface(
+                            shape = RoundedCornerShape(7.dp),
+                            color = if (isSuggestionActive) sectionColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            border = BorderStroke(
+                                0.8.dp,
+                                if (isSuggestionActive) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(7.dp))
+                                .clickable {
+                                    onSaveBudget(sugg.amountMonthly, true)
+                                }
+                                .testTag("sugg_btn_${item.id}_${sugg.index}")
                         ) {
-                            Icon(
-                                imageVector = if (isSuggestionActive) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
-                                contentDescription = "${sugg.pretext}: ${sugg.amountMonthly.toInt()}",
-                                tint = if (isSuggestionActive) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f),
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-                    }
-
-                    // Stepper chevrons for browsing all suggestions
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                            .pointerInput(suggestions, activeIndex) {
-                                detectHorizontalDragGestures(
-                                    onDragEnd = {
-                                        if (horizontalDragAccumulator < -20f) {
-                                            val targetIdx = (centerIdx + 1) % suggestions.size
-                                            onSaveBudget(suggestions[targetIdx].amountMonthly, true)
-                                        } else if (horizontalDragAccumulator > 20f) {
-                                            val targetIdx = if (centerIdx <= 0) suggestions.size - 1 else centerIdx - 1
-                                            onSaveBudget(suggestions[targetIdx].amountMonthly, true)
-                                        }
-                                        horizontalDragAccumulator = 0f
-                                    },
-                                    onDragCancel = { horizontalDragAccumulator = 0f },
-                                    onHorizontalDrag = { change, dragAmount ->
-                                        change.consume()
-                                        horizontalDragAccumulator += dragAmount
-                                    }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.5.dp)
+                            ) {
+                                if (sugg.label.isNotEmpty()) {
+                                    Text(
+                                        text = "${sugg.label}:",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isSuggestionActive) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Text(
+                                    text = formattedAmount,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSuggestionActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    color = if (isSuggestionActive) Color.White else MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                    ) {
-                        IconButton(
-                            onClick = { onSaveBudget(prevMonthly, true) },
-                            modifier = Modifier.size(22.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.KeyboardArrowLeft,
-                                contentDescription = "Prev",
-                                tint = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-
-                        Text(
-                            text = pretext,
-                            fontSize = 9.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (activeIndex >= 0) sectionColor else AmberGold,
-                            modifier = Modifier
-                                .clickable {
-                                    val targetIdx = (centerIdx + 1) % suggestions.size
-                                    onSaveBudget(suggestions[targetIdx].amountMonthly, true)
-                                }
-                                .padding(horizontal = 2.dp)
-                        )
-
-                        IconButton(
-                            onClick = { onSaveBudget(nextMonthly, true) },
-                            modifier = Modifier.size(22.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.KeyboardArrowRight,
-                                contentDescription = "Next",
-                                tint = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(14.dp)
-                            )
                         }
                     }
 
-                    // Manual Edit / Calculator Icon (Matching pencil icon in screenshot)
-                    IconButton(
-                        onClick = { showPopupCalculator = true },
+                    // Manual Option Button
+                    val isManualCustom = activeIndex == -1 && currentMonthlyAmt > 0.0
+                    Surface(
+                        shape = RoundedCornerShape(7.dp),
+                        color = if (isManualCustom) sectionColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(
+                            0.8.dp,
+                            if (isManualCustom) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
                         modifier = Modifier
-                            .size(26.dp)
+                            .clip(RoundedCornerShape(7.dp))
+                            .clickable { showPopupCalculator = true }
                             .testTag("manual_entry_btn_${item.id}")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit / Calculate",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(17.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Manual Option",
+                                tint = if (isManualCustom) sectionColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "Manual",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isManualCustom) sectionColor else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -2089,6 +2092,7 @@ private fun calculateSuggestionsForItem(
     itemId: Long,
     itemType: String,
     defaultLimit: Double,
+    balanceSheetBalance: Double = 0.0,
     allTransactions: List<TransactionWithDetails>,
     selectedYear: Int,
     selectedMonth: Int,
@@ -2100,6 +2104,23 @@ private fun calculateSuggestionsForItem(
         prevMonth = 12
         prevYear -= 1
     }
+
+    val prevSaved = monthlyBudgets.find { it.year == prevYear && it.month == prevMonth && it.itemType == itemType && it.itemId == itemId }
+    val prevSavedAmt = prevSaved?.budgetedAmount ?: 0.0
+
+    if (itemType == "ASSET" || itemType == "LIABILITY") {
+        // ASSETS & LIABILITIES: Suggestions include Actual balance from balance sheet, previous month's target, and baseline
+        val list = mutableListOf<BudgetSuggestionOption>()
+        list.add(BudgetSuggestionOption(0, balanceSheetBalance, "Actual Balance", "Actual"))
+        if (prevSavedAmt > 0.0 && kotlin.math.abs(prevSavedAmt - balanceSheetBalance) > 0.5) {
+            list.add(BudgetSuggestionOption(1, prevSavedAmt, "Previous Target", "Prev"))
+        }
+        if (defaultLimit > 0.0 && kotlin.math.abs(defaultLimit - balanceSheetBalance) > 0.5 && kotlin.math.abs(defaultLimit - prevSavedAmt) > 0.5) {
+            list.add(BudgetSuggestionOption(2, defaultLimit, "Baseline Target", "Base"))
+        }
+        return list
+    }
+
     val prevMonthStart = DateUtils.getStartOfMonth(prevYear, prevMonth)
     val prevMonthEnd = DateUtils.getEndOfMonth(prevYear, prevMonth)
 
@@ -2113,9 +2134,8 @@ private fun calculateSuggestionsForItem(
     val prevMonthAmt = if (prevMonthActual > 0.0) {
         prevMonthActual
     } else {
-        val prevSaved = monthlyBudgets.find { it.year == prevYear && it.month == prevMonth && it.itemType == itemType && it.itemId == itemId }
-        if (prevSaved != null && prevSaved.budgetedAmount > 0.0) {
-            prevSaved.budgetedAmount
+        if (prevSavedAmt > 0.0) {
+            prevSavedAmt
         } else if (defaultLimit > 0.0) {
             defaultLimit * 0.9
         } else {
@@ -2145,11 +2165,6 @@ private fun calculateSuggestionsForItem(
     } else {
         (baseFreq * 1.25).roundToInt().toDouble()
     }
-    val freq3 = if (freqCounts.size > 2) {
-        freqCounts[2].first
-    } else {
-        (baseFreq * 0.75).roundToInt().coerceAtLeast(100).toDouble()
-    }
 
     val threeMonthStart = DateUtils.getStartOfMonth(
         if (selectedMonth > 3) selectedYear else selectedYear - 1,
@@ -2166,20 +2181,24 @@ private fun calculateSuggestionsForItem(
     }.values.map { it.sumOf { tx -> tx.transaction.amount } }
 
     val avgAmt = if (threeMonthGrouped.isNotEmpty()) {
-        threeMonthGrouped.average()
+        threeMonthGrouped.average().roundToInt().toDouble()
     } else if (defaultLimit > 0.0) {
         defaultLimit * 1.15
     } else {
         1500.0
     }
 
-    return listOf(
-        BudgetSuggestionOption(0, prevMonthAmt, "Prev Month"),
-        BudgetSuggestionOption(1, freq1, "Frequent 1"),
-        BudgetSuggestionOption(2, freq2, "Frequent 2"),
-        BudgetSuggestionOption(3, freq3, "Frequent 3"),
-        BudgetSuggestionOption(4, avgAmt, "3-Mo Avg")
-    )
+    val list = mutableListOf<BudgetSuggestionOption>()
+    list.add(BudgetSuggestionOption(0, prevMonthAmt, "Prev Month", "Prev"))
+    if (kotlin.math.abs(freq1 - prevMonthAmt) > 0.5) {
+        list.add(BudgetSuggestionOption(1, freq1, "Frequent", "Freq"))
+    }
+    if (kotlin.math.abs(avgAmt - prevMonthAmt) > 0.5 && kotlin.math.abs(avgAmt - freq1) > 0.5) {
+        list.add(BudgetSuggestionOption(2, avgAmt, "3-Mo Avg", "Avg"))
+    } else if (kotlin.math.abs(freq2 - prevMonthAmt) > 0.5 && kotlin.math.abs(freq2 - freq1) > 0.5) {
+        list.add(BudgetSuggestionOption(3, freq2, "Frequent 2", "Freq+"))
+    }
+    return list
 }
 
 /**
