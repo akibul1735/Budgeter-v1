@@ -149,7 +149,10 @@ import com.example.util.DisplayFormatPreferences
 import com.example.util.IconHelper
 import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
+import com.example.util.TransactionConfig
+import com.example.util.TransactionPreferences
 import com.example.util.TransferFeePreferences
+import com.example.util.UnnamedPayeeMode
 import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -167,6 +170,8 @@ fun AddEditTransactionSheet(
     onAddNewAccount: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val txPrefs = remember { TransactionPreferences.getInstance(context) }
+    val txConfig by txPrefs.config.collectAsStateWithLifecycle()
     val autofillPrefs = remember { AutofillPreferences.getInstance(context) }
     val autofillConfig by autofillPrefs.config.collectAsState()
     val displayFormatPrefs = remember { DisplayFormatPreferences.getInstance(context) }
@@ -241,16 +246,29 @@ fun AddEditTransactionSheet(
 
     // Double-entry Accounts
     var debitAccountId by remember {
-        mutableStateOf(existingTransaction?.debitAccountId)
+        mutableStateOf(
+            existingTransaction?.debitAccountId
+                ?: (if (existingTransaction == null) txConfig.defaultAccountId else null)
+        )
     }
 
     var creditAccountId by remember {
-        mutableStateOf(existingTransaction?.creditAccountId)
+        mutableStateOf(
+            existingTransaction?.creditAccountId
+                ?: (if (existingTransaction == null) txConfig.defaultAccountId else null)
+        )
     }
 
     // Categories
     var selectedCategoryId by remember {
-        mutableStateOf(existingTransaction?.categoryId)
+        mutableStateOf(
+            existingTransaction?.categoryId ?: (if (existingTransaction == null) {
+                if ((existingTransaction?.type ?: TransactionType.EXPENSE) == TransactionType.EXPENSE)
+                    txConfig.defaultExpenseCategoryId
+                else
+                    txConfig.defaultIncomeCategoryId
+            } else null)
+        )
     }
 
     var selectedSubCategoryId by remember {
@@ -454,6 +472,25 @@ fun AddEditTransactionSheet(
                 selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
             } else null
 
+            val finalPayee = if (payee.isNotBlank()) {
+                payee.trim()
+            } else {
+                when (txConfig.unnamedPayeeMode) {
+                    UnnamedPayeeMode.DEFAULT_OTHERS -> if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
+                    UnnamedPayeeMode.CATEGORY_NAME -> {
+                        val cat = categories.firstOrNull { it.id == (finalSubCategoryId ?: finalCategoryId) }
+                        cat?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+                    }
+                    UnnamedPayeeMode.ACCOUNT_NAME -> {
+                        val acc = accounts.firstOrNull { it.id == (creditAccountId ?: debitAccountId) }
+                        acc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+                    }
+                    UnnamedPayeeMode.CUSTOM_NAME -> txConfig.customDefaultPayee.ifBlank {
+                        if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
+                    }
+                }
+            }
+
             val tx = Transaction(
                 id = existingTransaction?.id ?: 0L,
                 type = txType,
@@ -461,7 +498,7 @@ fun AddEditTransactionSheet(
                 dateEpochMs = selectedDateEpochMs,
                 note = note.trim(),
                 referenceNo = labelTag.trim(),
-                payeeOrPayer = payee.trim(),
+                payeeOrPayer = finalPayee,
                 attachmentUri = attachmentUri.trim(),
                 status = status,
                 debitAccountId = when (txType) {
@@ -548,13 +585,14 @@ fun AddEditTransactionSheet(
 
                             Spacer(modifier = Modifier.width(4.dp))
 
-                            // "+1" button: saves current entry and clears previous form's entered data for new entry
+                            // "+1" button: saves current entry and clears parameters according to transaction setup rules
                             Surface(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .clickable {
-                                        val absAmt = Math.abs(amount)
+                                        val parsedAmt = amountText.toDoubleOrNull() ?: amount
+                                        val absAmt = Math.abs(parsedAmt)
                                         if (absAmt > 0) {
                                             val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
                                             val isRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
@@ -573,6 +611,25 @@ fun AddEditTransactionSheet(
                                                 selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
                                             } else null
 
+                                            val finalPayee = if (payee.isNotBlank()) {
+                                                payee.trim()
+                                            } else {
+                                                when (txConfig.unnamedPayeeMode) {
+                                                    UnnamedPayeeMode.DEFAULT_OTHERS -> if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
+                                                    UnnamedPayeeMode.CATEGORY_NAME -> {
+                                                        val cat = categories.firstOrNull { it.id == (finalSubCategoryId ?: finalCategoryId) }
+                                                        cat?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+                                                    }
+                                                    UnnamedPayeeMode.ACCOUNT_NAME -> {
+                                                        val acc = accounts.firstOrNull { it.id == (creditAccountId ?: debitAccountId) }
+                                                        acc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+                                                    }
+                                                    UnnamedPayeeMode.CUSTOM_NAME -> txConfig.customDefaultPayee.ifBlank {
+                                                        if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others"
+                                                    }
+                                                }
+                                            }
+
                                             val tx = Transaction(
                                                 id = 0,
                                                 type = txType,
@@ -580,7 +637,7 @@ fun AddEditTransactionSheet(
                                                 dateEpochMs = selectedDateEpochMs,
                                                 note = note.trim(),
                                                 referenceNo = labelTag.trim(),
-                                                payeeOrPayer = payee.trim(),
+                                                payeeOrPayer = finalPayee,
                                                 attachmentUri = attachmentUri.trim(),
                                                 status = status,
                                                 debitAccountId = when (txType) {
@@ -597,13 +654,33 @@ fun AddEditTransactionSheet(
                                                 subCategoryId = finalSubCategoryId
                                             )
                                             onSave(tx)
-                                            // Clear previous form's entered data and keep open for new entry
-                                            amount = 0.0
-                                            amountText = ""
-                                            payee = ""
-                                            note = ""
+
+                                            // Clear / Keep parameters based on user Transaction Setup configuration
+                                            if (txConfig.plusOneClearAmount) {
+                                                amount = 0.0
+                                                amountText = ""
+                                            }
+                                            if (txConfig.plusOneClearPayee) {
+                                                payee = ""
+                                            }
+                                            if (txConfig.plusOneClearNote) {
+                                                note = ""
+                                            }
+                                            if (txConfig.plusOneClearAttachment) {
+                                                attachmentUri = ""
+                                            }
+                                            if (!txConfig.plusOneKeepCategory) {
+                                                selectedCategoryId = null
+                                                selectedSubCategoryId = null
+                                            }
+                                            if (!txConfig.plusOneKeepAccount) {
+                                                debitAccountId = null
+                                                creditAccountId = null
+                                            }
+                                            if (!txConfig.plusOneKeepDate) {
+                                                selectedDateEpochMs = System.currentTimeMillis()
+                                            }
                                             labelTag = ""
-                                            attachmentUri = ""
                                             status = TransactionStatus.NONE
                                             showNameDropdown = false
                                             Toast.makeText(
@@ -839,6 +916,46 @@ fun AddEditTransactionSheet(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // Quick Date Chips (Today, Yesterday, 2 Days Ago, Tomorrow)
+                    if (txConfig.enableQuickDatePicker) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val oneDayMs = 24 * 60 * 60 * 1000L
+                            val now = System.currentTimeMillis()
+                            val dateChips = listOf(
+                                0L to (if (languageMode == LanguageMode.BANGLA) "আজ" else "Today"),
+                                -1L to (if (languageMode == LanguageMode.BANGLA) "গতকাল" else "Yesterday"),
+                                -2L to (if (languageMode == LanguageMode.BANGLA) "২ দিন আগে" else "2 Days Ago")
+                            )
+
+                            dateChips.forEach { (offsetDays, label) ->
+                                val targetTime = now + (offsetDays * oneDayMs)
+                                val isSelected = DateUtils.isSameDay(selectedDateEpochMs, targetTime)
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) SolidPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    border = if (isSelected) BorderStroke(1.dp, SolidPrimary) else null,
+                                    modifier = Modifier
+                                        .clickable {
+                                            selectedDateEpochMs = targetTime
+                                        }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
                     // 2. Date, Time & Schedule Row
                     Row(
                         modifier = Modifier
@@ -867,12 +984,21 @@ fun AddEditTransactionSheet(
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = DateUtils.formatTime(selectedDateEpochMs, languageMode),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
+                            if (txConfig.showTimePicker) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                ) {
+                                    Text(
+                                        text = DateUtils.formatTime(selectedDateEpochMs, languageMode),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                         }
 
                         Row(
@@ -1086,6 +1212,43 @@ fun AddEditTransactionSheet(
                                             fontWeight = FontWeight.SemiBold,
                                             color = if (isRevertExpense) SolidIncome else SolidExpense,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Quick Amount Presets (+10, +50, +100, +500, +1000)
+                    if (txConfig.enableQuickAmountPresets) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(10, 50, 100, 500, 1000).forEach { preset ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            val current = amountText.toDoubleOrNull() ?: 0.0
+                                            val newAmount = current + preset
+                                            amount = newAmount
+                                            amountText = if (newAmount % 1.0 == 0.0) newAmount.toLong().toString() else newAmount.toString()
+                                        }
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "+$preset",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }

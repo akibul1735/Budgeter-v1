@@ -201,6 +201,13 @@ object DateUtils {
         return cal.timeInMillis
     }
 
+    fun isSameDay(epochMs1: Long, epochMs2: Long): Boolean {
+        val cal1 = Calendar.getInstance().apply { timeInMillis = epochMs1 }
+        val cal2 = Calendar.getInstance().apply { timeInMillis = epochMs2 }
+        return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+                cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+    }
+
     fun calculateNextDueDate(currentDueDate: Long, recurrence: com.example.data.model.RecurrencePeriod): Long {
         val cal = Calendar.getInstance().apply { timeInMillis = currentDueDate }
         when (recurrence) {

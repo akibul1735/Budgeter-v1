@@ -82,7 +82,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.dialogs.PhoneNotificationDialog
 import com.example.ui.dialogs.SecuritySettingsDialog
+import com.example.ui.dialogs.TransactionSetupDialog
 import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.FontPreset
 import com.example.ui.theme.SolidExpense
@@ -121,6 +123,8 @@ fun SettingsScreen(
     val displayFormatConfig by viewModel.displayFormatConfig.collectAsStateWithLifecycle()
     val dashboardConfig by viewModel.dashboardConfig.collectAsStateWithLifecycle()
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
+    val accounts by viewModel.allAccounts.collectAsStateWithLifecycle()
+    val categories by viewModel.allCategories.collectAsStateWithLifecycle()
 
     // Dialog States
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -786,55 +790,14 @@ fun SettingsScreen(
 
     // 6. Transaction Setup Dialog
     if (showTransactionSetupDialog) {
-        AlertDialog(
-            onDismissRequest = { showTransactionSetupDialog = false },
-            title = { Text("Transaction Setup", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Item & Category Display Format", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES,
-                            onClick = { viewModel.setItemDisplayFormat(ItemDisplayFormat.TWO_LINES) },
-                            label = { Text("Double-Line", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.SINGLE_LINE,
-                            onClick = { viewModel.setItemDisplayFormat(ItemDisplayFormat.SINGLE_LINE) },
-                            label = { Text("Single-Line", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            showTransactionSetupDialog = false
-                            onOpenAutofillSettings()
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Smart Autofill & Categorization", fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showTransactionSetupDialog = false }) {
-                    Text("Done")
-                }
+        TransactionSetupDialog(
+            accounts = accounts,
+            categories = categories,
+            languageMode = languageMode,
+            onDismiss = { showTransactionSetupDialog = false },
+            onOpenAutofillSettings = {
+                showTransactionSetupDialog = false
+                onOpenAutofillSettings()
             }
         )
     }
@@ -873,34 +836,9 @@ fun SettingsScreen(
 
     // 8. Notification Dialog
     if (showNotificationDialog) {
-        AlertDialog(
-            onDismissRequest = { showNotificationDialog = false },
-            title = { Text("Phone Notifications", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Daily Expense Reminder (9:00 PM)", fontSize = 13.sp)
-                        Switch(checked = true, onCheckedChange = {})
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Bill Due Reminders", fontSize = 13.sp)
-                        Switch(checked = true, onCheckedChange = {})
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showNotificationDialog = false }) {
-                    Text("Done")
-                }
-            }
+        PhoneNotificationDialog(
+            languageMode = languageMode,
+            onDismiss = { showNotificationDialog = false }
         )
     }
 
