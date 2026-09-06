@@ -58,152 +58,339 @@ fun buildThemeColorScheme(
     isAmoled: Boolean = false,
     intensity: ColorIntensity = ColorIntensity.VIVID
 ): ColorScheme {
-    // 1. Primary Colors & Containers per Theme & Intensity
-    val (primary, primaryDark, primaryContainer, onPrimaryContainer) = when (palette) {
-        ThemePalette.SOFT_PASTEL -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFF8E67CE), Color(0xFF6A45AA), Color(0xFFF1E9FA), Color(0xFF432085))
-            ColorIntensity.VIVID -> listOf(Color(0xFF7E57C2), Color(0xFF5E35B1), Color(0xFFEDE7F6), Color(0xFF311B92))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF5E35B1), Color(0xFF311B92), Color(0xFFD1C4E9), Color(0xFF1E0A60))
-        }
-        ThemePalette.PREMIUM_GREEN -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFF16A34A), Color(0xFF15803D), Color(0xFFDCFCE7), Color(0xFF14532D))
-            ColorIntensity.VIVID -> listOf(Color(0xFF15803D), Color(0xFF166534), Color(0xFFBBF7D0), Color(0xFF052E16))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF166534), Color(0xFF052E16), Color(0xFF86EFAC), Color(0xFF021C0D))
-        }
-        ThemePalette.ELEGANT_BLUE -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFF2563EB), Color(0xFF1D4ED8), Color(0xFFDBEAFE), Color(0xFF1E40AF))
-            ColorIntensity.VIVID -> listOf(Color(0xFF1D4ED8), Color(0xFF1E40AF), Color(0xFFBFDBFE), Color(0xFF172554))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF1E40AF), Color(0xFF172554), Color(0xFF93C5FD), Color(0xFF0F172A))
-        }
-        ThemePalette.WARM_NEUTRAL -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFFD97706), Color(0xFFB45309), Color(0xFFFEF3C7), Color(0xFF78350F))
-            ColorIntensity.VIVID -> listOf(Color(0xFFB45309), Color(0xFF92400E), Color(0xFFFDE68A), Color(0xFF451A03))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF92400E), Color(0xFF451A03), Color(0xFFFCD34D), Color(0xFF261001))
-        }
-        ThemePalette.MODERN_INDIGO -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFF6366F1), Color(0xFF4F46E5), Color(0xFFE0E7FF), Color(0xFF312E81))
-            ColorIntensity.VIVID -> listOf(Color(0xFF4F46E5), Color(0xFF4338CA), Color(0xFFC7D2FE), Color(0xFF1E1B4B))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF4338CA), Color(0xFF1E1B4B), Color(0xFFA5B4FC), Color(0xFF0F0E2A))
-        }
-        ThemePalette.CALM_SAGE -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFF4B8B67), Color(0xFF3B7A57), Color(0xFFDDF0E6), Color(0xFF1B4D33))
-            ColorIntensity.VIVID -> listOf(Color(0xFF3B7A57), Color(0xFF2E6546), Color(0xFFC3E6D2), Color(0xFF123B25))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF2E6546), Color(0xFF123B25), Color(0xFFA0D8B7), Color(0xFF071F13))
-        }
-        ThemePalette.SOPHISTICATED_DARK -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFF3F3F46), Color(0xFF27272A), Color(0xFFE4E4E7), Color(0xFF18181B))
-            ColorIntensity.VIVID -> listOf(Color(0xFF27272A), Color(0xFF18181B), Color(0xFFD4D4D8), Color(0xFF09090B))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF18181B), Color(0xFF09090B), Color(0xFFA1A1AA), Color(0xFF000000))
-        }
-        ThemePalette.MINIMAL_MONO -> when (intensity) {
-            ColorIntensity.STANDARD -> listOf(Color(0xFF495057), Color(0xFF343A40), Color(0xFFE9ECEF), Color(0xFF212529))
-            ColorIntensity.VIVID -> listOf(Color(0xFF343A40), Color(0xFF212529), Color(0xFFDEE2E6), Color(0xFF141619))
-            ColorIntensity.DEEP_CONTRAST -> listOf(Color(0xFF212529), Color(0xFF000000), Color(0xFFCED4DA), Color(0xFF000000))
-        }
-    }
-
-    // 2. Secondary & Accent Tones tailored per theme
-    val (lightSecondary, lightSecondaryContainer, lightOnSecondaryContainer) = when (palette) {
-        ThemePalette.SOFT_PASTEL -> listOf(Color(0xFF9575CD), Color(0xFFF3E5F5), Color(0xFF4A148C))
-        ThemePalette.PREMIUM_GREEN -> listOf(Color(0xFF0D9488), Color(0xFFCCFBF1), Color(0xFF115E59))
-        ThemePalette.ELEGANT_BLUE -> listOf(Color(0xFF0284C7), Color(0xFFE0F2FE), Color(0xFF0369A1))
-        ThemePalette.WARM_NEUTRAL -> listOf(Color(0xFFC2410C), Color(0xFFFFEDD5), Color(0xFF9A3412))
-        ThemePalette.MODERN_INDIGO -> listOf(Color(0xFF7C3AED), Color(0xFFEDE9FE), Color(0xFF5B21B6))
-        ThemePalette.CALM_SAGE -> listOf(Color(0xFF52796F), Color(0xFFE0ECE7), Color(0xFF2F4F4F))
-        ThemePalette.SOPHISTICATED_DARK -> listOf(Color(0xFF71717A), Color(0xFFF4F4F5), Color(0xFF27272A))
-        ThemePalette.MINIMAL_MONO -> listOf(Color(0xFF6C757D), Color(0xFFF1F3F5), Color(0xFF343A40))
-    }
-
-    // 3. Theme-Specific Light Backgrounds & Surfaces
-    val (lightBg, lightSurface, lightSurfaceVariant, lightOutline) = when (palette) {
-        ThemePalette.SOFT_PASTEL -> listOf(Color(0xFFFBF9FE), Color(0xFFFFFFFF), Color(0xFFF4EFF9), Color(0xFFE0D4EC))
-        ThemePalette.PREMIUM_GREEN -> listOf(Color(0xFFF5FAF7), Color(0xFFFFFFFF), Color(0xFFEBF4EE), Color(0xFFCDE5D6))
-        ThemePalette.ELEGANT_BLUE -> listOf(Color(0xFFF6F9FD), Color(0xFFFFFFFF), Color(0xFFEDF3FA), Color(0xFFCBDFF4))
-        ThemePalette.WARM_NEUTRAL -> listOf(Color(0xFFFAF7F2), Color(0xFFFFFFFF), Color(0xFFF3ECE2), Color(0xFFE5D8C5))
-        ThemePalette.MODERN_INDIGO -> listOf(Color(0xFFF7F8FC), Color(0xFFFFFFFF), Color(0xFFEFF1F9), Color(0xFFD2D9EE))
-        ThemePalette.CALM_SAGE -> listOf(Color(0xFFF5F8F6), Color(0xFFFFFFFF), Color(0xFFEBF2EE), Color(0xFFCADCD2))
-        ThemePalette.SOPHISTICATED_DARK -> listOf(Color(0xFFF4F5F7), Color(0xFFFFFFFF), Color(0xFFE9EBEF), Color(0xFFD4D4D8))
-        ThemePalette.MINIMAL_MONO -> listOf(Color(0xFFF8F9FA), Color(0xFFFFFFFF), Color(0xFFF1F3F5), Color(0xFFCED4DA))
-    }
-
-    // 4. Theme-Specific Dark Backgrounds & Surfaces
-    val (darkBg, darkSurface, darkSurfaceVariant, darkOutline) = when (palette) {
-        ThemePalette.SOFT_PASTEL -> listOf(Color(0xFF14101D), Color(0xFF1D1728), Color(0xFF282136), Color(0xFF423854))
-        ThemePalette.PREMIUM_GREEN -> listOf(Color(0xFF0B1610), Color(0xFF13261D), Color(0xFF1C362A), Color(0xFF2E5241))
-        ThemePalette.ELEGANT_BLUE -> listOf(Color(0xFF0A1124), Color(0xFF121E3B), Color(0xFF1A2C54), Color(0xFF2C467E))
-        ThemePalette.WARM_NEUTRAL -> listOf(Color(0xFF17130F), Color(0xFF241E18), Color(0xFF332A22), Color(0xFF524335))
-        ThemePalette.MODERN_INDIGO -> listOf(Color(0xFF0C1021), Color(0xFF161C36), Color(0xFF20294D), Color(0xFF354275))
-        ThemePalette.CALM_SAGE -> listOf(Color(0xFF0E1713), Color(0xFF182721), Color(0xFF243830), Color(0xFF355347))
-        ThemePalette.SOPHISTICATED_DARK -> listOf(Color(0xFF090A0D), Color(0xFF13151A), Color(0xFF1E222A), Color(0xFF323846))
-        ThemePalette.MINIMAL_MONO -> listOf(Color(0xFF111215), Color(0xFF1A1D21), Color(0xFF262A30), Color(0xFF3D434D))
-    }
-
     return if (isDark) {
-        if (isAmoled) {
-            darkColorScheme(
-                primary = primary,
-                onPrimary = Color.White,
-                primaryContainer = primaryDark,
-                onPrimaryContainer = Color.White,
-                secondary = lightSecondary,
-                onSecondary = Color.White,
-                secondaryContainer = SolidAmoledSurfaceVariant,
-                onSecondaryContainer = Color.White,
-                tertiary = SolidIncome,
-                background = SolidAmoledBg,
-                onBackground = Color.White,
-                surface = SolidAmoledSurface,
-                onSurface = Color.White,
-                surfaceVariant = SolidAmoledSurfaceVariant,
-                onSurfaceVariant = Color(0xFFE4E4E7),
-                outline = Color(0xFF52525B),
-                error = SolidExpense,
-                onError = Color.White,
-                errorContainer = Color(0xFF7F1D1D),
-                onErrorContainer = Color(0xFFFCA5A5)
-            )
-        } else {
-            darkColorScheme(
-                primary = primary,
-                onPrimary = Color.White,
-                primaryContainer = primaryDark,
-                onPrimaryContainer = Color.White,
-                secondary = lightSecondary,
-                onSecondary = Color.White,
-                secondaryContainer = darkSurfaceVariant,
-                onSecondaryContainer = Color.White,
-                tertiary = SolidIncome,
-                background = darkBg,
-                onBackground = Color(0xFFF8FAFC),
-                surface = darkSurface,
-                onSurface = Color(0xFFF8FAFC),
-                surfaceVariant = darkSurfaceVariant,
-                onSurfaceVariant = Color(0xFFE2E8F0),
-                outline = darkOutline,
-                error = SolidExpense,
-                onError = Color.White,
-                errorContainer = Color(0xFF7F1D1D),
-                onErrorContainer = Color(0xFFFCA5A5)
-            )
+        // Dark Mode Colors
+        val darkPrimary = when (palette) {
+            ThemePalette.SOFT_PASTEL -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFFB39DDB)
+                ColorIntensity.VIVID -> Color(0xFFC4B5FD)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFDDD6FE)
+            }
+            ThemePalette.PREMIUM_GREEN -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF4ADE80)
+                ColorIntensity.VIVID -> Color(0xFF86EFAC)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFBBF7D0)
+            }
+            ThemePalette.ELEGANT_BLUE -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF60A5FA)
+                ColorIntensity.VIVID -> Color(0xFF93C5FD)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFBFDBFE)
+            }
+            ThemePalette.WARM_NEUTRAL -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFFFBBF24)
+                ColorIntensity.VIVID -> Color(0xFFFCD34D)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFFDE68A)
+            }
+            ThemePalette.MODERN_INDIGO -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF818CF8)
+                ColorIntensity.VIVID -> Color(0xFFA5B4FC)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFC7D2FE)
+            }
+            ThemePalette.CALM_SAGE -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF68B88E)
+                ColorIntensity.VIVID -> Color(0xFF86EFAC)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFA7F3D0)
+            }
+            ThemePalette.SOPHISTICATED_DARK -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFFE4E4E7)
+                ColorIntensity.VIVID -> Color(0xFFF4F4F5)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFFFFFFF)
+            }
+            ThemePalette.MINIMAL_MONO -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFFE9ECEF)
+                ColorIntensity.VIVID -> Color(0xFFF8F9FA)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFFFFFFF)
+            }
         }
+
+        val darkPrimaryContainer = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF3B1C6E)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF14532D)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF1E3A8A)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF78350F)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF312E81)
+            ThemePalette.CALM_SAGE -> Color(0xFF143D28)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF27272A)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF2B3035)
+        }
+
+        val darkOnPrimaryContainer = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFEDE9FE)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFFDCFCE7)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFFDBEAFE)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFFEF3C7)
+            ThemePalette.MODERN_INDIGO -> Color(0xFFE0E7FF)
+            ThemePalette.CALM_SAGE -> Color(0xFFDDF0E6)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFF4F4F5)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFF8F9FA)
+        }
+
+        val darkSecondary = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFDDD6FE)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF2DD4BF)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF38BDF8)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFFB923C)
+            ThemePalette.MODERN_INDIGO -> Color(0xFFA5B4FC)
+            ThemePalette.CALM_SAGE -> Color(0xFF95D5B2)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFD4D4D8)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFDEE2E6)
+        }
+
+        val darkSecondaryContainer = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF2E1065)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF115E59)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF0369A1)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF7C2D12)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF3730A3)
+            ThemePalette.CALM_SAGE -> Color(0xFF1B3D2B)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF18181B)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF212529)
+        }
+
+        val darkBg = if (isAmoled) SolidAmoledBg else when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF120E1C)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF0A140E)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF0A101D)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF14100C)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF0C0F1D)
+            ThemePalette.CALM_SAGE -> Color(0xFF0C1410)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF090A0C)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF0F1012)
+        }
+
+        val darkSurface = if (isAmoled) SolidAmoledSurface else when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF1A1527)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF122218)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF121B2E)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF1E1813)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF141A30)
+            ThemePalette.CALM_SAGE -> Color(0xFF14221B)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF131518)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF17191D)
+        }
+
+        val darkSurfaceVariant = if (isAmoled) SolidAmoledSurfaceVariant else when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF251E36)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF1B3023)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF1A2742)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF2B221B)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF1E2644)
+            ThemePalette.CALM_SAGE -> Color(0xFF1D2F26)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF1F2228)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF23262C)
+        }
+
+        val darkOutline = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFA798BD)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF86A893)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF8EA3C0)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFAFA08F)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF919EC2)
+            ThemePalette.CALM_SAGE -> Color(0xFF8CAFA0)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFA1A1AA)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFA6ACB3)
+        }
+
+        val darkOutlineVariant = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF382E4F)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF274432)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF26385C)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF403429)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF2D3860)
+            ThemePalette.CALM_SAGE -> Color(0xFF294135)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF2F343E)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF333840)
+        }
+
+        darkColorScheme(
+            primary = darkPrimary,
+            onPrimary = Color(0xFF09090B),
+            primaryContainer = darkPrimaryContainer,
+            onPrimaryContainer = darkOnPrimaryContainer,
+            secondary = darkSecondary,
+            onSecondary = Color(0xFF09090B),
+            secondaryContainer = darkSecondaryContainer,
+            onSecondaryContainer = darkOnPrimaryContainer,
+            tertiary = SolidIncome,
+            onTertiary = Color(0xFF052E16),
+            background = darkBg,
+            onBackground = Color(0xFFF8FAFC),
+            surface = darkSurface,
+            onSurface = Color(0xFFF8FAFC),
+            surfaceVariant = darkSurfaceVariant,
+            onSurfaceVariant = Color(0xFFCBD5E1),
+            outline = darkOutline,
+            outlineVariant = darkOutlineVariant,
+            error = Color(0xFFF87171),
+            onError = Color(0xFF450A0A),
+            errorContainer = Color(0xFF7F1D1D),
+            onErrorContainer = Color(0xFFFEE2E2)
+        )
     } else {
+        // Light Mode Colors
+        val lightPrimary = when (palette) {
+            ThemePalette.SOFT_PASTEL -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF7C3AED)
+                ColorIntensity.VIVID -> Color(0xFF6D28D9)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF5B21B6)
+            }
+            ThemePalette.PREMIUM_GREEN -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF16A34A)
+                ColorIntensity.VIVID -> Color(0xFF15803D)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF166534)
+            }
+            ThemePalette.ELEGANT_BLUE -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF2563EB)
+                ColorIntensity.VIVID -> Color(0xFF1D4ED8)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF1E40AF)
+            }
+            ThemePalette.WARM_NEUTRAL -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFFD97706)
+                ColorIntensity.VIVID -> Color(0xFFB45309)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF92400E)
+            }
+            ThemePalette.MODERN_INDIGO -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF6366F1)
+                ColorIntensity.VIVID -> Color(0xFF4F46E5)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF4338CA)
+            }
+            ThemePalette.CALM_SAGE -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF3B7A57)
+                ColorIntensity.VIVID -> Color(0xFF2E6546)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF1E4B33)
+            }
+            ThemePalette.SOPHISTICATED_DARK -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF27272A)
+                ColorIntensity.VIVID -> Color(0xFF18181B)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF09090B)
+            }
+            ThemePalette.MINIMAL_MONO -> when (intensity) {
+                ColorIntensity.STANDARD -> Color(0xFF343A40)
+                ColorIntensity.VIVID -> Color(0xFF212529)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF121416)
+            }
+        }
+
+        val lightPrimaryContainer = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFEDE9FE)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFFDCFCE7)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFFDBEAFE)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFFEF3C7)
+            ThemePalette.MODERN_INDIGO -> Color(0xFFE0E7FF)
+            ThemePalette.CALM_SAGE -> Color(0xFFDDF0E6)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFE4E4E7)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFE9ECEF)
+        }
+
+        val lightOnPrimaryContainer = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF4C1D95)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF14532D)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF1E40AF)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF78350F)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF312E81)
+            ThemePalette.CALM_SAGE -> Color(0xFF143D28)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF09090B)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF141619)
+        }
+
+        val lightSecondary = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF8B5CF6)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF0D9488)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF0284C7)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFC2410C)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF6366F1)
+            ThemePalette.CALM_SAGE -> Color(0xFF476E5B)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF52525B)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF495057)
+        }
+
+        val lightSecondaryContainer = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFF3E8FF)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFFCCFBF1)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFFE0F2FE)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFFFEDD5)
+            ThemePalette.MODERN_INDIGO -> Color(0xFFEEF2FF)
+            ThemePalette.CALM_SAGE -> Color(0xFFE6F2EC)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFF4F4F5)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFF1F3F5)
+        }
+
+        val lightOnSecondaryContainer = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF581C87)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF115E59)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF075985)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF7C2D12)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF3730A3)
+            ThemePalette.CALM_SAGE -> Color(0xFF1E3F30)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF18181B)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF212529)
+        }
+
+        val lightBg = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFFAF8FC)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFFF5FAF7)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFFF6F9FD)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFFAF7F2)
+            ThemePalette.MODERN_INDIGO -> Color(0xFFF7F8FC)
+            ThemePalette.CALM_SAGE -> Color(0xFFF5F8F6)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFF4F5F7)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFF8F9FA)
+        }
+
+        val lightSurface = Color(0xFFFFFFFF)
+
+        val lightSurfaceVariant = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFF3EEF9)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFFEAF4EE)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFFEDF3FA)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFF3ECE2)
+            ThemePalette.MODERN_INDIGO -> Color(0xFFEFF1F9)
+            ThemePalette.CALM_SAGE -> Color(0xFFEAF2EE)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFE9EBEF)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFF1F3F5)
+        }
+
+        val lightOutline = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFF6D5E7A)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF52745E)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF64748B)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFF786654)
+            ThemePalette.MODERN_INDIGO -> Color(0xFF6B7280)
+            ThemePalette.CALM_SAGE -> Color(0xFF5C7468)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF71717A)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF6C757D)
+        }
+
+        val lightOutlineVariant = when (palette) {
+            ThemePalette.SOFT_PASTEL -> Color(0xFFE4D8F0)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFFC8E2D1)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFFCBD5E1)
+            ThemePalette.WARM_NEUTRAL -> Color(0xFFDFCFC0)
+            ThemePalette.MODERN_INDIGO -> Color(0xFFD1D5DB)
+            ThemePalette.CALM_SAGE -> Color(0xFFC8DDD2)
+            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFD4D4D8)
+            ThemePalette.MINIMAL_MONO -> Color(0xFFCED4DA)
+        }
+
         lightColorScheme(
-            primary = primary,
+            primary = lightPrimary,
             onPrimary = Color.White,
-            primaryContainer = primaryContainer,
-            onPrimaryContainer = onPrimaryContainer,
+            primaryContainer = lightPrimaryContainer,
+            onPrimaryContainer = lightOnPrimaryContainer,
             secondary = lightSecondary,
             onSecondary = Color.White,
             secondaryContainer = lightSecondaryContainer,
             onSecondaryContainer = lightOnSecondaryContainer,
             tertiary = SolidIncome,
+            onTertiary = Color.White,
             background = lightBg,
-            onBackground = SolidLightTextPrimary,
+            onBackground = Color(0xFF0F172A),
             surface = lightSurface,
-            onSurface = SolidLightTextPrimary,
+            onSurface = Color(0xFF0F172A),
             surfaceVariant = lightSurfaceVariant,
             onSurfaceVariant = Color(0xFF334155),
             outline = lightOutline,
+            outlineVariant = lightOutlineVariant,
             error = SolidExpense,
             onError = Color.White,
             errorContainer = SolidExpenseContainer,

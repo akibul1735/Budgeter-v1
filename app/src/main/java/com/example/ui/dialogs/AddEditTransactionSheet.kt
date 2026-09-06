@@ -2351,20 +2351,20 @@ private fun CategoryPickerModalDialog(
                                             modifier = Modifier
                                                 .size(24.dp)
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(Color(0xFF2E7D32).copy(alpha = 0.12f)),
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = IconHelper.getIconByName(parent.iconName),
                                                 contentDescription = null,
-                                                tint = Color(0xFF2E7D32),
+                                                tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = parent.localizedName(languageMode),
-                                            color = Color(0xFF2E7D32),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp
                                         )
@@ -2905,20 +2905,20 @@ private fun AccountPickerModalDialog(
                                             modifier = Modifier
                                                 .size(24.dp)
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(Color(0xFF2E7D32).copy(alpha = 0.12f)),
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = IconHelper.getIconByName(parent.iconName),
                                                 contentDescription = null,
-                                                tint = Color(0xFF2E7D32),
+                                                tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = parent.localizedName(languageMode),
-                                            color = Color(0xFF2E7D32),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp
                                         )
@@ -2940,7 +2940,7 @@ private fun AccountPickerModalDialog(
                             if (unassigned.isNotEmpty()) {
                                 Text(
                                     text = "Others",
-                                    color = Color(0xFF2E7D32),
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     modifier = Modifier

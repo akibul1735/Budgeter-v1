@@ -309,14 +309,14 @@ fun CalendarSummaryCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(SolidIncomeContainer.copy(alpha = 0.6f))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .background(SolidIncome.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = "Inc: +${LanguageHelper.formatCurrency(monthIncome, languageMode)}",
-                            fontSize = 10.5.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF065F46)
+                            color = SolidIncome
                         )
                     }
                 }
@@ -326,14 +326,14 @@ fun CalendarSummaryCard(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(SolidExpenseContainer.copy(alpha = 0.6f))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .background(SolidExpense.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = "Exp: -${LanguageHelper.formatCurrency(monthExpense, languageMode)}",
-                            fontSize = 10.5.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF991B1B)
+                            color = SolidExpense
                         )
                     }
                 }
@@ -349,7 +349,7 @@ fun CalendarSummaryCard(
                         text = w,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.weight(1f)
                     )
