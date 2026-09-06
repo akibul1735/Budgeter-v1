@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,14 +27,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.Backspace
@@ -44,14 +43,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -68,17 +65,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -89,10 +86,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -329,7 +327,6 @@ fun BudgetScreen(
     val totalAssetsBudget = remember(assetItems, budgetMap) { calculateBudgetTotal(assetItems) }
     val totalInflowsBudget = totalIncomesBudget + totalAssetsBudget
 
-    // Dashboard calculations
     val budgetedSurplus = totalInflowsBudget - totalOutflowsBudget
     val budgetedFormulaResult = (totalExpensesBudget + totalLiabilitiesBudget) - (totalAssetsBudget + totalIncomesBudget)
 
@@ -378,67 +375,59 @@ fun BudgetScreen(
             }
         },
         bottomBar = {
-            // Modern Material 3 Bottom Navigation Bar
-            Surface(
+            // Modern Material 3 NavigationBar with system gesture insets
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 3.dp,
-                shadowElevation = 4.dp,
-                color = MaterialTheme.colorScheme.surface,
+                windowInsets = WindowInsets.navigationBars,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val tabs = listOf(
-                        Triple(0, LanguageHelper.getString("expenses", languageMode), Icons.Default.RemoveCircleOutline),
-                        Triple(1, LanguageHelper.getString("incomes", languageMode), Icons.Default.AddCircleOutline),
-                        Triple(2, LanguageHelper.getString("assets", languageMode), Icons.Default.AccountBalance),
-                        Triple(3, LanguageHelper.getString("liabilities", languageMode), Icons.Default.CreditCard),
-                        Triple(4, "Dashboard", Icons.Default.Dashboard)
-                    )
+                val tabs = listOf(
+                    Triple(0, LanguageHelper.getString("expenses", languageMode), Icons.Default.RemoveCircleOutline),
+                    Triple(1, LanguageHelper.getString("incomes", languageMode), Icons.Default.AddCircleOutline),
+                    Triple(2, LanguageHelper.getString("assets", languageMode), Icons.Default.AccountBalance),
+                    Triple(3, LanguageHelper.getString("liabilities", languageMode), Icons.Default.CreditCard),
+                    Triple(4, "Dashboard", Icons.Default.Dashboard)
+                )
 
-                    tabs.forEach { (index, title, icon) ->
-                        val isSelected = selectedTab == index
-                        val activeColor = when (index) {
-                            0 -> BrandOrange
-                            1 -> SolidIncome
-                            2 -> SolidPrimary
-                            3 -> AmberGold
-                            else -> MaterialTheme.colorScheme.primary
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) activeColor.copy(alpha = 0.12f) else Color.Transparent,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { selectedTab = index }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                .testTag("budget_bottom_tab_$index")
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = title,
-                                    tint = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = title,
-                                    fontSize = 10.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                )
-                            }
-                        }
+                tabs.forEach { (index, title, icon) ->
+                    val isSelected = selectedTab == index
+                    val activeColor = when (index) {
+                        0 -> BrandOrange
+                        1 -> SolidIncome
+                        2 -> SolidPrimary
+                        3 -> AmberGold
+                        else -> MaterialTheme.colorScheme.primary
                     }
+
+                    NavigationBarItem(
+                        selected = isSelected,
+                        onClick = { selectedTab = index },
+                        icon = {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = title,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                text = title,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = activeColor,
+                            selectedTextColor = activeColor,
+                            indicatorColor = activeColor.copy(alpha = 0.14f),
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        ),
+                        modifier = Modifier.testTag("budget_bottom_tab_$index")
+                    )
                 }
             }
         }
@@ -451,21 +440,12 @@ fun BudgetScreen(
         ) {
             AppTabHeader(
                 title = if (languageMode == LanguageMode.BANGLA) "বাজেট মেকার" else "Budget Maker",
+                showCoinIcon = false,
                 onOpenDrawer = onOpenDrawer,
-                onBack = onBack,
-                actions = {
-                    IconButton(
-                        onClick = { showHelpDialog = true },
-                        modifier = Modifier.testTag("budget_help_button")
-                    ) {
-                        Icon(
-                            Icons.Default.HelpOutline,
-                            contentDescription = "Help Guide",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                onBack = null,
+                actions = null
             )
+
             when (selectedTab) {
                 0 -> {
                     // EXPENSE TAB
@@ -486,6 +466,12 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onCopyPrevious = {
+                            viewModel.copyBudgetsFromPreviousMonth()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Copied previous month's budgets")
+                            }
+                        },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
@@ -525,6 +511,12 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onCopyPrevious = {
+                            viewModel.copyBudgetsFromPreviousMonth()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Copied previous month's budgets")
+                            }
+                        },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
@@ -546,7 +538,7 @@ fun BudgetScreen(
                     )
                 }
                 2 -> {
-                    // ASSET TAB (All features EXCEPT the "monthly" option)
+                    // ASSET TAB
                     CategoriesBudgetEntryView(
                         title = LanguageHelper.getString("assets", languageMode),
                         items = assetItems,
@@ -556,7 +548,7 @@ fun BudgetScreen(
                         selectedMonth = selectedMonth,
                         languageMode = languageMode,
                         sectionColor = SolidPrimary,
-                        isPeriodicFlow = false, // Assets do not have monthly dropdown
+                        isPeriodicFlow = false,
                         globalFrequency = BudgetFrequency.MONTHLY,
                         onGlobalFrequencyChange = {},
                         totalBudgetAmount = totalAssetsBudget,
@@ -564,6 +556,12 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onCopyPrevious = {
+                            viewModel.copyBudgetsFromPreviousMonth()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Copied previous month's budgets")
+                            }
+                        },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
@@ -585,7 +583,7 @@ fun BudgetScreen(
                     )
                 }
                 3 -> {
-                    // LIABILITY TAB (All features EXCEPT the "monthly" option)
+                    // LIABILITY TAB
                     CategoriesBudgetEntryView(
                         title = LanguageHelper.getString("liabilities", languageMode),
                         items = liabilityItems,
@@ -595,7 +593,7 @@ fun BudgetScreen(
                         selectedMonth = selectedMonth,
                         languageMode = languageMode,
                         sectionColor = AmberGold,
-                        isPeriodicFlow = false, // Liabilities do not have monthly dropdown
+                        isPeriodicFlow = false,
                         globalFrequency = BudgetFrequency.MONTHLY,
                         onGlobalFrequencyChange = {},
                         totalBudgetAmount = totalLiabilitiesBudget,
@@ -603,6 +601,12 @@ fun BudgetScreen(
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
+                        onCopyPrevious = {
+                            viewModel.copyBudgetsFromPreviousMonth()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Copied previous month's budgets")
+                            }
+                        },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
                             viewModel.saveBudgetAdjustment(
@@ -748,9 +752,9 @@ fun BudgetScreen(
 }
 
 /**
- * Main Categories & Budget Entry Screen View.
- * Matches the layout from the user's uploaded image with groups, checkboxes, sliding suggestions,
- * and period conversions.
+ * Modern, Compact Categories & Budget Entry Screen View.
+ * Features a structured top subheader with month navigation, frequency pill, section total,
+ * clean group headers with select-all toggle, and compact, unscattered budget item cards.
  */
 @Composable
 private fun CategoriesBudgetEntryView(
@@ -770,12 +774,12 @@ private fun CategoriesBudgetEntryView(
     onPrevMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onShowHelp: () -> Unit,
+    onCopyPrevious: () -> Unit,
     onItemClick: ((BudgetTargetItem) -> Unit)? = null,
     onSaveBudget: (BudgetTargetItem, Double, Boolean) -> Unit,
     onResetBudget: (BudgetTargetItem) -> Unit = {},
     onSaveMultiple: (List<MonthlyBudget>) -> Unit
 ) {
-    // Map monthly budget items: "itemType_itemId" -> MonthlyBudget
     val budgetMap = remember(monthlyBudgets) {
         monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
     }
@@ -796,10 +800,8 @@ private fun CategoriesBudgetEntryView(
     }
 
     val groupedItems = remember(items) { items.groupBy { it.groupName } }
-
     var showGlobalFreqDropdown by remember { mutableStateOf(false) }
 
-    // Converted total according to active global frequency
     val displayedTotal = if (isPeriodicFlow) {
         globalFrequency.fromMonthly(totalBudgetAmount)
     } else {
@@ -811,57 +813,119 @@ private fun CategoriesBudgetEntryView(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Top Subheader (Directly matching image subheader)
+        // Modern, Compact Header Card
         Surface(
             tonalElevation = 2.dp,
+            shadowElevation = 1.dp,
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-                // Row 1: Month switcher & Help icon
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Tier 1: Month Stepper & Quick Actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(onClick = onMonthClick)
-                            .padding(4.dp)
+                    // Month Switcher Capsule
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = sectionColor.copy(alpha = 0.10f),
+                        border = BorderStroke(1.dp, sectionColor.copy(alpha = 0.25f)),
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp))
                     ) {
-                        IconButton(onClick = onPrevMonth, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous", modifier = Modifier.size(16.dp))
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp), tint = BrandBlue)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = DateUtils.formatMonthYear(selectedYear, selectedMonth, languageMode),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = BrandBlue
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(onClick = onNextMonth, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next", modifier = Modifier.size(16.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            IconButton(onClick = onPrevMonth, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Previous Month",
+                                    tint = sectionColor,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(onClick = onMonthClick)
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = sectionColor
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = DateUtils.formatMonthYear(selectedYear, selectedMonth, languageMode),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = sectionColor,
+                                    maxLines = 1
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(
+                                    Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = sectionColor
+                                )
+                            }
+
+                            IconButton(onClick = onNextMonth, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next Month",
+                                    tint = sectionColor,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
                         }
                     }
 
-                    IconButton(onClick = onShowHelp, modifier = Modifier.size(32.dp)) {
-                        Icon(
-                            Icons.Default.HelpOutline,
-                            contentDescription = "Help Guide",
-                            tint = BrandBlue,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    // Action Icons
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Quick copy previous month
+                        IconButton(
+                            onClick = onCopyPrevious,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "Copy from Previous Month",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onShowHelp,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.HelpOutline,
+                                contentDescription = "Help Guide",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Row 2: Frequency Selector (Left) & Grand Total (Right)
+                // Tier 2: Frequency Selector Pill (Left) & Total Target Badge (Right)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -869,26 +933,33 @@ private fun CategoriesBudgetEntryView(
                 ) {
                     if (isPeriodicFlow) {
                         Box {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { showGlobalFreqDropdown = true }
-                                    .padding(vertical = 4.dp, horizontal = 2.dp)
                             ) {
-                                Text(
-                                    text = globalFrequency.localizedName(languageMode),
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "Select Frequency",
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.outline
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = globalFrequency.localizedName(languageMode),
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Icon(
+                                        Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "Select Frequency",
+                                        modifier = Modifier.size(15.dp),
+                                        tint = MaterialTheme.colorScheme.outline
+                                    )
+                                }
                             }
 
                             DropdownMenu(
@@ -900,7 +971,8 @@ private fun CategoriesBudgetEntryView(
                                         text = {
                                             Text(
                                                 text = freq.localizedName(languageMode),
-                                                fontWeight = if (freq == globalFrequency) FontWeight.Bold else FontWeight.Normal
+                                                fontWeight = if (freq == globalFrequency) FontWeight.Bold else FontWeight.Normal,
+                                                fontSize = 13.sp
                                             )
                                         },
                                         onClick = {
@@ -912,44 +984,56 @@ private fun CategoriesBudgetEntryView(
                             }
                         }
                     } else {
-                        // Assets and Liabilities don't have frequency dropdown
                         Text(
                             text = "Target Balances",
-                            fontSize = 15.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
                     }
 
-                    // Grand total on right (e.g. $10,208.00)
-                    Text(
-                        text = LanguageHelper.formatCurrency(displayedTotal, languageMode),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    // Total Target Display
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Total:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Text(
+                            text = LanguageHelper.formatCurrency(displayedTotal, languageMode),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = sectionColor,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
-        // Categories List
+        // Categories & Items List
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("budget_entry_list_$title"),
-            contentPadding = PaddingValues(bottom = 80.dp)
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 88.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             groupedItems.forEach { (groupName, catItems) ->
-                // Group Header (Group Name & Group Total based on selected categories on left/center, Checkbox on right)
+                // Group Header Card
                 item(key = "group_$groupName") {
                     val allGroupEnabled = catItems.isNotEmpty() && catItems.all { item ->
                         val saved = budgetMap["${item.itemType}_${item.id}"]
                         saved?.isEnabled ?: true
                     }
 
-                    // Calculate Group Total based ONLY on selected (enabled) categories in this group
                     val groupSelectedMonthlyTotal = catItems.filter { item ->
                         val saved = budgetMap["${item.itemType}_${item.id}"]
                         saved?.isEnabled ?: true
@@ -965,68 +1049,75 @@ private fun CategoriesBudgetEntryView(
                     }
 
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 2.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 9.dp),
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Left: Group Name
+                            // Left: Group Title + Count
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.weight(1f, fill = false)
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(sectionColor)
+                                )
                                 Text(
                                     text = groupName.uppercase(),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = BrandBlue,
-                                    letterSpacing = 0.5.sp
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    letterSpacing = 0.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "(${catItems.size})",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline
                                 )
                             }
 
-                            // Right: Group Total Amount (based on selected categories) + Group Tick Checkbox
+                            // Right: Group Total Pill + Checkbox
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Group Total Pill
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = BrandBlue.copy(alpha = 0.10f),
-                                    modifier = Modifier.padding(vertical = 2.dp)
+                                    color = sectionColor.copy(alpha = 0.12f),
+                                    modifier = Modifier.padding(vertical = 1.dp)
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "Total: ",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = BrandBlue.copy(alpha = 0.8f)
-                                        )
-                                        Text(
                                             text = LanguageHelper.formatCurrency(displayedGroupTotal, languageMode),
-                                            fontSize = 12.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = BrandBlue
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = sectionColor,
+                                            maxLines = 1
                                         )
                                     }
                                 }
 
-                                // Group Toggle Checkbox:
-                                // Tapping selects/ticks all categories in the group (or unselects all if all currently checked).
-                                // Only checked if ALL categories in the group are selected.
                                 Checkbox(
                                     checked = allGroupEnabled,
-                                    onCheckedChange = { targetState ->
-                                        val newEnabledState = if (allGroupEnabled) false else true
+                                    onCheckedChange = { _ ->
+                                        val newEnabledState = !allGroupEnabled
                                         val updatedBudgets = catItems.map { item ->
                                             val saved = budgetMap["${item.itemType}_${item.id}"]
                                             val amt = saved?.budgetedAmount ?: item.defaultLimit
@@ -1043,17 +1134,17 @@ private fun CategoriesBudgetEntryView(
                                         onSaveMultiple(updatedBudgets)
                                     },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = BrandBlue,
+                                        checkedColor = sectionColor,
                                         uncheckedColor = MaterialTheme.colorScheme.outline
                                     ),
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                     }
                 }
 
-                // Category Items in this group
+                // Category Items
                 items(catItems, key = { "item_${it.id}" }) { item ->
                     val saved = budgetMap["${item.itemType}_${item.id}"]
                     val suggestions = suggestionsMap[item.id] ?: listOf(
@@ -1080,11 +1171,6 @@ private fun CategoriesBudgetEntryView(
                             onResetBudget(item)
                         }
                     )
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                        thickness = 0.8.dp
-                    )
                 }
             }
         }
@@ -1092,9 +1178,17 @@ private fun CategoriesBudgetEntryView(
 }
 
 /**
- * Individual Category / Account row matching the specifications:
- * Row 1: Icon, Name, Checkbox
- * Row 2: Frequency dropdown (for expense/income), Touch-swipeable sliding & fading amounts with pretext & dots, Manual Entry calculator button
+ * Redesigned Individual Budget Item Row.
+ * Structured into two stable, compact tiers to prevent font wrapping, scattering, or overflow:
+ *
+ * Tier 1 (Identity & Active Amount):
+ * - Circular Icon, Category Name with ellipsis protection.
+ * - Prominent active budget amount chip (tap to calculate) & Checkbox.
+ *
+ * Tier 2 (Smart Controls & Suggestions Carousel):
+ * - Frequency selector dropdown (for periodic flows).
+ * - Touch-swipeable carousel with Left/Right chevrons, Center Pill (Pretext & Amount), and indicator dots.
+ * - Manual Entry calculator button.
  */
 @Composable
 private fun BudgetItemRow(
@@ -1116,14 +1210,13 @@ private fun BudgetItemRow(
     val isEnabled = savedBudget?.isEnabled ?: true
     val currentMonthlyAmt = savedBudget?.budgetedAmount ?: item.defaultLimit
 
-    // Displayed current amount in active frequency
     val displayedCurrentAmt = if (isPeriodicFlow) {
         itemFrequency.fromMonthly(currentMonthlyAmt)
     } else {
         currentMonthlyAmt
     }
 
-    // Determine active suggestion index (0..n-1, or -1 for custom)
+    // Determine active suggestion index
     val activeIndex = remember(currentMonthlyAmt, suggestions) {
         val found = suggestions.indexOfFirst { kotlin.math.abs(currentMonthlyAmt - it.amountMonthly) < 0.5 }
         if (found >= 0) found else -1
@@ -1134,17 +1227,12 @@ private fun BudgetItemRow(
         else -> "Custom"
     }
 
-    // Indices for left, center, right suggestions in the circular carousel
     val centerIdx = if (activeIndex >= 0) activeIndex else 0
     val prevIdx = if (centerIdx <= 0) suggestions.size - 1 else centerIdx - 1
     val nextIdx = (centerIdx + 1) % suggestions.size
 
     val prevMonthly = suggestions.getOrNull(prevIdx)?.amountMonthly ?: 500.0
-    val centerMonthly = suggestions.getOrNull(centerIdx)?.amountMonthly ?: currentMonthlyAmt
     val nextMonthly = suggestions.getOrNull(nextIdx)?.amountMonthly ?: 1500.0
-
-    val prevDisplay = if (isPeriodicFlow) itemFrequency.fromMonthly(prevMonthly) else prevMonthly
-    val nextDisplay = if (isPeriodicFlow) itemFrequency.fromMonthly(nextMonthly) else nextMonthly
 
     val parsedColor = remember(item.colorHex) {
         try {
@@ -1154,11 +1242,15 @@ private fun BudgetItemRow(
         }
     }
 
-    // Horizontal drag accumulator for swipe gesture detection
     var horizontalDragAccumulator by remember { mutableFloatStateOf(0f) }
 
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("budget_item_${item.id}")
@@ -1166,111 +1258,151 @@ private fun BudgetItemRow(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // ROW 1: Icon + Name + Checkbox on right
+            // TIER 1: Category Info & Target Amount Display + Checkbox
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Category Icon + Name
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onItemClick?.invoke(item) }
                 ) {
-                    // Circular Icon
                     Surface(
                         shape = CircleShape,
-                        color = parsedColor.copy(alpha = 0.15f),
-                        modifier = Modifier.size(38.dp)
+                        color = parsedColor.copy(alpha = 0.14f),
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = IconHelper.getIconByName(item.iconName),
                                 contentDescription = null,
                                 tint = parsedColor,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
 
-                    Text(
-                        text = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp,
-                        color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Text(
+                            text = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
-                // Checkbox on far right (Red/Primary checked)
-                Checkbox(
-                    checked = isEnabled,
-                    onCheckedChange = { newState ->
-                        onSaveBudget(currentMonthlyAmt, newState)
-                    },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = if (item.itemType == "EXPENSE") SolidExpense else sectionColor,
-                        uncheckedColor = MaterialTheme.colorScheme.outline
-                    ),
-                    modifier = Modifier.size(24.dp)
-                )
+                // Amount Display Pill & Checkbox
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Clickable Amount Capsule (opens calculator)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isEnabled) sectionColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isEnabled) sectionColor.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        ),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showPopupCalculator = true }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = formatCompactCurrency(displayedCurrentAmt, languageMode),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = if (isEnabled) sectionColor else MaterialTheme.colorScheme.outline,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Checkbox(
+                        checked = isEnabled,
+                        onCheckedChange = { newState ->
+                            onSaveBudget(currentMonthlyAmt, newState)
+                        },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = if (item.itemType == "EXPENSE") SolidExpense else sectionColor,
+                            uncheckedColor = MaterialTheme.colorScheme.outline
+                        ),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            // Budget Adjustment Badge: Previous Budget vs Adjusted Budget
+            // Budget Adjustment Banner (if amount adjusted from previous month)
             val prevAmt = savedBudget?.previousAmount
             if (prevAmt != null && kotlin.math.abs(prevAmt - currentMonthlyAmt) > 0.01) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.weight(1f, fill = false)
                     ) {
                         Text(
-                            text = "${LanguageHelper.getString("previous_budget", languageMode)}: ${LanguageHelper.formatCurrency(prevAmt, languageMode)}",
-                            fontSize = 10.5.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "${LanguageHelper.getString("previous_budget", languageMode)}: ${formatCompactCurrency(prevAmt, languageMode)}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Text(text = "➔", fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline)
+                        Text(text = "➔", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                         Text(
-                            text = "${LanguageHelper.getString("adjusted_budget", languageMode)}: ${LanguageHelper.formatCurrency(currentMonthlyAmt, languageMode)}",
-                            fontSize = 10.5.sp,
+                            text = "${LanguageHelper.getString("adjusted_budget", languageMode)}: ${formatCompactCurrency(currentMonthlyAmt, languageMode)}",
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = BrandBlue
+                            color = BrandBlue,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    // Reset button to revert to previous budget
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
+                        shape = RoundedCornerShape(6.dp),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .clickable { onResetBudget() }
                             .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .testTag("reset_to_previous_button")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.RestartAlt,
-                                contentDescription = "Reset to previous",
+                                contentDescription = "Reset",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(11.dp)
                             )
                             Text(
                                 text = LanguageHelper.getString("reset_to_previous", languageMode),
@@ -1283,36 +1415,41 @@ private fun BudgetItemRow(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ROW 2: Frequency Dropdown + Touch-Swipeable Sliding Amounts + Manual Entry Calculator Button
+            // TIER 2: Frequency Selector (Left) + Smart Stepper / Carousel (Center) + Calculator Button (Right)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // 1. Frequency dropdown (Only for Expense & Income; omitted for Assets & Liabilities)
+                // 1. Frequency selector pill (For periodic flows)
                 if (isPeriodicFlow) {
-                    Box(modifier = Modifier.width(84.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                    Box {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .clickable { showFreqDropdown = true }
-                                .padding(vertical = 4.dp, horizontal = 2.dp)
                         ) {
-                            Text(
-                                text = itemFrequency.localizedName(languageMode),
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Icon(
-                                Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(15.dp),
-                                tint = MaterialTheme.colorScheme.outline
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = itemFrequency.localizedName(languageMode),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                                Icon(
+                                    Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = MaterialTheme.colorScheme.outline
+                                )
+                            }
                         }
 
                         DropdownMenu(
@@ -1325,7 +1462,7 @@ private fun BudgetItemRow(
                                         Text(
                                             text = freq.localizedName(languageMode),
                                             fontWeight = if (freq == itemFrequency) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize = 13.sp
+                                            fontSize = 12.sp
                                         )
                                     },
                                     onClick = {
@@ -1340,23 +1477,20 @@ private fun BudgetItemRow(
                     Spacer(modifier = Modifier.width(4.dp))
                 }
 
-                // 2. Touch/Swipeable Carousel (< Center > with left & right faded values)
-                // Supports horizontal touch swiping (left/right drag) as well as arrow/text clicking
+                // 2. Center Suggestion Stepper & Swipe Carousel
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 2.dp)
+                        .padding(horizontal = 4.dp)
                         .pointerInput(suggestions, activeIndex) {
                             detectHorizontalDragGestures(
                                 onDragEnd = {
-                                    if (horizontalDragAccumulator < -30f) {
-                                        // Swiped Left -> Select Next Suggestion
+                                    if (horizontalDragAccumulator < -25f) {
                                         val targetIdx = (centerIdx + 1) % suggestions.size
                                         onSaveBudget(suggestions[targetIdx].amountMonthly, true)
-                                    } else if (horizontalDragAccumulator > 30f) {
-                                        // Swiped Right -> Select Previous Suggestion
+                                    } else if (horizontalDragAccumulator > 25f) {
                                         val targetIdx = if (centerIdx <= 0) suggestions.size - 1 else centerIdx - 1
                                         onSaveBudget(suggestions[targetIdx].amountMonthly, true)
                                     }
@@ -1372,135 +1506,106 @@ private fun BudgetItemRow(
                             )
                         }
                 ) {
-                    // Left faded value (Clickable to switch to prev suggestion)
-                    Text(
-                        text = formatCompactCurrency(prevDisplay, languageMode),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Normal,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable {
-                                onSaveBudget(prevMonthly, true)
-                            }
-                            .padding(horizontal = 2.dp, vertical = 4.dp),
-                        maxLines = 1
-                    )
-
-                    // Left Chevron
                     IconButton(
-                        onClick = {
-                            onSaveBudget(prevMonthly, true)
-                        },
-                        modifier = Modifier.size(24.dp)
+                        onClick = { onSaveBudget(prevMonthly, true) },
+                        modifier = Modifier.size(26.dp)
                     ) {
                         Icon(
                             Icons.Default.KeyboardArrowLeft,
                             contentDescription = "Previous Suggestion",
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(16.dp)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
-                    // Center Amount Column (Bold Amount + Pretext + Dynamic Indicator Dots)
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(horizontal = 2.dp)
+                    // Suggestion Capsule (Pretext + Micro Indicator Dots)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                // Tap cycles to next suggestion
+                                val targetIdx = (centerIdx + 1) % suggestions.size
+                                onSaveBudget(suggestions[targetIdx].amountMonthly, true)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
-                        Text(
-                            text = formatCompactCurrency(displayedCurrentAmt, languageMode),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 13.5.sp,
-                            color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-                        )
-
-                        // Short Pretext about the amount
-                        Text(
-                            text = pretext,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (activeIndex >= 0) (if (item.itemType == "EXPENSE") SolidExpense else sectionColor) else AmberGold,
-                            maxLines = 1
-                        )
-
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        // Indicator Dots underneath for all suggestions
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         ) {
-                            val dotColor = if (item.itemType == "EXPENSE") SolidExpense else sectionColor
-                            val inactiveDotColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            Text(
+                                text = pretext,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (activeIndex >= 0) sectionColor else AmberGold,
+                                maxLines = 1
+                            )
 
-                            suggestions.forEachIndexed { idx, _ ->
-                                val isSelected = activeIndex == idx
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isSelected) dotColor else inactiveDotColor,
-                                    modifier = Modifier.size(if (isSelected) 4.5.dp else 3.dp)
-                                ) {}
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            // Indicator Dots
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val dotColor = sectionColor
+                                val inactiveDotColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+
+                                suggestions.forEachIndexed { idx, _ ->
+                                    val isSelected = activeIndex == idx
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) dotColor else inactiveDotColor,
+                                        modifier = Modifier.size(if (isSelected) 4.dp else 2.5.dp)
+                                    ) {}
+                                }
                             }
                         }
                     }
 
-                    // Right Chevron
                     IconButton(
-                        onClick = {
-                            onSaveBudget(nextMonthly, true)
-                        },
-                        modifier = Modifier.size(24.dp)
+                        onClick = { onSaveBudget(nextMonthly, true) },
+                        modifier = Modifier.size(26.dp)
                     ) {
                         Icon(
                             Icons.Default.KeyboardArrowRight,
                             contentDescription = "Next Suggestion",
-                            tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(16.dp)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-
-                    // Right faded value (Clickable to switch to next suggestion)
-                    Text(
-                        text = formatCompactCurrency(nextDisplay, languageMode),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Normal,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable {
-                                onSaveBudget(nextMonthly, true)
-                            }
-                            .padding(horizontal = 2.dp, vertical = 4.dp),
-                        maxLines = 1
-                    )
                 }
 
-                // 3. Manual Entry Button Box on far right (Tapping opens the Popup Calculator)
+                // 3. Calculator Manual Entry Button
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(6.dp))
                         .clickable { showPopupCalculator = true }
-                        .padding(horizontal = 7.dp, vertical = 5.dp)
                         .testTag("manual_entry_btn_${item.id}")
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Calculate,
-                            contentDescription = "Manual Entry Calculator",
+                            contentDescription = "Calculator Entry",
                             tint = BrandBlue,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                         Text(
-                            text = formatCompactCurrency(displayedCurrentAmt, languageMode),
-                            fontSize = 12.sp,
+                            text = "Calc",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1508,7 +1613,7 @@ private fun BudgetItemRow(
         }
     }
 
-    // Popup Calculator Dialog (Positioned consistently a few rows above the bottom of the screen)
+    // Popup Calculator Dialog
     if (showPopupCalculator) {
         PopupCalculatorDialog(
             itemName = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),
@@ -1531,9 +1636,8 @@ private fun BudgetItemRow(
 }
 
 /**
- * Popup Calculator Dialog for Manual Entry.
- * Positioned consistently a few rows above the bottom of the screen across all screen sizes.
- * Features full arithmetic capabilities (+, -, ×, ÷, =, C, ⌫), quick increments, live formula preview, and clear confirmation.
+ * Modern, Compact Popup Calculator Dialog for Manual Entry.
+ * Evaluates full arithmetic (+, -, ×, ÷, =), supports quick increments, and confirms cleanly.
  */
 @Composable
 private fun PopupCalculatorDialog(
@@ -1549,13 +1653,11 @@ private fun PopupCalculatorDialog(
         mutableStateOf(if (currentAmount > 0) String.format("%.0f", currentAmount) else "0")
     }
 
-    // Safe arithmetic evaluation helper
     fun evalExpression(expr: String): Double {
         return try {
             val sanitized = expr.replace("×", "*").replace("÷", "/").replace(" ", "")
             if (sanitized.isEmpty()) return 0.0
 
-            // Simple recursive descent / operator precedence evaluator
             val tokens = mutableListOf<String>()
             var numBuf = StringBuilder()
             for (ch in sanitized) {
@@ -1572,7 +1674,6 @@ private fun PopupCalculatorDialog(
             if (numBuf.isNotEmpty()) tokens.add(numBuf.toString())
             if (tokens.isEmpty()) return 0.0
 
-            // Pass 1: Handle * and /
             val pass1 = mutableListOf<String>()
             var i = 0
             while (i < tokens.size) {
@@ -1589,7 +1690,6 @@ private fun PopupCalculatorDialog(
                 }
             }
 
-            // Pass 2: Handle + and -
             var total = pass1.firstOrNull()?.toDoubleOrNull() ?: 0.0
             var j = 1
             while (j < pass1.size) {
@@ -1641,7 +1741,6 @@ private fun PopupCalculatorDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        // Position dialog floating consistently a few rows above the bottom of the screen
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1655,7 +1754,7 @@ private fun PopupCalculatorDialog(
             contentAlignment = Alignment.BottomCenter
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp,
                 shadowElevation = 12.dp,
@@ -1663,11 +1762,11 @@ private fun PopupCalculatorDialog(
                 modifier = Modifier
                     .widthIn(max = 380.dp)
                     .fillMaxWidth()
-                    .padding(bottom = 56.dp) // Elevated a few rows above bottom of screen
+                    .padding(bottom = 52.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = {} // prevent closing when clicking inside
+                        onClick = {}
                     )
                     .testTag("popup_calculator_dialog")
             ) {
@@ -1675,13 +1774,13 @@ private fun PopupCalculatorDialog(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Header: Item Name + Close
+                    // Header: Item Name + Frequency Tag + Close
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
                             Text(
                                 text = itemName,
                                 style = MaterialTheme.typography.titleMedium,
@@ -1692,7 +1791,7 @@ private fun PopupCalculatorDialog(
                             )
                             Text(
                                 text = if (isPeriodicFlow) "Manual Entry • ${frequency.localizedName(languageMode)}" else "Manual Entry • Target Balance",
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 color = BrandBlue,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -1702,27 +1801,25 @@ private fun PopupCalculatorDialog(
                         }
                     }
 
-                    // Calculator Screen / Display Box
+                    // Calculator Display Screen
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             horizontalAlignment = Alignment.End
                         ) {
-                            // Formula preview
                             Text(
                                 text = expression,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(2.dp))
-                            // Large Result
                             Text(
                                 text = formatCompactCurrency(calculatedResult, languageMode),
                                 style = MaterialTheme.typography.headlineSmall,
@@ -1733,7 +1830,7 @@ private fun PopupCalculatorDialog(
                         }
                     }
 
-                    // Quick Increment Chips
+                    // Quick Increments
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -1741,7 +1838,7 @@ private fun PopupCalculatorDialog(
                         listOf(100, 500, 1000, 5000).forEach { inc ->
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(6.dp))
@@ -1750,7 +1847,7 @@ private fun PopupCalculatorDialog(
                                         val nextVal = (cur + inc).toLong()
                                         expression = nextVal.toString()
                                     }
-                                    .padding(vertical = 5.dp)
+                                    .padding(vertical = 4.dp)
                             ) {
                                 Text(
                                     text = "+$inc",
@@ -1763,7 +1860,7 @@ private fun PopupCalculatorDialog(
                         }
                     }
 
-                    // Keypad Grid (4 columns)
+                    // Keypad
                     val keyRows = listOf(
                         listOf("C", "÷", "×", "⌫"),
                         listOf("7", "8", "9", "-"),
@@ -1772,11 +1869,11 @@ private fun PopupCalculatorDialog(
                         listOf("0", "00", ".", "OK")
                     )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         keyRows.forEach { rowKeys ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 rowKeys.forEach { key ->
                                     val isOp = key in listOf("÷", "×", "-", "+", "=")
@@ -1786,7 +1883,7 @@ private fun PopupCalculatorDialog(
                                     val btnColor = when {
                                         isOk -> BrandBlue
                                         isOp -> BrandBlue.copy(alpha = 0.12f)
-                                        isSpecial -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                                        isSpecial -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
                                         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                                     }
                                     val textColor = when {
@@ -1801,7 +1898,7 @@ private fun PopupCalculatorDialog(
                                         color = btnColor,
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(38.dp)
+                                            .height(36.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                             .clickable {
                                                 when (key) {
@@ -1822,20 +1919,20 @@ private fun PopupCalculatorDialog(
                                                     Icons.Default.Backspace,
                                                     contentDescription = "Backspace",
                                                     tint = textColor,
-                                                    modifier = Modifier.size(16.dp)
+                                                    modifier = Modifier.size(15.dp)
                                                 )
                                             } else if (key == "OK") {
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                                 ) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                                    Text("Done", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                                    Text("Done", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                                 }
                                             } else {
                                                 Text(
                                                     text = key,
-                                                    fontSize = if (isOp || isSpecial) 15.sp else 14.sp,
+                                                    fontSize = if (isOp || isSpecial) 15.sp else 13.5.sp,
                                                     fontWeight = if (isOp || isSpecial) FontWeight.ExtraBold else FontWeight.SemiBold,
                                                     color = textColor
                                                 )
@@ -1847,7 +1944,7 @@ private fun PopupCalculatorDialog(
                         }
                     }
 
-                    // Bottom Action Bar: Cancel and Set Budget
+                    // Bottom Action Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1855,7 +1952,7 @@ private fun PopupCalculatorDialog(
                     ) {
                         OutlinedButton(
                             onClick = onDismiss,
-                            modifier = Modifier.weight(1f).height(40.dp),
+                            modifier = Modifier.weight(1f).height(38.dp),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("Cancel", fontSize = 12.sp)
@@ -1867,10 +1964,10 @@ private fun PopupCalculatorDialog(
                                 onConfirm(finalVal)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                            modifier = Modifier.weight(1.5f).height(40.dp),
+                            modifier = Modifier.weight(1.4f).height(38.dp),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Text("Set Budget", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                            Text("Set Budget", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1880,7 +1977,7 @@ private fun PopupCalculatorDialog(
 }
 
 /**
- * Informative Guide Dialog explaining smart suggestions and conversions.
+ * Informative Guide Dialog.
  */
 @Composable
 private fun BudgetHelpDialog(onDismiss: () -> Unit) {
@@ -1962,7 +2059,7 @@ private fun BudgetHelpDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * Calculates smart budget suggestions for any item including:
+ * Calculates smart budget suggestions for any item:
  * 1. Previous Month actual spending / balance
  * 2. 3 Frequent suggestions (Frequent 1, Frequent 2, Frequent 3)
  * 3. 3-Month Average
@@ -1976,7 +2073,6 @@ private fun calculateSuggestionsForItem(
     selectedMonth: Int,
     monthlyBudgets: List<MonthlyBudget>
 ): List<BudgetSuggestionOption> {
-    // 1. Previous Month Amount
     var prevYear = selectedYear
     var prevMonth = selectedMonth - 1
     if (prevMonth < 1) {
@@ -2006,7 +2102,6 @@ private fun calculateSuggestionsForItem(
         }
     }
 
-    // 2. Compute 3 Frequent Amounts from transaction history / past patterns
     val allItemTxs = allTransactions.filter {
         it.transaction.categoryId == itemId || it.transaction.subCategoryId == itemId ||
                 it.transaction.debitAccountId == itemId || it.transaction.creditAccountId == itemId
@@ -2035,7 +2130,6 @@ private fun calculateSuggestionsForItem(
         (baseFreq * 0.75).roundToInt().coerceAtLeast(100).toDouble()
     }
 
-    // 3. 3-Month Average
     val threeMonthStart = DateUtils.getStartOfMonth(
         if (selectedMonth > 3) selectedYear else selectedYear - 1,
         if (selectedMonth > 3) selectedMonth - 3 else selectedMonth + 9
@@ -2109,8 +2203,8 @@ private fun BudgetDashboardView(
         modifier = Modifier
             .fillMaxSize()
             .testTag("budget_dashboard_view"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Top KPI Banner Switcher (Budgeted vs Actual)
         item {
@@ -2122,14 +2216,15 @@ private fun BudgetDashboardView(
                 Text(
                     text = "Budget Overview",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
                         selected = viewMode == 0,
                         onClick = { viewMode = 0 },
-                        label = { Text("Budgeted", fontSize = 12.sp) },
+                        label = { Text("Budgeted", fontSize = 11.5.sp) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -2138,7 +2233,7 @@ private fun BudgetDashboardView(
                     FilterChip(
                         selected = viewMode == 1,
                         onClick = { viewMode = 1 },
-                        label = { Text("Actual", fontSize = 12.sp) },
+                        label = { Text("Actual", fontSize = 11.5.sp) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -2148,13 +2243,15 @@ private fun BudgetDashboardView(
             }
         }
 
-        // Summary KPI Cards
+        // Summary KPI Card
         item {
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                 shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -2174,6 +2271,7 @@ private fun BudgetDashboardView(
                                 color = MaterialTheme.colorScheme.outline,
                                 fontWeight = FontWeight.Medium
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = (if (isSurplus) "+" else "") + LanguageHelper.formatCurrency(currentSurplus, languageMode),
                                 style = MaterialTheme.typography.headlineSmall,
@@ -2185,22 +2283,22 @@ private fun BudgetDashboardView(
                         Surface(
                             shape = CircleShape,
                             color = (if (isSurplus) SolidIncome else SolidExpense).copy(alpha = 0.15f),
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(42.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = if (isSurplus) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                     contentDescription = null,
                                     tint = if (isSurplus) SolidIncome else SolidExpense,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-                    HorizontalDivider()
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Inflows vs Outflows Row
                     Row(
@@ -2212,12 +2310,22 @@ private fun BudgetDashboardView(
 
                         Column {
                             Text("Total Inflows", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                            Text(LanguageHelper.formatCurrency(inVal, languageMode), fontWeight = FontWeight.Bold, color = SolidIncome, fontSize = 14.sp)
+                            Text(
+                                text = LanguageHelper.formatCurrency(inVal, languageMode),
+                                fontWeight = FontWeight.Bold,
+                                color = SolidIncome,
+                                fontSize = 14.sp
+                            )
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Total Outflows", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-                            Text(LanguageHelper.formatCurrency(outVal, languageMode), fontWeight = FontWeight.Bold, color = SolidExpense, fontSize = 14.sp)
+                            Text(
+                                text = LanguageHelper.formatCurrency(outVal, languageMode),
+                                fontWeight = FontWeight.Bold,
+                                color = SolidExpense,
+                                fontSize = 14.sp
+                            )
                         }
                     }
                 }
@@ -2230,7 +2338,8 @@ private fun BudgetDashboardView(
                 text = "Budget Categories",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 4.dp)
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
 
@@ -2283,54 +2392,74 @@ private fun DashboardBreakdownCard(
     budgeted: Double,
     actual: Double,
     color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     languageMode: LanguageMode,
     onClick: () -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(shape = CircleShape, color = color.copy(alpha = 0.15f), modifier = Modifier.size(36.dp)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(shape = CircleShape, color = color.copy(alpha = 0.14f), modifier = Modifier.size(34.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
+                        }
+                    }
+                    Column {
+                        Text(title, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, maxLines = 1)
+                        Text(
+                            text = "Actual: ${LanguageHelper.formatCurrency(actual, languageMode)}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1
+                        )
                     }
                 }
-                Column {
-                    Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "Actual: ${LanguageHelper.formatCurrency(actual, languageMode)}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
+                        text = LanguageHelper.formatCurrency(budgeted, languageMode),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.5.sp,
+                        color = color,
+                        maxLines = 1
+                    )
+                    val pct = if (budgeted > 0) ((actual / budgeted) * 100).toInt() else 0
+                    Text(
+                        text = "$pct% utilized",
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1
                     )
                 }
             }
 
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = LanguageHelper.formatCurrency(budgeted, languageMode),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 14.sp,
-                    color = color
-                )
-                val pct = if (budgeted > 0) (actual / budgeted * 100).toInt() else 0
-                Text(
-                    text = "$pct% utilized",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
+            // Allocation progress bar
+            val progress = if (budgeted > 0) ((actual / budgeted).toFloat()).coerceIn(0f, 1f) else 0f
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = color,
+                trackColor = color.copy(alpha = 0.15f),
+                strokeCap = StrokeCap.Round
+            )
         }
     }
 }

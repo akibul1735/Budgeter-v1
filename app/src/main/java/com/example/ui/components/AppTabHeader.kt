@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 fun AppTabHeader(
     title: String,
     tabIcon: ImageVector? = null,
+    showCoinIcon: Boolean = true,
     onOpenDrawer: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     // Search bar functionality
@@ -157,7 +158,7 @@ fun AppTabHeader(
                             )
                         }
                     }
-                } else {
+                } else if (showCoinIcon) {
                     Surface(
                         shape = CircleShape,
                         color = Color(0xFFFFD700),

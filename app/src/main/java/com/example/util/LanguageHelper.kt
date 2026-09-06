@@ -278,7 +278,7 @@ object LanguageHelper {
         "liabilities_change" to Trans("Liabilities Change", "দায় পরিবর্তন"),
         "increase" to Trans("Increase", "বৃদ্ধি"),
         "decrease" to Trans("Decrease", "হ্রাস"),
-        "reset_to_previous" to Trans("Reset to Previous", "পূর্বের বাজেটে ফেরত যান"),
+        "reset_to_previous" to Trans("Reset", "রিসেট"),
         "expendable_breakdown" to Trans("Expendable Breakdown", "ব্যয়যোগ্য অর্থের বিশ্লেষণ"),
         "financial_overview" to Trans("Financial Overview", "আর্থিক পর্যালোচনা"),
         "current_assets" to Trans("Current Assets", "বর্তমান সম্পদ"),

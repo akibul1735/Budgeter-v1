@@ -45,11 +45,12 @@ object PaymentSourceCalculator {
         // Transactions in this month
         val monthTxs = allTransactions.filter { it.transaction.dateEpochMs in startOfMonthMs..endOfMonthMs }
 
-        // Monthly budget entries map
-        val budgetMap = monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+        // Monthly budget entries map: strictly for the requested year and month (or default if year==0/month==0)
+        val monthBudgets = monthlyBudgets.filter { (it.year == 0 || it.year == year) && (it.month == 0 || it.month == month) }
+        val budgetMap = monthBudgets.associateBy { "${it.itemType}_${it.itemId}" }
 
         // Explicit category-account allocation budgets from MonthlyBudget (itemType = "ALLOC_${categoryId}", itemId = accountId)
-        val explicitAllocations = monthlyBudgets.filter {
+        val explicitAllocations = monthBudgets.filter {
             it.itemType.startsWith("ALLOC_") && it.isEnabled && it.budgetedAmount > 0
         }
         val allocationsByCatId = explicitAllocations.groupBy {
@@ -122,7 +123,18 @@ object PaymentSourceCalculator {
         val expenseCategories = allCategories.filter {
             it.type == CategoryType.EXPENSE && it.isActive &&
             (it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id))
-        }.ifEmpty { allCategories.filter { it.type == CategoryType.EXPENSE } }
+        }.toMutableList()
+
+        // Also include parent categories if they have a budget entry in Budget Maker or direct transactions
+        val directParents = allCategories.filter {
+            it.type == CategoryType.EXPENSE && it.parentId == null && parentExpenseCatIdsWithChildren.contains(it.id) &&
+            (budgetMap.containsKey("EXPENSE_${it.id}") || monthTxs.any { tx -> tx.transaction.categoryId == it.id && tx.transaction.subCategoryId == null })
+        }
+        for (dp in directParents) {
+            if (expenseCategories.none { it.id == dp.id }) {
+                expenseCategories.add(dp)
+            }
+        }
 
         val categoryAllocationsList = mutableListOf<CategoryAllocationAnalysis>()
 
@@ -132,16 +144,24 @@ object PaymentSourceCalculator {
 
             // Retrieve budgeted amount from Budget Maker for this specific year and month
             val budgetEntry = budgetMap["EXPENSE_${cat.id}"]
-            val isGeneralBudgetEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
-            val generalBudgetLimit = if (isGeneralBudgetEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val budgetMakerAmount = if (budgetEntry != null) {
+                if (budgetEntry.isEnabled) budgetEntry.budgetedAmount else 0.0
+            } else {
+                cat.budgetLimit
+            }
 
-            // The effective monthly budgeted amount for this category
-            val effectiveCategoryBudget = if (totalExplicitBudget > 0) maxOf(generalBudgetLimit, totalExplicitBudget) else generalBudgetLimit
+            // The effective monthly budgeted amount for this category strictly comes from Budget Maker
+            val effectiveCategoryBudget = if (totalExplicitBudget > 0) {
+                maxOf(budgetMakerAmount, totalExplicitBudget)
+            } else {
+                budgetMakerAmount
+            }
 
             // Actual spent in this category for this month
             val totalCatActualSpent = monthTxs.filter {
-                val catId = it.transaction.subCategoryId ?: it.transaction.categoryId
-                catId == cat.id && it.transaction.type == TransactionType.EXPENSE
+                val matchesSub = it.transaction.subCategoryId == cat.id
+                val matchesCat = it.transaction.categoryId == cat.id && it.transaction.subCategoryId == null
+                (matchesSub || matchesCat) && it.transaction.type == TransactionType.EXPENSE
             }.sumOf { it.transaction.amount }
 
             // Remaining unspent from the budget
@@ -243,11 +263,11 @@ object PaymentSourceCalculator {
                         val acc = validAccountsMap[accId] ?: continue
                         val spentInAcc = spentByCatAndAcc[cat.id to accId] ?: 0.0
                         val proportion = if (sumSpentInCat > 0) (spentInAcc / sumSpentInCat) else (1.0 / accountsWithSpendForCat.size)
-                        val allocatedBudget = if (effectiveCategoryBudget > 0) (effectiveCategoryBudget * proportion) else spentInAcc
+                        val allocatedBudget = if (effectiveCategoryBudget > 0) (effectiveCategoryBudget * proportion) else 0.0
                         val remainingInAcc = maxOf(0.0, allocatedBudget - spentInAcc)
 
                         val reqAmt = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) {
-                            allocatedBudget
+                            if (allocatedBudget > 0) allocatedBudget else spentInAcc
                         } else {
                             remainingInAcc
                         }
@@ -315,7 +335,7 @@ object PaymentSourceCalculator {
                             catSplits.add(
                                 CategoryAccountSplit(
                                     account = mappedAcc,
-                                    allocatedAmount = if (originalBudget > 0) originalBudget else spentInThisAcc,
+                                    allocatedAmount = originalBudget,
                                     actualSpent = spentInThisAcc,
                                     remaining = remaining,
                                     percentageOfCategory = 100.0
@@ -327,12 +347,11 @@ object PaymentSourceCalculator {
             }
 
             if (effectiveCategoryBudget > 0 || totalCatActualSpent > 0 || catSplits.isNotEmpty()) {
-                val budgetToShow = if (effectiveCategoryBudget > 0) effectiveCategoryBudget else totalCatActualSpent
                 categoryAllocationsList.add(
                     CategoryAllocationAnalysis(
                         category = cat,
-                        totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) budgetToShow else totalCatRemaining,
-                        totalBudgeted = budgetToShow,
+                        totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) effectiveCategoryBudget else totalCatRemaining,
+                        totalBudgeted = effectiveCategoryBudget,
                         totalActualSpent = totalCatActualSpent,
                         totalRemaining = totalCatRemaining,
                         accountSplits = catSplits.sortedByDescending { it.allocatedAmount }
@@ -373,15 +392,25 @@ object PaymentSourceCalculator {
         }
 
         // Income Categories Processing
-        val incomeCategories = allCategories.filter { it.type == CategoryType.INCOME && it.parentId != null }
-            .ifEmpty { allCategories.filter { it.type == CategoryType.INCOME } }
+        val parentIncomeCatIdsWithChildren = allCategories
+            .filter { it.type == CategoryType.INCOME && it.parentId != null }
+            .mapNotNull { it.parentId }
+            .toSet()
+
+        val incomeCategories = allCategories.filter {
+            it.type == CategoryType.INCOME && it.isActive &&
+            (it.parentId != null || !parentIncomeCatIdsWithChildren.contains(it.id))
+        }.ifEmpty { allCategories.filter { it.type == CategoryType.INCOME && it.isActive } }
 
         for (cat in incomeCategories) {
             val mappedAccId = resolveAccountForCategory(cat.id)
             val receivedInThisAcc = receivedByCatAndAcc[cat.id to mappedAccId] ?: 0.0
             val budgetEntry = budgetMap["INCOME_${cat.id}"]
-            val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
-            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val budgetLimit = if (budgetEntry != null) {
+                if (budgetEntry.isEnabled) budgetEntry.budgetedAmount else 0.0
+            } else {
+                cat.budgetLimit
+            }
 
             val originalBudget = budgetLimit
             val remaining = if (basis == RequirementCalculationBasis.REMAINING_AMOUNT) {
