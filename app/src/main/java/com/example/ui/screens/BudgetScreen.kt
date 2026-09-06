@@ -108,6 +108,7 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -1190,6 +1191,19 @@ private fun CategoriesBudgetEntryView(
  * - Touch-swipeable carousel with Left/Right chevrons, Center Pill (Pretext & Amount), and indicator dots.
  * - Manual Entry calculator button.
  */
+/**
+ * Redesigned Individual Budget Item Row.
+ * Structured into two stable, compact tiers to prevent font wrapping, scattering, or overflow:
+ *
+ * Tier 1 (Identity & Active Amount):
+ * - Circular Icon, Category Name with ellipsis protection.
+ * - Prominent active budget amount chip (tap to calculate) & Checkbox.
+ *
+ * Tier 2 (Smart Controls & Suggestions Carousel):
+ * - Frequency selector dropdown (for periodic flows: Weekly, Bi-weekly, Monthly, Quarterly, Yearly).
+ * - Touch-swipeable carousel with Left/Right chevrons, Center Pill (Pretext & Amount), and indicator dots.
+ * - Manual Entry calculator button using the app's main PopupCalculatorDialog.
+ */
 @Composable
 private fun BudgetItemRow(
     item: BudgetTargetItem,
@@ -1580,7 +1594,7 @@ private fun BudgetItemRow(
                     }
                 }
 
-                // 3. Calculator Manual Entry Button
+                // 3. Calculator Manual Entry Button (Main app calculator)
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
@@ -1613,16 +1627,13 @@ private fun BudgetItemRow(
         }
     }
 
-    // Popup Calculator Dialog
+    // Main App Popup Calculator Dialog
     if (showPopupCalculator) {
         PopupCalculatorDialog(
-            itemName = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),
-            currentAmount = displayedCurrentAmt,
-            frequency = if (isPeriodicFlow) itemFrequency else BudgetFrequency.MONTHLY,
-            isPeriodicFlow = isPeriodicFlow,
+            initialValue = displayedCurrentAmt,
             languageMode = languageMode,
             onDismiss = { showPopupCalculator = false },
-            onConfirm = { enteredAmt ->
+            onValueConfirmed = { enteredAmt ->
                 val monthlyToSave = if (isPeriodicFlow) {
                     itemFrequency.toMonthly(enteredAmt)
                 } else {
@@ -1632,347 +1643,6 @@ private fun BudgetItemRow(
                 showPopupCalculator = false
             }
         )
-    }
-}
-
-/**
- * Modern, Compact Popup Calculator Dialog for Manual Entry.
- * Evaluates full arithmetic (+, -, ×, ÷, =), supports quick increments, and confirms cleanly.
- */
-@Composable
-private fun PopupCalculatorDialog(
-    itemName: String,
-    currentAmount: Double,
-    frequency: BudgetFrequency,
-    isPeriodicFlow: Boolean,
-    languageMode: LanguageMode,
-    onDismiss: () -> Unit,
-    onConfirm: (Double) -> Unit
-) {
-    var expression by remember {
-        mutableStateOf(if (currentAmount > 0) String.format("%.0f", currentAmount) else "0")
-    }
-
-    fun evalExpression(expr: String): Double {
-        return try {
-            val sanitized = expr.replace("×", "*").replace("÷", "/").replace(" ", "")
-            if (sanitized.isEmpty()) return 0.0
-
-            val tokens = mutableListOf<String>()
-            var numBuf = StringBuilder()
-            for (ch in sanitized) {
-                if (ch.isDigit() || ch == '.') {
-                    numBuf.append(ch)
-                } else if (ch in "+-*/") {
-                    if (numBuf.isNotEmpty()) {
-                        tokens.add(numBuf.toString())
-                        numBuf = StringBuilder()
-                    }
-                    tokens.add(ch.toString())
-                }
-            }
-            if (numBuf.isNotEmpty()) tokens.add(numBuf.toString())
-            if (tokens.isEmpty()) return 0.0
-
-            val pass1 = mutableListOf<String>()
-            var i = 0
-            while (i < tokens.size) {
-                val token = tokens[i]
-                if ((token == "*" || token == "/") && pass1.isNotEmpty() && i + 1 < tokens.size) {
-                    val prev = pass1.removeAt(pass1.size - 1).toDoubleOrNull() ?: 0.0
-                    val next = tokens[i + 1].toDoubleOrNull() ?: 1.0
-                    val res = if (token == "*") prev * next else (if (next != 0.0) prev / next else prev)
-                    pass1.add(res.toString())
-                    i += 2
-                } else {
-                    pass1.add(token)
-                    i++
-                }
-            }
-
-            var total = pass1.firstOrNull()?.toDoubleOrNull() ?: 0.0
-            var j = 1
-            while (j < pass1.size) {
-                val op = pass1[j]
-                val nextVal = pass1.getOrNull(j + 1)?.toDoubleOrNull() ?: 0.0
-                if (op == "+") total += nextVal
-                else if (op == "-") total -= nextVal
-                j += 2
-            }
-            total
-        } catch (_: Exception) {
-            0.0
-        }
-    }
-
-    val calculatedResult = remember(expression) { evalExpression(expression) }
-
-    fun appendChar(c: String) {
-        if (expression == "0" && c != "." && c !in "+-×÷") {
-            expression = c
-        } else {
-            val lastChar = expression.lastOrNull()
-            if (c in "+-×÷" && lastChar != null && lastChar in "+-×÷") {
-                expression = expression.dropLast(1) + c
-            } else {
-                expression += c
-            }
-        }
-    }
-
-    fun backspace() {
-        if (expression.length > 1) {
-            expression = expression.dropLast(1)
-        } else {
-            expression = "0"
-        }
-    }
-
-    fun clearAll() {
-        expression = "0"
-    }
-
-    fun evaluateToResult() {
-        val res = evalExpression(expression)
-        expression = if (res % 1.0 == 0.0) res.toLong().toString() else String.format("%.2f", res)
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss
-                )
-                .padding(horizontal = 16.dp, vertical = 20.dp)
-                .imePadding(),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                shadowElevation = 12.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                modifier = Modifier
-                    .widthIn(max = 380.dp)
-                    .fillMaxWidth()
-                    .padding(bottom = 52.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {}
-                    )
-                    .testTag("popup_calculator_dialog")
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Header: Item Name + Frequency Tag + Close
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Text(
-                                text = itemName,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = if (isPeriodicFlow) "Manual Entry • ${frequency.localizedName(languageMode)}" else "Manual Entry • Target Balance",
-                                fontSize = 11.sp,
-                                color = BrandBlue,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.outline)
-                        }
-                    }
-
-                    // Calculator Display Screen
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalAlignment = Alignment.End
-                        ) {
-                            Text(
-                                text = expression,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.outline,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = formatCompactCurrency(calculatedResult, languageMode),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
-                    // Quick Increments
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        listOf(100, 500, 1000, 5000).forEach { inc ->
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable {
-                                        val cur = evalExpression(expression)
-                                        val nextVal = (cur + inc).toLong()
-                                        expression = nextVal.toString()
-                                    }
-                                    .padding(vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = "+$inc",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-
-                    // Keypad
-                    val keyRows = listOf(
-                        listOf("C", "÷", "×", "⌫"),
-                        listOf("7", "8", "9", "-"),
-                        listOf("4", "5", "6", "+"),
-                        listOf("1", "2", "3", "="),
-                        listOf("0", "00", ".", "OK")
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        keyRows.forEach { rowKeys ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                rowKeys.forEach { key ->
-                                    val isOp = key in listOf("÷", "×", "-", "+", "=")
-                                    val isSpecial = key in listOf("C", "⌫")
-                                    val isOk = key == "OK"
-
-                                    val btnColor = when {
-                                        isOk -> BrandBlue
-                                        isOp -> BrandBlue.copy(alpha = 0.12f)
-                                        isSpecial -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-                                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                    }
-                                    val textColor = when {
-                                        isOk -> Color.White
-                                        isOp -> BrandBlue
-                                        isSpecial -> MaterialTheme.colorScheme.error
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = btnColor,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                when (key) {
-                                                    "C" -> clearAll()
-                                                    "⌫" -> backspace()
-                                                    "=" -> evaluateToResult()
-                                                    "OK" -> {
-                                                        val finalVal = evalExpression(expression)
-                                                        onConfirm(finalVal)
-                                                    }
-                                                    else -> appendChar(key)
-                                                }
-                                            }
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            if (key == "⌫") {
-                                                Icon(
-                                                    Icons.Default.Backspace,
-                                                    contentDescription = "Backspace",
-                                                    tint = textColor,
-                                                    modifier = Modifier.size(15.dp)
-                                                )
-                                            } else if (key == "OK") {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                                ) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                                                    Text("Done", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                                }
-                                            } else {
-                                                Text(
-                                                    text = key,
-                                                    fontSize = if (isOp || isSpecial) 15.sp else 13.5.sp,
-                                                    fontWeight = if (isOp || isSpecial) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                                    color = textColor
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Bottom Action Buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f).height(38.dp),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Cancel", fontSize = 12.sp)
-                        }
-
-                        Button(
-                            onClick = {
-                                val finalVal = evalExpression(expression)
-                                onConfirm(finalVal)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                            modifier = Modifier.weight(1.4f).height(38.dp),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Set Budget", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
