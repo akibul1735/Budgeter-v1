@@ -398,3 +398,114 @@ fun buildThemeColorScheme(
         )
     }
 }
+
+fun Color.lighten(factor: Float): Color {
+    return Color(
+        red = (red + (1f - red) * factor).coerceIn(0f, 1f),
+        green = (green + (1f - green) * factor).coerceIn(0f, 1f),
+        blue = (blue + (1f - blue) * factor).coerceIn(0f, 1f),
+        alpha = alpha
+    )
+}
+
+fun Color.darken(factor: Float): Color {
+    return Color(
+        red = (red * (1f - factor)).coerceIn(0f, 1f),
+        green = (green * (1f - factor)).coerceIn(0f, 1f),
+        blue = (blue * (1f - factor)).coerceIn(0f, 1f),
+        alpha = alpha
+    )
+}
+
+fun buildCustomThemeColorScheme(
+    customTheme: CustomTheme,
+    isDark: Boolean,
+    isAmoled: Boolean = false,
+    intensity: ColorIntensity = ColorIntensity.VIVID
+): ColorScheme {
+    val basePrimary = customTheme.primaryColor
+    val baseSecondary = customTheme.secondaryColor
+
+    return if (isDark) {
+        val darkPrimary = when (intensity) {
+            ColorIntensity.STANDARD -> basePrimary.lighten(0.35f)
+            ColorIntensity.VIVID -> basePrimary.lighten(0.48f)
+            ColorIntensity.DEEP_CONTRAST -> basePrimary.lighten(0.62f)
+        }
+        val darkPrimaryContainer = basePrimary.darken(0.55f)
+        val darkOnPrimaryContainer = basePrimary.lighten(0.85f)
+
+        val darkSecondary = baseSecondary.lighten(0.45f)
+        val darkSecondaryContainer = baseSecondary.darken(0.55f)
+
+        val darkBg = if (isAmoled) SolidAmoledBg else Color(0xFF0D0F14)
+        val darkSurface = if (isAmoled) SolidAmoledSurface else Color(0xFF141720)
+        val darkSurfaceVariant = if (isAmoled) SolidAmoledSurfaceVariant else Color(0xFF1F2330)
+
+        darkColorScheme(
+            primary = darkPrimary,
+            onPrimary = Color(0xFF09090B),
+            primaryContainer = darkPrimaryContainer,
+            onPrimaryContainer = darkOnPrimaryContainer,
+            secondary = darkSecondary,
+            onSecondary = Color(0xFF09090B),
+            secondaryContainer = darkSecondaryContainer,
+            onSecondaryContainer = darkOnPrimaryContainer,
+            tertiary = SolidIncome,
+            onTertiary = Color(0xFF052E16),
+            background = darkBg,
+            onBackground = Color(0xFFF8FAFC),
+            surface = darkSurface,
+            onSurface = Color(0xFFF8FAFC),
+            surfaceVariant = darkSurfaceVariant,
+            onSurfaceVariant = Color(0xFFCBD5E1),
+            outline = Color(0xFF94A3B8),
+            outlineVariant = Color(0xFF334155),
+            error = Color(0xFFF87171),
+            onError = Color(0xFF450A0A),
+            errorContainer = Color(0xFF7F1D1D),
+            onErrorContainer = Color(0xFFFEE2E2)
+        )
+    } else {
+        val lightPrimary = when (intensity) {
+            ColorIntensity.STANDARD -> basePrimary
+            ColorIntensity.VIVID -> basePrimary.darken(0.08f)
+            ColorIntensity.DEEP_CONTRAST -> basePrimary.darken(0.22f)
+        }
+        val lightPrimaryContainer = basePrimary.lighten(0.85f)
+        val lightOnPrimaryContainer = basePrimary.darken(0.60f)
+
+        val lightSecondary = baseSecondary
+        val lightSecondaryContainer = baseSecondary.lighten(0.88f)
+        val lightOnSecondaryContainer = baseSecondary.darken(0.60f)
+
+        val lightBg = basePrimary.lighten(0.97f)
+        val lightSurface = Color.White
+        val lightSurfaceVariant = basePrimary.lighten(0.93f)
+
+        lightColorScheme(
+            primary = lightPrimary,
+            onPrimary = Color.White,
+            primaryContainer = lightPrimaryContainer,
+            onPrimaryContainer = lightOnPrimaryContainer,
+            secondary = lightSecondary,
+            onSecondary = Color.White,
+            secondaryContainer = lightSecondaryContainer,
+            onSecondaryContainer = lightOnSecondaryContainer,
+            tertiary = SolidIncome,
+            onTertiary = Color.White,
+            background = lightBg,
+            onBackground = Color(0xFF0F172A),
+            surface = lightSurface,
+            onSurface = Color(0xFF0F172A),
+            surfaceVariant = lightSurfaceVariant,
+            onSurfaceVariant = Color(0xFF334155),
+            outline = Color(0xFF64748B),
+            outlineVariant = basePrimary.lighten(0.86f),
+            error = SolidExpense,
+            onError = Color.White,
+            errorContainer = SolidExpenseContainer,
+            onErrorContainer = SolidOnExpenseContainer
+        )
+    }
+}

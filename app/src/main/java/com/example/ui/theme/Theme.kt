@@ -27,6 +27,12 @@ fun MyApplicationTheme(
             val context = LocalContext.current
             if (isDarkMode) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
+        themeConfig.activeCustomTheme != null -> buildCustomThemeColorScheme(
+            customTheme = themeConfig.activeCustomTheme!!,
+            isDark = isDarkMode,
+            isAmoled = isAmoled,
+            intensity = themeConfig.colorIntensity
+        )
         else -> buildThemeColorScheme(
             palette = themeConfig.palette,
             isDark = isDarkMode,

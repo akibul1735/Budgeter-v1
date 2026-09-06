@@ -205,10 +205,10 @@ fun SettingsScreen(
 
             item {
                 SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "রূপরেখা কাস্টমাইজেশন" else "Customize Appearance",
-                    subtitle = "${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }} mode • ${themeConfig.palette.name.lowercase().replaceFirstChar { it.uppercase() }} palette • ${if (languageMode == LanguageMode.BANGLA) themeConfig.fontPreset.titleBn else themeConfig.fontPreset.titleEn}",
+                    title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা কাস্টমাইজেশন" else "Themes & Appearance",
+                    subtitle = "${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }} mode • ${themeConfig.activeThemeDisplayName} • ${if (languageMode == LanguageMode.BANGLA) themeConfig.fontPreset.titleBn else themeConfig.fontPreset.titleEn}",
                     icon = Icons.Default.Palette,
-                    onClick = { showAppearanceDialog = true }
+                    onClick = onOpenThemeFontSettings
                 )
             }
 

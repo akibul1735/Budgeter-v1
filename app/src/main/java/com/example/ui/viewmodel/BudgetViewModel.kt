@@ -23,6 +23,7 @@ import com.example.data.repository.FinancialOverview
 import com.example.sync.SyncManager
 import com.example.ui.theme.AppThemeConfig
 import com.example.ui.theme.ColorIntensity
+import com.example.ui.theme.CustomTheme
 import com.example.ui.theme.FontPreset
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
@@ -260,6 +261,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val backupSettingsConfig: StateFlow<BackupSettingsConfig> = backupPrefs.config
 
     fun setThemePalette(palette: ThemePalette) = themePrefs.setPalette(palette)
+    fun selectCustomTheme(themeId: String) = themePrefs.selectCustomTheme(themeId)
+    fun addCustomTheme(name: String, primaryColorHex: Long, secondaryColorHex: Long? = null) =
+        themePrefs.addCustomTheme(name, primaryColorHex, secondaryColorHex)
+    fun updateCustomTheme(theme: CustomTheme) = themePrefs.updateCustomTheme(theme)
+    fun deleteCustomTheme(themeId: String) = themePrefs.deleteCustomTheme(themeId)
     fun setThemeMode(mode: ThemeMode) = themePrefs.setMode(mode)
     fun setColorIntensity(intensity: ColorIntensity) = themePrefs.setColorIntensity(intensity)
     fun setDynamicColor(enabled: Boolean) = themePrefs.setDynamicColor(enabled)

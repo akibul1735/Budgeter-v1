@@ -40,13 +40,32 @@ enum class ColorIntensity(val titleEn: String, val titleBn: String) {
     DEEP_CONTRAST("Deep Contrast", "উচ্চ স্পষ্টতা")
 }
 
+data class CustomTheme(
+    val id: String,
+    val name: String,
+    val primaryColorHex: Long,
+    val secondaryColorHex: Long? = null,
+    val isDarkOptimized: Boolean = true
+) {
+    val primaryColor: Color get() = Color(primaryColorHex)
+    val secondaryColor: Color get() = secondaryColorHex?.let { Color(it) } ?: primaryColor
+}
+
 data class AppThemeConfig(
     val palette: ThemePalette = ThemePalette.ELEGANT_BLUE,
+    val customThemeId: String? = null,
+    val customThemes: List<CustomTheme> = emptyList(),
     val mode: ThemeMode = ThemeMode.SYSTEM,
     val colorIntensity: ColorIntensity = ColorIntensity.VIVID,
     val dynamicColor: Boolean = false,
     val fontPreset: FontPreset = FontPreset.DEFAULT
-)
+) {
+    val activeCustomTheme: CustomTheme?
+        get() = customThemes.find { it.id == customThemeId }
+
+    val activeThemeDisplayName: String
+        get() = activeCustomTheme?.name ?: palette.displayNameEn
+}
 
 class ThemePreferences(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("budgeter_theme_prefs", Context.MODE_PRIVATE)
@@ -56,6 +75,10 @@ class ThemePreferences(context: Context) {
 
     private fun loadConfig(): AppThemeConfig {
         val paletteName = prefs.getString(KEY_PALETTE, ThemePalette.ELEGANT_BLUE.name) ?: ThemePalette.ELEGANT_BLUE.name
+        val selectedCustomThemeId = prefs.getString(KEY_SELECTED_CUSTOM_THEME_ID, null)
+        val customThemesJson = prefs.getString(KEY_CUSTOM_THEMES, null)
+        val customThemes = deserializeCustomThemes(customThemesJson)
+
         val modeName = prefs.getString(KEY_MODE, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
         val intensityName = prefs.getString(KEY_INTENSITY, ColorIntensity.VIVID.name) ?: ColorIntensity.VIVID.name
         val dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, false)
@@ -75,8 +98,14 @@ class ThemePreferences(context: Context) {
         val intensity = try { ColorIntensity.valueOf(intensityName) } catch (_: Exception) { ColorIntensity.VIVID }
         val font = try { FontPreset.valueOf(fontName) } catch (_: Exception) { FontPreset.DEFAULT }
 
+        val validCustomThemeId = if (selectedCustomThemeId != null && customThemes.any { it.id == selectedCustomThemeId }) {
+            selectedCustomThemeId
+        } else null
+
         return AppThemeConfig(
             palette = palette,
+            customThemeId = validCustomThemeId,
+            customThemes = customThemes,
             mode = mode,
             colorIntensity = intensity,
             dynamicColor = dynamicColor,
@@ -85,8 +114,70 @@ class ThemePreferences(context: Context) {
     }
 
     fun setPalette(palette: ThemePalette) {
-        prefs.edit().putString(KEY_PALETTE, palette.name).apply()
-        _themeConfig.value = _themeConfig.value.copy(palette = palette)
+        prefs.edit()
+            .putString(KEY_PALETTE, palette.name)
+            .remove(KEY_SELECTED_CUSTOM_THEME_ID)
+            .apply()
+        _themeConfig.value = _themeConfig.value.copy(
+            palette = palette,
+            customThemeId = null
+        )
+    }
+
+    fun selectCustomTheme(themeId: String) {
+        val current = _themeConfig.value
+        if (current.customThemes.any { it.id == themeId }) {
+            prefs.edit().putString(KEY_SELECTED_CUSTOM_THEME_ID, themeId).apply()
+            _themeConfig.value = current.copy(customThemeId = themeId)
+        }
+    }
+
+    fun addCustomTheme(name: String, primaryColorHex: Long, secondaryColorHex: Long? = null): CustomTheme {
+        val current = _themeConfig.value
+        val newTheme = CustomTheme(
+            id = "theme_${System.currentTimeMillis()}",
+            name = name.trim().ifBlank { "Custom Theme" },
+            primaryColorHex = primaryColorHex,
+            secondaryColorHex = secondaryColorHex
+        )
+        val updatedList = current.customThemes + newTheme
+        prefs.edit()
+            .putString(KEY_CUSTOM_THEMES, serializeCustomThemes(updatedList))
+            .putString(KEY_SELECTED_CUSTOM_THEME_ID, newTheme.id)
+            .apply()
+        _themeConfig.value = current.copy(
+            customThemes = updatedList,
+            customThemeId = newTheme.id
+        )
+        return newTheme
+    }
+
+    fun updateCustomTheme(theme: CustomTheme) {
+        val current = _themeConfig.value
+        val updatedList = current.customThemes.map {
+            if (it.id == theme.id) theme else it
+        }
+        prefs.edit()
+            .putString(KEY_CUSTOM_THEMES, serializeCustomThemes(updatedList))
+            .apply()
+        _themeConfig.value = current.copy(customThemes = updatedList)
+    }
+
+    fun deleteCustomTheme(themeId: String) {
+        val current = _themeConfig.value
+        val updatedList = current.customThemes.filterNot { it.id == themeId }
+        val newSelectedId = if (current.customThemeId == themeId) null else current.customThemeId
+        val editor = prefs.edit().putString(KEY_CUSTOM_THEMES, serializeCustomThemes(updatedList))
+        if (newSelectedId == null) {
+            editor.remove(KEY_SELECTED_CUSTOM_THEME_ID)
+        } else {
+            editor.putString(KEY_SELECTED_CUSTOM_THEME_ID, newSelectedId)
+        }
+        editor.apply()
+        _themeConfig.value = current.copy(
+            customThemes = updatedList,
+            customThemeId = newSelectedId
+        )
     }
 
     fun setMode(mode: ThemeMode) {
@@ -109,8 +200,42 @@ class ThemePreferences(context: Context) {
         _themeConfig.value = _themeConfig.value.copy(fontPreset = fontPreset)
     }
 
+    private fun serializeCustomThemes(themes: List<CustomTheme>): String {
+        val array = org.json.JSONArray()
+        themes.forEach { theme ->
+            val obj = org.json.JSONObject()
+            obj.put("id", theme.id)
+            obj.put("name", theme.name)
+            obj.put("primary", theme.primaryColorHex)
+            if (theme.secondaryColorHex != null) {
+                obj.put("secondary", theme.secondaryColorHex)
+            }
+            array.put(obj)
+        }
+        return array.toString()
+    }
+
+    private fun deserializeCustomThemes(json: String?): List<CustomTheme> {
+        if (json.isNullOrBlank()) return emptyList()
+        val list = mutableListOf<CustomTheme>()
+        try {
+            val array = org.json.JSONArray(json)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val id = obj.getString("id")
+                val name = obj.getString("name")
+                val primary = obj.getLong("primary")
+                val secondary = if (obj.has("secondary")) obj.getLong("secondary") else null
+                list.add(CustomTheme(id = id, name = name, primaryColorHex = primary, secondaryColorHex = secondary))
+            }
+        } catch (_: Exception) {}
+        return list
+    }
+
     companion object {
         private const val KEY_PALETTE = "theme_palette"
+        private const val KEY_SELECTED_CUSTOM_THEME_ID = "selected_custom_theme_id"
+        private const val KEY_CUSTOM_THEMES = "custom_themes_list_json"
         private const val KEY_MODE = "theme_mode"
         private const val KEY_INTENSITY = "color_intensity"
         private const val KEY_DYNAMIC_COLOR = "dynamic_color_enabled"
