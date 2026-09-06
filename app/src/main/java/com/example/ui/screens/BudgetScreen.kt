@@ -10,6 +10,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -1732,15 +1734,14 @@ private fun BudgetItemRow(
                 overflow = TextOverflow.Ellipsis
             )
 
-            // TIER 3: Direct Amount Suggestion Buttons + Manual Option
+            // TIER 3: Direct Amount Suggestion Buttons + Manual Option (Horizontally Swipeable)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // Left: Frequency selector pill (For periodic flows) or Asset/Liability label
                 if (isPeriodicFlow) {
-                    Box {
+                    Box(modifier = Modifier.padding(end = 4.dp)) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
@@ -1751,11 +1752,11 @@ private fun BudgetItemRow(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.5.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.5.dp)
                             ) {
                                 Text(
                                     text = itemFrequency.localizedName(languageMode),
-                                    fontSize = 10.5.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1
@@ -1763,7 +1764,7 @@ private fun BudgetItemRow(
                                 Icon(
                                     Icons.Default.KeyboardArrowDown,
                                     contentDescription = null,
-                                    modifier = Modifier.size(12.dp),
+                                    modifier = Modifier.size(11.dp),
                                     tint = MaterialTheme.colorScheme.outline
                                 )
                             }
@@ -1792,33 +1793,35 @@ private fun BudgetItemRow(
                     }
                 } else {
                     Text(
-                        text = if (item.itemType == "ASSET") "Asset Balance" else "Liability Balance",
-                        fontSize = 10.sp,
+                        text = if (item.itemType == "ASSET") "Asset" else "Liability",
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(end = 4.dp)
                     )
                 }
 
-                // Right: Amount Suggestion Buttons & Manual Option
+                // Right: Horizontally Swipeable Amount Suggestion Buttons & Manual Option
                 Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Quick Suggestion Amount Buttons (take up to 3 suggestions)
-                    val quickSuggestions = suggestions.take(3)
-                    quickSuggestions.forEach { sugg ->
-                        val isSuggestionActive = kotlin.math.abs(currentMonthlyAmt - sugg.amountMonthly) < 0.5 && currentMonthlyAmt > 0.0
+                    suggestions.forEach { sugg ->
+                        val isSuggestionActive = kotlin.math.abs(currentMonthlyAmt - sugg.amountMonthly) < 0.5 && (currentMonthlyAmt > 0.0 || (sugg.amountMonthly == 0.0 && currentMonthlyAmt == 0.0 && isEnabled))
                         val formattedAmount = formatCompactCurrency(sugg.amountMonthly, languageMode)
 
                         Surface(
-                            shape = RoundedCornerShape(7.dp),
-                            color = if (isSuggestionActive) sectionColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isSuggestionActive) sectionColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
                             border = BorderStroke(
-                                0.8.dp,
-                                if (isSuggestionActive) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                0.7.dp,
+                                if (isSuggestionActive) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
                             ),
                             modifier = Modifier
-                                .clip(RoundedCornerShape(7.dp))
+                                .clip(RoundedCornerShape(6.dp))
                                 .clickable {
                                     onSaveBudget(sugg.amountMonthly, true)
                                 }
@@ -1826,20 +1829,20 @@ private fun BudgetItemRow(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.5.dp),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.5.dp)
+                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier.padding(horizontal = 4.5.dp, vertical = 2.5.dp)
                             ) {
                                 if (sugg.label.isNotEmpty()) {
                                     Text(
                                         text = "${sugg.label}:",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (isSuggestionActive) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.outline
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSuggestionActive) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.outline
                                     )
                                 }
                                 Text(
                                     text = formattedAmount,
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = if (isSuggestionActive) FontWeight.ExtraBold else FontWeight.SemiBold,
                                     color = if (isSuggestionActive) Color.White else MaterialTheme.colorScheme.onSurface
                                 )
@@ -1850,31 +1853,31 @@ private fun BudgetItemRow(
                     // Manual Option Button
                     val isManualCustom = activeIndex == -1 && currentMonthlyAmt > 0.0
                     Surface(
-                        shape = RoundedCornerShape(7.dp),
+                        shape = RoundedCornerShape(6.dp),
                         color = if (isManualCustom) sectionColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                         border = BorderStroke(
-                            0.8.dp,
+                            0.7.dp,
                             if (isManualCustom) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         ),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(7.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .clickable { showPopupCalculator = true }
                             .testTag("manual_entry_btn_${item.id}")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier.padding(horizontal = 4.5.dp, vertical = 2.5.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
                                 contentDescription = "Manual Option",
                                 tint = if (isManualCustom) sectionColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(11.dp)
+                                modifier = Modifier.size(10.dp)
                             )
                             Text(
                                 text = "Manual",
-                                fontSize = 10.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isManualCustom) sectionColor else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1988,9 +1991,9 @@ private fun BudgetHelpDialog(onDismiss: () -> Unit) {
 
 /**
  * Calculates smart budget suggestions for any item:
- * 1. Previous Month actual spending / balance
- * 2. 3 Frequent suggestions (Frequent 1, Frequent 2, Frequent 3)
- * 3. 3-Month Average
+ * 1. Previous Month Budget (PB)
+ * 2. Previous Month Expensed / Actual (PE)
+ * 3. 3 Frequent suggestions (F1, F2, F3)
  */
 private fun calculateSuggestionsForItem(
     itemId: Long,
@@ -2010,20 +2013,7 @@ private fun calculateSuggestionsForItem(
     }
 
     val prevSaved = monthlyBudgets.find { it.year == prevYear && it.month == prevMonth && it.itemType == itemType && it.itemId == itemId }
-    val prevSavedAmt = prevSaved?.budgetedAmount ?: 0.0
-
-    if (itemType == "ASSET" || itemType == "LIABILITY") {
-        // ASSETS & LIABILITIES: Suggestions include Actual balance from balance sheet, previous month's target, and baseline
-        val list = mutableListOf<BudgetSuggestionOption>()
-        list.add(BudgetSuggestionOption(0, balanceSheetBalance, "Actual Balance", "Actual"))
-        if (prevSavedAmt > 0.0 && kotlin.math.abs(prevSavedAmt - balanceSheetBalance) > 0.5) {
-            list.add(BudgetSuggestionOption(1, prevSavedAmt, "Previous Target", "Prev"))
-        }
-        if (defaultLimit > 0.0 && kotlin.math.abs(defaultLimit - balanceSheetBalance) > 0.5 && kotlin.math.abs(defaultLimit - prevSavedAmt) > 0.5) {
-            list.add(BudgetSuggestionOption(2, defaultLimit, "Baseline Target", "Base"))
-        }
-        return list
-    }
+    val prevBudgetAmt = prevSaved?.budgetedAmount ?: (if (defaultLimit > 0.0) defaultLimit else 0.0)
 
     val prevMonthStart = DateUtils.getStartOfMonth(prevYear, prevMonth)
     val prevMonthEnd = DateUtils.getEndOfMonth(prevYear, prevMonth)
@@ -2033,19 +2023,7 @@ private fun calculateSuggestionsForItem(
                 (it.transaction.categoryId == itemId || it.transaction.subCategoryId == itemId ||
                  it.transaction.debitAccountId == itemId || it.transaction.creditAccountId == itemId)
     }
-    val prevMonthActual = prevMonthTxs.sumOf { it.transaction.amount }
-
-    val prevMonthAmt = if (prevMonthActual > 0.0) {
-        prevMonthActual
-    } else {
-        if (prevSavedAmt > 0.0) {
-            prevSavedAmt
-        } else if (defaultLimit > 0.0) {
-            defaultLimit * 0.9
-        } else {
-            500.0
-        }
-    }
+    val prevExpensedAmt = prevMonthTxs.sumOf { it.transaction.amount }
 
     val allItemTxs = allTransactions.filter {
         it.transaction.categoryId == itemId || it.transaction.subCategoryId == itemId ||
@@ -2060,48 +2038,45 @@ private fun calculateSuggestionsForItem(
         }.values.map { txList -> txList.sumOf { it.transaction.amount } }
     } else emptyList()
 
-    val freqCounts = monthlyTotals.groupingBy { it }.eachCount().toList().sortedByDescending { it.second }
+    val freqCounts = monthlyTotals.groupingBy { it }.eachCount().toList().sortedByDescending { it.second }.map { it.first }
 
-    val baseFreq = if (freqCounts.isNotEmpty()) freqCounts[0].first else if (defaultLimit > 0) defaultLimit else 1000.0
-    val freq1 = baseFreq
-    val freq2 = if (freqCounts.size > 1) {
-        freqCounts[1].first
-    } else {
-        (baseFreq * 1.25).roundToInt().toDouble()
-    }
-
-    val threeMonthStart = DateUtils.getStartOfMonth(
-        if (selectedMonth > 3) selectedYear else selectedYear - 1,
-        if (selectedMonth > 3) selectedMonth - 3 else selectedMonth + 9
-    )
-    val threeMonthTxs = allTransactions.filter {
-        it.transaction.dateEpochMs in threeMonthStart..DateUtils.getEndOfMonth(selectedYear, selectedMonth) &&
-                (it.transaction.categoryId == itemId || it.transaction.subCategoryId == itemId ||
-                 it.transaction.debitAccountId == itemId || it.transaction.creditAccountId == itemId)
-    }
-    val threeMonthGrouped = threeMonthTxs.groupBy {
-        cal.timeInMillis = it.transaction.dateEpochMs
-        "${cal.get(Calendar.YEAR)}_${cal.get(Calendar.MONTH)}"
-    }.values.map { it.sumOf { tx -> tx.transaction.amount } }
-
-    val avgAmt = if (threeMonthGrouped.isNotEmpty()) {
-        threeMonthGrouped.average().roundToInt().toDouble()
+    val baseFreq = if (freqCounts.isNotEmpty()) {
+        freqCounts[0]
+    } else if (prevBudgetAmt > 0.0) {
+        prevBudgetAmt
+    } else if (prevExpensedAmt > 0.0) {
+        prevExpensedAmt
     } else if (defaultLimit > 0.0) {
-        defaultLimit * 1.15
+        defaultLimit
     } else {
-        1500.0
+        1000.0
     }
+
+    val freq1 = if (freqCounts.isNotEmpty()) freqCounts[0] else baseFreq
+    val freq2 = if (freqCounts.size > 1) freqCounts[1] else (baseFreq * 1.25).roundToInt().toDouble()
+    val freq3 = if (freqCounts.size > 2) freqCounts[2] else (baseFreq * 0.75).roundToInt().coerceAtLeast(100).toDouble()
 
     val list = mutableListOf<BudgetSuggestionOption>()
-    list.add(BudgetSuggestionOption(0, prevMonthAmt, "Prev Month", "Prev"))
-    if (kotlin.math.abs(freq1 - prevMonthAmt) > 0.5) {
-        list.add(BudgetSuggestionOption(1, freq1, "Frequent", "Freq"))
+
+    if (itemType == "ASSET" || itemType == "LIABILITY") {
+        // ASSETS & LIABILITIES: Balance Sheet Balance (Act), Previous Target (PB), Previous Activity (PE), 3 Frequent (F1, F2, F3)
+        list.add(BudgetSuggestionOption(0, balanceSheetBalance, "Actual Balance", "Act"))
+        list.add(BudgetSuggestionOption(1, prevBudgetAmt, "Previous Target", "PB"))
+        if (prevExpensedAmt > 0.0) {
+            list.add(BudgetSuggestionOption(2, prevExpensedAmt, "Previous Activity", "PE"))
+        }
+        list.add(BudgetSuggestionOption(3, freq1, "Frequent 1", "F1"))
+        list.add(BudgetSuggestionOption(4, freq2, "Frequent 2", "F2"))
+        list.add(BudgetSuggestionOption(5, freq3, "Frequent 3", "F3"))
+    } else {
+        // EXPENSES & INCOMES: Previous Month Budget (PB), Previous Month Expensed (PE), 3 Frequent Suggestions (F1, F2, F3)
+        list.add(BudgetSuggestionOption(0, prevBudgetAmt, "Previous Budget", "PB"))
+        list.add(BudgetSuggestionOption(1, prevExpensedAmt, "Previous Expensed", "PE"))
+        list.add(BudgetSuggestionOption(2, freq1, "Frequent 1", "F1"))
+        list.add(BudgetSuggestionOption(3, freq2, "Frequent 2", "F2"))
+        list.add(BudgetSuggestionOption(4, freq3, "Frequent 3", "F3"))
     }
-    if (kotlin.math.abs(avgAmt - prevMonthAmt) > 0.5 && kotlin.math.abs(avgAmt - freq1) > 0.5) {
-        list.add(BudgetSuggestionOption(2, avgAmt, "3-Mo Avg", "Avg"))
-    } else if (kotlin.math.abs(freq2 - prevMonthAmt) > 0.5 && kotlin.math.abs(freq2 - freq1) > 0.5) {
-        list.add(BudgetSuggestionOption(3, freq2, "Frequent 2", "Freq+"))
-    }
+
     return list
 }
 
@@ -2389,7 +2364,7 @@ private fun BudgetDashboardView(
                     }
 
                     Text(
-                        text = "• Tap the quick amount suggestion buttons (Actual, Prev, Freq, Avg) inside each category to set your plan instantly.",
+                        text = "• Swipe horizontally across the suggestion pills (PB: Previous Budget, PE: Previous Expensed, F1/F2/F3: Frequent amounts) to set your plan instantly.",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
