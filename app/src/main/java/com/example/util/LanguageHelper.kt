@@ -370,6 +370,21 @@ object LanguageHelper {
         "clear" to Trans("Clear", "মুছুন"),
         "spent" to Trans("Spent", "ব্যয়"),
         "spent_amount" to Trans("Spent Amount", "ব্যয়কৃত পরিমাণ"),
-        "remaining" to Trans("Remaining", "অবশিষ্ট")
+        "remaining" to Trans("Remaining", "অবশিষ্ট"),
+        "bm_dashboard" to Trans("BM Dashboard", "বিএম ড্যাশবোর্ড"),
+        "frequently_budgeted" to Trans("Frequently Budgeted", "প্রায়শই বাজেটকৃত"),
+        "frequently_expensed" to Trans("Frequently Expensed", "প্রায়শই ব্যয়কৃত"),
+        "frequent_transactions" to Trans("Frequent Transactions", "ঘন ঘন লেনদেন"),
+        "budgeted_only" to Trans("Budgeted Only", "শুধুমাত্র বাজেটকৃত"),
+        "expensed_only" to Trans("Expensed Only", "শুধুমাত্র ব্যয়কৃত"),
+        "unbudgeted" to Trans("Unbudgeted", "বাজেটবিহীন"),
+        "sort_default" to Trans("Default Order", "ডিফল্ট ক্রম"),
+        "sort_budget_desc" to Trans("Budget (High → Low)", "বাজেট (বেশি → কম)"),
+        "sort_budget_asc" to Trans("Budget (Low → High)", "বাজেট (কম → বেশি)"),
+        "sort_actual_desc" to Trans("Actual Spent (High → Low)", "প্রকৃত ব্যয় (বেশি → কম)"),
+        "sort_frequency" to Trans("Frequency (Most Used)", "ব্যবহারের হার (সর্বাধিক)"),
+        "sort_name" to Trans("Alphabetical (A → Z)", "বর্ণানুক্রমিক (A → Z)"),
+        "filter" to Trans("Filter", "ফিল্টার"),
+        "sort" to Trans("Sort", "সাজান")
     )
 }
