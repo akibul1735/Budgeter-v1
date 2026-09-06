@@ -29,7 +29,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CallSplit
@@ -38,17 +40,18 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -72,7 +75,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,6 +85,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -114,10 +118,11 @@ import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.PaymentSourceCalculator
+import java.util.Calendar
 
-private enum class PaymentSourceViewMode {
-    BY_ACCOUNT,
-    BY_CATEGORY
+private enum class PaymentSourceTab {
+    ACCOUNTS,
+    CATEGORIES
 }
 
 private enum class AccountFilter {
@@ -147,7 +152,7 @@ fun PaymentSourceScreen(
     onSaveCategoryAllocations: ((categoryId: Long, allocations: Map<Long, Double>) -> Unit)? = null,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
-    var viewMode by remember { mutableStateOf(PaymentSourceViewMode.BY_ACCOUNT) }
+    var selectedTab by remember { mutableStateOf(PaymentSourceTab.ACCOUNTS) }
     var calculationBasis by remember { mutableStateOf(RequirementCalculationBasis.BUDGET_AMOUNT) }
     var accountFilter by remember { mutableStateOf(AccountFilter.ALL) }
     var expandedAccountIds by remember { mutableStateOf(setOf<Long>()) }
@@ -181,6 +186,21 @@ fun PaymentSourceScreen(
             allTransactions = allTransactions,
             recurringBills = recurringBills
         )
+    }
+
+    // Budgeted and Remaining Amounts across all categories/requirements
+    val totalBudgetedAmount = remember(analysisOverview.categoryAllocations, analysisOverview.totalRequired) {
+        val catBudgetSum = analysisOverview.categoryAllocations.sumOf { it.totalBudgetOrRequired }
+        if (catBudgetSum > 0) catBudgetSum else analysisOverview.totalRequired
+    }
+
+    val totalSpentAmount = remember(analysisOverview.categoryAllocations) {
+        analysisOverview.categoryAllocations.sumOf { it.totalActualSpent }
+    }
+
+    val totalRemainingAmount = remember(analysisOverview.categoryAllocations, totalBudgetedAmount, totalSpentAmount) {
+        val catRemainingSum = analysisOverview.categoryAllocations.sumOf { it.totalRemaining }
+        if (catRemainingSum > 0) catRemainingSum else maxOf(0.0, totalBudgetedAmount - totalSpentAmount)
     }
 
     val filteredAnalyses = remember(analysisOverview.accountAnalyses, accountFilter, searchQuery) {
@@ -229,12 +249,12 @@ fun PaymentSourceScreen(
                         modifier = Modifier.padding(horizontal = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = LanguageHelper.getString("assign_category", languageMode),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp
+                            fontSize = 13.sp
                         )
                     }
                 }
@@ -246,8 +266,9 @@ fun PaymentSourceScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // Screen Header
             AppTabHeader(
-                title = LanguageHelper.getString("payment_sources", languageMode),
+                title = LanguageHelper.getString("payment_source", languageMode),
                 onOpenDrawer = onOpenDrawer
             )
 
@@ -255,303 +276,141 @@ fun PaymentSourceScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // 1. Month Navigation Header
-            item {
-                MonthNavigationCard(
-                    year = selectedYear,
-                    month = selectedMonth,
-                    languageMode = languageMode,
-                    onPrev = onPrevMonth,
-                    onNext = onNextMonth,
-                    onToday = onSetCurrentMonth,
-                    onHelp = { showHelpDialog = true }
-                )
-            }
-
-            // 2. Calculation Basis Selector
-            item {
-                CalculationBasisSelector(
-                    selectedBasis = calculationBasis,
-                    languageMode = languageMode,
-                    onSelect = { calculationBasis = it }
-                )
-            }
-
-            // 3. Hero Summary & Answer Card
-            item {
-                PaymentSourceSummaryCard(
-                    overview = analysisOverview,
-                    languageMode = languageMode
-                )
-            }
-
-            // 4. Fund Allocation Insights (Smart Transfer Recommendations)
-            item {
-                FundAllocationInsightCard(
-                    suggestions = analysisOverview.transferSuggestions,
-                    accountsNeedingFundsCount = analysisOverview.accountsNeedingFundsCount,
-                    totalShortfall = analysisOverview.totalShortfall,
-                    totalSurplus = analysisOverview.totalSurplus,
-                    languageMode = languageMode,
-                    onExecuteTransfer = onExecuteTransfer
-                )
-            }
-
-            // 5. View Mode Switcher Tab (By Account vs By Category & Splits)
-            item {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val tabIdx = if (viewMode == PaymentSourceViewMode.BY_ACCOUNT) 0 else 1
-                    TabRow(
-                        selectedTabIndex = tabIdx,
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        indicator = { tabPositions ->
-                            if (tabIdx in tabPositions.indices) {
-                                TabRowDefaults.SecondaryIndicator(
-                                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabIdx]),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    height = 3.dp
-                                )
+                // 1. Compact Top Control & Dual Tab Card with Budgeted & Remaining Amount
+                item {
+                    CompactPaymentSourceHeaderCard(
+                        year = selectedYear,
+                        month = selectedMonth,
+                        selectedTab = selectedTab,
+                        calculationBasis = calculationBasis,
+                        budgetedAmount = totalBudgetedAmount,
+                        remainingAmount = totalRemainingAmount,
+                        totalAvailable = analysisOverview.totalAvailable,
+                        totalShortfall = analysisOverview.totalShortfall,
+                        totalSurplus = analysisOverview.totalSurplus,
+                        accountsNeedingFundsCount = analysisOverview.accountsNeedingFundsCount,
+                        accountsCount = analysisOverview.accountAnalyses.size,
+                        categoriesCount = analysisOverview.categoryAllocations.size,
+                        languageMode = languageMode,
+                        onPrevMonth = onPrevMonth,
+                        onNextMonth = onNextMonth,
+                        onSetCurrentMonth = onSetCurrentMonth,
+                        onSelectTab = { selectedTab = it },
+                        onToggleBasis = {
+                            calculationBasis = if (calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT) {
+                                RequirementCalculationBasis.REMAINING_AMOUNT
+                            } else {
+                                RequirementCalculationBasis.BUDGET_AMOUNT
                             }
                         },
-                        divider = {}
-                    ) {
-                        Tab(
-                            selected = viewMode == PaymentSourceViewMode.BY_ACCOUNT,
-                            onClick = { viewMode = PaymentSourceViewMode.BY_ACCOUNT },
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "${LanguageHelper.getString("by_account", languageMode)} (${analysisOverview.accountAnalyses.size})",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-                        )
-                        Tab(
-                            selected = viewMode == PaymentSourceViewMode.BY_CATEGORY,
-                            onClick = { viewMode = PaymentSourceViewMode.BY_CATEGORY },
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "${LanguageHelper.getString("by_category_split", languageMode)} (${analysisOverview.categoryAllocations.size})",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            // 6. Search Bar
-            item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    placeholder = {
-                        Text(
-                            text = if (viewMode == PaymentSourceViewMode.BY_ACCOUNT)
-                                LanguageHelper.getString("search_accounts", languageMode)
-                            else
-                                LanguageHelper.getString("search_categories", languageMode),
-                            fontSize = 13.sp
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        onHelp = { showHelpDialog = true }
                     )
-                )
-            }
+                }
 
-            // 7. Filter Bar for By-Account View
-            if (viewMode == PaymentSourceViewMode.BY_ACCOUNT) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = accountFilter == AccountFilter.ALL,
-                            onClick = { accountFilter = AccountFilter.ALL },
-                            label = { Text(LanguageHelper.getString("filter_all", languageMode), fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        )
-                        FilterChip(
-                            selected = accountFilter == AccountFilter.SHORTFALL_ONLY,
-                            onClick = { accountFilter = AccountFilter.SHORTFALL_ONLY },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SolidExpense))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "${LanguageHelper.getString("filter_shortfall", languageMode)} (${analysisOverview.accountsNeedingFundsCount})",
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SolidExpense.copy(alpha = 0.15f),
-                                selectedLabelColor = SolidExpense
-                            )
-                        )
-                        FilterChip(
-                            selected = accountFilter == AccountFilter.SURPLUS_ONLY,
-                            onClick = { accountFilter = AccountFilter.SURPLUS_ONLY },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SolidIncome))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "${LanguageHelper.getString("filter_surplus", languageMode)} (${analysisOverview.accountsWithSurplusCount})",
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SolidIncome.copy(alpha = 0.15f),
-                                selectedLabelColor = SolidIncome
-                            )
+                // 2. Compact Fund Transfer Recommendation (If Shortfall Exists)
+                if (analysisOverview.transferSuggestions.isNotEmpty()) {
+                    item {
+                        CompactTransferSuggestionBanner(
+                            suggestions = analysisOverview.transferSuggestions,
+                            languageMode = languageMode,
+                            onExecuteTransfer = onExecuteTransfer
                         )
                     }
                 }
 
-                // Account Requirement Analysis Cards
-                if (filteredAnalyses.isEmpty()) {
-                    item {
-                        EmptyStateCard(
-                            message = LanguageHelper.getString("no_accounts_match", languageMode),
-                            icon = Icons.Default.FilterList
-                        )
+                // 3. Compact Search & Filter Toolbar
+                item {
+                    CompactSearchAndFilterToolbar(
+                        searchQuery = searchQuery,
+                        onSearchChange = { searchQuery = it },
+                        selectedTab = selectedTab,
+                        accountFilter = accountFilter,
+                        onAccountFilterChange = { accountFilter = it },
+                        onlyMultiAccount = onlyMultiAccountCategories,
+                        onToggleMultiAccount = { onlyMultiAccountCategories = !onlyMultiAccountCategories },
+                        shortfallCount = analysisOverview.accountsNeedingFundsCount,
+                        surplusCount = analysisOverview.accountsWithSurplusCount,
+                        languageMode = languageMode
+                    )
+                }
+
+                // 4. Content Section based on selected tab
+                if (selectedTab == PaymentSourceTab.ACCOUNTS) {
+                    // Accounts Tab Content
+                    if (filteredAnalyses.isEmpty()) {
+                        item {
+                            EmptyStateCard(
+                                message = LanguageHelper.getString("no_accounts_match", languageMode),
+                                icon = Icons.Default.FilterList
+                            )
+                        }
+                    } else {
+                        items(filteredAnalyses, key = { it.account.id }) { analysis ->
+                            val isExpanded = expandedAccountIds.contains(analysis.account.id)
+                            CompactAccountRequirementCard(
+                                analysis = analysis,
+                                isExpanded = isExpanded,
+                                languageMode = languageMode,
+                                onToggleExpand = {
+                                    expandedAccountIds = if (isExpanded) {
+                                        expandedAccountIds - analysis.account.id
+                                    } else {
+                                        expandedAccountIds + analysis.account.id
+                                    }
+                                },
+                                onFundAccount = {
+                                    val bestSurplus = analysisOverview.accountAnalyses
+                                        .filter { it.isSurplus && it.account.id != analysis.account.id }
+                                        .maxByOrNull { it.surplus }
+                                    if (bestSurplus != null) {
+                                        val amountToMove = minOf(analysis.shortfall, bestSurplus.surplus)
+                                        onExecuteTransfer(bestSurplus.account, analysis.account, amountToMove)
+                                    } else {
+                                        onAddTransactionWithAccount(analysis.account, TransactionType.INCOME)
+                                    }
+                                },
+                                onAssignExpense = {
+                                    assigningAccountForCategory = analysis.account
+                                },
+                                onAddExpense = { onAddTransactionWithAccount(analysis.account, TransactionType.EXPENSE) },
+                                onAddIncome = { onAddTransactionWithAccount(analysis.account, TransactionType.INCOME) },
+                                onAccountClick = {
+                                    if (onAccountClick != null) onAccountClick(analysis.account) else onEditAccount(analysis.account)
+                                }
+                            )
+                        }
                     }
                 } else {
-                    items(filteredAnalyses, key = { it.account.id }) { analysis ->
-                        val isExpanded = expandedAccountIds.contains(analysis.account.id)
-                        AccountRequirementCard(
-                            analysis = analysis,
-                            isExpanded = isExpanded,
-                            languageMode = languageMode,
-                            onToggleExpand = {
-                                expandedAccountIds = if (isExpanded) {
-                                    expandedAccountIds - analysis.account.id
-                                } else {
-                                    expandedAccountIds + analysis.account.id
-                                }
-                            },
-                            onFundAccount = {
-                                val bestSurplus = analysisOverview.accountAnalyses.filter { it.isSurplus && it.account.id != analysis.account.id }
-                                    .maxByOrNull { it.surplus }
-                                if (bestSurplus != null) {
-                                    val amountToMove = minOf(analysis.shortfall, bestSurplus.surplus)
-                                    onExecuteTransfer(bestSurplus.account, analysis.account, amountToMove)
-                                } else {
-                                    onAddTransactionWithAccount(analysis.account, TransactionType.INCOME)
-                                }
-                            },
-                            onAssignExpense = {
-                                assigningAccountForCategory = analysis.account
-                            },
-                            onAddExpense = { onAddTransactionWithAccount(analysis.account, TransactionType.EXPENSE) },
-                            onAddIncome = { onAddTransactionWithAccount(analysis.account, TransactionType.INCOME) },
-                            onAccountClick = {
-                                if (onAccountClick != null) onAccountClick(analysis.account) else onEditAccount(analysis.account)
-                            }
-                        )
-                    }
-                }
-            } else {
-                // 8. BY_CATEGORY View
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FilterChip(
-                            selected = onlyMultiAccountCategories,
-                            onClick = { onlyMultiAccountCategories = !onlyMultiAccountCategories },
-                            label = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = LanguageHelper.getString("multi_account_split", languageMode),
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    // Categories Tab Content
+                    if (filteredCategoryAllocations.isEmpty()) {
+                        item {
+                            EmptyStateCard(
+                                message = LanguageHelper.getString("no_categories_match", languageMode),
+                                icon = Icons.Default.Category
                             )
-                        )
-
-                        Text(
-                            text = "${filteredCategoryAllocations.size} ${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories"}",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
+                        }
+                    } else {
+                        items(filteredCategoryAllocations, key = { it.category.id }) { catAlloc ->
+                            CompactCategoryAllocationCard(
+                                categoryAlloc = catAlloc,
+                                languageMode = languageMode,
+                                onEditSplit = {
+                                    editingCategoryForSplit = catAlloc.category
+                                }
+                            )
+                        }
                     }
                 }
 
-                if (filteredCategoryAllocations.isEmpty()) {
-                    item {
-                        EmptyStateCard(
-                            message = LanguageHelper.getString("no_categories_match", languageMode),
-                            icon = Icons.Default.Category
-                        )
-                    }
-                } else {
-                    items(filteredCategoryAllocations, key = { it.category.id }) { catAlloc ->
-                        CategoryAllocationCard(
-                            categoryAlloc = catAlloc,
-                            languageMode = languageMode,
-                            onEditSplit = {
-                                editingCategoryForSplit = catAlloc.category
-                            }
-                        )
-                    }
+                item {
+                    Spacer(modifier = Modifier.height(72.dp))
                 }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(70.dp))
             }
         }
     }
-}
 
     // Help Dialog
     if (showHelpDialog) {
@@ -603,143 +462,390 @@ fun PaymentSourceScreen(
     }
 }
 
+/**
+ * Compact Top Header Card:
+ * 1. Month Navigation + Basis Toggle + Help
+ * 2. Divided into Two Tabs: Account and Categories
+ * 3. In Between: Budgeted Amount and Remaining Amount dual metrics with Available / Status bar
+ */
 @Composable
-private fun MonthNavigationCard(
+private fun CompactPaymentSourceHeaderCard(
     year: Int,
     month: Int,
+    selectedTab: PaymentSourceTab,
+    calculationBasis: RequirementCalculationBasis,
+    budgetedAmount: Double,
+    remainingAmount: Double,
+    totalAvailable: Double,
+    totalShortfall: Double,
+    totalSurplus: Double,
+    accountsNeedingFundsCount: Int,
+    accountsCount: Int,
+    categoriesCount: Int,
     languageMode: LanguageMode,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onToday: () -> Unit,
+    onPrevMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onSetCurrentMonth: () -> Unit,
+    onSelectTab: (PaymentSourceTab) -> Unit,
+    onToggleBasis: () -> Unit,
     onHelp: () -> Unit
 ) {
     val monthName = DateUtils.getMonthName(month, languageMode)
     val yearStr = if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(year.toString()) else year.toString()
 
-    Surface(
+    val cal = Calendar.getInstance()
+    val isCurrentMonth = year == cal.get(Calendar.YEAR) && month == (cal.get(Calendar.MONTH) + 1)
+
+    Card(
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(10.dp)
         ) {
-            IconButton(onClick = onPrev) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Previous Month",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.clickable { onToday() }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CalendarMonth,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "$monthName $yearStr",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onHelp) {
-                    Icon(
-                        imageVector = Icons.Default.HelpOutline,
-                        contentDescription = "Help",
-                        tint = MaterialTheme.colorScheme.outline
-                    )
-                }
-                IconButton(onClick = onNext) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Next Month",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CalculationBasisSelector(
-    selectedBasis: RequirementCalculationBasis,
-    languageMode: LanguageMode,
-    onSelect: (RequirementCalculationBasis) -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+            // Row 1: Month Navigation & Quick Controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = LanguageHelper.getString("calculation_basis", languageMode),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = selectedBasis.getDescription(languageMode),
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // Left Month Arrows & Month Title
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onPrevMonth,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Previous Month",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clickable { onSetCurrentMonth() }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "$monthName $yearStr",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onNextMonth,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Next Month",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    if (!isCurrentMonth) {
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            modifier = Modifier.clickable { onSetCurrentMonth() }
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "চলতি" else "Today",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Right Actions: Basis Toggle & Help
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                        modifier = Modifier.clickable { onToggleBasis() }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = if (calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT) {
+                                    if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Full Budget"
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"
+                                },
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    IconButton(
+                        onClick = onHelp,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HelpOutline,
+                            contentDescription = "Help",
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Row 2: Top Division into Two Tabs: Accounts and Categories
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                RequirementCalculationBasis.entries.forEach { basis ->
-                    val isSelected = basis == selectedBasis
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onSelect(basis) }
+                val tabIdx = if (selectedTab == PaymentSourceTab.ACCOUNTS) 0 else 1
+                TabRow(
+                    selectedTabIndex = tabIdx,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    indicator = { tabPositions ->
+                        if (tabIdx in tabPositions.indices) {
+                            TabRowDefaults.SecondaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(tabPositions[tabIdx]),
+                                color = MaterialTheme.colorScheme.primary,
+                                height = 2.5.dp
+                            )
+                        }
+                    },
+                    divider = {}
+                ) {
+                    Tab(
+                        selected = selectedTab == PaymentSourceTab.ACCOUNTS,
+                        onClick = { onSelectTab(PaymentSourceTab.ACCOUNTS) },
+                        modifier = Modifier.height(38.dp),
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = if (selectedTab == PaymentSourceTab.ACCOUNTS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${LanguageHelper.getString("accounts", languageMode)} ($accountsCount)",
+                                    fontWeight = if (selectedTab == PaymentSourceTab.ACCOUNTS) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.5.sp,
+                                    color = if (selectedTab == PaymentSourceTab.ACCOUNTS) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
+
+                    Tab(
+                        selected = selectedTab == PaymentSourceTab.CATEGORIES,
+                        onClick = { onSelectTab(PaymentSourceTab.CATEGORIES) },
+                        modifier = Modifier.height(38.dp),
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Category,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = if (selectedTab == PaymentSourceTab.CATEGORIES) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "${LanguageHelper.getString("categories", languageMode)} ($categoriesCount)",
+                                    fontWeight = if (selectedTab == PaymentSourceTab.CATEGORIES) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.5.sp,
+                                    color = if (selectedTab == PaymentSourceTab.CATEGORIES) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Row 3: In between these two -> Budgeted Amount and Remaining Amount dual summary
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    // Dual Metrics: Budgeted Amount vs Remaining Amount
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Left: Budgeted Amount
                         Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp, horizontal = 10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                                .weight(1f)
+                                .padding(end = 6.dp)
                         ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(SolidExpense)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = LanguageHelper.getString("budgeted_amount", languageMode),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = basis.getTitle(languageMode),
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                text = LanguageHelper.formatCurrency(budgetedAmount, languageMode),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = SolidExpense,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                        }
+
+                        // Divider
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(32.dp)
+                                .padding(horizontal = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+
+                        // Right: Remaining Amount
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(SolidTransfer)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = LanguageHelper.getString("remaining_amount", languageMode),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = LanguageHelper.formatCurrency(remainingAmount, languageMode),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = if (remainingAmount > 0) SolidTransfer else SolidIncome,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 6.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                    )
+
+                    // Bottom Companion Metrics: Available Balance & Overall Surplus / Shortfall
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${LanguageHelper.getString("available_amount", languageMode)}: ",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Text(
+                                text = LanguageHelper.formatCurrency(totalAvailable, languageMode),
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        // Status Badge
+                        if (accountsNeedingFundsCount == 0) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = SolidIncome,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "${LanguageHelper.getString("surplus", languageMode)}: ${LanguageHelper.formatCurrency(totalSurplus, languageMode)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidIncome
+                                )
+                            }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = SolidExpense,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "${LanguageHelper.getString("shortfall", languageMode)}: ${LanguageHelper.formatCurrency(totalShortfall, languageMode)} (${accountsNeedingFundsCount})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidExpense
+                                )
+                            }
                         }
                     }
                 }
@@ -748,196 +854,40 @@ private fun CalculationBasisSelector(
     }
 }
 
+/**
+ * Compact Transfer Suggestion Banner
+ */
 @Composable
-private fun PaymentSourceSummaryCard(
-    overview: PaymentSourceAnalysisOverview,
-    languageMode: LanguageMode
+private fun CompactTransferSuggestionBanner(
+    suggestions: List<FundAllocationSuggestion>,
+    languageMode: LanguageMode,
+    onExecuteTransfer: (fromAccount: Account, toAccount: Account, amount: Double) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            containerColor = SolidTransfer.copy(alpha = 0.08f)
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+        border = BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.3f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Payments,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = LanguageHelper.getString("monthly_fund_summary", languageMode),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = LanguageHelper.getString("payment_source_subtitle", languageMode),
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 3-Box Metrics Row: Required | Available | Surplus / Shortfall
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SummaryMetricBox(
-                    title = LanguageHelper.getString("required_amount", languageMode),
-                    amount = overview.totalRequired,
-                    color = SolidExpense,
-                    languageMode = languageMode,
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryMetricBox(
-                    title = LanguageHelper.getString("available_amount", languageMode),
-                    amount = overview.totalAvailable,
-                    color = MaterialTheme.colorScheme.primary,
-                    languageMode = languageMode,
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryMetricBox(
-                    title = if (overview.isOverallSurplus) LanguageHelper.getString("surplus", languageMode) else LanguageHelper.getString("shortfall", languageMode),
-                    amount = if (overview.isOverallSurplus) overview.totalSurplus else overview.totalShortfall,
-                    color = if (overview.isOverallSurplus) SolidIncome else SolidExpense,
-                    languageMode = languageMode,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Final answer highlight
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                modifier = Modifier.fillMaxWidth()
-            ) {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        imageVector = if (overview.accountsNeedingFundsCount == 0) Icons.Default.CheckCircle else Icons.Default.Info,
-                        contentDescription = null,
-                        tint = if (overview.accountsNeedingFundsCount == 0) SolidIncome else SolidTransfer,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = overview.getSummaryAnswer(languageMode),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SummaryMetricBox(
-    title: String,
-    amount: Double,
-    color: Color,
-    languageMode: LanguageMode,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, color.copy(alpha = 0.2f)),
-        modifier = modifier
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = title,
-                fontSize = 10.5.sp,
-                color = MaterialTheme.colorScheme.outline,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = LanguageHelper.formatCurrency(amount, languageMode),
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
-                color = color,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun FundAllocationInsightCard(
-    suggestions: List<FundAllocationSuggestion>,
-    accountsNeedingFundsCount: Int,
-    totalShortfall: Double,
-    totalSurplus: Double,
-    languageMode: LanguageMode,
-    onExecuteTransfer: (fromAccount: Account, toAccount: Account, amount: Double) -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(SolidTransfer.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
+                        .weight(1f)
+                        .clickable { expanded = !expanded },
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.SwapHoriz,
@@ -945,164 +895,109 @@ private fun FundAllocationInsightCard(
                         tint = SolidTransfer,
                         modifier = Modifier.size(18.dp)
                     )
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = LanguageHelper.getString("fund_allocation_insight", languageMode),
+                        text = if (languageMode == LanguageMode.BANGLA) {
+                            "স্মার্ট তহবিল স্থানান্তর পরামর্শ (${suggestions.size})"
+                        } else {
+                            "Smart Transfer Insights (${suggestions.size})"
+                        },
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.5.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = SolidTransfer
                     )
-                    Text(
-                        text = LanguageHelper.getString("fund_allocation_subtitle", languageMode),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
+                }
+
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = SolidTransfer,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            if (suggestions.isNotEmpty()) {
+            AnimatedVisibility(
+                visible = expanded || suggestions.size == 1,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     suggestions.forEach { suggestion ->
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            border = BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.25f)),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.weight(1f),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier.weight(1f),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        AccountPill(
-                                            name = suggestion.fromAccount.localizedName(languageMode),
-                                            color = SolidIncome
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                            contentDescription = null,
-                                            tint = SolidTransfer,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        AccountPill(
-                                            name = suggestion.toAccount.localizedName(languageMode),
-                                            color = SolidExpense
-                                        )
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            onExecuteTransfer(
-                                                suggestion.fromAccount,
-                                                suggestion.toAccount,
-                                                suggestion.transferAmount
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = SolidTransfer
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                                        modifier = Modifier.height(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.SyncAlt,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = "${LanguageHelper.getString("move", languageMode)} ${LanguageHelper.formatCurrency(suggestion.transferAmount, languageMode)}",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                                    Text(
+                                        text = suggestion.fromAccount.localizedName(languageMode),
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidIncome,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = SolidTransfer,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = suggestion.toAccount.localizedName(languageMode),
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidExpense,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
-
-                                Text(
-                                    text = suggestion.getReason(languageMode),
-                                    fontSize = 11.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Button(
+                                    onClick = {
+                                        onExecuteTransfer(
+                                            suggestion.fromAccount,
+                                            suggestion.toAccount,
+                                            suggestion.transferAmount
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(6.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SolidTransfer),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(26.dp)
+                                ) {
+                                    Icon(Icons.Default.SyncAlt, contentDescription = null, modifier = Modifier.size(11.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "${LanguageHelper.getString("move", languageMode)} ${LanguageHelper.formatCurrency(suggestion.transferAmount, languageMode)}",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
-                    }
-                }
-            } else if (accountsNeedingFundsCount == 0) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = SolidIncome.copy(alpha = 0.1f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = SolidIncome,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = LanguageHelper.getString("all_funded", languageMode),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = SolidIncome
-                        )
-                    }
-                }
-            } else {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = SolidExpense.copy(alpha = 0.1f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = SolidExpense,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) {
-                                "উদ্বৃত্ত হিসাবগুলোতে পর্যাপ্ত তহবিল নেই। ঘাটতি পূরণের জন্য নতুন তহবিল বা আয় জমা করতে হবে।"
-                            } else {
-                                "Surplus accounts do not have enough funds to cover shortfalls. External funding is required."
-                            },
-                            fontSize = 12.sp,
-                            color = SolidExpense
-                        )
                     }
                 }
             }
@@ -1110,27 +1005,147 @@ private fun FundAllocationInsightCard(
     }
 }
 
+/**
+ * Compact Search and Filter Toolbar
+ */
 @Composable
-private fun AccountPill(name: String, color: Color) {
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = color.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
+private fun CompactSearchAndFilterToolbar(
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    selectedTab: PaymentSourceTab,
+    accountFilter: AccountFilter,
+    onAccountFilterChange: (AccountFilter) -> Unit,
+    onlyMultiAccount: Boolean,
+    onToggleMultiAccount: () -> Unit,
+    shortfallCount: Int,
+    surplusCount: Int,
+    languageMode: LanguageMode
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(
-            text = name,
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.Bold,
-            color = color,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        // Search text field
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp),
+            placeholder = {
+                Text(
+                    text = if (selectedTab == PaymentSourceTab.ACCOUNTS)
+                        LanguageHelper.getString("search_accounts", languageMode)
+                    else
+                        LanguageHelper.getString("search_categories", languageMode),
+                    fontSize = 12.sp
+                )
+            },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(16.dp))
+            },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onSearchChange("") }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(15.dp))
+                    }
+                }
+            },
+            shape = RoundedCornerShape(10.dp),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+            )
         )
+
+        // Filter chips row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (selectedTab == PaymentSourceTab.ACCOUNTS) {
+                FilterChip(
+                    selected = accountFilter == AccountFilter.ALL,
+                    onClick = { onAccountFilterChange(AccountFilter.ALL) },
+                    modifier = Modifier.height(28.dp),
+                    label = { Text(LanguageHelper.getString("filter_all", languageMode), fontSize = 11.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+
+                FilterChip(
+                    selected = accountFilter == AccountFilter.SHORTFALL_ONLY,
+                    onClick = { onAccountFilterChange(AccountFilter.SHORTFALL_ONLY) },
+                    modifier = Modifier.height(28.dp),
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SolidExpense))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "${LanguageHelper.getString("filter_shortfall", languageMode)} ($shortfallCount)",
+                                fontSize = 11.sp
+                            )
+                        }
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidExpense.copy(alpha = 0.15f),
+                        selectedLabelColor = SolidExpense
+                    )
+                )
+
+                FilterChip(
+                    selected = accountFilter == AccountFilter.SURPLUS_ONLY,
+                    onClick = { onAccountFilterChange(AccountFilter.SURPLUS_ONLY) },
+                    modifier = Modifier.height(28.dp),
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(SolidIncome))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "${LanguageHelper.getString("filter_surplus", languageMode)} ($surplusCount)",
+                                fontSize = 11.sp
+                            )
+                        }
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SolidIncome.copy(alpha = 0.15f),
+                        selectedLabelColor = SolidIncome
+                    )
+                )
+            } else {
+                FilterChip(
+                    selected = onlyMultiAccount,
+                    onClick = onToggleMultiAccount,
+                    modifier = Modifier.height(28.dp),
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = LanguageHelper.getString("multi_account_split", languageMode),
+                                fontSize = 11.sp
+                            )
+                        }
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                )
+            }
+        }
     }
 }
 
+/**
+ * Compact Account Requirement Card (Under Accounts Tab)
+ */
 @Composable
-private fun AccountRequirementCard(
+private fun CompactAccountRequirementCard(
     analysis: AccountRequirementAnalysis,
     isExpanded: Boolean,
     languageMode: LanguageMode,
@@ -1147,20 +1162,12 @@ private fun AccountRequirementCard(
         MaterialTheme.colorScheme.primary
     }
 
-    val statusColor = when {
-        analysis.isShortfall -> SolidExpense
-        analysis.isSurplus -> SolidIncome
-        else -> SolidPrimary
-    }
-
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(
-            1.2.dp,
-            if (analysis.isShortfall) SolidExpense.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            1.dp,
+            if (analysis.isShortfall) SolidExpense.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -1169,9 +1176,9 @@ private fun AccountRequirementCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(10.dp)
         ) {
-            // Header Row: Icon, Account Name, Balance
+            // Header Row: Account Icon, Name, Type Pill & Balance
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1185,7 +1192,7 @@ private fun AccountRequirementCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
                             .background(accountColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
@@ -1194,213 +1201,141 @@ private fun AccountRequirementCard(
                             imageVector = IconHelper.getIconByName(analysis.account.iconName),
                             contentDescription = null,
                             tint = accountColor,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(17.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Column {
                         Text(
                             text = analysis.account.localizedName(languageMode),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+                            fontSize = 13.5.sp,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "${LanguageHelper.getString("current_balance", languageMode)}: ",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                            Text(
-                                text = LanguageHelper.formatCurrency(analysis.currentBalance, languageMode),
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.5.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-
-                // Coverage Pill
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = statusColor.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.3f))
-                ) {
-                    Text(
-                        text = if (analysis.requiredExpenseAmount > 0) {
-                            val pct = (analysis.availableAmount / analysis.requiredExpenseAmount * 100).toInt()
-                            if (languageMode == LanguageMode.BANGLA) "${LanguageHelper.toBanglaDigits(pct.toString())}% কভার" else "$pct% Covered"
-                        } else {
-                            if (languageMode == LanguageMode.BANGLA) "১০০% প্রস্তুত" else "100% Ready"
-                        },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = statusColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Funding Progress Bar
-            LinearProgressIndicator(
-                progress = { (analysis.fundingCoverageRatio / 1.0f).coerceIn(0f, 1f) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = statusColor,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Required vs Available Figures
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = LanguageHelper.getString("required_amount", languageMode),
-                        fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Text(
-                        text = LanguageHelper.formatCurrency(analysis.requiredExpenseAmount, languageMode),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = SolidExpense
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .height(26.dp)
-                        .width(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                )
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 12.dp)
-                ) {
-                    Text(
-                        text = LanguageHelper.getString("available_amount", languageMode),
-                        fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Text(
-                        text = LanguageHelper.formatCurrency(analysis.availableAmount, languageMode),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action Needed Result Banner (e.g. "৳200 surplus in bKash", "Need ৳500 more in bKash")
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = statusColor.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, statusColor.copy(alpha = 0.3f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = when {
-                                analysis.isShortfall -> Icons.Default.ErrorOutline
-                                analysis.isSurplus -> Icons.Default.Savings
-                                else -> Icons.Default.CheckCircle
-                            },
-                            contentDescription = null,
-                            tint = statusColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = analysis.getActionMessage(languageMode),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = statusColor,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                            text = analysis.account.type.name,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
+                }
 
-                    if (analysis.isShortfall) {
-                        Button(
-                            onClick = onFundAccount,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = SolidExpense),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            modifier = Modifier.height(28.dp)
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ফান্ড করুন" else "Fund",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                // Balance
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = LanguageHelper.formatCurrency(analysis.currentBalance, languageMode),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (analysis.currentBalance >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense
+                    )
+                    Text(
+                        text = LanguageHelper.getString("current_balance", languageMode),
+                        fontSize = 9.5.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Expand / Collapse Itemized Breakdown Toggle
+            // Progress Bar & Coverage Ratio
+            val coverage = analysis.fundingCoverageRatio
+            val progressColor = when {
+                analysis.isShortfall -> SolidExpense
+                analysis.isSurplus -> SolidIncome
+                else -> MaterialTheme.colorScheme.primary
+            }
+
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggleExpand() }
-                    .padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isExpanded) {
-                        LanguageHelper.getString("hide_breakdown", languageMode)
-                    } else {
-                        LanguageHelper.getString("expand_breakdown", languageMode)
-                    },
-                    fontSize = 11.5.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
+                    text = "${LanguageHelper.getString("required_amount", languageMode)}: ${LanguageHelper.formatCurrency(analysis.requiredExpenseAmount, languageMode)}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
+
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = progressColor.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = if (analysis.isShortfall) {
+                            "-${LanguageHelper.formatCurrency(analysis.shortfall, languageMode)}"
+                        } else if (analysis.isSurplus) {
+                            "+${LanguageHelper.formatCurrency(analysis.surplus, languageMode)}"
+                        } else {
+                            "100%"
+                        },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = progressColor,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
+                }
             }
 
+            Spacer(modifier = Modifier.height(4.dp))
+
+            LinearProgressIndicator(
+                progress = { coverage.coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = progressColor,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                strokeCap = StrokeCap.Round
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Action message & itemized toggle row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = analysis.getActionMessage(languageMode),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = progressColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+
+                if (analysis.itemizedExpenses.isNotEmpty() || analysis.itemizedIncomes.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clickable { onToggleExpand() }
+                            .padding(4.dp)
+                    ) {
+                        Text(
+                            text = if (isExpanded) LanguageHelper.getString("hide_breakdown", languageMode) else LanguageHelper.getString("expand_breakdown", languageMode),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+
+            // Expandable Itemized Section
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = fadeIn() + expandVertically(),
@@ -1409,110 +1344,91 @@ private fun AccountRequirementCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(top = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                    // 1. Assigned Expenses
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    if (analysis.itemizedExpenses.isNotEmpty()) {
                         Text(
                             text = LanguageHelper.getString("itemized_expenses", languageMode),
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
                             color = SolidExpense
                         )
-
-                        TextButton(
-                            onClick = onAssignExpense,
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = LanguageHelper.getString("assign_to_account", languageMode),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        analysis.itemizedExpenses.forEach { expItem ->
+                            CompactItemizedRow(item = expItem, languageMode = languageMode)
                         }
                     }
 
-                    if (analysis.itemizedExpenses.isEmpty()) {
+                    if (analysis.itemizedIncomes.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "কোনো নির্ধারিত ব্যয় নেই" else "No expenses assigned to this account",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(start = 4.dp)
+                            text = LanguageHelper.getString("itemized_incomes", languageMode),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidIncome
                         )
-                    } else {
-                        analysis.itemizedExpenses.forEach { item ->
-                            ItemizedRow(item = item, languageMode = languageMode)
+                        analysis.itemizedIncomes.forEach { incItem ->
+                            CompactItemizedRow(item = incItem, languageMode = languageMode)
                         }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-                    // 2. Expected Incomes
-                    Text(
-                        text = LanguageHelper.getString("itemized_incomes", languageMode),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        color = SolidIncome
-                    )
-
-                    if (analysis.itemizedIncomes.isEmpty()) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "কোনো প্রত্যাশিত আয় নেই" else "No expected income assigned to this account",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    } else {
-                        analysis.itemizedIncomes.forEach { item ->
-                            ItemizedRow(item = item, languageMode = languageMode)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Quick Actions Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
+            // Action Buttons Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (analysis.isShortfall) {
+                    Button(
+                        onClick = onFundAccount,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolidTransfer),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(28.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = onAddExpense,
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            modifier = Modifier.height(28.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = LanguageHelper.getString("expense", languageMode),
-                                fontSize = 11.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        OutlinedButton(
-                            onClick = onAddIncome,
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            modifier = Modifier.height(28.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = LanguageHelper.getString("income", languageMode),
-                                fontSize = 11.sp
-                            )
-                        }
+                        Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(LanguageHelper.getString("move_funds", languageMode), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
+                }
+
+                OutlinedButton(
+                    onClick = onAssignExpense,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(11.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(LanguageHelper.getString("assign_category", languageMode), fontSize = 11.sp)
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                OutlinedButton(
+                    onClick = onAddExpense,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(11.dp), tint = SolidExpense)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(LanguageHelper.getString("expense", languageMode), fontSize = 10.5.sp, color = SolidExpense)
+                }
+
+                OutlinedButton(
+                    onClick = onAddIncome,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(11.dp), tint = SolidIncome)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(LanguageHelper.getString("income", languageMode), fontSize = 10.5.sp, color = SolidIncome)
                 }
             }
         }
@@ -1520,7 +1436,7 @@ private fun AccountRequirementCard(
 }
 
 @Composable
-private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode) {
+private fun CompactItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode) {
     val itemColor = try {
         Color(android.graphics.Color.parseColor(item.colorHex))
     } catch (_: Exception) {
@@ -1531,10 +1447,10 @@ private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(8.dp)
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                shape = RoundedCornerShape(6.dp)
             )
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1544,7 +1460,7 @@ private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode
         ) {
             Box(
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(20.dp)
                     .clip(CircleShape)
                     .background(itemColor.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
@@ -1553,61 +1469,29 @@ private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode
                     imageVector = IconHelper.getIconByName(item.iconName),
                     contentDescription = null,
                     tint = itemColor,
-                    modifier = Modifier.size(13.dp)
+                    modifier = Modifier.size(11.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = item.title,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        overflow = TextOverflow.Ellipsis
                     )
                     if (item.isMultiAccountSplit) {
                         Spacer(modifier = Modifier.width(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "${LanguageHelper.toBanglaDigits(item.splitAccountCount.toString())}টি হিসাবে বিভক্ত" else "Split (${item.splitAccountCount})",
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
+                        Text(
+                            text = "(${item.splitAccountCount} accs)",
+                            fontSize = 9.sp,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    if (item.isRecurring) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "বিল" else "Bill",
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-                if (item.originalBudgetOrExpected > 0 && item.actualSpentOrReceived > 0) {
-                    Text(
-                        text = "${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}: ${LanguageHelper.formatCurrency(item.originalBudgetOrExpected, languageMode)} • ${if (languageMode == LanguageMode.BANGLA) "সম্পন্ন" else "Actual"}: ${LanguageHelper.formatCurrency(item.actualSpentOrReceived, languageMode)}",
-                        fontSize = 9.5.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
                 }
             }
         }
@@ -1615,14 +1499,17 @@ private fun ItemizedRow(item: AccountRequirementItem, languageMode: LanguageMode
         Text(
             text = LanguageHelper.formatCurrency(item.amount, languageMode),
             fontWeight = FontWeight.Bold,
-            fontSize = 12.5.sp,
+            fontSize = 11.5.sp,
             color = if (item.isExpense) SolidExpense else SolidIncome
         )
     }
 }
 
+/**
+ * Compact Category Allocation Card (Under Categories Tab)
+ */
 @Composable
-private fun CategoryAllocationCard(
+private fun CompactCategoryAllocationCard(
     categoryAlloc: CategoryAllocationAnalysis,
     languageMode: LanguageMode,
     onEditSplit: () -> Unit
@@ -1634,17 +1521,17 @@ private fun CategoryAllocationCard(
     }
 
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(10.dp)
         ) {
-            // Header Row: Category Icon, Name, Total Budget, Edit Split Button
+            // Header Row: Category Icon, Name, Multi-Account badge, and Split Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1656,7 +1543,7 @@ private fun CategoryAllocationCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(30.dp)
                             .clip(CircleShape)
                             .background(categoryColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
@@ -1665,39 +1552,39 @@ private fun CategoryAllocationCard(
                             imageVector = IconHelper.getIconByName(categoryAlloc.category.iconName),
                             contentDescription = null,
                             tint = categoryColor,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = categoryAlloc.category.localizedName(languageMode),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.5.sp,
+                                fontSize = 13.5.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             if (categoryAlloc.isMultiAccount) {
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Surface(
-                                    shape = RoundedCornerShape(6.dp),
+                                    shape = RoundedCornerShape(4.dp),
                                     color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
                                 ) {
                                     Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "${LanguageHelper.toBanglaDigits(categoryAlloc.accountSplits.size.toString())}টি হিসাব" else "${categoryAlloc.accountSplits.size} Accounts",
-                                        fontSize = 10.sp,
+                                        text = "${categoryAlloc.accountSplits.size} accounts",
+                                        fontSize = 9.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                     )
                                 }
                             }
                         }
                         Text(
-                            text = "${LanguageHelper.getString("total_category_budget", languageMode)}: ${LanguageHelper.formatCurrency(categoryAlloc.totalBudgetOrRequired, languageMode)}",
-                            fontSize = 11.5.sp,
+                            text = "${LanguageHelper.getString("budgeted_amount", languageMode)}: ${LanguageHelper.formatCurrency(categoryAlloc.totalBudgetOrRequired, languageMode)}",
+                            fontSize = 10.5.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -1705,63 +1592,32 @@ private fun CategoryAllocationCard(
 
                 Button(
                     onClick = onEditSplit,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(6.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    modifier = Modifier.height(30.dp)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier.height(26.dp)
                 ) {
-                    Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(11.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = LanguageHelper.getString("split", languageMode),
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Multi-color proportional account distribution bar
+            // Assigned Account Badges
             if (categoryAlloc.accountSplits.isNotEmpty()) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                ) {
-                    val totalAlloc = categoryAlloc.accountSplits.sumOf { it.allocatedAmount }.let { if (it <= 0) 1.0 else it }
-                    categoryAlloc.accountSplits.forEach { split ->
-                        val weight = (split.allocatedAmount / totalAlloc).toFloat().coerceIn(0.01f, 1f)
-                        val accColor = try {
-                            Color(android.graphics.Color.parseColor(split.account.colorHex))
-                        } catch (_: Exception) {
-                            MaterialTheme.colorScheme.primary
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(weight)
-                                .height(8.dp)
-                                .background(accColor)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Itemized account splits list
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     categoryAlloc.accountSplits.forEach { split ->
                         val accColor = try {
@@ -1769,53 +1625,38 @@ private fun CategoryAllocationCard(
                         } catch (_: Exception) {
                             MaterialTheme.colorScheme.primary
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = accColor.copy(alpha = 0.1f),
+                            border = BorderStroke(0.8.dp, accColor.copy(alpha = 0.3f))
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(accColor)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Box(modifier = Modifier.size(5.dp).clip(CircleShape).background(accColor))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = split.account.localizedName(languageMode),
-                                    fontSize = 12.sp,
+                                    text = "${split.account.localizedName(languageMode)}: ${LanguageHelper.formatCurrency(split.allocatedAmount, languageMode)} (${split.percentageOfCategory.toInt()}%)",
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "(${split.percentageOfCategory.toInt()}%)",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
                             }
-
-                            Text(
-                                text = LanguageHelper.formatCurrency(split.allocatedAmount, languageMode),
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidExpense
-                            )
                         }
                     }
                 }
             } else {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = LanguageHelper.getString("unallocated", languageMode),
-                        fontSize = 11.5.sp,
+                        fontSize = 10.5.sp,
                         color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(8.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -1824,6 +1665,9 @@ private fun CategoryAllocationCard(
     }
 }
 
+/**
+ * Category Account Allocation / Split Dialog
+ */
 @Composable
 private fun CategoryAccountAllocationDialog(
     category: Category,
@@ -1856,18 +1700,18 @@ private fun CategoryAccountAllocationDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp)
+                .padding(vertical = 12.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(18.dp)
+                    .padding(16.dp)
             ) {
-                // Dialog Header
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1876,7 +1720,7 @@ private fun CategoryAccountAllocationDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
@@ -1885,36 +1729,36 @@ private fun CategoryAccountAllocationDialog(
                                 imageVector = Icons.Default.CallSplit,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
                                 text = LanguageHelper.getString("split_expense_across_accounts", languageMode),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = selectedCat.localizedName(languageMode),
-                                fontSize = 12.sp,
+                                fontSize = 11.5.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
                             )
                         }
                     }
 
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(20.dp))
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(26.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Category Selector Pill
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                     modifier = Modifier
@@ -1924,7 +1768,7 @@ private fun CategoryAccountAllocationDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1933,12 +1777,12 @@ private fun CategoryAccountAllocationDialog(
                                 imageVector = IconHelper.getIconByName(selectedCat.iconName),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = selectedCat.localizedName(languageMode),
-                                fontSize = 13.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1946,21 +1790,22 @@ private fun CategoryAccountAllocationDialog(
                         Icon(
                             imageVector = if (showCategoryDropdown) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
                 if (showCategoryDropdown) {
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(140.dp)
+                            .height(120.dp)
                             .padding(top = 4.dp)
                     ) {
-                        LazyColumn(modifier = Modifier.padding(4.dp)) {
+                        LazyColumn(modifier = Modifier.padding(2.dp)) {
                             items(allExpenseCategories) { cat ->
                                 Row(
                                     modifier = Modifier
@@ -1970,19 +1815,19 @@ private fun CategoryAccountAllocationDialog(
                                             onSelectCategory(cat)
                                             showCategoryDropdown = false
                                         }
-                                        .padding(8.dp),
+                                        .padding(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = IconHelper.getIconByName(cat.iconName),
                                         contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(14.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = cat.localizedName(languageMode),
-                                        fontSize = 12.5.sp,
+                                        fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
@@ -1991,23 +1836,23 @@ private fun CategoryAccountAllocationDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Account Allocation Rows
                 Text(
                     text = LanguageHelper.getString("allocated_accounts", languageMode),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp,
+                    fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .height(180.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(allAccounts, key = { it.id }) { acc ->
                         val accBal = balanceMap[acc.id] ?: 0.0
@@ -2019,7 +1864,7 @@ private fun CategoryAccountAllocationDialog(
                         }
 
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                             border = BorderStroke(
                                 1.dp,
@@ -2033,7 +1878,7 @@ private fun CategoryAccountAllocationDialog(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(8.dp),
+                                    .padding(6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -2043,7 +1888,7 @@ private fun CategoryAccountAllocationDialog(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(28.dp)
+                                            .size(24.dp)
                                             .clip(CircleShape)
                                             .background(accColor.copy(alpha = 0.15f)),
                                         contentAlignment = Alignment.Center
@@ -2052,22 +1897,22 @@ private fun CategoryAccountAllocationDialog(
                                             imageVector = IconHelper.getIconByName(acc.iconName),
                                             contentDescription = null,
                                             tint = accColor,
-                                            modifier = Modifier.size(15.dp)
+                                            modifier = Modifier.size(13.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Column {
                                         Text(
                                             text = acc.localizedName(languageMode),
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
+                                            fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = "${LanguageHelper.getString("available_amount", languageMode)}: ${LanguageHelper.formatCurrency(accBal, languageMode)}",
-                                            fontSize = 10.sp,
+                                            fontSize = 9.5.sp,
                                             color = MaterialTheme.colorScheme.outline
                                         )
                                     }
@@ -2075,7 +1920,7 @@ private fun CategoryAccountAllocationDialog(
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.width(130.dp)
+                                    modifier = Modifier.width(110.dp)
                                 ) {
                                     OutlinedTextField(
                                         value = currentVal,
@@ -2085,13 +1930,13 @@ private fun CategoryAccountAllocationDialog(
                                                 put(acc.id, filtered)
                                             }
                                         },
-                                        placeholder = { Text("0 ৳", fontSize = 11.sp) },
+                                        placeholder = { Text("0 ৳", fontSize = 10.5.sp) },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                         singleLine = true,
                                         modifier = Modifier
-                                            .width(90.dp)
-                                            .height(48.dp),
-                                        shape = RoundedCornerShape(8.dp),
+                                            .width(75.dp)
+                                            .height(42.dp),
+                                        shape = RoundedCornerShape(6.dp),
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedContainerColor = MaterialTheme.colorScheme.surface,
                                             unfocusedContainerColor = MaterialTheme.colorScheme.surface
@@ -2105,13 +1950,13 @@ private fun CategoryAccountAllocationDialog(
                                                     put(acc.id, "")
                                                 }
                                             },
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(24.dp)
                                         ) {
                                             Icon(
                                                 Icons.Default.DeleteOutline,
                                                 contentDescription = "Clear",
                                                 tint = MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier.size(16.dp)
+                                                modifier = Modifier.size(14.dp)
                                             )
                                         }
                                     }
@@ -2121,11 +1966,11 @@ private fun CategoryAccountAllocationDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Live Summary Banner
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                     modifier = Modifier.fillMaxWidth()
@@ -2133,38 +1978,38 @@ private fun CategoryAccountAllocationDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(10.dp),
+                            .padding(8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "${LanguageHelper.getString("total_category_budget", languageMode)} ($assignedAccountCount ${if (languageMode == LanguageMode.BANGLA) "হিসাব" else "accs"})",
-                            fontSize = 11.5.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = LanguageHelper.formatCurrency(totalAllocated, languageMode),
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(LanguageHelper.getString("cancel", languageMode))
+                        Text(LanguageHelper.getString("cancel", languageMode), fontSize = 12.sp)
                     }
 
                     Button(
@@ -2175,12 +2020,12 @@ private fun CategoryAccountAllocationDialog(
                             }.toMap()
                             onSave(selectedCat.id, resultMap)
                         },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(LanguageHelper.getString("save_allocations", languageMode))
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(LanguageHelper.getString("save_allocations", languageMode), fontSize = 12.sp)
                     }
                 }
             }
@@ -2188,6 +2033,9 @@ private fun CategoryAccountAllocationDialog(
     }
 }
 
+/**
+ * Quick Assign to Account Dialog
+ */
 @Composable
 private fun QuickAssignToAccountDialog(
     account: Account,
@@ -2207,14 +2055,14 @@ private fun QuickAssignToAccountDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .padding(16.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2224,7 +2072,7 @@ private fun QuickAssignToAccountDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(28.dp)
                                 .clip(CircleShape)
                                 .background(accountColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
@@ -2233,54 +2081,54 @@ private fun QuickAssignToAccountDialog(
                                 imageVector = IconHelper.getIconByName(account.iconName),
                                 contentDescription = null,
                                 tint = accountColor,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
                                 text = LanguageHelper.getString("assign_to_account", languageMode),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
+                                fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = account.localizedName(languageMode),
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 color = accountColor,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(20.dp))
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(16.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = LanguageHelper.getString("select_category_dialog", languageMode),
-                    fontSize = 12.sp,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
+                        .height(120.dp)
                 ) {
-                    LazyColumn(modifier = Modifier.padding(4.dp)) {
+                    LazyColumn(modifier = Modifier.padding(2.dp)) {
                         items(allExpenseCategories) { cat ->
                             val isSelected = cat.id == selectedCategoryId
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(6.dp),
                                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2289,19 +2137,19 @@ private fun QuickAssignToAccountDialog(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = IconHelper.getIconByName(cat.iconName),
                                         contentDescription = null,
                                         tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(14.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = cat.localizedName(languageMode),
-                                        fontSize = 12.5.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                     )
@@ -2311,39 +2159,39 @@ private fun QuickAssignToAccountDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = LanguageHelper.getString("autofill_amount", languageMode),
-                    fontSize = 12.sp,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 OutlinedTextField(
                     value = amountInput,
                     onValueChange = { amountInput = it.filter { c -> c.isDigit() || c == '.' } },
-                    placeholder = { Text("0.00 ৳") },
+                    placeholder = { Text("0.00 ৳", fontSize = 12.sp) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    shape = RoundedCornerShape(8.dp)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(LanguageHelper.getString("cancel", languageMode))
+                        Text(LanguageHelper.getString("cancel", languageMode), fontSize = 12.sp)
                     }
 
                     Button(
@@ -2354,10 +2202,10 @@ private fun QuickAssignToAccountDialog(
                             }
                         },
                         enabled = (amountInput.toDoubleOrNull() ?: 0.0) > 0,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(LanguageHelper.getString("apply", languageMode))
+                        Text(LanguageHelper.getString("apply", languageMode), fontSize = 12.sp)
                     }
                 }
             }
@@ -2368,28 +2216,28 @@ private fun QuickAssignToAccountDialog(
 @Composable
 private fun EmptyStateCard(message: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 16.dp)
+            .padding(vertical = 12.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(32.dp)
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = message,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.Center
             )
@@ -2404,68 +2252,62 @@ private fun PaymentSourceHelpDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
+                    .padding(16.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Payments,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = LanguageHelper.getString("payment_source_analysis", languageMode),
+                        text = LanguageHelper.getString("payment_source", languageMode),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) {
-                        "পেমেন্ট সোর্স অ্যানালাইসিসের মূল উদ্দেশ্য হলো প্রতিটি অ্যাকাউন্টে ঠিক কত টাকা মজুদ রাখা প্রয়োজন তা নির্ধারণ করা:\n\n" +
-                                "• একাধিক অ্যাকাউন্টে বাজেট বণ্টন (Multi-Account Splits):\n" +
-                                "একটি খরচ বা বিল (যেমন: বিদ্যুৎ বিল ৳৩৩০০) একাধিক অ্যাকাউন্টে বিভক্ত করা যায়—যেমন বিকাশ থেকে ৳১৩০০ এবং সোনালী ব্যাংক থেকে ৳২০০০।\n\n" +
-                                "• প্রয়োজনীয় অর্থ (Required): ওই অ্যাকাউন্টে নির্ধারিত খরচ বা বাজেটের মোট পরিমাণ।\n" +
-                                "• উপলব্ধ অর্থ (Available): অ্যাকাউন্টের বর্তমান ব্যালেন্স + ওই অ্যাকাউন্টে প্রত্যাশিত মোট আয়।\n" +
-                                "• ঘাটতি (Shortfall): অ্যাকাউন্টে আর কত টাকা অতিরিক্ত প্রয়োজন।\n" +
-                                "• উদ্বৃত্ত (Surplus): খরচের পর অ্যাকাউন্টে আর কত টাকা বাড়তি থাকবে।\n\n" +
-                                "• তহবিল স্থানান্তর (Fund Allocation Insight):\n" +
-                                "কোনো অ্যাকাউন্টে উদ্বৃত্ত এবং অন্যটিতে ঘাটতি থাকলে, সিস্টেম সরাসরি 'স্থানান্তর' করার স্মার্ট পরামর্শ দেয় যাতে কোনো পেমেন্ট আটকে না যায়।"
+                        "পেমেন্ট সোর্স স্ক্রিনের মূল উদ্দেশ্য হলো প্রতিটি অ্যাকাউন্টে কত টাকা তহবিল মজুদ রাখা প্রয়োজন তা দেখা:\n\n" +
+                                "• দুটি ট্যাব: অ্যাকাউন্ট ও ক্যাটাগরি অনুসারে বণ্টন বিশ্লেষণ।\n" +
+                                "• বাজেটকৃত পরিমাণ: ওই মাসের মোট নির্ধারিত খরচ বা বাজেট।\n" +
+                                "• অবশিষ্ট পরিমাণ: বকেয়া খরচ বা অবশিষ্ট বাজেট যা এখনো ব্যয় হয়নি।\n" +
+                                "• ঘাটতি ও উদ্বৃত্ত: কোন অ্যাকাউন্টে অতিরিক্ত টাকা প্রয়োজন এবং কোথায় বাড়তি তহবিল আছে।\n" +
+                                "• স্মার্ট স্থানান্তর: ঘাটতি পূরণের জন্য উদ্বৃত্ত অ্যাকাউন্ট থেকে ১-ট্যাপে সরাসরি ফান্ড ট্রান্সফার করুন।"
                     } else {
-                        "The primary purpose of Payment Source Analysis is to determine how much money must be available in each account for this month:\n\n" +
-                                "• Multi-Account Expense Splits:\n" +
-                                "A single budget expense (e.g. Electricity Bill ৳3,300) can be split across multiple accounts—e.g. ৳1,300 from bKash and ৳2,000 from Sonali Bank.\n\n" +
-                                "• Required Amount: Total expenses & bills assigned to this account.\n" +
-                                "• Available Amount: Current balance + expected income coming into this account.\n" +
-                                "• Shortfall: How much more money is needed in this account.\n" +
-                                "• Surplus: How much extra money will remain in this account.\n\n" +
-                                "• Fund Allocation Insight:\n" +
-                                "If one account has a surplus and another has a shortage, the system suggests smart transfers with one-click transfer execution."
+                        "Payment Source helps track and ensure each account is adequately funded for the month's expenses:\n\n" +
+                                "• Two Tabs: Accounts and Categories for clear allocation analysis.\n" +
+                                "• Budgeted Amount: Total monthly budgeted expenses.\n" +
+                                "• Remaining Amount: Unspent budget / remaining funds to settle.\n" +
+                                "• Shortfall & Surplus: Identifies accounts needing funds vs accounts with excess cash.\n" +
+                                "• Smart Transfer Insights: 1-tap transfer from surplus accounts to cover shortfalls immediately."
                     },
-                    fontSize = 12.5.sp,
-                    lineHeight = 18.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(LanguageHelper.getString("apply", languageMode))
+                    Text(LanguageHelper.getString("apply", languageMode), fontSize = 12.sp)
                 }
             }
         }

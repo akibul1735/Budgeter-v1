@@ -1823,7 +1823,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
     return when (view) {
         AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
         AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
-        AppView.PAYMENT_SOURCE -> LanguageHelper.getString("payment_source_analysis", languageMode)
+        AppView.PAYMENT_SOURCE -> LanguageHelper.getString("payment_source", languageMode)
         AppView.BALANCE_SHEET -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
         AppView.BUDGET_MAKER -> LanguageHelper.getString("budget_maker", languageMode)
