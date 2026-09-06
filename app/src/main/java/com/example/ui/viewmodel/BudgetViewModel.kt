@@ -21,9 +21,13 @@ import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.BudgetRepository
 import com.example.data.repository.FinancialOverview
 import com.example.sync.SyncManager
+import com.example.ui.theme.AppCornerRadius
+import com.example.ui.theme.AppFontScale
 import com.example.ui.theme.AppThemeConfig
 import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.CustomTheme
+import com.example.ui.theme.DarkSurfaceTone
+import com.example.ui.theme.FinancialSemanticPalette
 import com.example.ui.theme.FontPreset
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
@@ -276,14 +280,24 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setThemePalette(palette: ThemePalette) = themePrefs.setPalette(palette)
     fun selectCustomTheme(themeId: String) = themePrefs.selectCustomTheme(themeId)
-    fun addCustomTheme(name: String, primaryColorHex: Long, secondaryColorHex: Long? = null) =
-        themePrefs.addCustomTheme(name, primaryColorHex, secondaryColorHex)
+    fun addCustomTheme(
+        name: String,
+        primaryColorHex: Long,
+        secondaryColorHex: Long? = null,
+        incomeColorHex: Long? = null,
+        expenseColorHex: Long? = null
+    ) = themePrefs.addCustomTheme(name, primaryColorHex, secondaryColorHex, incomeColorHex, expenseColorHex)
     fun updateCustomTheme(theme: CustomTheme) = themePrefs.updateCustomTheme(theme)
     fun deleteCustomTheme(themeId: String) = themePrefs.deleteCustomTheme(themeId)
     fun setThemeMode(mode: ThemeMode) = themePrefs.setMode(mode)
     fun setColorIntensity(intensity: ColorIntensity) = themePrefs.setColorIntensity(intensity)
     fun setDynamicColor(enabled: Boolean) = themePrefs.setDynamicColor(enabled)
     fun setFontPreset(fontPreset: FontPreset) = themePrefs.setFontPreset(fontPreset)
+    fun setThemeCornerRadius(radius: AppCornerRadius) = themePrefs.setCornerRadius(radius)
+    fun setThemeFontScale(scale: AppFontScale) = themePrefs.setFontScale(scale)
+    fun setFinancialSemanticPalette(palette: FinancialSemanticPalette) = themePrefs.setSemanticPalette(palette)
+    fun setDarkSurfaceTone(tone: DarkSurfaceTone) = themePrefs.setDarkSurfaceTone(tone)
+    fun resetThemePreferences() = themePrefs.resetToDefaults()
 
     init {
         viewModelScope.launch {

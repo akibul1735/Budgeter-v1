@@ -90,6 +90,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -129,8 +130,12 @@ import com.example.ui.theme.SolidPrimaryContainer
 import com.example.ui.theme.SolidTransfer
 import com.example.util.DateUtils
 import com.example.util.IconHelper
+import com.example.util.LabelsDisplayMode
 import com.example.util.LanguageHelper
+import com.example.util.NotesDisplayMode
 import com.example.util.SecurityConfig
+import com.example.util.TransactionPreferences
+import com.example.util.UnnamedPayeeMode
 import java.util.Calendar
 
 enum class LedgerRowStyle {
@@ -1629,6 +1634,9 @@ private fun TransactionRowItem(
     onLongClick: () -> Unit = {}
 ) {
     val tx = item.transaction
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val txPrefs = remember { TransactionPreferences.getInstance(context) }
+    val txConfig by txPrefs.config.collectAsState()
 
     val iconColor = when (tx.type) {
         TransactionType.EXPENSE -> SolidExpense
@@ -1644,14 +1652,27 @@ private fun TransactionRowItem(
     val primaryTitle = overrideTitle ?: if (tx.payeeOrPayer.isNotBlank()) {
         tx.payeeOrPayer
     } else {
-        when (tx.type) {
-            TransactionType.EXPENSE -> item.subCategory?.localizedName(languageMode)
-                ?: item.category?.localizedName(languageMode)
-                ?: LanguageHelper.getString("expense", languageMode)
-            TransactionType.INCOME -> item.subCategory?.localizedName(languageMode)
-                ?: item.category?.localizedName(languageMode)
-                ?: LanguageHelper.getString("income", languageMode)
-            TransactionType.TRANSFER -> LanguageHelper.getString("transfer", languageMode)
+        when (txConfig.unnamedPayeeMode) {
+            UnnamedPayeeMode.DEFAULT_OTHERS -> {
+                if (txConfig.customDefaultPayee.isNotBlank()) txConfig.customDefaultPayee
+                else (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+            }
+            UnnamedPayeeMode.CATEGORY_NAME -> {
+                item.subCategory?.localizedName(languageMode)
+                    ?: item.category?.localizedName(languageMode)
+                    ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+            }
+            UnnamedPayeeMode.ACCOUNT_NAME -> {
+                val acc = when (tx.type) {
+                    TransactionType.EXPENSE -> item.creditAccount?.localizedName(languageMode)
+                    TransactionType.INCOME -> item.debitAccount?.localizedName(languageMode)
+                    TransactionType.TRANSFER -> item.creditAccount?.localizedName(languageMode)
+                }
+                acc ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others")
+            }
+            UnnamedPayeeMode.CUSTOM_NAME -> {
+                txConfig.customDefaultPayee.ifBlank { if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Others" }
+            }
         }
     }
 
@@ -1744,7 +1765,7 @@ private fun TransactionRowItem(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-            } else {
+            } else if (txConfig.enableCategoryIcons) {
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -1766,7 +1787,11 @@ private fun TransactionRowItem(
                 }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            if (!isSelected && txConfig.enableCategoryIcons) {
+                Spacer(modifier = Modifier.width(10.dp))
+            } else if (isSelected) {
+                Spacer(modifier = Modifier.width(10.dp))
+            }
 
             // Center: Name (left top), Category/Group (left below), Labels & Notes (below)
             Column(modifier = Modifier.weight(1f)) {
@@ -1793,8 +1818,8 @@ private fun TransactionRowItem(
                 }
 
                 // Below that: Labels on left (round shape) and just right notes if any
-                val hasLabels = tx.referenceNo.isNotBlank()
-                val hasNote = tx.note.isNotBlank()
+                val hasLabels = tx.referenceNo.isNotBlank() && txConfig.labelsDisplayMode != LabelsDisplayMode.HIDDEN
+                val hasNote = tx.note.isNotBlank() && txConfig.notesDisplayMode != NotesDisplayMode.HIDDEN
                 val hasAttachment = tx.attachmentUri.isNotBlank()
 
                 if (hasLabels || hasNote || hasAttachment) {
@@ -1807,58 +1832,95 @@ private fun TransactionRowItem(
                         // Round Shape Label(s) on Left
                         if (hasLabels) {
                             val labelList = tx.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                            labelList.take(2).forEach { lbl ->
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        0.5.dp,
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                    )
-                                ) {
-                                    Text(
-                                        text = "#$lbl",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                                    )
+                            if (txConfig.labelsDisplayMode == LabelsDisplayMode.CHIP_BADGE) {
+                                labelList.take(2).forEach { lbl ->
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            0.5.dp,
+                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = "#$lbl",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
-                            }
-                            if (labelList.size > 2) {
+                                if (labelList.size > 2) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ) {
+                                        Text(
+                                            text = "+${labelList.size - 2}",
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            } else if (txConfig.labelsDisplayMode == LabelsDisplayMode.ICON_ONLY) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
                                 ) {
-                                    Text(
-                                        text = "+${labelList.size - 2}",
-                                        fontSize = 9.sp,
-                                        color = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.Label,
+                                            contentDescription = "Labels",
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                        if (labelList.size > 1) {
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text(
+                                                text = "${labelList.size}",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
 
                         // Just right: Notes if any
                         if (hasNote) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f, fill = false)
-                            ) {
+                            if (txConfig.notesDisplayMode == NotesDisplayMode.FULL_TEXT) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Notes,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = tx.note,
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            } else if (txConfig.notesDisplayMode == NotesDisplayMode.ICON_ONLY) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Notes,
-                                    contentDescription = null,
+                                    contentDescription = "Note attached",
                                     tint = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = tx.note,
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    modifier = Modifier.size(12.dp)
                                 )
                             }
                         }
@@ -1900,13 +1962,24 @@ private fun TransactionRowItem(
             } else ""
 
             if (accountLine.isNotBlank()) {
-                Text(
-                    text = accountLine,
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (txConfig.enableAccountIcons && item.creditAccount != null) {
+                        Icon(
+                            imageVector = IconHelper.getIconByName(item.creditAccount.iconName),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                    }
+                    Text(
+                        text = accountLine,
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             if (tx.status != TransactionStatus.NONE) {

@@ -1035,13 +1035,20 @@ fun MainAppContainer(
             languageMode = languageMode,
             onPaletteSelected = { viewModel.setThemePalette(it) },
             onCustomThemeSelected = { viewModel.selectCustomTheme(it) },
-            onCustomThemeAdded = { name, primary, secondary -> viewModel.addCustomTheme(name, primary, secondary) },
+            onCustomThemeAdded = { name, primary, secondary, income, expense ->
+                viewModel.addCustomTheme(name, primary, secondary, income, expense)
+            },
             onCustomThemeUpdated = { viewModel.updateCustomTheme(it) },
             onCustomThemeDeleted = { viewModel.deleteCustomTheme(it) },
             onModeSelected = { viewModel.setThemeMode(it) },
             onColorIntensitySelected = { viewModel.setColorIntensity(it) },
             onDynamicColorToggled = { viewModel.setDynamicColor(it) },
             onFontPresetSelected = { viewModel.setFontPreset(it) },
+            onCornerRadiusSelected = { viewModel.setThemeCornerRadius(it) },
+            onFontScaleSelected = { viewModel.setThemeFontScale(it) },
+            onSemanticPaletteSelected = { viewModel.setFinancialSemanticPalette(it) },
+            onDarkSurfaceToneSelected = { viewModel.setDarkSurfaceTone(it) },
+            onResetDefaults = { viewModel.resetThemePreferences() },
             onDismiss = { showThemeFontSettings = false }
         )
     }
