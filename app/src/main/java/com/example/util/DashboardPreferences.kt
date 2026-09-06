@@ -50,7 +50,6 @@ enum class DashboardCardType(
         return when (languageMode) {
             LanguageMode.ENGLISH -> defaultTitleEn
             LanguageMode.BANGLA -> defaultTitleBn
-            LanguageMode.BILINGUAL -> "$defaultTitleEn / $defaultTitleBn"
         }
     }
 }
@@ -64,7 +63,6 @@ enum class DailySummaryMode(val labelEn: String, val labelBn: String) {
         return when (languageMode) {
             LanguageMode.ENGLISH -> labelEn
             LanguageMode.BANGLA -> labelBn
-            LanguageMode.BILINGUAL -> "$labelEn / $labelBn"
         }
     }
 }
@@ -79,7 +77,6 @@ enum class DailySummaryPeriod(val labelEn: String, val labelBn: String, val days
         return when (languageMode) {
             LanguageMode.ENGLISH -> labelEn
             LanguageMode.BANGLA -> labelBn
-            LanguageMode.BILINGUAL -> "$labelEn / $labelBn"
         }
     }
 }
@@ -93,7 +90,6 @@ enum class BudgetSummaryType(val labelEn: String, val labelBn: String) {
         return when (languageMode) {
             LanguageMode.ENGLISH -> labelEn
             LanguageMode.BANGLA -> labelBn
-            LanguageMode.BILINGUAL -> "$labelEn / $labelBn"
         }
     }
 }
@@ -107,7 +103,6 @@ enum class BudgetChartShape(val labelEn: String, val labelBn: String) {
         return when (languageMode) {
             LanguageMode.ENGLISH -> labelEn
             LanguageMode.BANGLA -> labelBn
-            LanguageMode.BILINGUAL -> "$labelEn / $labelBn"
         }
     }
 }
@@ -120,7 +115,6 @@ enum class CalendarDisplayMode(val labelEn: String, val labelBn: String) {
         return when (languageMode) {
             LanguageMode.ENGLISH -> labelEn
             LanguageMode.BANGLA -> labelBn
-            LanguageMode.BILINGUAL -> "$labelEn / $labelBn"
         }
     }
 }

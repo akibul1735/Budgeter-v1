@@ -22,7 +22,6 @@ data class Category(
         return when (mode) {
             LanguageMode.ENGLISH -> nameEn
             LanguageMode.BANGLA -> if (nameBn.isNotBlank()) nameBn else nameEn
-            LanguageMode.BILINGUAL -> if (nameBn.isNotBlank()) "$nameEn ($nameBn)" else nameEn
         }
     }
 }

@@ -170,7 +170,6 @@ fun SettingsScreen(
                     subtitle = when (languageMode) {
                         LanguageMode.ENGLISH -> "English"
                         LanguageMode.BANGLA -> "বাংলা (Bangla)"
-                        LanguageMode.BILINGUAL -> "Bilingual (English + বাংলা)"
                     },
                     icon = Icons.Default.Language,
                     onClick = { showLanguageDialog = true }
@@ -187,9 +186,16 @@ fun SettingsScreen(
             }
 
             item {
+                val currentFormatOption = com.example.util.DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
+                val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
+                val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
+                    java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
+                    java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
+                    else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
+                }
                 SettingsListItem(
                     title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও ক্যালেন্ডার সেটিংস" else "Date Settings",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট: dd MMM, yyyy • সপ্তাহের প্রথম দিন: রবিবার" else "Format: dd MMM, yyyy • First day: Sunday",
+                    subtitle = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট: $formatDisplay • প্রথম দিন: $firstDayName" else "Format: $formatDisplay • First day: $firstDayName",
                     icon = Icons.Default.CalendarToday,
                     onClick = { showDateSettingsDialog = true }
                 )
@@ -217,17 +223,8 @@ fun SettingsScreen(
             item {
                 SettingsListItem(
                     title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "এক্সেল/সিএসভি রপ্তানি, স্থানীয় ব্যাকআপ ও ডেমো মোড" else "Excel/CSV Export, Local DB Backup & Demo Mode",
+                    subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক, লোকাল ব্যাকআপ ও এক্সপোর্ট/ইমপোর্ট" else "Online Sync, Local Backup & Export or Import",
                     icon = Icons.Default.Storage,
-                    onClick = { showDataManagementDialog = true }
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক ও ক্লাউড" else "Online Sync",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ অটোমেটেড ক্লাউড ব্যাকআপ" else "Google Drive Automated Cloud Backup & Sync",
-                    icon = Icons.Default.CloudSync,
                     onClick = onNavigateToBackupSync
                 )
             }
@@ -340,15 +337,6 @@ fun SettingsScreen(
                         isSelected = languageMode == LanguageMode.BANGLA,
                         onClick = {
                             viewModel.setLanguageMode(LanguageMode.BANGLA)
-                            showLanguageDialog = false
-                        }
-                    )
-                    LanguageOptionRow(
-                        title = "Bilingual (English + বাংলা)",
-                        subtitle = "ইংরেজি ও বাংলা যৌথভাবে",
-                        isSelected = languageMode == LanguageMode.BILINGUAL,
-                        onClick = {
-                            viewModel.setLanguageMode(LanguageMode.BILINGUAL)
                             showLanguageDialog = false
                         }
                     )
@@ -492,40 +480,145 @@ fun SettingsScreen(
 
     // 3. Date Settings Dialog
     if (showDateSettingsDialog) {
+        var customPatternInput by remember(displayFormatConfig) { mutableStateOf(displayFormatConfig.customDateFormat) }
+
         AlertDialog(
             onDismissRequest = { showDateSettingsDialog = false },
-            title = { Text("Date & Calendar Settings", fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "তারিখ ও ক্যালেন্ডার সেটিংস" else "Date & Calendar Settings",
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Date Format", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    FilterChip(
-                        selected = true,
-                        onClick = {},
-                        label = { Text("dd MMM, yyyy (e.g. 05 Sep, 2026)", fontSize = 12.sp) },
-                        shape = RoundedCornerShape(8.dp),
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Live Preview Card
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                         modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "লাইভ প্রিভিউ (আজকের তারিখ)" else "Live Preview (Today)",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = com.example.util.DateUtils.formatDate(System.currentTimeMillis(), languageMode),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "তারিখ ফরম্যাট পছন্দ করুন" else "Select Date Format",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
                     )
+
+                    // Scrollable list of DateFormatOptions
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(com.example.util.DateFormatOption.values().toList()) { option ->
+                            val isSelected = displayFormatConfig.dateFormatPattern == option.pattern
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.setDateFormatPattern(option.pattern)
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) option.titleBn else option.titleEn,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 12.sp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (option != com.example.util.DateFormatOption.CUSTOM) {
+                                            Text(
+                                                text = "e.g. ${option.example}",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Custom pattern field if CUSTOM selected
+                    if (displayFormatConfig.dateFormatPattern == com.example.util.DateFormatOption.CUSTOM.pattern) {
+                        OutlinedTextField(
+                            value = customPatternInput,
+                            onValueChange = {
+                                customPatternInput = it
+                                viewModel.setCustomDateFormat(it)
+                            },
+                            label = { Text("Custom Pattern (e.g. yyyy/MM/dd, dd.MM.yyyy)", fontSize = 10.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("First Day of the Week", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = true,
-                            onClick = {},
-                            label = { Text("Sunday", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
+
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "সপ্তাহের প্রথম দিন" else "First Day of the Week",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val days = listOf(
+                            Triple(java.util.Calendar.SUNDAY, "Sunday", "রবিবার"),
+                            Triple(java.util.Calendar.MONDAY, "Monday", "সোমবার"),
+                            Triple(java.util.Calendar.SATURDAY, "Saturday", "শনিবার")
                         )
-                        FilterChip(
-                            selected = false,
-                            onClick = {},
-                            label = { Text("Monday", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        FilterChip(
-                            selected = false,
-                            onClick = {},
-                            label = { Text("Saturday", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
+                        days.forEach { (dayInt, nameEn, nameBn) ->
+                            val isSelected = displayFormatConfig.firstDayOfWeek == dayInt
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { viewModel.setFirstDayOfWeek(dayInt) },
+                                label = {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) nameBn else nameEn,
+                                        fontSize = 10.sp
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             },

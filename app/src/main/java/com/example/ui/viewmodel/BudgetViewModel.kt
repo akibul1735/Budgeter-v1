@@ -117,6 +117,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         displayFormatPrefs.setItemDisplayFormat(format)
     }
 
+    fun setDateFormatPattern(pattern: String) {
+        displayFormatPrefs.setDateFormatPattern(pattern)
+    }
+
+    fun setCustomDateFormat(customPattern: String) {
+        displayFormatPrefs.setCustomDateFormat(customPattern)
+    }
+
+    fun setFirstDayOfWeek(day: Int) {
+        displayFormatPrefs.setFirstDayOfWeek(day)
+    }
+
     fun setCurrency(currency: CurrencyItem) {
         currencyPrefs.setCurrency(currency)
     }

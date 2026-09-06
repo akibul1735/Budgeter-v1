@@ -28,6 +28,5 @@ enum class TransactionStatus(val titleEn: String, val titleBn: String) {
 
 enum class LanguageMode {
     ENGLISH,
-    BANGLA,
-    BILINGUAL
+    BANGLA
 }

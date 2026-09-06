@@ -34,8 +34,7 @@ enum class AppTab(
     NET_EARNINGS("net_earnings", "Net Earnings", "নেট আয় ও রিপোর্ট"),
     LABELS("labels", "Labels", "লেবেল"),
     ITEMS_SUMMARY("items_summary", "Items Summary", "আইটেম সামারি"),
-    REMINDERS("reminders", "Reminders", "রিমাইন্ডার ও বিল"),
-    RESET("reset", "Reset", "রিসেট");
+    REMINDERS("reminders", "Reminders", "রিমাইন্ডার ও বিল");
 
     val icon: ImageVector
         get() = when (this) {
@@ -48,14 +47,12 @@ enum class AppTab(
             LABELS -> Icons.Default.Tag
             ITEMS_SUMMARY -> Icons.Default.Bookmark
             REMINDERS -> Icons.Default.Alarm
-            RESET -> Icons.Default.RestartAlt
         }
 
     fun getTitle(languageMode: LanguageMode): String {
         return when (languageMode) {
             LanguageMode.ENGLISH -> defaultTitleEn
             LanguageMode.BANGLA -> defaultTitleBn
-            LanguageMode.BILINGUAL -> "$defaultTitleEn / $defaultTitleBn"
         }
     }
 }

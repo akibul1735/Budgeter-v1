@@ -105,7 +105,6 @@ object LanguageHelper {
         return when (mode) {
             LanguageMode.ENGLISH -> entry.en
             LanguageMode.BANGLA -> entry.bn
-            LanguageMode.BILINGUAL -> "${entry.en} / ${entry.bn}"
         }
     }
 
@@ -113,7 +112,6 @@ object LanguageHelper {
         return when (mode) {
             LanguageMode.ENGLISH -> nameEn
             LanguageMode.BANGLA -> nameBn.ifEmpty { nameEn }
-            LanguageMode.BILINGUAL -> if (nameBn.isNotEmpty()) "$nameEn / $nameBn" else nameEn
         }
     }
 

@@ -147,7 +147,7 @@ fun ThemeFontSettingsDialog(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val isBangla = languageMode == LanguageMode.BANGLA || languageMode == LanguageMode.BILINGUAL
+    val isBangla = languageMode == LanguageMode.BANGLA
 
     var selectedTab by remember {
         mutableStateOf(if (themeConfig.customThemeId != null) 1 else 0)

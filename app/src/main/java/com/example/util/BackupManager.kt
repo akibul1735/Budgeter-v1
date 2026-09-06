@@ -149,11 +149,24 @@ object BackupManager {
     }
 
     /**
-     * List all local auto/manual backups
+     * List all local auto/manual backups from custom directory and default app storage
      */
-    fun listLocalBackups(context: Context): List<File> {
-        val backupDir = File(context.filesDir, "backups")
-        if (!backupDir.exists()) return emptyList()
-        return backupDir.listFiles { file -> file.extension == "json" }?.sortedByDescending { it.lastModified() } ?: emptyList()
+    fun listLocalBackups(context: Context, customDirectoryPath: String? = null): List<File> {
+        val resultList = mutableListOf<File>()
+        val defaultDir = File(context.filesDir, "backups")
+        if (defaultDir.exists()) {
+            defaultDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+                resultList.addAll(it)
+            }
+        }
+        if (!customDirectoryPath.isNullOrBlank() && !customDirectoryPath.startsWith("content://")) {
+            val customDir = File(customDirectoryPath)
+            if (customDir.exists() && customDir.isDirectory && customDir.absolutePath != defaultDir.absolutePath) {
+                customDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+                    resultList.addAll(it)
+                }
+            }
+        }
+        return resultList.distinctBy { it.absolutePath }.sortedByDescending { it.lastModified() }
     }
 }

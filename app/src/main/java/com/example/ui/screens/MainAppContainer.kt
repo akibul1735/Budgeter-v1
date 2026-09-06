@@ -177,7 +177,6 @@ fun AppTab.toAppView(): AppView = when (this) {
     AppTab.LABELS -> AppView.LABELS
     AppTab.ITEMS_SUMMARY -> AppView.ITEMS_SUMMARY
     AppTab.REMINDERS -> AppView.RECURRING_BILLS
-    AppTab.RESET -> AppView.RESET
 }
 
 fun AppView.toAppTab(): AppTab? = when (this) {
@@ -190,7 +189,6 @@ fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.LABELS -> AppTab.LABELS
     AppView.ITEMS_SUMMARY -> AppTab.ITEMS_SUMMARY
     AppView.RECURRING_BILLS -> AppTab.REMINDERS
-    AppView.RESET -> AppTab.RESET
     else -> null
 }
 
@@ -1504,15 +1502,6 @@ private fun DrawerContent(
             badge = if (trashedItems.isNotEmpty()) "${trashedItems.size}" else null,
             isSelected = currentView == AppView.TRASH,
             onClick = { onSelectView(AppView.TRASH) }
-        )
-
-        // 8. Reset & Wipe
-        DrawerItemRow(
-            title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
-            icon = Icons.Default.RestartAlt,
-            iconTint = MaterialTheme.colorScheme.error,
-            isSelected = currentView == AppView.RESET,
-            onClick = { onSelectView(AppView.RESET) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))

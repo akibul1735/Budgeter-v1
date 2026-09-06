@@ -42,7 +42,6 @@ fun LanguageSelector(
     val displayText = when (currentMode) {
         LanguageMode.ENGLISH -> "EN"
         LanguageMode.BANGLA -> "বাং"
-        LanguageMode.BILINGUAL -> "EN/বাং"
     }
 
     Box(modifier = modifier) {
@@ -100,19 +99,6 @@ fun LanguageSelector(
                 },
                 onClick = {
                     onModeSelected(LanguageMode.BANGLA)
-                    expanded = false
-                }
-            )
-
-            DropdownMenuItem(
-                text = { Text("Bilingual (উভয় ভাষা)", fontWeight = if (currentMode == LanguageMode.BILINGUAL) FontWeight.Bold else FontWeight.Normal) },
-                leadingIcon = {
-                    if (currentMode == LanguageMode.BILINGUAL) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                },
-                onClick = {
-                    onModeSelected(LanguageMode.BILINGUAL)
                     expanded = false
                 }
             )
