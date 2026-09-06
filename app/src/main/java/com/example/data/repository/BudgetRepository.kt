@@ -641,12 +641,61 @@ class BudgetRepository(
         transactionDao.deleteAll()
         recurringBillDao.deleteAll()
         monthlyBudgetDao.deleteAll()
+        budgetAdjustmentDao.deleteAll()
         categoryDao.deleteAll()
         accountDao.deleteAll()
         com.example.data.local.DatabaseInitializer.seedInitialData(
             accountDao = accountDao,
             categoryDao = categoryDao,
             transactionDao = transactionDao
+        )
+    }
+
+    suspend fun resetData() {
+        transactionDao.deleteAll()
+        recurringBillDao.deleteAll()
+        monthlyBudgetDao.deleteAll()
+        budgetAdjustmentDao.deleteAll()
+    }
+
+    suspend fun resetToDefaultStructure() {
+        transactionDao.deleteAll()
+        recurringBillDao.deleteAll()
+        monthlyBudgetDao.deleteAll()
+        budgetAdjustmentDao.deleteAll()
+        categoryDao.deleteAll()
+        accountDao.deleteAll()
+        com.example.data.local.DatabaseInitializer.seedDefaultStructure(
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao,
+            includeSampleTransactions = false
+        )
+    }
+
+    suspend fun deleteAllAccounts() {
+        transactionDao.deleteAll()
+        accountDao.deleteAll()
+    }
+
+    suspend fun deleteAllCategories() {
+        transactionDao.deleteAll()
+        monthlyBudgetDao.deleteAll()
+        categoryDao.deleteAll()
+    }
+
+    suspend fun resetEverything() {
+        transactionDao.deleteAll()
+        recurringBillDao.deleteAll()
+        monthlyBudgetDao.deleteAll()
+        budgetAdjustmentDao.deleteAll()
+        categoryDao.deleteAll()
+        accountDao.deleteAll()
+        com.example.data.local.DatabaseInitializer.seedDefaultStructure(
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao,
+            includeSampleTransactions = false
         )
     }
 }

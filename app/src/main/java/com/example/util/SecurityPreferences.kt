@@ -115,6 +115,11 @@ class SecurityPreferences(context: Context) {
         return hashString(rawAnswer.trim().lowercase()) == currentHash
     }
 
+    fun resetToDefaults() {
+        prefs.edit().clear().apply()
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_APP_LOCK_ENABLED = "key_app_lock_enabled"
         private const val KEY_PIN_HASH = "key_pin_hash"

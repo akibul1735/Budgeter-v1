@@ -502,4 +502,377 @@ object DatabaseInitializer {
             )
         )
     }
+
+    suspend fun seedDefaultStructure(
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        includeSampleTransactions: Boolean = false
+    ) {
+        // 1. Seed Parent Accounts (All fully editable and deletable: isSystem = false)
+        val cashParentId = accountDao.insertAccount(
+            Account(
+                nameEn = "Cash & Cash Equivalents",
+                nameBn = "নগদ ও সমতুল্য",
+                type = AccountType.ASSET,
+                iconName = "Payments",
+                colorHex = "#10B981",
+                isSystem = false
+            )
+        )
+        val bankParentId = accountDao.insertAccount(
+            Account(
+                nameEn = "Bank Accounts",
+                nameBn = "ব্যাংক হিসাব",
+                type = AccountType.ASSET,
+                iconName = "AccountBalance",
+                colorHex = "#1E56A0",
+                isSystem = false
+            )
+        )
+        val mfsParentId = accountDao.insertAccount(
+            Account(
+                nameEn = "Mobile Financial Services",
+                nameBn = "মোবাইল ব্যাংকিং (MFS)",
+                type = AccountType.ASSET,
+                iconName = "PhoneAndroid",
+                colorHex = "#D81B60",
+                isSystem = false
+            )
+        )
+        val creditParentId = accountDao.insertAccount(
+            Account(
+                nameEn = "Credit Cards & Overdrafts",
+                nameBn = "ক্রেডিট কার্ড ও ওভারড্রাফট",
+                type = AccountType.LIABILITY,
+                iconName = "CreditCard",
+                colorHex = "#EF4444",
+                isSystem = false
+            )
+        )
+        val loanParentId = accountDao.insertAccount(
+            Account(
+                nameEn = "Loans & Payable Debts",
+                nameBn = "ঋণ ও দেয় দেনা",
+                type = AccountType.LIABILITY,
+                iconName = "MoneyOff",
+                colorHex = "#F59E0B",
+                isSystem = false
+            )
+        )
+        val equityParentId = accountDao.insertAccount(
+            Account(
+                nameEn = "Owner's Equity / Opening Balance",
+                nameBn = "মালিকানা স্বত্ব / প্রারম্ভিক উদ্বৃত্ত",
+                type = AccountType.EQUITY,
+                iconName = "AccountBalanceWallet",
+                colorHex = "#8B5CF6",
+                isSystem = false
+            )
+        )
+
+        // 2. Seed Sub-Accounts (isSystem = false)
+        val cashWalletId = accountDao.insertAccount(
+            Account(
+                nameEn = "Cash Wallet",
+                nameBn = "নগদ মানিব্যাগ",
+                type = AccountType.ASSET,
+                parentId = cashParentId,
+                initialBalance = 0.0,
+                iconName = "Wallet",
+                colorHex = "#10B981",
+                isSystem = false
+            )
+        )
+        val bankPrimaryId = accountDao.insertAccount(
+            Account(
+                nameEn = "Primary Bank Account",
+                nameBn = "মূল ব্যাংক হিসাব",
+                type = AccountType.ASSET,
+                parentId = bankParentId,
+                initialBalance = 0.0,
+                iconName = "AccountBalance",
+                colorHex = "#1E56A0",
+                isSystem = false
+            )
+        )
+        val bkashId = accountDao.insertAccount(
+            Account(
+                nameEn = "bKash / Mobile Wallet",
+                nameBn = "বিকাশ / মোবাইল ওয়ালেট",
+                type = AccountType.ASSET,
+                parentId = mfsParentId,
+                initialBalance = 0.0,
+                iconName = "PhoneIphone",
+                colorHex = "#E2136E",
+                isSystem = false
+            )
+        )
+        val creditCardId = accountDao.insertAccount(
+            Account(
+                nameEn = "Credit Card",
+                nameBn = "ক্রেডিট কার্ড",
+                type = AccountType.LIABILITY,
+                parentId = creditParentId,
+                initialBalance = 0.0,
+                iconName = "CreditCard",
+                colorHex = "#EF4444",
+                isSystem = false
+            )
+        )
+
+        // 3. Seed Income Categories & Sub-Categories (isSystem = false)
+        val catSalaryId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Salary & Wages",
+                nameBn = "বেতন ও মজুরি",
+                type = CategoryType.INCOME,
+                iconName = "Work",
+                colorHex = "#10B981",
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Monthly Base Salary",
+                nameBn = "মাসিক মূল বেতন",
+                type = CategoryType.INCOME,
+                parentId = catSalaryId,
+                iconName = "Payments",
+                colorHex = "#10B981",
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Bonus & Incentives",
+                nameBn = "বোনাস ও ইনসেন্টিভ",
+                type = CategoryType.INCOME,
+                parentId = catSalaryId,
+                iconName = "Stars",
+                colorHex = "#059669",
+                isSystem = false
+            )
+        )
+
+        val catBusinessId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Business & Freelance",
+                nameBn = "ব্যবসা ও ফ্রিল্যান্সিং",
+                type = CategoryType.INCOME,
+                iconName = "LaptopMac",
+                colorHex = "#3B82F6",
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Freelance / Projects",
+                nameBn = "ফ্রিল্যান্স / প্রজেক্ট",
+                type = CategoryType.INCOME,
+                parentId = catBusinessId,
+                iconName = "Code",
+                colorHex = "#3B82F6",
+                isSystem = false
+            )
+        )
+
+        val catInvestmentId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Investments & Profit",
+                nameBn = "বিনিয়োগ ও মুনাফা",
+                type = CategoryType.INCOME,
+                iconName = "TrendingUp",
+                colorHex = "#8B5CF6",
+                isSystem = false
+            )
+        )
+
+        val catOthersIncomeId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Other Income",
+                nameBn = "অন্যান্য আয়",
+                type = CategoryType.INCOME,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = false
+            )
+        )
+
+        // 4. Seed Expense Categories & Sub-Categories (isSystem = false)
+        val catFoodId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Food & Groceries",
+                nameBn = "খাবার ও বাজার",
+                type = CategoryType.EXPENSE,
+                iconName = "Restaurant",
+                colorHex = "#EF4444",
+                budgetLimit = 0.0,
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Bazar & Groceries",
+                nameBn = "বাজার ও নিত্যপণ্য",
+                type = CategoryType.EXPENSE,
+                parentId = catFoodId,
+                iconName = "ShoppingCart",
+                colorHex = "#EF4444",
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Dining & Snacks",
+                nameBn = "বাইরে খাওয়া ও নাস্তা",
+                type = CategoryType.EXPENSE,
+                parentId = catFoodId,
+                iconName = "DinnerDining",
+                colorHex = "#F87171",
+                isSystem = false
+            )
+        )
+
+        val catHousingId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Housing & Utilities",
+                nameBn = "বাসা ভাড়া ও ইউটিলিটি",
+                type = CategoryType.EXPENSE,
+                iconName = "Home",
+                colorHex = "#F59E0B",
+                budgetLimit = 0.0,
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "House Rent",
+                nameBn = "বাড়ি ভাড়া",
+                type = CategoryType.EXPENSE,
+                parentId = catHousingId,
+                iconName = "Apartment",
+                colorHex = "#F59E0B",
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Electricity & Internet Bills",
+                nameBn = "বিদ্যুৎ ও ইন্টারনেট বিল",
+                type = CategoryType.EXPENSE,
+                parentId = catHousingId,
+                iconName = "ElectricBolt",
+                colorHex = "#FBBF24",
+                isSystem = false
+            )
+        )
+
+        val catTransportId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Transportation",
+                nameBn = "যাতায়াত ও পরিবহন",
+                type = CategoryType.EXPENSE,
+                iconName = "DirectionsCar",
+                colorHex = "#06B6D4",
+                budgetLimit = 0.0,
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Bus & Metro Fare",
+                nameBn = "বাস ও মেট্রো ভাড়া",
+                type = CategoryType.EXPENSE,
+                parentId = catTransportId,
+                iconName = "Train",
+                colorHex = "#06B6D4",
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Fuel & Rideshare",
+                nameBn = "জ্বালানি ও রাইডশেয়ার",
+                type = CategoryType.EXPENSE,
+                parentId = catTransportId,
+                iconName = "LocalGasStation",
+                colorHex = "#22D3EE",
+                isSystem = false
+            )
+        )
+
+        val catHealthId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Health & Medical",
+                nameBn = "স্বাস্থ্য ও চিকিৎসা",
+                type = CategoryType.EXPENSE,
+                iconName = "LocalHospital",
+                colorHex = "#EC4899",
+                budgetLimit = 0.0,
+                isSystem = false
+            )
+        )
+        categoryDao.insertCategory(
+            Category(
+                nameEn = "Medicines & Doctor Visits",
+                nameBn = "ওষুধ ও ডাক্তার ফি",
+                type = CategoryType.EXPENSE,
+                parentId = catHealthId,
+                iconName = "Medication",
+                colorHex = "#EC4899",
+                isSystem = false
+            )
+        )
+
+        val catLifestyleId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Shopping & Lifestyle",
+                nameBn = "কেনাকাটা ও জীবনযাত্রা",
+                type = CategoryType.EXPENSE,
+                iconName = "ShoppingBag",
+                colorHex = "#8B5CF6",
+                budgetLimit = 0.0,
+                isSystem = false
+            )
+        )
+
+        val catOthersExpenseId = categoryDao.insertCategory(
+            Category(
+                nameEn = "Other Expenses",
+                nameBn = "অন্যান্য খরচ",
+                type = CategoryType.EXPENSE,
+                iconName = "MoreHoriz",
+                colorHex = "#9E9E9E",
+                isSystem = false
+            )
+        )
+
+        if (includeSampleTransactions) {
+            val now = System.currentTimeMillis()
+            val oneDay = 86400000L
+            transactionDao.insertTransaction(
+                Transaction(
+                    type = TransactionType.INCOME,
+                    amount = 50000.0,
+                    dateEpochMs = now - (oneDay * 2),
+                    debitAccountId = bankPrimaryId,
+                    creditAccountId = null,
+                    categoryId = catSalaryId,
+                    note = "Monthly salary deposit",
+                    payeeOrPayer = "Employer"
+                )
+            )
+            transactionDao.insertTransaction(
+                Transaction(
+                    type = TransactionType.TRANSFER,
+                    amount = 5000.0,
+                    dateEpochMs = now - oneDay,
+                    debitAccountId = cashWalletId,
+                    creditAccountId = bankPrimaryId,
+                    note = "Cash withdrawal"
+                )
+            )
+        }
+    }
 }

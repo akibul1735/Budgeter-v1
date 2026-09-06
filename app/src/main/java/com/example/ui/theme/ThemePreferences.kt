@@ -200,6 +200,11 @@ class ThemePreferences(context: Context) {
         _themeConfig.value = _themeConfig.value.copy(fontPreset = fontPreset)
     }
 
+    fun resetToDefaults() {
+        prefs.edit().clear().apply()
+        _themeConfig.value = loadConfig()
+    }
+
     private fun serializeCustomThemes(themes: List<CustomTheme>): String {
         val array = org.json.JSONArray()
         themes.forEach { theme ->

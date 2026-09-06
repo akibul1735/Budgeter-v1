@@ -37,6 +37,11 @@ class DisplayFormatPreferences private constructor(context: Context) {
         _config.value = _config.value.copy(itemDisplayFormat = format)
     }
 
+    fun resetToDefaults() {
+        prefs.edit().clear().apply()
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_DISPLAY_FORMAT = "key_item_display_format"
 

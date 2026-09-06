@@ -100,6 +100,11 @@ class BackupPreferences(context: Context) {
         updateConfig(_config.value.copy(lastSyncTimestamp = timestamp))
     }
 
+    fun resetToDefaults() {
+        prefs.edit().clear().apply()
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_CLOUD_PROVIDER = "cloud_provider"
         private const val KEY_ACCOUNT_LINKED = "account_linked"

@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Sync
@@ -162,7 +163,8 @@ enum class AppView {
     RECURRING_BILLS,
     BACKUP_SYNC,
     SETTINGS,
-    TRASH
+    TRASH,
+    RESET
 }
 
 fun AppTab.toAppView(): AppView = when (this) {
@@ -175,6 +177,7 @@ fun AppTab.toAppView(): AppView = when (this) {
     AppTab.LABELS -> AppView.LABELS
     AppTab.ITEMS_SUMMARY -> AppView.ITEMS_SUMMARY
     AppTab.REMINDERS -> AppView.RECURRING_BILLS
+    AppTab.RESET -> AppView.RESET
 }
 
 fun AppView.toAppTab(): AppTab? = when (this) {
@@ -187,6 +190,7 @@ fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.LABELS -> AppTab.LABELS
     AppView.ITEMS_SUMMARY -> AppTab.ITEMS_SUMMARY
     AppView.RECURRING_BILLS -> AppTab.REMINDERS
+    AppView.RESET -> AppTab.RESET
     else -> null
 }
 
@@ -1502,6 +1506,15 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.TRASH) }
         )
 
+        // 8. Reset & Wipe
+        DrawerItemRow(
+            title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
+            icon = Icons.Default.RestartAlt,
+            iconTint = MaterialTheme.colorScheme.error,
+            isSelected = currentView == AppView.RESET,
+            onClick = { onSelectView(AppView.RESET) }
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -1807,6 +1820,7 @@ private fun ScreenRouter(
             languageMode = languageMode,
             onBack = onBack,
             onNavigateToBackupSync = { onNavigate(AppView.BACKUP_SYNC) },
+            onNavigateToReset = { onNavigate(AppView.RESET) },
             onOpenTabCustomizer = onOpenTabCustomizer,
             onOpenThemeFontSettings = onOpenThemeFontSettings,
             onOpenAutofillSettings = onOpenAutofillSettings
@@ -1814,6 +1828,12 @@ private fun ScreenRouter(
         AppView.TRASH -> TrashScreen(
             viewModel = viewModel,
             languageMode = languageMode,
+            onBack = onBack
+        )
+        AppView.RESET -> ResetScreen(
+            viewModel = viewModel,
+            languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onBack = onBack
         )
     }
@@ -1838,5 +1858,6 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.BACKUP_SYNC -> "Backup, Restore & Sync"
         AppView.SETTINGS -> LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" }
         AppView.TRASH -> if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash & Recycle Bin"
+        AppView.RESET -> if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe"
     }
 }

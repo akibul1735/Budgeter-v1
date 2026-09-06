@@ -41,6 +41,10 @@ class TransferFeePreferences private constructor(context: Context) {
         return if (defaultSubCat > 0L) defaultSubCat else null
     }
 
+    fun resetToDefaults() {
+        prefs.edit().clear().apply()
+    }
+
     companion object {
         @Volatile
         private var instance: TransferFeePreferences? = null

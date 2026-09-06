@@ -98,6 +98,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val displayFormatPrefs: DisplayFormatPreferences = DisplayFormatPreferences.getInstance(application)
     private val trashManager: com.example.util.TrashManager = com.example.util.TrashManager.getInstance(application)
     private val securityPrefs: SecurityPreferences = SecurityPreferences(application)
+    private val autofillPrefs: com.example.util.AutofillPreferences = com.example.util.AutofillPreferences.getInstance(application)
+    private val transferFeePrefs: com.example.util.TransferFeePreferences = com.example.util.TransferFeePreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
@@ -1141,7 +1143,108 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
             activeRepo.resetDatabaseToDefaults()
+            trashManager.clearAll()
             _backupUiState.value = BackupUiState.Success("All data reset to initial defaults successfully")
+            onComplete()
+        }
+    }
+
+    // 1. Reset Data: Clears transactions, budgets, bills, adjustments, trash
+    fun resetData(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            activeRepo.resetData()
+            trashManager.clearAll()
+            _backupUiState.value = BackupUiState.Success("All transactions, budgets and bills reset successfully")
+            onComplete()
+        }
+    }
+
+    // 2. Reset Settings: Resets all preferences back to factory defaults
+    fun resetSettings(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            themePrefs.resetToDefaults()
+            currencyPrefs.resetToDefaults()
+            displayFormatPrefs.resetToDefaults()
+            dashboardPrefs.resetToDefaults()
+            tabPrefs.resetToDefaults()
+            autofillPrefs.resetToDefaults()
+            accountCalcPrefs.resetAll()
+            transferFeePrefs.resetToDefaults()
+            backupPrefs.resetToDefaults()
+            onComplete()
+        }
+    }
+
+    // 3. Reset Data and Settings
+    fun resetDataAndSettings(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            activeRepo.resetData()
+            trashManager.clearAll()
+            themePrefs.resetToDefaults()
+            currencyPrefs.resetToDefaults()
+            displayFormatPrefs.resetToDefaults()
+            dashboardPrefs.resetToDefaults()
+            tabPrefs.resetToDefaults()
+            autofillPrefs.resetToDefaults()
+            accountCalcPrefs.resetAll()
+            transferFeePrefs.resetToDefaults()
+            backupPrefs.resetToDefaults()
+            _backupUiState.value = BackupUiState.Success("Data and settings reset successfully")
+            onComplete()
+        }
+    }
+
+    // 4. Reset to Default Structure (editable & deletable)
+    fun resetToDefaultStructure(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            activeRepo.resetToDefaultStructure()
+            trashManager.clearAll()
+            _backupUiState.value = BackupUiState.Success("Default editable structure restored successfully")
+            onComplete()
+        }
+    }
+
+    // 5. Delete All Accounts
+    fun deleteAllAccounts(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            activeRepo.deleteAllAccounts()
+            trashManager.clearAll()
+            _backupUiState.value = BackupUiState.Success("All accounts deleted successfully")
+            onComplete()
+        }
+    }
+
+    // 6. Delete All Categories
+    fun deleteAllCategories(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            activeRepo.deleteAllCategories()
+            trashManager.clearAll()
+            _backupUiState.value = BackupUiState.Success("All categories deleted successfully")
+            onComplete()
+        }
+    }
+
+    // 7. Reset Everything from App (Factory Clean State)
+    fun resetEverything(onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            activeRepo.resetEverything()
+            trashManager.clearAll()
+            themePrefs.resetToDefaults()
+            currencyPrefs.resetToDefaults()
+            displayFormatPrefs.resetToDefaults()
+            dashboardPrefs.resetToDefaults()
+            tabPrefs.resetToDefaults()
+            autofillPrefs.resetToDefaults()
+            accountCalcPrefs.resetAll()
+            transferFeePrefs.resetToDefaults()
+            backupPrefs.resetToDefaults()
+            _backupUiState.value = BackupUiState.Success("App completely reset to fresh factory state")
             onComplete()
         }
     }

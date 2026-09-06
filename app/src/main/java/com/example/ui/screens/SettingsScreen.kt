@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
@@ -109,6 +110,7 @@ fun SettingsScreen(
     languageMode: LanguageMode,
     onBack: () -> Unit = {},
     onNavigateToBackupSync: () -> Unit,
+    onNavigateToReset: () -> Unit = {},
     onOpenTabCustomizer: () -> Unit,
     onOpenThemeFontSettings: () -> Unit,
     onOpenAutofillSettings: () -> Unit
@@ -269,6 +271,15 @@ fun SettingsScreen(
                     subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সিকিউরিটি লক ও বায়োমেট্রিক সুরক্ষা" else "App lock, PIN protection & biometric security",
                     icon = Icons.Default.Fingerprint,
                     onClick = { showSecurityDialog = true }
+                )
+            }
+
+            item {
+                SettingsListItem(
+                    title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
+                    subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা, সেটিংস, অ্যাকাউন্ট বা ক্যাটাগরি রিসেট করুন" else "Reset data, settings, accounts, categories or wipe all",
+                    icon = Icons.Default.RestartAlt,
+                    onClick = onNavigateToReset
                 )
             }
 

@@ -41,6 +41,11 @@ class AutofillPreferences(context: Context) {
         _config.value = newConfig
     }
 
+    fun resetToDefaults() {
+        prefs.edit().clear().apply()
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_CATEGORY = "autofill_category"
         private const val KEY_ACCOUNT = "autofill_account"
