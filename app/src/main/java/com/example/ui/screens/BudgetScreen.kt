@@ -644,17 +644,11 @@ fun BudgetScreen(
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveBudgetAdjustment(
+                            viewModel.saveMonthlyBudget(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                newAmount = amount,
+                                amount = amount,
                                 isEnabled = enabled
-                            )
-                        },
-                        onResetBudget = { item ->
-                            viewModel.resetBudgetToPrevious(
-                                itemType = item.itemType,
-                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -695,17 +689,11 @@ fun BudgetScreen(
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveBudgetAdjustment(
+                            viewModel.saveMonthlyBudget(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                newAmount = amount,
+                                amount = amount,
                                 isEnabled = enabled
-                            )
-                        },
-                        onResetBudget = { item ->
-                            viewModel.resetBudgetToPrevious(
-                                itemType = item.itemType,
-                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -746,17 +734,11 @@ fun BudgetScreen(
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveBudgetAdjustment(
+                            viewModel.saveMonthlyBudget(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                newAmount = amount,
+                                amount = amount,
                                 isEnabled = enabled
-                            )
-                        },
-                        onResetBudget = { item ->
-                            viewModel.resetBudgetToPrevious(
-                                itemType = item.itemType,
-                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -797,17 +779,11 @@ fun BudgetScreen(
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveBudgetAdjustment(
+                            viewModel.saveMonthlyBudget(
                                 itemType = item.itemType,
                                 itemId = item.id,
-                                newAmount = amount,
+                                amount = amount,
                                 isEnabled = enabled
-                            )
-                        },
-                        onResetBudget = { item ->
-                            viewModel.resetBudgetToPrevious(
-                                itemType = item.itemType,
-                                itemId = item.id
                             )
                         },
                         onSaveMultiple = { budgets ->
@@ -954,7 +930,6 @@ private fun CategoriesBudgetEntryView(
     onCopyPrevious: () -> Unit,
     onItemClick: ((BudgetTargetItem) -> Unit)? = null,
     onSaveBudget: (BudgetTargetItem, Double, Boolean) -> Unit,
-    onResetBudget: (BudgetTargetItem) -> Unit = {},
     onSaveMultiple: (List<MonthlyBudget>) -> Unit
 ) {
     val budgetMap = remember(monthlyBudgets) {
@@ -1552,9 +1527,6 @@ private fun CategoriesBudgetEntryView(
                             onItemClick = onItemClick,
                             onSaveBudget = { amtMonthly, isEnabled ->
                                 onSaveBudget(enhancedItem.item, amtMonthly, isEnabled)
-                            },
-                            onResetBudget = {
-                                onResetBudget(enhancedItem.item)
                             }
                         )
                     }
@@ -1569,15 +1541,14 @@ private fun CategoriesBudgetEntryView(
  *
  * Tier 1 (Identity & Active Amount):
  * - Category Name e.g. "MotorCycle (M&R)" on left.
- * - Active budget amount with money bag / pouch icon e.g. "💰 1,000" (or 0) in bold theme color on right.
+ * - Active budget amount with wallet icon e.g. "৳ 1,000" (or 0) in bold theme color on right.
  * - Enable/Disable checkbox.
  *
  * Tier 2 (Insights Subline):
- * - "Budget= 1000 • Actual= 20 • Manual= 1000" (or "Actual= 0")
+ * - "Budget= 1000 • Actual= 20 • Manual= 1000" (or "Actual (Balance Sheet)= ৳... • Target= ৳...")
  *
- * Tier 3 (Quick Suggestions Checkmarks & Actions):
- * - Quick Checkmark Suggestion Circles: [✓ Prev Month] [✓ Frequent 1] [✓ 3-Mo Avg]
- * - Stepper Chevrons & swipe gestures.
+ * Tier 3 (Quick Suggestions & Actions):
+ * - Direct Suggestion Amount Buttons: [Prev] [Freq] [Avg] or [Actual] [Prev]
  * - Manual calculator edit button (opens main app PopupCalculatorDialog).
  */
 @Composable
@@ -1588,8 +1559,7 @@ private fun BudgetItemRow(
     languageMode: LanguageMode,
     sectionColor: Color,
     onItemClick: ((BudgetTargetItem) -> Unit)? = null,
-    onSaveBudget: (amountMonthly: Double, isEnabled: Boolean) -> Unit,
-    onResetBudget: () -> Unit = {}
+    onSaveBudget: (amountMonthly: Double, isEnabled: Boolean) -> Unit
 ) {
     val item = enhancedItem.item
     val savedBudget = enhancedItem.savedBudget
@@ -1761,72 +1731,6 @@ private fun BudgetItemRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-
-            // Mid-Month Adjustment Banner (if amount adjusted from previous month)
-            val prevAmt = savedBudget?.previousAmount
-            if (prevAmt != null && kotlin.math.abs(prevAmt - currentMonthlyAmt) > 0.01) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.weight(1f, fill = false)
-                    ) {
-                        Text(
-                            text = "${LanguageHelper.getString("previous_budget", languageMode)}: ${formatCompactCurrency(prevAmt, languageMode)}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(text = "➔", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
-                        Text(
-                            text = "${LanguageHelper.getString("adjusted_budget", languageMode)}: ${formatCompactCurrency(currentMonthlyAmt, languageMode)}",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandBlue,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onResetBudget() }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                            .testTag("reset_to_previous_button")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.RestartAlt,
-                                contentDescription = "Reset",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Text(
-                                text = LanguageHelper.getString("reset_to_previous", languageMode),
-                                fontSize = 9.5.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
 
             // TIER 3: Direct Amount Suggestion Buttons + Manual Option
             Row(
@@ -2485,7 +2389,7 @@ private fun BudgetDashboardView(
                     }
 
                     Text(
-                        text = "• Tap the checkmark suggestions inside Expenses or Incomes to apply 3-month averages or frequent spend limits automatically.",
+                        text = "• Tap the quick amount suggestion buttons (Actual, Prev, Freq, Avg) inside each category to set your plan instantly.",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2495,7 +2399,7 @@ private fun BudgetDashboardView(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "• Mid-month modifications highlight previous differences and allow 1-tap resets to original values.",
+                        text = "• Tap 'Manual' on any category to open the quick calculator and specify a custom budget amount.",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
