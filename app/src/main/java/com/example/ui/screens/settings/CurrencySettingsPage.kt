@@ -16,15 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CurrencyExchange
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,6 +31,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -88,158 +86,102 @@ fun CurrencySettingsPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 14.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
-            // Live Interactive Preview Box
+            // Compact Live Preview Box
             Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isBangla) "লাইভ প্রদর্শন প্রিভিউ" else "Live Display Preview",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            text = if (isBangla) "লাইভ প্রিভিউ (ফরম্যাট)" else "Live Format Preview",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.padding(2.dp)
-                        ) {
-                            Text(
-                                text = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = LanguageHelper.formatCurrency(54250.00, languageMode),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = LanguageHelper.formatCurrency(54250.00, languageMode),
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = if (isBangla)
-                            "লেজার, ড্যাশবোর্ড এবং ব্যালেন্স শীটে এভাবে মুদ্রা দেখানো হবে।"
-                        else
-                            "This is how all amounts will be formatted in your Ledger, Dashboard, and Balance Sheet.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Text(
+                            text = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             }
 
-            // Display Mode Placement
+            // Compact Display Mode Placement Chips
             Text(
-                text = if (isBangla) "মুদ্রা প্রদর্শনের ধরন (প্লেসমেন্ট)" else "Symbol Placement & Display Mode",
-                fontSize = 13.sp,
+                text = if (isBangla) "মুদ্রা প্রদর্শনের ধরন (প্লেসমেন্ট)" else "Display Mode & Placement",
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 CurrencyDisplayMode.values().forEach { mode ->
                     val isSelected = currencyConfig.displayMode == mode
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { viewModel.setCurrencyDisplayMode(mode) }
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(
-                                text = if (isBangla) mode.titleBn else mode.titleEn,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = when (mode) {
-                                    CurrencyDisplayMode.SYMBOL_ONLY -> "${currencyConfig.activeSymbol} 500"
-                                    CurrencyDisplayMode.CODE_ONLY -> "${currencyConfig.activeCode} 500"
-                                    CurrencyDisplayMode.CODE_AND_SYMBOL -> "${currencyConfig.activeCode} ${currencyConfig.activeSymbol} 500"
-                                    CurrencyDisplayMode.NONE -> "500"
-                                },
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
+                    val title = when (mode) {
+                        CurrencyDisplayMode.SYMBOL_ONLY -> if (isBangla) "শুধু প্রতীক" else "Symbol"
+                        CurrencyDisplayMode.CODE_ONLY -> if (isBangla) "শুধু কোড" else "Code"
+                        CurrencyDisplayMode.CODE_AND_SYMBOL -> if (isBangla) "উভয়" else "Both"
+                        CurrencyDisplayMode.NONE -> if (isBangla) "কোনোটি না" else "None"
                     }
-                }
-            }
+                    val sample = when (mode) {
+                        CurrencyDisplayMode.SYMBOL_ONLY -> "${currencyConfig.activeSymbol}500"
+                        CurrencyDisplayMode.CODE_ONLY -> "${currencyConfig.activeCode} 500"
+                        CurrencyDisplayMode.CODE_AND_SYMBOL -> "${currencyConfig.activeCode} ${currencyConfig.activeSymbol}500"
+                        CurrencyDisplayMode.NONE -> "500"
+                    }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Popular Currencies Section
-            Text(
-                text = if (isBangla) "জনপ্রিয় মুদ্রাসমূহ" else "Popular Currencies",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CurrencyPreferences.POPULAR_CURRENCIES.forEach { item ->
-                    val isSelected = currencyConfig.selectedCode == item.code && currencyConfig.customSymbol.isBlank()
-                    val itemName = if (isBangla) item.nameBn else item.nameEn
                     FilterChip(
                         selected = isSelected,
-                        onClick = { viewModel.setCurrency(item) },
-                        leadingIcon = {
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        onClick = { viewModel.setCurrencyDisplayMode(mode) },
+                        label = {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            ) {
+                                Text(title, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                Text(sample, fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
                             }
                         },
-                        label = {
-                            Text(
-                                text = "${item.symbol}  ${item.code} ($itemName)",
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.primary
@@ -248,33 +190,61 @@ fun CurrencySettingsPage(
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            // Compact Popular Currencies Grid/Chips
+            Text(
+                text = if (isBangla) "জনপ্রিয় মুদ্রাসমূহ" else "Popular Currencies",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-            // Custom Currency Code & Symbol
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                CurrencyPreferences.POPULAR_CURRENCIES.forEach { item ->
+                    val isSelected = currencyConfig.selectedCode == item.code && currencyConfig.customSymbol.isBlank()
+                    val itemName = if (isBangla) item.nameBn else item.nameEn
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.setCurrency(item) },
+                        leadingIcon = if (isSelected) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                        } else null,
+                        label = {
+                            Text(
+                                text = "${item.symbol} ${item.code} • $itemName",
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                }
+            }
+
+            // Compact Custom Currency Code & Symbol Card
             Card(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = if (isBangla) "কাস্টম মুদ্রা ও প্রতীক" else "Custom Currency & Symbol",
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isBangla)
-                            "যদি আপনার পছন্দের মুদ্রা তালিকায় না থাকে, তবে নিচের বক্সে নিজস্ব কোড ও প্রতীক লিখুন।"
-                        else
-                            "If your preferred currency is not listed above, enter a custom 3-letter code and symbol below.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
                     )
 
                     Row(
@@ -287,9 +257,9 @@ fun CurrencySettingsPage(
                                 customCodeInput = it
                                 viewModel.setCustomCurrency(it, customSymbolInput)
                             },
-                            label = { Text(if (isBangla) "কোড (যেমন BDT)" else "Code (e.g. BDT)", fontSize = 11.sp) },
+                            label = { Text(if (isBangla) "কোড (যেমন BDT)" else "Code (e.g. BDT)", fontSize = 10.sp) },
                             singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
@@ -298,9 +268,9 @@ fun CurrencySettingsPage(
                                 customSymbolInput = it
                                 viewModel.setCustomCurrency(customCodeInput, it)
                             },
-                            label = { Text(if (isBangla) "প্রতীক (যেমন ৳)" else "Symbol (e.g. ৳)", fontSize = 11.sp) },
+                            label = { Text(if (isBangla) "প্রতীক (যেমন ৳)" else "Symbol (e.g. ৳)", fontSize = 10.sp) },
                             singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -310,22 +280,24 @@ fun CurrencySettingsPage(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            Button(
+                            OutlinedButton(
                                 onClick = {
                                     customCodeInput = ""
                                     customSymbolInput = ""
                                     viewModel.setCustomCurrency("", "")
                                 },
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(6.dp)
                             ) {
-                                Text(if (isBangla) "রিসেট করুন" else "Clear Custom", fontSize = 11.sp)
+                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (isBangla) "রিসেট" else "Clear", fontSize = 11.sp)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
