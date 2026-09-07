@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -2280,30 +2281,51 @@ private fun SectionHeader(
         )
 
         if (showOnlyCurrentBalance) {
-            Text(
-                text = formatBalance(currentAmount, displayCurrency, languageMode),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier.widthIn(min = 85.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = formatBalance(currentAmount, displayCurrency, languageMode),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.End
+                )
+            }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = formatBalance(baseAmount, displayCurrency, languageMode),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.widthIn(min = 75.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
                     Text(
-                        text = formatBalance(currentAmount, displayCurrency, languageMode),
+                        text = formatBalance(baseAmount, displayCurrency, languageMode),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.End
                     )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    ChangeIndicator(delta = delta)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier.widthIn(min = 85.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = formatBalance(currentAmount, displayCurrency, languageMode),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.End
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        ChangeIndicator(delta = delta)
+                    }
                 }
             }
         }
@@ -2432,13 +2454,19 @@ private fun BalanceSheetGroupItem(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = formatBalance(group.currentBalance, displayCurrency, languageMode),
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
-                        )
+                        Box(
+                            modifier = Modifier.widthIn(min = 85.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Text(
+                                text = formatBalance(group.currentBalance, displayCurrency, languageMode),
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                textAlign = TextAlign.End
+                            )
+                        }
                         if (isCalcMode) {
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
@@ -2470,24 +2498,39 @@ private fun BalanceSheetGroupItem(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = formatBalance(group.baseBalance, displayCurrency, languageMode),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.widthIn(min = 75.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
                             Text(
-                                text = formatBalance(group.currentBalance, displayCurrency, languageMode),
+                                text = formatBalance(group.baseBalance, displayCurrency, languageMode),
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Medium,
                                 color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
+                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                textAlign = TextAlign.End
                             )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            ChangeIndicator(delta = group.delta)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(
+                            modifier = Modifier.widthIn(min = 85.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    text = formatBalance(group.currentBalance, displayCurrency, languageMode),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                                    textAlign = TextAlign.End
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                ChangeIndicator(delta = group.delta)
+                            }
                         }
 
                         if (isCalcMode) {
@@ -2642,13 +2685,19 @@ private fun SubAccountRowItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
-                Text(
-                    text = formatBalance(row.currentBalance, displayCurrency, languageMode),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
-                )
+                Box(
+                    modifier = Modifier.widthIn(min = 85.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Text(
+                        text = formatBalance(row.currentBalance, displayCurrency, languageMode),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                        textAlign = TextAlign.End
+                    )
+                }
                 if (isCalcMode) {
                     Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
@@ -2680,23 +2729,38 @@ private fun SubAccountRowItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
-                Text(
-                    text = formatBalance(row.baseBalance, displayCurrency, languageMode),
-                    fontSize = 11.sp,
-                    color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
-                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.widthIn(min = 75.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
                     Text(
-                        text = formatBalance(row.currentBalance, displayCurrency, languageMode),
+                        text = formatBalance(row.baseBalance, displayCurrency, languageMode),
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
-                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
+                        color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                        textAlign = TextAlign.End
                     )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    ChangeIndicator(delta = row.delta)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier.widthIn(min = 85.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = formatBalance(row.currentBalance, displayCurrency, languageMode),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
+                            textAlign = TextAlign.End
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        ChangeIndicator(delta = row.delta)
+                    }
                 }
 
                 if (isCalcMode) {
