@@ -534,7 +534,7 @@ fun SettingsScreen(
                             .height(180.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(com.example.util.DateFormatOption.values().toList()) { option ->
+                        items(com.example.util.DateFormatOption.entries.toList()) { option ->
                             val isSelected = displayFormatConfig.dateFormatPattern == option.pattern
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
@@ -580,16 +580,24 @@ fun SettingsScreen(
 
                     // Custom pattern field if CUSTOM selected
                     if (displayFormatConfig.dateFormatPattern == com.example.util.DateFormatOption.CUSTOM.pattern) {
-                        OutlinedTextField(
-                            value = customPatternInput,
-                            onValueChange = {
-                                customPatternInput = it
-                                viewModel.setCustomDateFormat(it)
-                            },
-                            label = { Text("Custom Pattern (e.g. yyyy/MM/dd, dd.MM.yyyy)", fontSize = 10.sp) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            OutlinedTextField(
+                                value = customPatternInput,
+                                onValueChange = {
+                                    customPatternInput = it
+                                    viewModel.setCustomDateFormat(it)
+                                },
+                                label = { Text("Custom Pattern (e.g. dddd, d MMM YYYY)", fontSize = 10.sp) },
+                                placeholder = { Text("e.g. DDD, DD MMM YYYY or dddd, d MMMM") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "Tokens: d (6), DD (06), DDD (Sun), dddd (Sunday), MMM (Sep), MMMM (September), YYYY (2026)",
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))

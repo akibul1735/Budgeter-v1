@@ -800,15 +800,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
             try {
+                val targetDir = backupSettingsConfig.value.localBackupDirectory
                 val file = BackupManager.createLocalBackupFile(
                     context = getApplication(),
                     accountDao = activeRepo.accountDao,
                     categoryDao = activeRepo.categoryDao,
                     transactionDao = activeRepo.transactionDao,
                     recurringBillDao = activeRepo.recurringBillDao,
-                    monthlyBudgetDao = activeRepo.monthlyBudgetDao
+                    monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                    targetDirectory = targetDir
                 )
-                _backupUiState.value = BackupUiState.Success("Backup created successfully: ${file.name}")
+                _backupUiState.value = BackupUiState.Success("Backup created successfully: ${file.name}\nSaved to: ${file.parent ?: "Storage"}")
                 onFileReady(file)
             } catch (e: Exception) {
                 _backupUiState.value = BackupUiState.Error("Backup failed: ${e.localizedMessage}")
@@ -989,7 +991,32 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun confirmCsvImport(skipDuplicates: Boolean, autoCreateEntities: Boolean) {
+    fun updateCsvCustomMapping(customHeaderMap: Map<String, Int>) {
+        val uri = _pendingCsvUri.value ?: return
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = CsvManager.parseCsvForPreview(
+                context = getApplication(),
+                uri = uri,
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                customHeaderMap = customHeaderMap
+            )
+            result.onSuccess { preview ->
+                _backupUiState.value = BackupUiState.Idle
+                _csvImportPreview.value = preview
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("CSV Parsing failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun confirmCsvImport(
+        skipDuplicates: Boolean,
+        autoCreateEntities: Boolean,
+        customHeaderMap: Map<String, Int>? = null
+    ) {
         val uri = _pendingCsvUri.value ?: return
         viewModelScope.launch {
             _isImportingCsv.value = true
@@ -1001,7 +1028,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao,
                 skipDuplicates = skipDuplicates,
-                autoCreateEntities = autoCreateEntities
+                autoCreateEntities = autoCreateEntities,
+                customHeaderMap = customHeaderMap
             )
             _isImportingCsv.value = false
             _csvImportPreview.value = null
@@ -1013,6 +1041,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     if (res.createdCategoriesCount > 0) append(", created ${res.createdCategoriesCount} categories")
                     if (res.createdAccountsCount > 0) append(", created ${res.createdAccountsCount} accounts")
                     if (res.skippedDuplicatesCount > 0) append(" (${res.skippedDuplicatesCount} duplicates skipped)")
+                    if (res.unsupportedCount > 0) append(", ${res.unsupportedCount} unsupported rows skipped")
                 }
                 _backupUiState.value = BackupUiState.Success(msg)
                 if (!_isDemoMode.value) {

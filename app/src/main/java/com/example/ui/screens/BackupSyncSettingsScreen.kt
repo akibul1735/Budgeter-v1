@@ -1353,11 +1353,15 @@ fun BackupSyncSettingsScreen(
             preview = preview,
             languageMode = languageMode,
             isImporting = isImportingCsv,
-            onConfirmImport = { skipDuplicates, autoCreateEntities ->
+            onConfirmImport = { skipDuplicates, autoCreateEntities, customHeaderMap ->
                 viewModel.confirmCsvImport(
                     skipDuplicates = skipDuplicates,
-                    autoCreateEntities = autoCreateEntities
+                    autoCreateEntities = autoCreateEntities,
+                    customHeaderMap = customHeaderMap
                 )
+            },
+            onRemapRequested = { customHeaderMap ->
+                viewModel.updateCsvCustomMapping(customHeaderMap)
             },
             onDismiss = {
                 viewModel.clearCsvImportPreview()

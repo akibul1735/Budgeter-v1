@@ -41,7 +41,8 @@ object BackupManager {
     private val adapter = moshi.adapter(BudgetBackupData::class.java)
 
     /**
-     * Creates a JSON backup in the app's cache / files dir and returns the file
+     * Creates a JSON backup in the designated target directory, public Documents/Budgeter,
+     * external app storage, and internal storage, ensuring the backup is readily visible to the user.
      */
     suspend fun createLocalBackupFile(
         context: Context,
@@ -49,7 +50,8 @@ object BackupManager {
         categoryDao: CategoryDao,
         transactionDao: TransactionDao,
         recurringBillDao: RecurringBillDao,
-        monthlyBudgetDao: MonthlyBudgetDao? = null
+        monthlyBudgetDao: MonthlyBudgetDao? = null,
+        targetDirectory: String? = null
     ): File = withContext(Dispatchers.IO) {
         val backupData = BudgetBackupData(
             accounts = accountDao.getAllAccountsSnapshot(),
@@ -62,12 +64,71 @@ object BackupManager {
 
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val fileName = "Budgeter_Backup_$timeStamp.json"
-        val backupDir = File(context.filesDir, "backups")
-        if (!backupDir.exists()) backupDir.mkdirs()
+        
+        var primaryFile: File? = null
 
-        val file = File(backupDir, fileName)
-        file.writeText(json)
-        file
+        // 1. Write to Custom Target Directory if specified
+        if (!targetDirectory.isNullOrBlank()) {
+            if (targetDirectory.startsWith("content://")) {
+                try {
+                    val treeUri = Uri.parse(targetDirectory)
+                    val pickedDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                    if (pickedDir != null && pickedDir.exists() && pickedDir.canWrite()) {
+                        val newDoc = pickedDir.createFile("application/json", fileName)
+                        if (newDoc != null) {
+                            context.contentResolver.openOutputStream(newDoc.uri)?.use { out ->
+                                out.write(json.toByteArray(Charsets.UTF_8))
+                                out.flush()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else {
+                try {
+                    val customDir = File(targetDirectory)
+                    if (!customDir.exists()) customDir.mkdirs()
+                    if (customDir.exists() && customDir.canWrite()) {
+                        val f = File(customDir, fileName)
+                        f.writeText(json)
+                        primaryFile = f
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
+        // 2. Write to Public Documents / Budgeter directory for user accessibility
+        try {
+            val publicDocs = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS), "Budgeter")
+            if (!publicDocs.exists()) publicDocs.mkdirs()
+            if (publicDocs.exists() && publicDocs.canWrite()) {
+                val f = File(publicDocs, fileName)
+                f.writeText(json)
+                if (primaryFile == null) primaryFile = f
+            }
+        } catch (_: Exception) {}
+
+        // 3. Write to App External Files Dir
+        try {
+            val extDir = File(context.getExternalFilesDir(null), "backups")
+            if (!extDir.exists()) extDir.mkdirs()
+            if (extDir.exists()) {
+                val f = File(extDir, fileName)
+                f.writeText(json)
+                if (primaryFile == null) primaryFile = f
+            }
+        } catch (_: Exception) {}
+
+        // 4. Always ensure a backup copy in App Internal Files Dir
+        val internalDir = File(context.filesDir, "backups")
+        if (!internalDir.exists()) internalDir.mkdirs()
+        val internalFile = File(internalDir, fileName)
+        internalFile.writeText(json)
+
+        primaryFile ?: internalFile
     }
 
     /**
@@ -149,24 +210,62 @@ object BackupManager {
     }
 
     /**
-     * List all local auto/manual backups from custom directory and default app storage
+     * List all local auto/manual backups from custom directory, Documents/Budgeter,
+     * Downloads/Budgeter, and default app storage locations.
      */
     fun listLocalBackups(context: Context, customDirectoryPath: String? = null): List<File> {
         val resultList = mutableListOf<File>()
+        
+        // 1. App internal backups
         val defaultDir = File(context.filesDir, "backups")
         if (defaultDir.exists()) {
             defaultDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
                 resultList.addAll(it)
             }
         }
-        if (!customDirectoryPath.isNullOrBlank() && !customDirectoryPath.startsWith("content://")) {
-            val customDir = File(customDirectoryPath)
-            if (customDir.exists() && customDir.isDirectory && customDir.absolutePath != defaultDir.absolutePath) {
-                customDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+
+        // 2. App external backups
+        try {
+            val extDir = File(context.getExternalFilesDir(null), "backups")
+            if (extDir.exists()) {
+                extDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
                     resultList.addAll(it)
                 }
             }
+        } catch (_: Exception) {}
+
+        // 3. Public Documents/Budgeter
+        try {
+            val docsDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS), "Budgeter")
+            if (docsDir.exists() && docsDir.isDirectory) {
+                docsDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+                    resultList.addAll(it)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 4. Public Downloads/Budgeter
+        try {
+            val dlDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "Budgeter")
+            if (dlDir.exists() && dlDir.isDirectory) {
+                dlDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+                    resultList.addAll(it)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 5. Custom directory if provided
+        if (!customDirectoryPath.isNullOrBlank() && !customDirectoryPath.startsWith("content://")) {
+            try {
+                val customDir = File(customDirectoryPath)
+                if (customDir.exists() && customDir.isDirectory) {
+                    customDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+                        resultList.addAll(it)
+                    }
+                }
+            } catch (_: Exception) {}
         }
-        return resultList.distinctBy { it.absolutePath }.sortedByDescending { it.lastModified() }
+        
+        return resultList.distinctBy { it.name }.sortedByDescending { it.lastModified() }
     }
 }

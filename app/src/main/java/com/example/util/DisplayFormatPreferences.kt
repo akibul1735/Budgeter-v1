@@ -18,21 +18,24 @@ enum class DateFormatOption(
     val titleBn: String,
     val example: String
 ) {
-    DD_MMM_YYYY("dd MMM, yyyy", "DD MMM, YYYY", "০৬ সেপ্টে, ২০২৬", "06 Sep, 2026"),
+    D_MMM_YYYY("d MMM, yyyy", "d MMM, yyyy (d)", "৬ সেপ্টে, ২০২৬", "6 Sep, 2026"),
+    DD_MMM_YYYY("dd MMM, yyyy", "DD MMM, yyyy (DD)", "০৬ সেপ্টে, ২০২৬", "06 Sep, 2026"),
+    DDD_DD_MMM_YYYY("EEE, dd MMM yyyy", "DDD, DD MMM yyyy (DDD)", "রবি, ০৬ সেপ্টে ২০২৬", "Sun, 06 Sep 2026"),
+    DDDD_DD_MMMM_YYYY("EEEE, dd MMMM yyyy", "dddd, DD MMMM yyyy (dddd)", "রবিবার, ০৬ সেপ্টেম্বর ২০২৬", "Sunday, 06 September 2026"),
+    DDDD_D_MMMM_YYYY("EEEE, d MMMM yyyy", "dddd, d MMMM yyyy (dddd, d)", "রবিবার, ৬ সেপ্টেম্বর ২০২৬", "Sunday, 6 September 2026"),
     DD_MM_YYYY("dd/MM/yyyy", "DD/MM/YYYY", "০৬/০৯/২০২৬", "06/09/2026"),
+    D_M_YYYY("d/M/yyyy", "d/M/yyyy", "৬/৯/২০২৬", "6/9/2026"),
     DD_DASH_MM_DASH_YYYY("dd-MM-yyyy", "DD-MM-YYYY", "০৬-০৯-২০২৬", "06-09-2026"),
     YYYY_MM_DD("yyyy-MM-dd", "YYYY-MM-DD (ISO)", "২০২৬-০৯-০৬", "2026-09-06"),
     MM_DD_YYYY("MM/dd/yyyy", "MM/DD/YYYY (US)", "০৯/০৬/২০২৬", "09/06/2026"),
     DD_MMMM_YYYY("dd MMMM, yyyy", "DD MMMM, YYYY", "০৬ সেপ্টেম্বর, ২০২৬", "06 September, 2026"),
-    DAY_DD_MMM_YYYY("EEE, dd MMM yyyy", "Day, DD MMM YYYY", "রবি, ০৬ সেপ্টে ২০২৬", "Sun, 06 Sep 2026"),
-    D_MMM_YYYY("d MMM, yyyy", "D MMM, YYYY", "৬ সেপ্টে, ২০২৬", "6 Sep, 2026"),
-    MMMM_D_YYYY("MMMM d, yyyy", "MMMM D, YYYY", "সেপ্টেম্বর ৬, ২০২৬", "September 6, 2026"),
+    MMMM_D_YYYY("MMMM d, yyyy", "MMMM d, YYYY", "সেপ্টেম্বর ৬, ২০২৬", "September 6, 2026"),
     YYYY_SLASH_MM_SLASH_DD("yyyy/MM/dd", "YYYY/MM/DD", "২০২৬/০৯/০৬", "2026/09/06"),
-    CUSTOM("CUSTOM", "Custom Format", "কাস্টম ফরম্যাট", "Custom pattern");
+    CUSTOM("CUSTOM", "Custom Format (d, DD, DDD, dddd, etc.)", "কাস্টম ফরম্যাট (d, DD, DDD, dddd)", "Custom pattern");
 
     companion object {
         fun fromPattern(pattern: String): DateFormatOption {
-            return values().firstOrNull { it.pattern == pattern } ?: CUSTOM
+            return entries.firstOrNull { it.pattern == pattern } ?: CUSTOM
         }
     }
 }

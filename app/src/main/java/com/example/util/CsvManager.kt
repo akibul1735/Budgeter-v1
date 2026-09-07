@@ -68,6 +68,19 @@ data class CsvExportConfig(
     val includedColumns: Set<CsvColumn> = CsvColumn.entries.toSet()
 )
 
+data class ColumnMapping(
+    val csvHeaderIndex: Int,
+    val csvHeaderName: String,
+    val targetAppColumnKey: String? // e.g. "type", "date", "amount", "category", "account", "notes", etc.
+)
+
+data class UnsupportedRow(
+    val lineNumber: Int,
+    val rawTokens: List<String>,
+    val reason: String,
+    val suggestion: String
+)
+
 data class ParsedCsvRow(
     val rawLineNumber: Int,
     val type: TransactionType,
@@ -89,14 +102,20 @@ data class ParsedCsvRow(
     val status: String,
     val isDuplicate: Boolean = false,
     val isValid: Boolean = true,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val suggestion: String? = null
 )
 
 data class CsvImportPreview(
     val totalRows: Int,
     val validRows: Int,
     val duplicateRows: Int,
+    val unsupportedRowsCount: Int,
+    val columnMappings: List<ColumnMapping>,
+    val rawHeaders: List<String>,
+    val detectedHeaderMap: Map<String, Int>,
     val sampleRows: List<ParsedCsvRow>,
+    val unsupportedRows: List<UnsupportedRow>,
     val newCategoryGroups: List<String>,
     val newCategories: List<Pair<String, String>>, // Group -> Category
     val newAccountGroups: List<String>,
@@ -107,7 +126,9 @@ data class CsvImportResult(
     val importedCount: Int,
     val createdCategoriesCount: Int,
     val createdAccountsCount: Int,
-    val skippedDuplicatesCount: Int
+    val skippedDuplicatesCount: Int,
+    val unsupportedCount: Int = 0,
+    val unsupportedDetails: List<UnsupportedRow> = emptyList()
 )
 
 object CsvManager {
@@ -131,11 +152,16 @@ object CsvManager {
         "dd-MM-yyyy",
         "yyyy/MM/dd",
         "dd.MM.yyyy",
+        "yyyy.MM.dd",
         "d/M/yyyy",
         "M/d/yyyy",
+        "d-M-yyyy",
         "dd-MMM-yyyy",
         "dd MMM yyyy",
+        "dd MMMM yyyy",
         "MMM dd, yyyy",
+        "MMMM dd, yyyy",
+        "dd-MMM-yy",
         "yyyyMMdd",
         "MM/dd/yy",
         "dd/MM/yy"
@@ -150,6 +176,16 @@ object CsvManager {
         "h:mm:ss a",
         "H:mm"
     )
+
+    internal fun normalizeNumerals(str: String): String {
+        return str.map { ch ->
+            when (ch) {
+                '০' -> '0'; '১' -> '1'; '২' -> '2'; '৩' -> '3'; '৪' -> '4'
+                '৫' -> '5'; '৬' -> '6'; '৭' -> '7'; '৮' -> '8'; '৯' -> '9'
+                else -> ch
+            }
+        }.joinToString("")
+    }
 
     internal fun cleanCategoryGroupName(group: String): String {
         var cleaned = group.trim()
@@ -170,7 +206,8 @@ object CsvManager {
         uri: Uri,
         accountDao: AccountDao,
         categoryDao: CategoryDao,
-        transactionDao: TransactionDao
+        transactionDao: TransactionDao,
+        customHeaderMap: Map<String, Int>? = null
     ): Result<CsvImportPreview> = withContext(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
@@ -190,15 +227,27 @@ object CsvManager {
             val existingAccNames = existingAccounts.map { it.nameEn.lowercase().trim() }.toSet()
             val existingCatNames = existingCategories.map { it.nameEn.lowercase().trim() }.toSet()
 
-            // Header mapping
-            val (headerMap, headerIndex) = detectHeaderMapping(lines)
+            // Header mapping detection
+            val (detectedMap, headerIndex, rawHeaders) = detectHeaderMapping(lines)
+            val effectiveHeaderMap = customHeaderMap ?: detectedMap
             val dataLines = lines.drop(headerIndex + 1).filter { it.isNotBlank() }
 
             if (dataLines.isEmpty()) {
                 return@withContext Result.failure(Exception("No transaction data rows found in CSV"))
             }
 
+            // Build ColumnMapping list
+            val columnMappings = rawHeaders.mapIndexed { idx, headerTitle ->
+                val matchedKey = effectiveHeaderMap.entries.firstOrNull { it.value == idx }?.key
+                ColumnMapping(
+                    csvHeaderIndex = idx,
+                    csvHeaderName = headerTitle,
+                    targetAppColumnKey = matchedKey
+                )
+            }
+
             val parsedRows = mutableListOf<ParsedCsvRow>()
+            val unsupportedRows = mutableListOf<UnsupportedRow>()
             val newCatGroups = mutableSetOf<String>()
             val newCats = mutableSetOf<Pair<String, String>>()
             val newAccGroups = mutableSetOf<String>()
@@ -207,11 +256,35 @@ object CsvManager {
             var duplicateCount = 0
 
             dataLines.forEachIndexed { index, line ->
+                val lineNo = index + headerIndex + 2
                 val tokens = parseCsvLine(line)
-                if (tokens.isEmpty()) return@forEachIndexed
+                if (tokens.isEmpty()) {
+                    unsupportedRows.add(
+                        UnsupportedRow(
+                            lineNumber = lineNo,
+                            rawTokens = emptyList(),
+                            reason = "Empty row",
+                            suggestion = "Remove empty lines or check line endings."
+                        )
+                    )
+                    return@forEachIndexed
+                }
 
-                val row = parseRowFromTokens(tokens, headerMap, index + headerIndex + 2)
-                if (!row.isValid) return@forEachIndexed
+                val row = parseRowFromTokens(tokens, effectiveHeaderMap, lineNo)
+                if (!row.isValid) {
+                    val rawTokens = tokens.take(8)
+                    val reason = row.errorMessage ?: "Validation failed"
+                    val suggestion = row.suggestion ?: "Verify that Date and Amount columns are mapped correctly."
+                    unsupportedRows.add(
+                        UnsupportedRow(
+                            lineNumber = lineNo,
+                            rawTokens = rawTokens,
+                            reason = reason,
+                            suggestion = suggestion
+                        )
+                    )
+                    return@forEachIndexed
+                }
 
                 // Check duplicates (same date within +/- 2 minutes, same rounded amount, same type, matching note/name)
                 val isDup = existingTransactions.any { existing ->
@@ -253,7 +326,12 @@ object CsvManager {
                 totalRows = dataLines.size,
                 validRows = parsedRows.size,
                 duplicateRows = duplicateCount,
+                unsupportedRowsCount = unsupportedRows.size,
+                columnMappings = columnMappings,
+                rawHeaders = rawHeaders,
+                detectedHeaderMap = effectiveHeaderMap,
                 sampleRows = parsedRows.take(15),
+                unsupportedRows = unsupportedRows.take(20),
                 newCategoryGroups = newCatGroups.toList(),
                 newCategories = newCats.toList(),
                 newAccountGroups = newAccGroups.toList(),
@@ -277,7 +355,8 @@ object CsvManager {
         categoryDao: CategoryDao,
         transactionDao: TransactionDao,
         skipDuplicates: Boolean = true,
-        autoCreateEntities: Boolean = true
+        autoCreateEntities: Boolean = true,
+        customHeaderMap: Map<String, Int>? = null
     ): Result<CsvImportResult> = withContext(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
@@ -289,7 +368,8 @@ object CsvManager {
                 return@withContext Result.failure(Exception("CSV file is empty"))
             }
 
-            val (headerMap, headerIndex) = detectHeaderMapping(lines)
+            val (detectedMap, headerIndex, _) = detectHeaderMapping(lines)
+            val headerMap = customHeaderMap ?: detectedMap
             val dataLines = lines.drop(headerIndex + 1).filter { it.isNotBlank() }
 
             val accounts = accountDao.getAllAccountsSnapshot().toMutableList()
@@ -344,6 +424,7 @@ object CsvManager {
             var createdCatCount = 0
             var createdAccCount = 0
             var skippedDupCount = 0
+            val unsupportedList = mutableListOf<UnsupportedRow>()
 
             // Helper container for two-pass transfer pairing
             data class ResolvedImportItem(
@@ -357,11 +438,32 @@ object CsvManager {
             val resolvedItems = mutableListOf<ResolvedImportItem>()
 
             for ((index, line) in dataLines.withIndex()) {
+                val lineNo = index + headerIndex + 2
                 val tokens = parseCsvLine(line)
-                if (tokens.isEmpty()) continue
+                if (tokens.isEmpty()) {
+                    unsupportedList.add(
+                        UnsupportedRow(
+                            lineNumber = lineNo,
+                            rawTokens = emptyList(),
+                            reason = "Empty row",
+                            suggestion = "Remove empty rows from CSV."
+                        )
+                    )
+                    continue
+                }
 
-                val row = parseRowFromTokens(tokens, headerMap, index + headerIndex + 2)
-                if (!row.isValid || row.amount <= 0.0) continue
+                val row = parseRowFromTokens(tokens, headerMap, lineNo)
+                if (!row.isValid || row.amount <= 0.0) {
+                    unsupportedList.add(
+                        UnsupportedRow(
+                            lineNumber = lineNo,
+                            rawTokens = tokens.take(8),
+                            reason = row.errorMessage ?: "Invalid row data",
+                            suggestion = row.suggestion ?: "Check date/amount columns in Column Mapping."
+                        )
+                    )
+                    continue
+                }
 
                 // Check duplicate against DB
                 val isDup = existingTransactions.any { existing ->
@@ -670,7 +772,9 @@ object CsvManager {
                     importedCount = importedCount,
                     createdCategoriesCount = createdCatCount,
                     createdAccountsCount = createdAccCount,
-                    skippedDuplicatesCount = skippedDupCount
+                    skippedDuplicatesCount = skippedDupCount,
+                    unsupportedCount = unsupportedList.size,
+                    unsupportedDetails = unsupportedList.take(20)
                 )
             )
         } catch (e: Exception) {
@@ -884,14 +988,17 @@ object CsvManager {
 
     // Helper functions
 
-    internal fun detectHeaderMapping(lines: List<String>): Pair<Map<String, Int>, Int> {
+    internal fun detectHeaderMapping(lines: List<String>): Triple<Map<String, Int>, Int, List<String>> {
         val headerMap = mutableMapOf<String, Int>()
         var headerIndex = 0
+        var rawHeaders = emptyList<String>()
 
         for (i in 0 until minOf(5, lines.size)) {
-            val tokens = parseCsvLine(lines[i]).map { it.lowercase().trim() }
+            val rawTokens = parseCsvLine(lines[i])
+            val tokens = rawTokens.map { it.lowercase().trim() }
             if (tokens.any { it.contains("type") || it.contains("date") || it.contains("amount") || it.contains("category") || it.contains("account") }) {
                 headerIndex = i
+                rawHeaders = rawTokens
                 tokens.forEachIndexed { colIdx, colName ->
                     val cleanCol = colName.replace("_", " ").replace("-", " ")
                     when {
@@ -915,7 +1022,10 @@ object CsvManager {
                 break
             }
         }
-        return Pair(headerMap, headerIndex)
+        if (rawHeaders.isEmpty() && lines.isNotEmpty()) {
+            rawHeaders = parseCsvLine(lines[0])
+        }
+        return Triple(headerMap, headerIndex, rawHeaders)
     }
 
     internal fun parseRowFromTokens(
@@ -925,7 +1035,7 @@ object CsvManager {
     ): ParsedCsvRow {
         fun get(key: String, defaultIdx: Int? = null): String {
             val idx = headerMap[key] ?: defaultIdx
-            return if (idx != null && idx < tokens.size) tokens[idx].trim() else ""
+            return if (idx != null && idx >= 0 && idx < tokens.size) tokens[idx].trim() else ""
         }
 
         val typeStr = get("type", 0)
@@ -962,6 +1072,23 @@ object CsvManager {
         val dateFormatted = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(dateEpoch))
         val timeFormatted = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(dateEpoch))
 
+        var errorReason: String? = null
+        var suggestion: String? = null
+
+        if (finalAmount <= 0.0 && amountStr.isBlank()) {
+            errorReason = "Amount column is empty"
+            suggestion = "Map the 'Amount' field to the correct CSV column in Column Mapping."
+        } else if (finalAmount <= 0.0) {
+            errorReason = "Invalid amount value: '$amountStr'"
+            suggestion = "Verify amount contains numbers (e.g. 500, 120.50). Currency symbols and commas are auto-stripped."
+        } else if (dateEpoch <= 0L && dateStr.isBlank()) {
+            errorReason = "Date column is empty"
+            suggestion = "Map the 'Date' field to the date column in your CSV file."
+        } else if (dateEpoch <= 0L) {
+            errorReason = "Unrecognized date format: '$dateStr'"
+            suggestion = "Use supported formats like YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, or DD-MMM-YYYY."
+        }
+
         val isValid = dateEpoch > 0 && finalAmount > 0.0
 
         return ParsedCsvRow(
@@ -984,7 +1111,8 @@ object CsvManager {
             labels = labelsStr,
             status = statusStr,
             isValid = isValid,
-            errorMessage = if (!isValid) "Invalid amount or date" else null
+            errorMessage = errorReason,
+            suggestion = suggestion
         )
     }
 
@@ -1011,7 +1139,8 @@ object CsvManager {
 
     private fun parseAmount(str: String): Double {
         if (str.isBlank()) return 0.0
-        val cleaned = str.replace("$", "").replace("৳", "").replace("€", "").replace("£", "").replace("₹", "")
+        val normalized = normalizeNumerals(str)
+        val cleaned = normalized.replace("$", "").replace("৳", "").replace("€", "").replace("£", "").replace("₹", "")
             .replace(",", "").replace(" ", "").trim()
         return try {
             if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
@@ -1027,12 +1156,13 @@ object CsvManager {
     private fun parseDateTimeEpoch(dateStr: String, timeStr: String): Long {
         if (dateStr.isBlank()) return System.currentTimeMillis()
 
+        val normalizedDate = normalizeNumerals(dateStr.trim())
         var parsedDate: Date? = null
         for (pattern in DATE_FORMATS) {
             try {
                 val sdf = SimpleDateFormat(pattern, Locale.US)
                 sdf.isLenient = true
-                val d = sdf.parse(dateStr.trim())
+                val d = sdf.parse(normalizedDate)
                 if (d != null) {
                     parsedDate = d
                     break
@@ -1040,17 +1170,18 @@ object CsvManager {
             } catch (_: Exception) {}
         }
 
-        if (parsedDate == null) return System.currentTimeMillis()
+        if (parsedDate == null) return -1L
 
         val cal = Calendar.getInstance()
         cal.time = parsedDate
 
         if (timeStr.isNotBlank()) {
+            val normalizedTime = normalizeNumerals(timeStr.trim())
             for (timePattern in TIME_FORMATS) {
                 try {
                     val sdf = SimpleDateFormat(timePattern, Locale.US)
                     sdf.isLenient = true
-                    val t = sdf.parse(timeStr.trim())
+                    val t = sdf.parse(normalizedTime)
                     if (t != null) {
                         val tCal = Calendar.getInstance()
                         tCal.time = t

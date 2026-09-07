@@ -32,6 +32,48 @@ object DateUtils {
         "রবিবার", "সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার"
     )
 
+    /**
+     * Normalizes user-entered pattern tokens to standard Java SimpleDateFormat pattern:
+     * - dddd / DDDD -> EEEE (Full day of week, e.g., Sunday / রবিবার)
+     * - ddd / DDD -> EEE (Short day of week, e.g., Sun / রবি)
+     * - DD -> dd (2-digit day of month, e.g., 06)
+     * - d / D -> d (1-digit day of month, e.g., 6)
+     * - YYYY -> yyyy, YY -> yy
+     */
+    fun normalizePattern(pattern: String): String {
+        if (pattern.isBlank()) return "dd MMM, yyyy"
+
+        var p = pattern
+
+        // Replace 4-letter day of week (dddd, DDDD) with placeholder
+        p = p.replace("dddd", "\u0001")
+            .replace("DDDD", "\u0001")
+
+        // Replace 3-letter day of week (ddd, DDD) with placeholder
+        p = p.replace("ddd", "\u0002")
+            .replace("DDD", "\u0002")
+
+        // Replace 2-digit day of month (DD, dd) with placeholder
+        p = p.replace("DD", "\u0003")
+            .replace("dd", "\u0003")
+
+        // Replace 1-digit day of month (d, D) with placeholder (avoiding replacing within other words)
+        p = p.replace("D", "\u0004")
+            .replace("d", "\u0004")
+
+        // Replace year tokens (YYYY -> yyyy, YY -> yy)
+        p = p.replace("YYYY", "yyyy")
+            .replace("YY", "yy")
+
+        // Restore normalized SimpleDateFormat tokens
+        p = p.replace("\u0001", "EEEE") // Sunday
+        p = p.replace("\u0002", "EEE")  // Sun
+        p = p.replace("\u0003", "dd")   // 06
+        p = p.replace("\u0004", "d")    // 6
+
+        return p
+    }
+
     fun formatDayHeader(epochMs: Long, mode: LanguageMode): String {
         val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 1 = Sunday ... 7 = Saturday
@@ -83,7 +125,8 @@ object DateUtils {
     }
 
     fun formatDate(epochMs: Long, mode: LanguageMode, customPattern: String? = null): String {
-        val pattern = customPattern ?: activeDateFormat
+        val rawPattern = customPattern ?: activeDateFormat
+        val pattern = normalizePattern(rawPattern)
         val sdf = try {
             SimpleDateFormat(pattern, Locale.US)
         } catch (e: Exception) {
