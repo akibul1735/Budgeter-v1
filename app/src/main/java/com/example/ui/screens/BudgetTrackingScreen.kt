@@ -104,7 +104,15 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.ActiveBudgetFilterBar
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.BudgetDateRangePreset
+import com.example.ui.components.BudgetComparisonPreset
+import com.example.ui.components.BudgetFilterDialog
+import com.example.ui.components.BudgetFilterState
+import com.example.ui.components.BudgetSortOrder
+import com.example.ui.components.calculateBudgetFilterRanges
+import com.example.ui.components.formatBudgetAmount
 import com.example.ui.theme.SolidIncome
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.DateUtils
@@ -118,40 +126,6 @@ private val AlertRed = Color(0xFFF43F5E)
 private val BrandBlueLight = Color(0xFF0284C7)
 private val SoftCyan = Color(0xFF38BDF8)
 private val SlateText = Color(0xFF64748B)
-
-enum class BudgetComparisonPreset(val titleEn: String, val titleBn: String) {
-    LAST_MONTH("Current vs Last Month", "চলতি বনাম গত মাস"),
-    SAME_MONTH_LAST_YEAR("Current vs Same Month Last Year", "চলতি বনাম গত বছরের একই মাস"),
-    LAST_3_MONTHS("Current vs Last 3 Months", "চলতি বনাম গত ৩ মাস"),
-    YEAR_TO_DATE("Year to Date", "বছরের শুরু থেকে আজ পর্যন্ত"),
-    CUSTOM("Custom Period", "কাস্টম সময়কাল"),
-    ONLY_CURRENT("This Month Only", "শুধুমাত্র চলতি মাস")
-}
-
-data class BudgetFilterState(
-    val preset: BudgetComparisonPreset = BudgetComparisonPreset.LAST_MONTH,
-    val customBaseDateMs: Long? = null,
-    val customCompareDateMs: Long? = null,
-    val selectedCategoryIds: Set<Long> = emptySet(),
-    val selectedAccountIds: Set<Long> = emptySet(),
-    val selectedStatusSet: Set<TransactionStatus> = emptySet(),
-    val filterOnlyBudgeted: Boolean = false,
-    val filterOnlyOverBudget: Boolean = false,
-    val excludeZeroAmounts: Boolean = false,
-    val displayCurrency: Boolean = true,
-    val showOnlyCurrentBalance: Boolean = false
-) {
-    val isFilterActive: Boolean
-        get() = selectedCategoryIds.isNotEmpty() ||
-                selectedAccountIds.isNotEmpty() ||
-                selectedStatusSet.isNotEmpty() ||
-                filterOnlyBudgeted ||
-                filterOnlyOverBudget ||
-                excludeZeroAmounts ||
-                preset != BudgetComparisonPreset.LAST_MONTH ||
-                customBaseDateMs != null ||
-                customCompareDateMs != null
-}
 
 data class CategoryBudgetTrackingItem(
     val category: Category,
@@ -229,6 +203,16 @@ fun BudgetTrackingScreen(
     // Group expanded state map (default true: expanded)
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
 
+    // Extract labels from transactions for filter dialog
+    val allLabels = remember(transactionsWithDetails) {
+        transactionsWithDetails.flatMap { details ->
+            val note = details.transaction.note
+            val hashTags = Regex("#([\\w\\d_-]+)").findAll(note).map { it.value }.toList()
+            val commaSeparated = if (note.contains(",")) note.split(",").map { it.trim() }.filter { it.startsWith("#") || it.length in 2..20 } else emptyList()
+            (hashTags + commaSeparated).filter { it.isNotBlank() }
+        }.distinct().sorted()
+    }
+
     // TIMELINE NAVIGATION
     if (showTimelineScreen) {
         val allTx = remember(transactionsWithDetails) { transactionsWithDetails.map { it.transaction } }
@@ -241,24 +225,24 @@ fun BudgetTrackingScreen(
         return
     }
 
-    // Determine Base Date Range and Compare Date Range based on Preset
-    val (baseRange, compareRange, baseDateLabel, compareDateLabel) = remember(
+    // Determine Base Date Range and Compare Date Range based on Filter State
+    val filterRangeResult = remember(
         selectedYear,
         selectedMonth,
-        filterState.preset,
-        filterState.customBaseDateMs,
-        filterState.customCompareDateMs,
+        filterState,
         languageMode
     ) {
-        calculateBudgetComparisonRanges(
+        calculateBudgetFilterRanges(
             year = selectedYear,
             month = selectedMonth,
-            preset = filterState.preset,
-            customBaseMs = filterState.customBaseDateMs,
-            customCompareMs = filterState.customCompareDateMs,
+            filterState = filterState,
             languageMode = languageMode
         )
     }
+    val compareRange = filterRangeResult.primaryRange
+    val baseRange = if (filterState.comparisonEnabled) filterRangeResult.compareRange else null
+    val compareDateLabel = filterRangeResult.primaryLabel
+    val baseDateLabel = filterRangeResult.compareLabel
 
     // Current (Compare) Month Transactions
     val compareMonthTransactions = remember(transactionsWithDetails, compareRange, filterState) {
@@ -273,8 +257,14 @@ fun BudgetTrackingScreen(
             val matchesCat = filterState.selectedCategoryIds.isEmpty() ||
                     (tx.categoryId != null && filterState.selectedCategoryIds.contains(tx.categoryId)) ||
                     (tx.subCategoryId != null && filterState.selectedCategoryIds.contains(tx.subCategoryId))
+            val matchesLabels = filterState.selectedLabels.isEmpty() ||
+                    filterState.selectedLabels.any { tx.note.contains(it, ignoreCase = true) }
             val matchesZero = !filterState.excludeZeroAmounts || tx.amount > 0.0
-            inTime && matchesAcc && matchesStatus && matchesCat && matchesZero
+            val minAmt = filterState.minAmount
+            val maxAmt = filterState.maxAmount
+            val matchesMin = minAmt == null || tx.amount >= minAmt
+            val matchesMax = maxAmt == null || tx.amount <= maxAmt
+            inTime && matchesAcc && matchesStatus && matchesCat && matchesLabels && matchesZero && matchesMin && matchesMax
         }
     }
 
@@ -293,8 +283,14 @@ fun BudgetTrackingScreen(
                 val matchesCat = filterState.selectedCategoryIds.isEmpty() ||
                         (tx.categoryId != null && filterState.selectedCategoryIds.contains(tx.categoryId)) ||
                         (tx.subCategoryId != null && filterState.selectedCategoryIds.contains(tx.subCategoryId))
+                val matchesLabels = filterState.selectedLabels.isEmpty() ||
+                        filterState.selectedLabels.any { tx.note.contains(it, ignoreCase = true) }
                 val matchesZero = !filterState.excludeZeroAmounts || tx.amount > 0.0
-                inTime && matchesAcc && matchesStatus && matchesCat && matchesZero
+                val minAmt = filterState.minAmount
+                val maxAmt = filterState.maxAmount
+                val matchesMin = minAmt == null || tx.amount >= minAmt
+                val matchesMax = maxAmt == null || tx.amount <= maxAmt
+                inTime && matchesAcc && matchesStatus && matchesCat && matchesLabels && matchesZero && matchesMin && matchesMax
             }
         }
     }
@@ -384,16 +380,36 @@ fun BudgetTrackingScreen(
                     val matchesBudgeted = !filterState.filterOnlyBudgeted || item.hasBudget
                     val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
                     val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() || filterState.selectedCategoryIds.contains(item.category.id)
-                    matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter
+                    val matchesZero = !filterState.excludeZeroAmounts || (item.spentAmount > 0.0 || item.budgetLimit > 0.0)
+                    val minAmt = filterState.minAmount
+                    val maxAmt = filterState.maxAmount
+                    val matchesMin = minAmt == null || (item.spentAmount >= minAmt || item.budgetLimit >= minAmt)
+                    val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || item.budgetLimit <= maxAmt)
+                    matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax
                 }
 
-                if (trackingItems.isNotEmpty() || (searchQuery.isEmpty() && !filterState.filterOnlyBudgeted && !filterState.filterOnlyOverBudget && filterState.selectedCategoryIds.isEmpty())) {
+                val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
+                val sortedTrackingItems = if (shouldSortByAmount) {
+                    trackingItems.sortedByDescending { it.spentAmount }
+                } else {
+                    when (filterState.sortOrder) {
+                        BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> trackingItems.sortedByDescending { it.spentAmount }
+                        BudgetSortOrder.AMOUNT_ASC -> trackingItems.sortedBy { it.spentAmount }
+                        BudgetSortOrder.BUDGET_DESC -> trackingItems.sortedByDescending { it.budgetLimit }
+                        BudgetSortOrder.BUDGET_ASC -> trackingItems.sortedBy { it.budgetLimit }
+                        BudgetSortOrder.UTILIZATION_DESC -> trackingItems.sortedByDescending { it.percentageInt }
+                        BudgetSortOrder.NAME_ASC -> trackingItems.sortedBy { it.category.nameEn.lowercase() }
+                        BudgetSortOrder.DEFAULT -> trackingItems
+                    }
+                }
+
+                if (sortedTrackingItems.isNotEmpty() || (searchQuery.isEmpty() && !filterState.filterOnlyBudgeted && !filterState.filterOnlyOverBudget && filterState.selectedCategoryIds.isEmpty())) {
                     resultList.add(
                         CategoryGroupBudgetTracking(
                             parentCategory = parent,
                             groupNameEn = parent.nameEn,
                             groupNameBn = parent.nameBn,
-                            items = trackingItems
+                            items = sortedTrackingItems
                         )
                     )
                 }
@@ -427,8 +443,13 @@ fun BudgetTrackingScreen(
                 val matchesBudgeted = !filterState.filterOnlyBudgeted || singleItem.hasBudget
                 val matchesOver = !filterState.filterOnlyOverBudget || singleItem.isOverBudget
                 val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() || filterState.selectedCategoryIds.contains(parent.id)
+                val matchesZero = !filterState.excludeZeroAmounts || (singleItem.spentAmount > 0.0 || singleItem.budgetLimit > 0.0)
+                val minAmt = filterState.minAmount
+                val maxAmt = filterState.maxAmount
+                val matchesMin = minAmt == null || (singleItem.spentAmount >= minAmt || singleItem.budgetLimit >= minAmt)
+                val matchesMax = maxAmt == null || (singleItem.spentAmount <= maxAmt || singleItem.budgetLimit <= maxAmt)
 
-                if (matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter) {
+                if (matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax) {
                     resultList.add(
                         CategoryGroupBudgetTracking(
                             parentCategory = parent,
@@ -473,19 +494,48 @@ fun BudgetTrackingScreen(
                 val matchesBudgeted = !filterState.filterOnlyBudgeted || item.hasBudget
                 val matchesOver = !filterState.filterOnlyOverBudget || item.isOverBudget
                 val matchesCatFilter = filterState.selectedCategoryIds.isEmpty() || filterState.selectedCategoryIds.contains(item.category.id)
-                matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter
+                val matchesZero = !filterState.excludeZeroAmounts || (item.spentAmount > 0.0 || item.budgetLimit > 0.0)
+                val minAmt = filterState.minAmount
+                val maxAmt = filterState.maxAmount
+                val matchesMin = minAmt == null || (item.spentAmount >= minAmt || item.budgetLimit >= minAmt)
+                val matchesMax = maxAmt == null || (item.spentAmount <= maxAmt || item.budgetLimit <= maxAmt)
+                matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax
             }
 
-            if (orphanItems.isNotEmpty()) {
+            val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
+            val sortedOrphanItems = if (shouldSortByAmount) {
+                orphanItems.sortedByDescending { it.spentAmount }
+            } else {
+                when (filterState.sortOrder) {
+                    BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> orphanItems.sortedByDescending { it.spentAmount }
+                    BudgetSortOrder.AMOUNT_ASC -> orphanItems.sortedBy { it.spentAmount }
+                    BudgetSortOrder.BUDGET_DESC -> orphanItems.sortedByDescending { it.budgetLimit }
+                    BudgetSortOrder.BUDGET_ASC -> orphanItems.sortedBy { it.budgetLimit }
+                    BudgetSortOrder.UTILIZATION_DESC -> orphanItems.sortedByDescending { it.percentageInt }
+                    BudgetSortOrder.NAME_ASC -> orphanItems.sortedBy { it.category.nameEn.lowercase() }
+                    BudgetSortOrder.DEFAULT -> orphanItems
+                }
+            }
+
+            if (sortedOrphanItems.isNotEmpty()) {
                 resultList.add(
                     CategoryGroupBudgetTracking(
                         parentCategory = null,
                         groupNameEn = "Others",
                         groupNameBn = "অন্যান্য",
-                        items = orphanItems
+                        items = sortedOrphanItems
                     )
                 )
             }
+        }
+
+        val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
+        if (shouldSortByAmount) {
+            resultList.sortByDescending { it.totalSpent }
+        } else if (filterState.sortOrder == BudgetSortOrder.BUDGET_DESC) {
+            resultList.sortByDescending { it.totalBudget }
+        } else if (filterState.sortOrder == BudgetSortOrder.NAME_ASC) {
+            resultList.sortBy { it.groupNameEn.lowercase() }
         }
 
         resultList
@@ -630,7 +680,7 @@ fun BudgetTrackingScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (filterState.showOnlyCurrentBalance || baseRange == null) {
+                                    text = if (!filterState.comparisonEnabled || baseRange == null) {
                                         compareDateLabel
                                     } else {
                                         "$baseDateLabel ➔ $compareDateLabel"
@@ -804,7 +854,7 @@ fun BudgetTrackingScreen(
                             )
 
                             // Comparison Delta & Base amount
-                            if (!filterState.showOnlyCurrentBalance && baseRange != null) {
+                            if (filterState.comparisonEnabled && baseRange != null) {
                                 val isIncrease = overallDeltaSpent > 0
                                 val sign = if (isIncrease) "+" else ""
                                 Text(
@@ -881,8 +931,17 @@ fun BudgetTrackingScreen(
                 }
             }
 
+            // Active Filters Bar
+            ActiveBudgetFilterBar(
+                filterState = filterState,
+                onFilterChange = { filterState = it },
+                onOpenFilterDialog = { showFilterDialog = true },
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            )
+
             // Comparison Column Labels (When Comparison is Active)
-            if (!filterState.showOnlyCurrentBalance && baseRange != null) {
+            if (filterState.comparisonEnabled && baseRange != null) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -984,7 +1043,7 @@ fun BudgetTrackingScreen(
                         CategoryGroupSection(
                             group = group,
                             isExpanded = isExpanded,
-                            showComparison = !filterState.showOnlyCurrentBalance && baseRange != null,
+                            showComparison = filterState.comparisonEnabled && baseRange != null,
                             todayPaceRatio = todayPaceRatio,
                             languageMode = languageMode,
                             onToggleExpand = {
@@ -1088,7 +1147,7 @@ fun BudgetTrackingScreen(
     // BASE DATE PICKER
     if (showBaseDatePicker) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = filterState.customBaseDateMs ?: (baseRange?.first ?: System.currentTimeMillis())
+            initialSelectedDateMillis = filterState.customCompareStartMs ?: (baseRange?.first ?: System.currentTimeMillis())
         )
         DatePickerDialog(
             onDismissRequest = {
@@ -1101,8 +1160,9 @@ fun BudgetTrackingScreen(
                         val selected = datePickerState.selectedDateMillis
                         if (selected != null) {
                             filterState = filterState.copy(
-                                preset = BudgetComparisonPreset.CUSTOM,
-                                customBaseDateMs = selected
+                                comparisonEnabled = true,
+                                comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                                customCompareStartMs = selected
                             )
                         }
                         showBaseDatePicker = false
@@ -1131,7 +1191,7 @@ fun BudgetTrackingScreen(
     // COMPARE DATE PICKER
     if (showCompareDatePicker) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = filterState.customCompareDateMs ?: compareRange.first
+            initialSelectedDateMillis = filterState.customStartDateMs ?: compareRange.first
         )
         DatePickerDialog(
             onDismissRequest = { showCompareDatePicker = false },
@@ -1141,8 +1201,8 @@ fun BudgetTrackingScreen(
                         val selected = datePickerState.selectedDateMillis
                         if (selected != null) {
                             filterState = filterState.copy(
-                                preset = BudgetComparisonPreset.CUSTOM,
-                                customCompareDateMs = selected
+                                datePreset = BudgetDateRangePreset.CUSTOM,
+                                customStartDateMs = selected
                             )
                         }
                         showCompareDatePicker = false
@@ -1167,6 +1227,7 @@ fun BudgetTrackingScreen(
             currentFilter = filterState,
             categories = allCategories,
             accounts = allAccounts,
+            allLabels = allLabels,
             languageMode = languageMode,
             onDismiss = { showFilterDialog = false },
             onApply = { newFilter ->
@@ -1176,114 +1237,6 @@ fun BudgetTrackingScreen(
         )
     }
 }
-
-/**
- * Helper to calculate start & end date milliseconds and formatted labels for comparison ranges.
- */
-private fun calculateBudgetComparisonRanges(
-    year: Int,
-    month: Int,
-    preset: BudgetComparisonPreset,
-    customBaseMs: Long?,
-    customCompareMs: Long?,
-    languageMode: LanguageMode
-): ComparisonRangeResult {
-    val compareStart = DateUtils.getStartOfMonth(year, month)
-    val compareEnd = DateUtils.getEndOfMonth(year, month)
-    val compareLabel = DateUtils.formatMonthYear(year, month, languageMode)
-
-    return when (preset) {
-        BudgetComparisonPreset.LAST_MONTH -> {
-            val prevMonth = if (month == 1) 12 else month - 1
-            val prevYear = if (month == 1) year - 1 else year
-            val baseStart = DateUtils.getStartOfMonth(prevYear, prevMonth)
-            val baseEnd = DateUtils.getEndOfMonth(prevYear, prevMonth)
-            val baseLabel = DateUtils.formatMonthYear(prevYear, prevMonth, languageMode)
-            ComparisonRangeResult(
-                baseRange = Pair(baseStart, baseEnd),
-                compareRange = Pair(compareStart, compareEnd),
-                baseLabel = baseLabel,
-                compareLabel = compareLabel
-            )
-        }
-        BudgetComparisonPreset.SAME_MONTH_LAST_YEAR -> {
-            val prevYear = year - 1
-            val baseStart = DateUtils.getStartOfMonth(prevYear, month)
-            val baseEnd = DateUtils.getEndOfMonth(prevYear, month)
-            val baseLabel = DateUtils.formatMonthYear(prevYear, month, languageMode)
-            ComparisonRangeResult(
-                baseRange = Pair(baseStart, baseEnd),
-                compareRange = Pair(compareStart, compareEnd),
-                baseLabel = baseLabel,
-                compareLabel = compareLabel
-            )
-        }
-        BudgetComparisonPreset.LAST_3_MONTHS -> {
-            val cal = Calendar.getInstance().apply {
-                set(Calendar.YEAR, year)
-                set(Calendar.MONTH, month - 1)
-                set(Calendar.DAY_OF_MONTH, 1)
-                add(Calendar.MONTH, -3)
-            }
-            val baseStart = cal.timeInMillis
-            val calEnd = Calendar.getInstance().apply {
-                set(Calendar.YEAR, year)
-                set(Calendar.MONTH, month - 1)
-                set(Calendar.DAY_OF_MONTH, 1)
-                add(Calendar.DAY_OF_MONTH, -1)
-                set(Calendar.HOUR_OF_DAY, 23)
-                set(Calendar.MINUTE, 59)
-                set(Calendar.SECOND, 59)
-            }
-            val baseEnd = calEnd.timeInMillis
-            ComparisonRangeResult(
-                baseRange = Pair(baseStart, baseEnd),
-                compareRange = Pair(compareStart, compareEnd),
-                baseLabel = if (languageMode == LanguageMode.BANGLA) "গত ৩ মাস" else "Last 3 Mos",
-                compareLabel = compareLabel
-            )
-        }
-        BudgetComparisonPreset.YEAR_TO_DATE -> {
-            val baseStart = DateUtils.getStartOfMonth(year, 1)
-            val baseEnd = compareEnd
-            ComparisonRangeResult(
-                baseRange = Pair(baseStart, baseEnd),
-                compareRange = Pair(compareStart, compareEnd),
-                baseLabel = if (languageMode == LanguageMode.BANGLA) "চলতি বছর (YTD)" else "Year To Date",
-                compareLabel = compareLabel
-            )
-        }
-        BudgetComparisonPreset.CUSTOM -> {
-            val bDateMs = customBaseMs ?: (compareStart - 30L * 86400000L)
-            val cDateMs = customCompareMs ?: compareEnd
-            val bCal = Calendar.getInstance().apply { timeInMillis = bDateMs }
-            val cCal = Calendar.getInstance().apply { timeInMillis = cDateMs }
-            val bLabel = "${bCal.get(Calendar.MONTH) + 1}/${bCal.get(Calendar.DAY_OF_MONTH)}/${bCal.get(Calendar.YEAR) % 100}"
-            val cLabel = "${cCal.get(Calendar.MONTH) + 1}/${cCal.get(Calendar.DAY_OF_MONTH)}/${cCal.get(Calendar.YEAR) % 100}"
-            ComparisonRangeResult(
-                baseRange = Pair(bDateMs - 86400000L * 15, bDateMs),
-                compareRange = Pair(bDateMs, cDateMs),
-                baseLabel = bLabel,
-                compareLabel = cLabel
-            )
-        }
-        BudgetComparisonPreset.ONLY_CURRENT -> {
-            ComparisonRangeResult(
-                baseRange = null,
-                compareRange = Pair(compareStart, compareEnd),
-                baseLabel = "-",
-                compareLabel = compareLabel
-            )
-        }
-    }
-}
-
-private data class ComparisonRangeResult(
-    val baseRange: Pair<Long, Long>?,
-    val compareRange: Pair<Long, Long>,
-    val baseLabel: String,
-    val compareLabel: String
-)
 
 /**
  * Fixed Comparison Dates Card matching Balance Sheet styling.
@@ -1378,7 +1331,7 @@ private fun BudgetComparisonDatesCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             // Date Range Display with two clickable dates to compare
-            if (showOnlyCurrentBalance || preset == BudgetComparisonPreset.ONLY_CURRENT) {
+            if (showOnlyCurrentBalance) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2237,277 +2190,3 @@ private fun MonthPickerDropdownDialog(
     }
 }
 
-/**
- * Budget Filter Dialog with Comparison Presets, Account and Category multi-select,
- * status filtering, and display options.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun BudgetFilterDialog(
-    currentFilter: BudgetFilterState,
-    categories: List<Category>,
-    accounts: List<Account>,
-    languageMode: LanguageMode,
-    onDismiss: () -> Unit,
-    onApply: (BudgetFilterState) -> Unit
-) {
-    var tempFilter by remember { mutableStateOf(currentFilter) }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .padding(vertical = 24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = BrandBlueLight,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "বাজেট ফিল্টার ও তুলনা" else "Budget Filter & Comparison",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-
-                // Scrollable Body
-                Column(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    // Section 1: Comparison Preset
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক সময়কাল প্রিসেট" else "Comparison Preset",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandBlueLight
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        BudgetComparisonPreset.values().forEach { preset ->
-                            val isSelected = tempFilter.preset == preset
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    tempFilter = tempFilter.copy(
-                                        preset = preset,
-                                        showOnlyCurrentBalance = preset == BudgetComparisonPreset.ONLY_CURRENT
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = BrandBlueLight,
-                                    selectedLabelColor = Color.White
-                                )
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Section 2: Display & Comparison Toggles
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "প্রদর্শন অপশন" else "Display Options",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandBlueLight
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Only Budgeted Toggle
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বাজেট নির্ধারণ করা ক্যাটাগরি" else "Only Budgeted Categories",
-                            fontSize = 12.5.sp
-                        )
-                        Switch(
-                            checked = tempFilter.filterOnlyBudgeted,
-                            onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyBudgeted = it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = BrandBlueLight)
-                        )
-                    }
-
-                    // Only Over Budget Toggle
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র ওভার বাজেট ক্যাটাগরি" else "Only Over Budget Categories",
-                            fontSize = 12.5.sp
-                        )
-                        Switch(
-                            checked = tempFilter.filterOnlyOverBudget,
-                            onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyOverBudget = it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AlertRed)
-                        )
-                    }
-
-                    // Exclude Zero Amounts Toggle
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ দিন" else "Exclude Zero Amounts",
-                            fontSize = 12.5.sp
-                        )
-                        Switch(
-                            checked = tempFilter.excludeZeroAmounts,
-                            onCheckedChange = { tempFilter = tempFilter.copy(excludeZeroAmounts = it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = BrandBlueLight)
-                        )
-                    }
-
-                    // Show Only Current Month (Hide Baseline comparison)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বর্তমান মাস দেখান (তুলনা বন্ধ)" else "Show Only Current Period (No Comparison)",
-                            fontSize = 12.5.sp
-                        )
-                        Switch(
-                            checked = tempFilter.showOnlyCurrentBalance,
-                            onCheckedChange = { tempFilter = tempFilter.copy(showOnlyCurrentBalance = it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = BrandBlueLight)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Section 3: Filter by Category (Multi-select)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন" else "Filter by Categories",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandBlueLight
-                        )
-                        if (tempFilter.selectedCategoryIds.isNotEmpty()) {
-                            TextButton(onClick = { tempFilter = tempFilter.copy(selectedCategoryIds = emptySet()) }) {
-                                Text("Clear", fontSize = 11.5.sp)
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        categories.filter { it.isActive }.take(12).forEach { cat ->
-                            val isSelected = tempFilter.selectedCategoryIds.contains(cat.id)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    val current = tempFilter.selectedCategoryIds.toMutableSet()
-                                    if (isSelected) current.remove(cat.id) else current.add(cat.id)
-                                    tempFilter = tempFilter.copy(selectedCategoryIds = current)
-                                },
-                                label = {
-                                    Text(
-                                        text = LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode),
-                                        fontSize = 11.5.sp
-                                    )
-                                }
-                            )
-                        }
-                    }
-                }
-
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                // Bottom Action Buttons: Reset & Apply
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            tempFilter = BudgetFilterState()
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset", fontSize = 12.5.sp)
-                    }
-
-                    Button(
-                        onClick = { onApply(tempFilter) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandBlueLight),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply", fontSize = 12.5.sp)
-                    }
-                }
-            }
-        }
-    }
-}
