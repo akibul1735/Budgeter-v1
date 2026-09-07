@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
@@ -259,6 +260,17 @@ fun BalanceSheetScreen(
 
     // Active Filter State
     var filterState by remember { mutableStateOf(BalanceSheetFilterState()) }
+    var showTimelineScreen by remember { mutableStateOf(false) }
+
+    if (showTimelineScreen) {
+        AccountTimelineScreen(
+            accounts = accounts,
+            transactions = transactions,
+            languageMode = languageMode,
+            onBack = { showTimelineScreen = false }
+        )
+        return
+    }
 
     var baseDateMs by remember {
         val (base, _) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.END_OF_LAST_MONTH)
@@ -307,9 +319,11 @@ fun BalanceSheetScreen(
 
     Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header bar with Filter button on right side
+            // Header bar with Timeline button and Filter button on right side
             AppTabHeader(
                 title = LanguageHelper.getString("balance_sheet", languageMode),
+                showTimelineButton = true,
+                onTimelineClick = { showTimelineScreen = true },
                 showFilterButton = true,
                 isFilterActive = filterState.isFilterActive,
                 onFilterClick = { showFilterDialog = true },
@@ -333,9 +347,9 @@ fun BalanceSheetScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // 2. Timeline Control & Date Columns Bar
+                // 2. Timeline Control & Date Columns Card
                 item {
-                    TimelineComparisonHeader(
+                    ComparisonDatesCard(
                         preset = filterState.preset,
                         baseDateLabel = balanceSheetData.baseDateLabel,
                         compareDateLabel = balanceSheetData.compareDateLabel,
@@ -1573,7 +1587,7 @@ private fun NetWorthSummaryCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1589,7 +1603,7 @@ private fun NetWorthSummaryCard(
                     )
                     Text(
                         text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense
                     )
@@ -1609,7 +1623,7 @@ private fun NetWorthSummaryCard(
                                 imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
                                 tint = if (isPositive) SolidIncome else SolidExpense,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             val sign = if (isPositive) "+" else ""
@@ -1624,8 +1638,8 @@ private fun NetWorthSummaryCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             Spacer(modifier = Modifier.height(10.dp))
 
             // Assets and Liabilities row comparison
@@ -1687,7 +1701,7 @@ private fun NetWorthSummaryCard(
 }
 
 @Composable
-private fun TimelineComparisonHeader(
+private fun ComparisonDatesCard(
     preset: BalanceSheetComparisonPreset,
     baseDateLabel: String,
     compareDateLabel: String,
@@ -1697,124 +1711,126 @@ private fun TimelineComparisonHeader(
     onToggleEditMode: () -> Unit,
     isEditMode: Boolean
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Timeline indicator with chart icon
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onOpenFilter() }
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Timeline,
-                    contentDescription = "Timeline",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Timeline",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+                // Preset Capsule / Button
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    modifier = Modifier.clickable { onOpenFilter() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        val presetName = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn
+                        Text(
+                            text = presetName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
 
-            // Preset capsule button
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.clickable { onOpenFilter() }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Edit Mode Button
+                IconButton(
+                    onClick = onToggleEditMode,
+                    modifier = Modifier.size(30.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Mode",
+                        tint = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(17.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    val presetName = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Date Range Display
+            if (showOnlyCurrentBalance) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = presetName,
+                        text = if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স স্ন্যাপশট" else "Current Balance Snapshot",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = compareDateLabel,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Base: ",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = baseDateLabel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
 
-            // Quick actions
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onOpenFilter, modifier = Modifier.size(32.dp)) {
                     Icon(
-                        imageVector = Icons.Default.FilterList,
-                        contentDescription = "Filter",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(14.dp)
                     )
-                }
-                IconButton(onClick = onToggleEditMode, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        tint = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Compare: ",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = compareDateLabel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Dual Date Column Sub-Headers (or Single Current Balance Header)
-        if (showOnlyCurrentBalance) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স" else "Current Balance",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                )
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = baseDateLabel,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = compareDateLabel,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.End,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     }
 }
 

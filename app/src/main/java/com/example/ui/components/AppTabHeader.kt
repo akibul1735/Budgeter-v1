@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -69,6 +70,8 @@ fun AppTabHeader(
     searchPlaceholder: String = "Search...",
     showSearchButton: Boolean = false,
     // Filter button functionality
+    showTimelineButton: Boolean = false,
+    onTimelineClick: (() -> Unit)? = null,
     showFilterButton: Boolean = false,
     isFilterActive: Boolean = false,
     activeFilterCount: Int = 0,
@@ -215,6 +218,22 @@ fun AppTabHeader(
                                 MaterialTheme.colorScheme.primary
                             else
                                 MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Timeline button if needed (left of filter button)
+                if (showTimelineButton || onTimelineClick != null) {
+                    IconButton(
+                        onClick = { onTimelineClick?.invoke() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .testTag("header_timeline_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Timeline,
+                            contentDescription = "Timeline",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

@@ -36,17 +36,24 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.ui.draw.clip
+import com.example.ui.theme.ThemePreferences
+import com.example.ui.theme.ThemeMode
+import com.example.ui.theme.ThemePalette
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
@@ -1398,19 +1405,180 @@ private fun DrawerContent(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isBalanced) Icons.Default.CheckCircle else Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = if (isBalanced) SolidIncome else SolidExpense,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isBalanced) "Dr = Cr Balanced" else "Unbalanced",
-                        fontSize = 11.sp,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontWeight = FontWeight.Medium
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isBalanced) Icons.Default.CheckCircle else Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = if (isBalanced) SolidIncome else SolidExpense,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isBalanced) "Dr = Cr Balanced" else "Unbalanced",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Day / Night / Auto Mode Toggle + Quick Theme Palette Button
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val themeConfig by ThemePreferences.getInstance(context).themeConfig.collectAsStateWithLifecycle()
+                var showQuickThemeDialog by remember { mutableStateOf(false) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 1. Day / Night / Auto Mode Toggle Pill
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.Black.copy(alpha = 0.22f),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(2.dp)
+                        ) {
+                            // Light (Day)
+                            val isLight = themeConfig.mode == ThemeMode.LIGHT
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isLight) Color.White else Color.Transparent,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        ThemePreferences.getInstance(context).setMode(ThemeMode.LIGHT)
+                                    }
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.LightMode,
+                                        contentDescription = "Day",
+                                        tint = if (isLight) Color(0xFFE65100) else Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "দিন" else "Day",
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isLight) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isLight) Color.Black else Color.White.copy(alpha = 0.9f)
+                                    )
+                                }
+                            }
+
+                            // Dark (Night)
+                            val isDark = themeConfig.mode == ThemeMode.DARK || themeConfig.mode == ThemeMode.AMOLED_NIGHT
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isDark) Color.White else Color.Transparent,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        ThemePreferences.getInstance(context).setMode(ThemeMode.DARK)
+                                    }
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.DarkMode,
+                                        contentDescription = "Night",
+                                        tint = if (isDark) Color(0xFF311B92) else Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "রাত" else "Night",
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isDark) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isDark) Color.Black else Color.White.copy(alpha = 0.9f)
+                                    )
+                                }
+                            }
+
+                            // Auto (System)
+                            val isAuto = themeConfig.mode == ThemeMode.SYSTEM
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isAuto) Color.White else Color.Transparent,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        ThemePreferences.getInstance(context).setMode(ThemeMode.SYSTEM)
+                                    }
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.BrightnessAuto,
+                                        contentDescription = "Auto",
+                                        tint = if (isAuto) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "অটো" else "Auto",
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isAuto) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isAuto) Color.Black else Color.White.copy(alpha = 0.9f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Quick Theme Palette Button
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White.copy(alpha = 0.22f),
+                        modifier = Modifier
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { showQuickThemeDialog = true }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "Theme",
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "থিম" else "Theme",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+
+                if (showQuickThemeDialog) {
+                    QuickThemeDialog(
+                        currentPalette = themeConfig.palette,
+                        languageMode = languageMode,
+                        onDismiss = { showQuickThemeDialog = false },
+                        onSelectPalette = {
+                            ThemePreferences.getInstance(context).setPalette(it)
+                            showQuickThemeDialog = false
+                        }
                     )
                 }
             }
@@ -1866,3 +2034,89 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.RESET -> if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe"
     }
 }
+
+@Composable
+private fun QuickThemeDialog(
+    currentPalette: ThemePalette,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSelectPalette: (ThemePalette) -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Palette,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "থিম নির্বাচন করুন" else "Select Color Theme",
+                    fontSize = 18.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ThemePalette.values().forEach { palette ->
+                    val isSelected = currentPalette == palette
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectPalette(palette) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = palette.primaryColor,
+                                    shadowElevation = 2.dp,
+                                    modifier = Modifier.size(24.dp)
+                                ) {}
+                                val name = if (languageMode == LanguageMode.BANGLA) palette.displayNameBn else palette.displayNameEn
+                                Text(
+                                    text = name,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Close")
+            }
+        }
+    )
+}
+
