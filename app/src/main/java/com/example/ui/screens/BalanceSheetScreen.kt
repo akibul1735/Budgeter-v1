@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +70,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -81,6 +83,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -332,6 +335,13 @@ fun BalanceSheetScreen(
         )
     }
 
+    val listState = rememberLazyListState()
+    val isMainSummaryVisible by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header bar with Timeline button and Filter button on right side
@@ -345,51 +355,68 @@ fun BalanceSheetScreen(
                 onOpenDrawer = onOpenDrawer
             )
 
+            // Fixed Timeline Control & Date Columns Card at top
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)
+            ) {
+                ComparisonDatesCard(
+                    preset = filterState.preset,
+                    baseDateLabel = balanceSheetData.baseDateLabel,
+                    compareDateLabel = balanceSheetData.compareDateLabel,
+                    showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                    languageMode = languageMode,
+                    isCalcMode = isCalcMode,
+                    onToggleCalcMode = { isCalcMode = !isCalcMode },
+                    onOpenFilter = { showFilterDialog = true },
+                    onPickBaseDate = {
+                        isDualDateFlow = false
+                        showBaseDatePicker = true
+                    },
+                    onPickCompareDate = {
+                        isDualDateFlow = false
+                        showCompareDatePicker = true
+                    },
+                    onPickBothDates = {
+                        isDualDateFlow = true
+                        showBaseDatePicker = true
+                    }
+                )
+            }
+
+            // Mini height summary card (Only visible when main summary card is scrolled off screen)
+            AnimatedVisibility(
+                visible = !isMainSummaryVisible,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                MiniNetWorthSummaryCard(
+                    data = balanceSheetData,
+                    displayCurrency = filterState.displayCurrency,
+                    languageMode = languageMode
+                )
+            }
+
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 88.dp)
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 88.dp)
             ) {
-                // 1. Top Net Worth Card
-                item {
+                // 1. Top Net Worth Card (Total Assets | Total Net Worth | Total Liabilities in one row)
+                item(key = "main_net_worth_summary") {
                     NetWorthSummaryCard(
                         data = balanceSheetData,
                         displayCurrency = filterState.displayCurrency,
                         showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                         languageMode = languageMode
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // 2. Timeline Control & Date Columns Card
-                item {
-                    ComparisonDatesCard(
-                        preset = filterState.preset,
-                        baseDateLabel = balanceSheetData.baseDateLabel,
-                        compareDateLabel = balanceSheetData.compareDateLabel,
-                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
-                        languageMode = languageMode,
-                        isCalcMode = isCalcMode,
-                        onToggleCalcMode = { isCalcMode = !isCalcMode },
-                        onOpenFilter = { showFilterDialog = true },
-                        onPickBaseDate = {
-                            isDualDateFlow = false
-                            showBaseDatePicker = true
-                        },
-                        onPickCompareDate = {
-                            isDualDateFlow = false
-                            showCompareDatePicker = true
-                        },
-                        onPickBothDates = {
-                            isDualDateFlow = true
-                            showBaseDatePicker = true
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-
-                // 3. ASSETS Section
+                // 2. ASSETS Section
                 item {
                     SectionHeader(
                         title = if (languageMode == LanguageMode.BANGLA) "সম্পদ (ASSETS)" else "ASSETS",
@@ -1759,119 +1786,250 @@ private fun NetWorthSummaryCard(
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Centered Total Net Worth
-            Text(
-                text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (নেট ওর্থ)" else "Total Net Worth",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense,
-                textAlign = TextAlign.Center
+            // 1. Total Assets (Left)
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode),
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!showOnlyCurrentBalance) {
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = "Prev: ${formatBalance(data.totalAssetsBase, displayCurrency, languageMode)}",
+                        fontSize = 9.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Divider 1
+            VerticalDivider(
+                modifier = Modifier
+                    .height(36.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
             )
 
-            // Growth badge (hidden if showOnlyCurrentBalance is true)
-            if (!showOnlyCurrentBalance) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isPositive) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            // 2. Total Net Worth (Center)
+            Column(
+                modifier = Modifier.weight(1.2f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (নেট ওর্থ)" else "Total Net Worth",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
+                    fontSize = 15.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.primary else SolidExpense,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!showOnlyCurrentBalance) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    val sign = if (isPositive) "+" else ""
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isPositive) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
                     ) {
-                        Icon(
-                            imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                            contentDescription = null,
-                            tint = if (isPositive) SolidIncome else SolidExpense,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        val sign = if (isPositive) "+" else ""
-                        Text(
-                            text = "$sign${LanguageHelper.formatNumber(deltaPercent, languageMode)}%",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isPositive) SolidIncome else SolidExpense
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                contentDescription = null,
+                                tint = if (isPositive) SolidIncome else SolidExpense,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = "$sign${LanguageHelper.formatNumber(deltaPercent, languageMode)}%",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPositive) SolidIncome else SolidExpense
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-            Spacer(modifier = Modifier.height(10.dp))
+            // Divider 2
+            VerticalDivider(
+                modifier = Modifier
+                    .height(36.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
 
-            // Total Assets (Left) and Total Liabilities (Right)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // 3. Total Liabilities (Right)
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Total Assets column (Left)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.Start
-                ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities",
+                    fontSize = 11.sp,
+                    color = SolidExpense,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode),
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SolidExpense,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!showOnlyCurrentBalance) {
+                    Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Prev: ${formatBalance(data.totalLiabilitiesBase, displayCurrency, languageMode)}",
+                        fontSize = 9.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
                     )
-                    Text(
-                        text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (!showOnlyCurrentBalance) {
-                        Text(
-                            text = "Prev: ${formatBalance(data.totalAssetsBase, displayCurrency, languageMode)}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
                 }
+            }
+        }
+    }
+}
 
-                // Total Liabilities column (Right)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities",
-                        fontSize = 11.sp,
-                        color = SolidExpense,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SolidExpense
-                    )
-                    if (!showOnlyCurrentBalance) {
-                        Text(
-                            text = "Prev: ${formatBalance(data.totalLiabilitiesBase, displayCurrency, languageMode)}",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
+@Composable
+private fun MiniNetWorthSummaryCard(
+    data: BalanceSheetComparisonData,
+    displayCurrency: Boolean,
+    languageMode: LanguageMode
+) {
+    Card(
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Assets
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets",
+                    fontSize = 9.5.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            VerticalDivider(
+                modifier = Modifier
+                    .height(20.dp)
+                    .padding(horizontal = 2.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+
+            // Net Worth
+            Column(
+                modifier = Modifier.weight(1.2f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "নেট ওর্থ" else "Net Worth",
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.primary else SolidExpense,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            VerticalDivider(
+                modifier = Modifier
+                    .height(20.dp)
+                    .padding(horizontal = 2.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+
+            // Liabilities
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities",
+                    fontSize = 9.5.sp,
+                    color = SolidExpense,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SolidExpense,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
