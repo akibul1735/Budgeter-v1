@@ -1822,7 +1822,17 @@ private fun ScreenRouter(
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
             onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
-            onAccountClick = onAccountClick
+            onAccountClick = onAccountClick,
+            accountCalcConfig = accountCalcConfig,
+            onToggleIncludeStatus = { acc, isIncluded ->
+                viewModel.setAccountIncludeStatus(acc.id, isIncluded)
+            },
+            onSaveCalculationSetting = { acc, isIncluded, adjustment ->
+                viewModel.setAccountCalcSetting(acc.id, isIncluded, adjustment)
+            },
+            onResetAccountCalculation = { acc ->
+                viewModel.resetAccountCalculation(acc.id)
+            }
         )
         AppView.PAYMENT_SOURCE -> PaymentSourceScreen(
             allAccounts = allAccounts,

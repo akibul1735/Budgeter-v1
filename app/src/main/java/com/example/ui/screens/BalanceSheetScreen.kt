@@ -38,11 +38,13 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterAlt
@@ -53,6 +55,8 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -91,6 +95,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,9 +107,11 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.ui.components.AppTabHeader
+import com.example.ui.dialogs.AccountCalculationDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.util.AccountCalcConfig
 import com.example.util.BalanceSheetAccountRow
 import com.example.util.BalanceSheetComparisonData
 import com.example.util.BalanceSheetComparisonPreset
@@ -252,9 +259,13 @@ fun BalanceSheetScreen(
     onOpenDrawer: () -> Unit = {},
     onAddAccountClick: () -> Unit,
     onAddSubAccountClick: (Account) -> Unit,
-    onEditAccountClick: (Account) -> Unit,
+    onEditAccountClick: (Account) -> Unit = {},
     onAddTransactionClick: () -> Unit,
-    onAccountClick: ((Account) -> Unit)? = null
+    onAccountClick: ((Account) -> Unit)? = null,
+    accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
+    onToggleIncludeStatus: ((Account, Boolean) -> Unit)? = null,
+    onSaveCalculationSetting: ((Account, Boolean, Double) -> Unit)? = null,
+    onResetAccountCalculation: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -281,9 +292,11 @@ fun BalanceSheetScreen(
         mutableStateOf(compare)
     }
 
-    // Modal Filter Dialog
+    // Modal Filter Dialog & Calculation Mode
     var showFilterDialog by remember { mutableStateOf(false) }
-    var isEditMode by remember { mutableStateOf(false) }
+    var isCalcMode by remember { mutableStateOf(false) }
+    var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
+    var isDualDateFlow by remember { mutableStateOf(false) }
 
     // Date Pickers for Custom Mode
     var showBaseDatePicker by remember { mutableStateOf(false) }
@@ -299,6 +312,7 @@ fun BalanceSheetScreen(
         baseDateMs,
         compareDateMs,
         filterState,
+        accountCalcConfig,
         languageMode
     ) {
         BalanceSheetHelper.calculateBalanceSheet(
@@ -313,6 +327,7 @@ fun BalanceSheetScreen(
             showHiddenAccounts = filterState.showHiddenAccounts,
             excludeZeroAmounts = filterState.excludeZeroAmounts,
             searchQuery = "",
+            accountCalcConfig = accountCalcConfig,
             languageMode = languageMode
         )
     }
@@ -355,9 +370,21 @@ fun BalanceSheetScreen(
                         compareDateLabel = balanceSheetData.compareDateLabel,
                         showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                         languageMode = languageMode,
+                        isCalcMode = isCalcMode,
+                        onToggleCalcMode = { isCalcMode = !isCalcMode },
                         onOpenFilter = { showFilterDialog = true },
-                        onToggleEditMode = { isEditMode = !isEditMode },
-                        isEditMode = isEditMode
+                        onPickBaseDate = {
+                            isDualDateFlow = false
+                            showBaseDatePicker = true
+                        },
+                        onPickCompareDate = {
+                            isDualDateFlow = false
+                            showCompareDatePicker = true
+                        },
+                        onPickBothDates = {
+                            isDualDateFlow = true
+                            showBaseDatePicker = true
+                        }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -387,16 +414,18 @@ fun BalanceSheetScreen(
                         BalanceSheetGroupItem(
                             group = group,
                             isExpanded = isExpanded,
-                            isEditMode = isEditMode,
+                            isCalcMode = isCalcMode,
+                            accountCalcConfig = accountCalcConfig,
                             displayCurrency = filterState.displayCurrency,
                             showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onToggleExpand = {
                                 expandedMap[group.parentAccount.id] = !isExpanded
                             },
-                            onAddSubAccount = { onAddSubAccountClick(group.parentAccount) },
-                            onEditAccount = { onEditAccountClick(group.parentAccount) },
-                            onEditSubAccount = { onEditAccountClick(it) },
+                            onToggleIncludeStatus = onToggleIncludeStatus,
+                            onRequestAdjustCalculation = { acc, bal ->
+                                calcDialogTarget = Pair(acc, bal)
+                            },
                             onAccountClick = onAccountClick
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -432,16 +461,18 @@ fun BalanceSheetScreen(
                         BalanceSheetGroupItem(
                             group = group,
                             isExpanded = isExpanded,
-                            isEditMode = isEditMode,
+                            isCalcMode = isCalcMode,
+                            accountCalcConfig = accountCalcConfig,
                             displayCurrency = filterState.displayCurrency,
                             showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onToggleExpand = {
                                 expandedMap[group.parentAccount.id] = !isExpanded
                             },
-                            onAddSubAccount = { onAddSubAccountClick(group.parentAccount) },
-                            onEditAccount = { onEditAccountClick(group.parentAccount) },
-                            onEditSubAccount = { onEditAccountClick(it) },
+                            onToggleIncludeStatus = onToggleIncludeStatus,
+                            onRequestAdjustCalculation = { acc, bal ->
+                                calcDialogTarget = Pair(acc, bal)
+                            },
                             onAccountClick = onAccountClick
                         )
                         Spacer(modifier = Modifier.height(8.dp))
@@ -494,12 +525,34 @@ fun BalanceSheetScreen(
         }
     }
 
+    // Account Calculation Inclusion/Adjustment Dialog
+    if (calcDialogTarget != null) {
+        val (targetAccount, actualBal) = calcDialogTarget!!
+        AccountCalculationDialog(
+            account = targetAccount,
+            actualBalance = actualBal,
+            currentSetting = accountCalcConfig.getSetting(targetAccount.id),
+            languageMode = languageMode,
+            onDismiss = { calcDialogTarget = null },
+            onSave = { isIncluded, adjustment ->
+                onSaveCalculationSetting?.invoke(targetAccount, isIncluded, adjustment)
+                calcDialogTarget = null
+            },
+            onReset = {
+                onResetAccountCalculation?.invoke(targetAccount)
+                calcDialogTarget = null
+            }
+        )
+    }
+
     // Material Style Filter Dialog
     if (showFilterDialog) {
         MaterialBalanceSheetFilterDialog(
             currentState = filterState,
             accounts = accounts,
             languageMode = languageMode,
+            baseDateMs = baseDateMs,
+            compareDateMs = compareDateMs,
             onApply = { newState ->
                 filterState = newState
                 if (newState.preset == BalanceSheetComparisonPreset.CUSTOM &&
@@ -515,7 +568,18 @@ fun BalanceSheetScreen(
             },
             onSelectCustomDates = {
                 showFilterDialog = false
+                isDualDateFlow = true
                 showBaseDatePicker = true
+            },
+            onSelectBaseDate = {
+                showFilterDialog = false
+                isDualDateFlow = false
+                showBaseDatePicker = true
+            },
+            onSelectCompareDate = {
+                showFilterDialog = false
+                isDualDateFlow = false
+                showCompareDatePicker = true
             },
             onDismiss = { showFilterDialog = false }
         )
@@ -531,10 +595,24 @@ fun BalanceSheetScreen(
                     dateState.selectedDateMillis?.let {
                         baseDateMs = it
                         showBaseDatePicker = false
-                        showCompareDatePicker = true
+                        if (isDualDateFlow) {
+                            showCompareDatePicker = true
+                        } else {
+                            filterState = filterState.copy(
+                                preset = BalanceSheetComparisonPreset.CUSTOM,
+                                customBaseDateMs = it,
+                                customCompareDateMs = compareDateMs
+                            )
+                        }
                     }
                 }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "পরবর্তী" else "Next")
+                    Text(
+                        if (isDualDateFlow) {
+                            if (languageMode == LanguageMode.BANGLA) "পরবর্তী" else "Next"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "প্রয়োগ" else "Apply"
+                        }
+                    )
                 }
             },
             dismissButton = {
@@ -545,7 +623,7 @@ fun BalanceSheetScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "বেস তারিখ নির্বাচন করুন" else "Select Base Comparison Date",
+                    text = if (languageMode == LanguageMode.BANGLA) "বেস তারিখ নির্বাচন করুন (তুলনার শুরুর তারিখ)" else "Select Base Comparison Date",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
@@ -567,7 +645,7 @@ fun BalanceSheetScreen(
                         filterState = filterState.copy(
                             preset = BalanceSheetComparisonPreset.CUSTOM,
                             customBaseDateMs = baseDateMs,
-                            customCompareDateMs = compareDateMs
+                            customCompareDateMs = it
                         )
                     }
                 }) {
@@ -610,8 +688,12 @@ fun MaterialBalanceSheetFilterDialog(
     currentState: BalanceSheetFilterState,
     accounts: List<Account>,
     languageMode: LanguageMode,
+    baseDateMs: Long,
+    compareDateMs: Long,
     onApply: (BalanceSheetFilterState) -> Unit,
     onSelectCustomDates: () -> Unit,
+    onSelectBaseDate: () -> Unit,
+    onSelectCompareDate: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -859,6 +941,97 @@ fun MaterialBalanceSheetFilterDialog(
                                             }
                                         }
                                     )
+                                }
+                            }
+                        }
+
+                        // If CUSTOM preset selected, show both dates comparison configuration
+                        if (tempPreset == BalanceSheetComparisonPreset.CUSTOM) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Card(
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক দুটি তারিখ:" else "Select Two Comparison Dates:",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // 1. Base Date Row
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { onSelectBaseDate() }
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "১. বেস তারিখ (শুরুর সময়কাল)" else "1. Base Date (Past Baseline)",
+                                                fontSize = 10.5.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = DateUtils.formatDate(baseDateMs, languageMode),
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.EditCalendar,
+                                            contentDescription = "Change Base Date",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    // 2. Compare Date Row
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { onSelectCompareDate() }
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "২. তুলনামূলক বর্তমান তারিখ" else "2. Compare Date (Target)",
+                                                fontSize = 10.5.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = DateUtils.formatDate(compareDateMs, languageMode),
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.EditCalendar,
+                                            contentDescription = "Change Compare Date",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1587,68 +1760,72 @@ private fun NetWorthSummaryCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (নেট ওর্থ)" else "Total Net Worth",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
-                    Text(
-                        text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense
-                    )
-                }
+            // Centered Total Net Worth
+            Text(
+                text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (নেট ওর্থ)" else "Total Net Worth",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense,
+                textAlign = TextAlign.Center
+            )
 
-                // Growth badge (hidden if showOnlyCurrentBalance is true)
-                if (!showOnlyCurrentBalance) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isPositive) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
+            // Growth badge (hidden if showOnlyCurrentBalance is true)
+            if (!showOnlyCurrentBalance) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isPositive) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                                contentDescription = null,
-                                tint = if (isPositive) SolidIncome else SolidExpense,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            val sign = if (isPositive) "+" else ""
-                            Text(
-                                text = "$sign${LanguageHelper.formatNumber(deltaPercent, languageMode)}%",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isPositive) SolidIncome else SolidExpense
-                            )
-                        }
+                        Icon(
+                            imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                            contentDescription = null,
+                            tint = if (isPositive) SolidIncome else SolidExpense,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        val sign = if (isPositive) "+" else ""
+                        Text(
+                            text = "$sign${LanguageHelper.formatNumber(deltaPercent, languageMode)}%",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isPositive) SolidIncome else SolidExpense
+                        )
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Assets and Liabilities row comparison
+            // Total Assets (Left) and Total Liabilities (Right)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Total Assets column
-                Column(modifier = Modifier.weight(1f)) {
+                // Total Assets column (Left)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.Start
+                ) {
                     Text(
                         text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets",
                         fontSize = 11.sp,
@@ -1657,7 +1834,7 @@ private fun NetWorthSummaryCard(
                     )
                     Text(
                         text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode),
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -1670,7 +1847,7 @@ private fun NetWorthSummaryCard(
                     }
                 }
 
-                // Total Liabilities column
+                // Total Liabilities column (Right)
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.End
@@ -1683,7 +1860,7 @@ private fun NetWorthSummaryCard(
                     )
                     Text(
                         text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode),
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = SolidExpense
                     )
@@ -1707,9 +1884,12 @@ private fun ComparisonDatesCard(
     compareDateLabel: String,
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
+    isCalcMode: Boolean,
+    onToggleCalcMode: () -> Unit,
     onOpenFilter: () -> Unit,
-    onToggleEditMode: () -> Unit,
-    isEditMode: Boolean
+    onPickBaseDate: () -> Unit,
+    onPickCompareDate: () -> Unit,
+    onPickBothDates: () -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(12.dp),
@@ -1752,26 +1932,43 @@ private fun ComparisonDatesCard(
                     }
                 }
 
-                // Edit Mode Button
-                IconButton(
-                    onClick = onToggleEditMode,
-                    modifier = Modifier.size(30.dp)
+                // Calculation Inclusion/Exclusion Toggle Button (replaces legacy Edit button)
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isCalcMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onToggleCalcMode() }
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Mode",
-                        tint = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(17.dp)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Calculation Settings",
+                            tint = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "হিসাব গণনা" else "Calc",
+                            fontSize = 11.sp,
+                            fontWeight = if (isCalcMode) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCalcMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Date Range Display
+            // Date Range Display with two clickable dates to compare
             if (showOnlyCurrentBalance) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onPickCompareDate() }
+                        .padding(vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1781,12 +1978,21 @@ private fun ComparisonDatesCard(
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text(
-                        text = compareDateLabel,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = compareDateLabel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.EditCalendar,
+                            contentDescription = "Change Date",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             } else {
                 Row(
@@ -1794,39 +2000,93 @@ private fun ComparisonDatesCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Base: ",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        Text(
-                            text = baseDateLabel,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                    // Clickable Base Date Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onPickBaseDate() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "বেস তারিখ" else "Base Date",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = baseDateLabel,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.EditCalendar,
+                                contentDescription = "Edit Base Date",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+
+                    // Dual arrow separator
+                    IconButton(
+                        onClick = onPickBothDates,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Pick Both Dates",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(14.dp)
-                    )
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Compare: ",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        Text(
-                            text = compareDateLabel,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                    // Clickable Compare Date Chip
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onPickCompareDate() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক তারিখ" else "Compare Date",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                                Text(
+                                    text = compareDateLabel,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.EditCalendar,
+                                contentDescription = "Edit Compare Date",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1896,16 +2156,19 @@ private fun SectionHeader(
 private fun BalanceSheetGroupItem(
     group: BalanceSheetGroup,
     isExpanded: Boolean,
-    isEditMode: Boolean,
+    isCalcMode: Boolean,
+    accountCalcConfig: AccountCalcConfig,
     displayCurrency: Boolean,
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
     onToggleExpand: () -> Unit,
-    onAddSubAccount: () -> Unit,
-    onEditAccount: () -> Unit,
-    onEditSubAccount: (Account) -> Unit,
+    onToggleIncludeStatus: ((Account, Boolean) -> Unit)?,
+    onRequestAdjustCalculation: (Account, Double) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
+    val isIncluded = accountCalcConfig.isIncluded(group.parentAccount.id)
+    val isAdjusted = accountCalcConfig.getAdjustment(group.parentAccount.id) != 0.0
+
     Column(modifier = Modifier.fillMaxWidth()) {
         // Parent Account Row
         Surface(
@@ -1936,9 +2199,7 @@ private fun BalanceSheetGroupItem(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(6.dp))
-                        .clickable {
-                            if (isEditMode) onEditAccount() else onAccountClick?.invoke(group.parentAccount)
-                        }
+                        .clickable { onAccountClick?.invoke(group.parentAccount) }
                         .padding(vertical = 2.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1961,12 +2222,29 @@ private fun BalanceSheetGroupItem(
                         text = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                         maxLines = 2,
                         lineHeight = 16.sp,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
+
+                    // Excluded badge
+                    if (!isIncluded) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = SolidExpense.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidExpense,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
 
                     // % Share badge
                     if (group.percentageShare > 0) {
@@ -2000,12 +2278,32 @@ private fun BalanceSheetGroupItem(
                             text = formatBalance(group.currentBalance, displayCurrency, languageMode),
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
                         )
-                        if (isEditMode) {
+                        if (isCalcMode) {
                             Spacer(modifier = Modifier.width(4.dp))
-                            IconButton(onClick = onEditAccount, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(14.dp))
+                            IconButton(
+                                onClick = { onToggleIncludeStatus?.invoke(group.parentAccount, !isIncluded) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (isIncluded) "Exclude" else "Include",
+                                    tint = if (isIncluded) SolidIncome else SolidExpense,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { onRequestAdjustCalculation(group.parentAccount, group.currentBalance) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Adjust",
+                                    tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(15.dp)
+                                )
                             }
                         }
                     }
@@ -2018,7 +2316,8 @@ private fun BalanceSheetGroupItem(
                             text = formatBalance(group.baseBalance, displayCurrency, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary
+                            color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                            textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2026,16 +2325,36 @@ private fun BalanceSheetGroupItem(
                                 text = formatBalance(group.currentBalance, displayCurrency, languageMode),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
                             )
                             Spacer(modifier = Modifier.width(2.dp))
                             ChangeIndicator(delta = group.delta)
                         }
 
-                        if (isEditMode) {
+                        if (isCalcMode) {
                             Spacer(modifier = Modifier.width(4.dp))
-                            IconButton(onClick = onEditAccount, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(14.dp))
+                            IconButton(
+                                onClick = { onToggleIncludeStatus?.invoke(group.parentAccount, !isIncluded) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (isIncluded) "Exclude" else "Include",
+                                    tint = if (isIncluded) SolidIncome else SolidExpense,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = { onRequestAdjustCalculation(group.parentAccount, group.currentBalance) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Adjust",
+                                    tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(15.dp)
+                                )
                             }
                         }
                     }
@@ -2068,28 +2387,15 @@ private fun BalanceSheetGroupItem(
                         }
                         SubAccountRowItem(
                             row = subRow,
-                            isEditMode = isEditMode,
+                            isCalcMode = isCalcMode,
+                            accountCalcConfig = accountCalcConfig,
                             displayCurrency = displayCurrency,
                             showOnlyCurrentBalance = showOnlyCurrentBalance,
                             languageMode = languageMode,
-                            onEdit = { onEditSubAccount(subRow.account) },
+                            onToggleIncludeStatus = onToggleIncludeStatus,
+                            onRequestAdjustCalculation = onRequestAdjustCalculation,
                             onAccountClick = onAccountClick
                         )
-                    }
-
-                    if (isEditMode) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        TextButton(
-                            onClick = onAddSubAccount,
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সাব-অ্যাকাউন্ট যোগ" else "Add Sub-Account",
-                                fontSize = 11.sp
-                            )
-                        }
                     }
                 }
             }
@@ -2100,20 +2406,23 @@ private fun BalanceSheetGroupItem(
 @Composable
 private fun SubAccountRowItem(
     row: BalanceSheetAccountRow,
-    isEditMode: Boolean,
+    isCalcMode: Boolean,
+    accountCalcConfig: AccountCalcConfig,
     displayCurrency: Boolean,
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
-    onEdit: () -> Unit,
+    onToggleIncludeStatus: ((Account, Boolean) -> Unit)?,
+    onRequestAdjustCalculation: (Account, Double) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
+    val isIncluded = accountCalcConfig.isIncluded(row.account.id)
+    val isAdjusted = accountCalcConfig.getAdjustment(row.account.id) != 0.0
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(6.dp))
-            .clickable {
-                if (isEditMode) onEdit() else onAccountClick?.invoke(row.account)
-            }
+            .clickable { onAccountClick?.invoke(row.account) }
             .padding(vertical = 4.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -2126,12 +2435,29 @@ private fun SubAccountRowItem(
                 text = if (languageMode == LanguageMode.BANGLA) row.account.nameBn else row.account.nameEn,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                 maxLines = 2,
                 lineHeight = 15.sp,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false)
             )
+
+            // Excluded badge
+            if (!isIncluded) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Surface(
+                    shape = RoundedCornerShape(3.dp),
+                    color = SolidExpense.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SolidExpense,
+                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                    )
+                }
+            }
 
             if (row.percentageShare > 0) {
                 Spacer(modifier = Modifier.width(6.dp))
@@ -2162,12 +2488,32 @@ private fun SubAccountRowItem(
                     text = formatBalance(row.currentBalance, displayCurrency, languageMode),
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
                 )
-                if (isEditMode) {
+                if (isCalcMode) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = onEdit, modifier = Modifier.size(20.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(12.dp))
+                    IconButton(
+                        onClick = { onToggleIncludeStatus?.invoke(row.account, !isIncluded) },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (isIncluded) "Exclude" else "Include",
+                            tint = if (isIncluded) SolidIncome else SolidExpense,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = { onRequestAdjustCalculation(row.account, row.currentBalance) },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Adjust",
+                            tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(13.dp)
+                        )
                     }
                 }
             }
@@ -2179,7 +2525,8 @@ private fun SubAccountRowItem(
                 Text(
                     text = formatBalance(row.baseBalance, displayCurrency, languageMode),
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
+                    textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2187,16 +2534,36 @@ private fun SubAccountRowItem(
                         text = formatBalance(row.currentBalance, displayCurrency, languageMode),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                        textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None
                     )
                     Spacer(modifier = Modifier.width(2.dp))
                     ChangeIndicator(delta = row.delta)
                 }
 
-                if (isEditMode) {
+                if (isCalcMode) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = onEdit, modifier = Modifier.size(20.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(12.dp))
+                    IconButton(
+                        onClick = { onToggleIncludeStatus?.invoke(row.account, !isIncluded) },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isIncluded) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (isIncluded) "Exclude" else "Include",
+                            tint = if (isIncluded) SolidIncome else SolidExpense,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = { onRequestAdjustCalculation(row.account, row.currentBalance) },
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Adjust",
+                            tint = if (isAdjusted) SolidPrimary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(13.dp)
+                        )
                     }
                 }
             }
