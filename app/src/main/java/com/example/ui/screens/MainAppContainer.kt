@@ -2007,6 +2007,7 @@ private fun ScreenRouter(
         AppView.SETTINGS -> SettingsScreen(
             viewModel = viewModel,
             languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
             onBack = onBack,
             onNavigateToBackupSync = { onNavigate(AppView.BACKUP_SYNC) },
             onNavigateToReset = { onNavigate(AppView.RESET) },
