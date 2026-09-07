@@ -29,12 +29,16 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
 import com.example.ui.components.AppTabHeader
+import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.screens.settings.AboutSettingsPage
 import com.example.ui.screens.settings.AppearanceSettingsPage
 import com.example.ui.screens.settings.CalendarSettingsPage
@@ -107,6 +112,8 @@ fun SettingsScreen(
     onOpenAutofillSettings: () -> Unit = {}
 ) {
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
+    var showSecurityAuthDialog by remember { mutableStateOf(false) }
+    var showSettingsMenu by remember { mutableStateOf(false) }
     val rootListState = rememberLazyListState()
 
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
@@ -122,6 +129,25 @@ fun SettingsScreen(
         BackHandler(enabled = true) {
             currentSubPage = SettingsSubPage.ROOT
         }
+    }
+
+    if (showSecurityAuthDialog) {
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা নিশ্চিতকরণ" else "Security Authentication",
+            message = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও ফিঙ্গারপ্রিন্ট সেটিংসে প্রবেশ করতে আপনার পিন বা বায়োমেট্রিক দিন।" else "Please authenticate with your PIN or biometric to access Security settings.",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "প্রবেশ করুন" else "Authenticate",
+            requiresAuth = true,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { pin -> viewModel.verifySecurityPin(pin) },
+            onConfirm = {
+                showSecurityAuthDialog = false
+                currentSubPage = SettingsSubPage.SECURITY
+            },
+            onDismiss = {
+                showSecurityAuthDialog = false
+            }
+        )
     }
 
     when (currentSubPage) {
@@ -235,12 +261,100 @@ fun SettingsScreen(
                     onOpenDrawer = onOpenDrawer,
                     onBack = null,
                     actions = {
-                        IconButton(onClick = { currentSubPage = SettingsSubPage.FAQ }) {
+                        IconButton(
+                            onClick = { currentSubPage = SettingsSubPage.FAQ },
+                            modifier = Modifier.testTag("settings_faq_button")
+                        ) {
                             Icon(
                                 Icons.Default.HelpOutline,
                                 contentDescription = "Help",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                        Box {
+                            IconButton(
+                                onClick = { showSettingsMenu = true },
+                                modifier = Modifier.testTag("settings_menu_button")
+                            ) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = "Settings Menu",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showSettingsMenu,
+                                onDismissRequest = { showSettingsMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "প্রধান মেনু খুলুন" else "Open Navigation Menu") },
+                                    leadingIcon = { Icon(Icons.Default.Menu, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        onOpenDrawer()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management & Sync") },
+                                    leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        onNavigateToBackupSync()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও ফিঙ্গারপ্রিন্ট" else "Security & App Lock") },
+                                    leadingIcon = { Icon(Icons.Default.Fingerprint, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        if (securityConfig.isAppLockEnabled || securityConfig.hasPin || securityConfig.isBiometricEnabled) {
+                                            showSecurityAuthDialog = true
+                                        } else {
+                                            currentSubPage = SettingsSubPage.SECURITY
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা" else "Themes & Appearance") },
+                                    leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        currentSubPage = SettingsSubPage.THEMES
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup") },
+                                    leadingIcon = { Icon(Icons.Default.CurrencyExchange, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        currentSubPage = SettingsSubPage.CURRENCY
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference") },
+                                    leadingIcon = { Icon(Icons.Default.Language, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        currentSubPage = SettingsSubPage.LANGUAGE
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe") },
+                                    leadingIcon = { Icon(Icons.Default.RestartAlt, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        onNavigateToReset()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "প্রশ্নোত্তর ও সহায়তা" else "FAQ & Help") },
+                                    leadingIcon = { Icon(Icons.Default.HelpOutline, contentDescription = null) },
+                                    onClick = {
+                                        showSettingsMenu = false
+                                        currentSubPage = SettingsSubPage.FAQ
+                                    }
+                                )
+                            }
                         }
                     }
                 )
@@ -379,7 +493,13 @@ fun SettingsScreen(
                             else
                                 if (languageMode == LanguageMode.BANGLA) "সুরক্ষা বন্ধ রয়েছে" else "App Lock Disabled",
                             icon = Icons.Default.Fingerprint,
-                            onClick = { currentSubPage = SettingsSubPage.SECURITY }
+                            onClick = {
+                                if (securityConfig.isAppLockEnabled || securityConfig.hasPin || securityConfig.isBiometricEnabled) {
+                                    showSecurityAuthDialog = true
+                                } else {
+                                    currentSubPage = SettingsSubPage.SECURITY
+                                }
+                            }
                         )
                     }
 

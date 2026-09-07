@@ -90,7 +90,23 @@ object GoogleDriveService {
     suspend fun getAccessToken(context: Context, account: GoogleSignInAccount): String? = withContext(Dispatchers.IO) {
         try {
             val scopeString = "oauth2:https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata"
-            val androidAccount = account.account ?: return@withContext null
+            val androidAccount = account.account ?: (account.email?.let { android.accounts.Account(it, "com.google") })
+                ?: return@withContext null
+            com.google.android.gms.auth.GoogleAuthUtil.getToken(context, androidAccount, scopeString)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Obtains an OAuth2 access token for a Google account by email address
+     */
+    suspend fun getAccessTokenForEmail(context: Context, email: String): String? = withContext(Dispatchers.IO) {
+        if (email.isBlank()) return@withContext null
+        try {
+            val scopeString = "oauth2:https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata"
+            val androidAccount = android.accounts.Account(email, "com.google")
             com.google.android.gms.auth.GoogleAuthUtil.getToken(context, androidAccount, scopeString)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -168,46 +184,73 @@ object GoogleDriveService {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain Google Drive access token. Please re-authenticate."))
-
-            val backupData = BudgetBackupData(
-                accounts = accountDao.getAllAccountsSnapshot(),
-                categories = categoryDao.getAllCategoriesSnapshot(),
-                transactions = transactionDao.getAllTransactionsSnapshot(),
-                recurringBills = recurringBillDao.getAllBillsSnapshot()
-            )
-            val jsonContent = adapter.indent("  ").toJson(backupData)
-
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val fileName = "Budgeter_Backup_$timeStamp.json"
-
-            // 1. Upload to Visible "Budgeter" Folder
-            val folderId = getOrCreateVisibleBudgeterFolder(accessToken)
-            val visibleFileId = uploadFile(
-                accessToken = accessToken,
-                fileName = fileName,
-                jsonContent = jsonContent,
-                parents = if (folderId != null) listOf(folderId) else listOf("root")
-            )
-
-            // 2. Upload to Hidden "appDataFolder"
-            val appDataFileId = uploadFile(
-                accessToken = accessToken,
-                fileName = fileName,
-                jsonContent = jsonContent,
-                parents = listOf("appDataFolder")
-            )
-
-            Result.success(
-                DriveBackupResult(
-                    visibleFileId = visibleFileId,
-                    appDataFileId = appDataFileId,
-                    fileName = fileName
-                )
-            )
+            executeUploadBackup(accessToken, accountDao, categoryDao, transactionDao, recurringBillDao)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
         }
+    }
+
+    suspend fun uploadBackupToDriveForEmail(
+        context: Context,
+        email: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao
+    ): Result<DriveBackupResult> = withContext(Dispatchers.IO) {
+        try {
+            val accessToken = getAccessTokenForEmail(context, email)
+                ?: return@withContext Result.failure(Exception("Failed to obtain Google Drive access token for $email."))
+            executeUploadBackup(accessToken, accountDao, categoryDao, transactionDao, recurringBillDao)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun executeUploadBackup(
+        accessToken: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao
+    ): Result<DriveBackupResult> {
+        val backupData = BudgetBackupData(
+            accounts = accountDao.getAllAccountsSnapshot(),
+            categories = categoryDao.getAllCategoriesSnapshot(),
+            transactions = transactionDao.getAllTransactionsSnapshot(),
+            recurringBills = recurringBillDao.getAllBillsSnapshot()
+        )
+        val jsonContent = adapter.indent("  ").toJson(backupData)
+
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val fileName = "Budgeter_Backup_$timeStamp.json"
+
+        // 1. Upload to Visible "Budgeter" Folder
+        val folderId = getOrCreateVisibleBudgeterFolder(accessToken)
+        val visibleFileId = uploadFile(
+            accessToken = accessToken,
+            fileName = fileName,
+            jsonContent = jsonContent,
+            parents = if (folderId != null) listOf(folderId) else listOf("root")
+        )
+
+        // 2. Upload to Hidden "appDataFolder"
+        val appDataFileId = uploadFile(
+            accessToken = accessToken,
+            fileName = fileName,
+            jsonContent = jsonContent,
+            parents = listOf("appDataFolder")
+        )
+
+        return Result.success(
+            DriveBackupResult(
+                visibleFileId = visibleFileId,
+                appDataFileId = appDataFileId,
+                fileName = fileName
+            )
+        )
     }
 
     private fun uploadFile(
@@ -266,53 +309,43 @@ object GoogleDriveService {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to acquire access token"))
+            executeListDriveBackups(accessToken)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
 
-            val list = mutableListOf<GoogleDriveBackupFile>()
+    suspend fun listDriveBackupsForEmail(
+        context: Context,
+        email: String
+    ): Result<List<GoogleDriveBackupFile>> = withContext(Dispatchers.IO) {
+        try {
+            val accessToken = getAccessTokenForEmail(context, email)
+                ?: return@withContext Result.failure(Exception("Failed to acquire access token for $email"))
+            executeListDriveBackups(accessToken)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
 
-            // 1. Fetch from visible folder "Budgeter"
-            val visibleFolderId = getOrCreateVisibleBudgeterFolder(accessToken)
-            if (visibleFolderId != null) {
-                val query = "'$visibleFolderId' in parents and trashed = false and mimeType = 'application/json'"
-                val url = "https://www.googleapis.com/drive/v3/files?q=${java.net.URLEncoder.encode(query, "UTF-8")}&spaces=drive&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime desc"
+    private suspend fun executeListDriveBackups(accessToken: String): Result<List<GoogleDriveBackupFile>> {
+        val list = mutableListOf<GoogleDriveBackupFile>()
 
-                val req = Request.Builder()
-                    .url(url)
-                    .addHeader("Authorization", "Bearer $accessToken")
-                    .get()
-                    .build()
+        // 1. Fetch from visible folder "Budgeter"
+        val visibleFolderId = getOrCreateVisibleBudgeterFolder(accessToken)
+        if (visibleFolderId != null) {
+            val query = "'$visibleFolderId' in parents and trashed = false and mimeType = 'application/json'"
+            val url = "https://www.googleapis.com/drive/v3/files?q=${java.net.URLEncoder.encode(query, "UTF-8")}&spaces=drive&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime desc"
 
-                httpClient.newCall(req).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val body = response.body?.string() ?: ""
-                        val json = JSONObject(body)
-                        val files = json.optJSONArray("files") ?: JSONArray()
-                        for (i in 0 until files.length()) {
-                            val f = files.getJSONObject(i)
-                            list.add(
-                                GoogleDriveBackupFile(
-                                    id = f.getString("id"),
-                                    name = f.optString("name", "Budgeter_Backup.json"),
-                                    modifiedTime = f.optString("modifiedTime", ""),
-                                    size = f.optLong("size", 0L),
-                                    location = DriveBackupLocation.VISIBLE_APP_FOLDER
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 2. Fetch from hidden appDataFolder
-            val appDataQuery = "trashed = false"
-            val appDataUrl = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime desc"
-
-            val appDataReq = Request.Builder()
-                .url(appDataUrl)
+            val req = Request.Builder()
+                .url(url)
                 .addHeader("Authorization", "Bearer $accessToken")
                 .get()
                 .build()
 
-            httpClient.newCall(appDataReq).execute().use { response ->
+            httpClient.newCall(req).execute().use { response ->
                 if (response.isSuccessful) {
                     val body = response.body?.string() ?: ""
                     val json = JSONObject(body)
@@ -325,18 +358,45 @@ object GoogleDriveService {
                                 name = f.optString("name", "Budgeter_Backup.json"),
                                 modifiedTime = f.optString("modifiedTime", ""),
                                 size = f.optLong("size", 0L),
-                                location = DriveBackupLocation.HIDDEN_APP_DATA
+                                location = DriveBackupLocation.VISIBLE_APP_FOLDER
                             )
                         )
                     }
                 }
             }
-
-            Result.success(list)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Result.failure(e)
         }
+
+        // 2. Fetch from hidden appDataFolder
+        val appDataQuery = "trashed = false"
+        val appDataUrl = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime desc"
+
+        val appDataReq = Request.Builder()
+            .url(appDataUrl)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        httpClient.newCall(appDataReq).execute().use { response ->
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                val json = JSONObject(body)
+                val files = json.optJSONArray("files") ?: JSONArray()
+                for (i in 0 until files.length()) {
+                    val f = files.getJSONObject(i)
+                    list.add(
+                        GoogleDriveBackupFile(
+                            id = f.getString("id"),
+                            name = f.optString("name", "Budgeter_Backup.json"),
+                            modifiedTime = f.optString("modifiedTime", ""),
+                            size = f.optLong("size", 0L),
+                            location = DriveBackupLocation.HIDDEN_APP_DATA
+                        )
+                    )
+                }
+            }
+        }
+
+        return Result.success(list)
     }
 
     /**
@@ -354,43 +414,72 @@ object GoogleDriveService {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token"))
-
-            val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
-            val request = Request.Builder()
-                .url(downloadUrl)
-                .addHeader("Authorization", "Bearer $accessToken")
-                .get()
-                .build()
-
-            val json = httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("Failed to download file from Google Drive: HTTP ${response.code}"))
-                }
-                response.body?.string() ?: return@withContext Result.failure(Exception("Empty file content"))
-            }
-
-            val backupData = adapter.fromJson(json)
-                ?: return@withContext Result.failure(Exception("Invalid backup format"))
-
-            // Clean & replace with restored records
-            transactionDao.deleteAll()
-            recurringBillDao.deleteAll()
-            categoryDao.deleteAll()
-            accountDao.deleteAll()
-
-            accountDao.insertAccounts(backupData.accounts)
-            categoryDao.insertCategories(backupData.categories)
-            transactionDao.insertTransactions(backupData.transactions)
-            if (backupData.recurringBills.isNotEmpty()) {
-                recurringBillDao.insertAll(backupData.recurringBills)
-            }
-
-            val count = backupData.transactions.size + backupData.accounts.size + backupData.categories.size
-            Result.success(count)
+            executeRestoreFromDriveFile(accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
         }
+    }
+
+    suspend fun restoreFromDriveFileForEmail(
+        context: Context,
+        email: String,
+        fileId: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val accessToken = getAccessTokenForEmail(context, email)
+                ?: return@withContext Result.failure(Exception("Failed to obtain access token for $email"))
+            executeRestoreFromDriveFile(accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun executeRestoreFromDriveFile(
+        accessToken: String,
+        fileId: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao
+    ): Result<Int> {
+        val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
+        val request = Request.Builder()
+            .url(downloadUrl)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        val json = httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                return Result.failure(Exception("Failed to download file from Google Drive: HTTP ${response.code}"))
+            }
+            response.body?.string() ?: return Result.failure(Exception("Empty file content"))
+        }
+
+        val backupData = adapter.fromJson(json)
+            ?: return Result.failure(Exception("Invalid backup format"))
+
+        // Clean & replace with restored records
+        transactionDao.deleteAll()
+        recurringBillDao.deleteAll()
+        categoryDao.deleteAll()
+        accountDao.deleteAll()
+
+        accountDao.insertAccounts(backupData.accounts)
+        categoryDao.insertCategories(backupData.categories)
+        transactionDao.insertTransactions(backupData.transactions)
+        if (backupData.recurringBills.isNotEmpty()) {
+            recurringBillDao.insertAll(backupData.recurringBills)
+        }
+
+        val count = backupData.transactions.size + backupData.accounts.size + backupData.categories.size
+        return Result.success(count)
     }
 
     /**
@@ -403,6 +492,29 @@ object GoogleDriveService {
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account) ?: return@withContext false
+            executeDeleteDriveBackup(accessToken, fileId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun deleteDriveBackupForEmail(
+        context: Context,
+        email: String,
+        fileId: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val accessToken = getAccessTokenForEmail(context, email) ?: return@withContext false
+            executeDeleteDriveBackup(accessToken, fileId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    private fun executeDeleteDriveBackup(accessToken: String, fileId: String): Boolean {
+        return try {
             val url = "https://www.googleapis.com/drive/v3/files/$fileId"
             val req = Request.Builder()
                 .url(url)

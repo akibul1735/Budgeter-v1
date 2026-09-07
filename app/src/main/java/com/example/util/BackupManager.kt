@@ -80,6 +80,11 @@ object BackupManager {
                                 out.write(json.toByteArray(Charsets.UTF_8))
                                 out.flush()
                             }
+                            // Cache mirror for immediate local file representation
+                            val cacheDir = File(context.cacheDir, "saf_backups").apply { if (!exists()) mkdirs() }
+                            val mirror = File(cacheDir, fileName)
+                            mirror.writeText(json)
+                            primaryFile = mirror
                         }
                     }
                 } catch (e: Exception) {
@@ -100,7 +105,12 @@ object BackupManager {
             }
         }
 
-        // 2. Write to Public Documents / Budgeter directory for user accessibility
+        // 2. Write to MediaStore Documents / Budgeter (Works seamlessly on Android 10+ without storage permissions)
+        try {
+            writeBackupToMediaStoreDocuments(context, fileName, json)
+        } catch (_: Exception) {}
+
+        // 3. Write to Public Documents / Budgeter directory for direct file accessibility
         try {
             val publicDocs = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS), "Budgeter")
             if (!publicDocs.exists()) publicDocs.mkdirs()
@@ -111,7 +121,7 @@ object BackupManager {
             }
         } catch (_: Exception) {}
 
-        // 3. Write to App External Files Dir
+        // 4. Write to App External Files Dir (Device storage accessible in file managers)
         try {
             val extDir = File(context.getExternalFilesDir(null), "backups")
             if (!extDir.exists()) extDir.mkdirs()
@@ -122,13 +132,44 @@ object BackupManager {
             }
         } catch (_: Exception) {}
 
-        // 4. Always ensure a backup copy in App Internal Files Dir
+        // 5. Always ensure a backup copy in App Internal Files Dir as ultimate safety net
         val internalDir = File(context.filesDir, "backups")
         if (!internalDir.exists()) internalDir.mkdirs()
         val internalFile = File(internalDir, fileName)
         internalFile.writeText(json)
 
         primaryFile ?: internalFile
+    }
+
+    /**
+     * Saves backup JSON into MediaStore Documents/Budgeter (Scoped Storage compatible for Android 10+)
+     */
+    fun writeBackupToMediaStoreDocuments(context: Context, fileName: String, json: String): Uri? {
+        return try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json")
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOCUMENTS + "/Budgeter")
+                    put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val collection = android.provider.MediaStore.Files.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                val itemUri = context.contentResolver.insert(collection, contentValues)
+                if (itemUri != null) {
+                    context.contentResolver.openOutputStream(itemUri)?.use { out ->
+                        out.write(json.toByteArray(Charsets.UTF_8))
+                        out.flush()
+                    }
+                    contentValues.clear()
+                    contentValues.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+                    context.contentResolver.update(itemUri, contentValues, null, null)
+                    itemUri
+                } else null
+            } else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     /**
@@ -254,16 +295,50 @@ object BackupManager {
             }
         } catch (_: Exception) {}
 
-        // 5. Custom directory if provided
-        if (!customDirectoryPath.isNullOrBlank() && !customDirectoryPath.startsWith("content://")) {
-            try {
-                val customDir = File(customDirectoryPath)
-                if (customDir.exists() && customDir.isDirectory) {
-                    customDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
-                        resultList.addAll(it)
-                    }
+        // 5. SAF Mirror backups
+        try {
+            val cacheDir = File(context.cacheDir, "saf_backups")
+            if (cacheDir.exists()) {
+                cacheDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+                    resultList.addAll(it)
                 }
-            } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+
+        // 6. Custom directory if provided
+        if (!customDirectoryPath.isNullOrBlank()) {
+            if (customDirectoryPath.startsWith("content://")) {
+                try {
+                    val treeUri = Uri.parse(customDirectoryPath)
+                    val pickedDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                    if (pickedDir != null && pickedDir.exists() && pickedDir.isDirectory) {
+                        pickedDir.listFiles().forEach { doc ->
+                            if (doc.isFile && (doc.name?.endsWith(".json") == true || doc.name?.endsWith(".db") == true)) {
+                                val name = doc.name ?: return@forEach
+                                val cacheDir = File(context.cacheDir, "saf_backups").apply { if (!exists()) mkdirs() }
+                                val tempFile = File(cacheDir, name)
+                                if (!tempFile.exists() || tempFile.length() != doc.length()) {
+                                    context.contentResolver.openInputStream(doc.uri)?.use { input ->
+                                        tempFile.outputStream().use { output -> input.copyTo(output) }
+                                    }
+                                }
+                                resultList.add(tempFile)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else {
+                try {
+                    val customDir = File(customDirectoryPath)
+                    if (customDir.exists() && customDir.isDirectory) {
+                        customDir.listFiles { file -> file.extension == "json" || file.extension == "db" }?.let {
+                            resultList.addAll(it)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
         }
         
         return resultList.distinctBy { it.name }.sortedByDescending { it.lastModified() }

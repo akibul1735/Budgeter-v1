@@ -866,15 +866,38 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val _driveBackups = MutableStateFlow<List<GoogleDriveBackupFile>>(emptyList())
     val driveBackups: StateFlow<List<GoogleDriveBackupFile>> = _driveBackups.asStateFlow()
 
+    private val _secondaryDriveBackups = MutableStateFlow<List<GoogleDriveBackupFile>>(emptyList())
+    val secondaryDriveBackups: StateFlow<List<GoogleDriveBackupFile>> = _secondaryDriveBackups.asStateFlow()
+
     private val _signedInGoogleAccount = MutableStateFlow<GoogleSignInAccount?>(null)
     val signedInGoogleAccount: StateFlow<GoogleSignInAccount?> = _signedInGoogleAccount.asStateFlow()
 
+    private val _secondarySignedInGoogleAccount = MutableStateFlow<GoogleSignInAccount?>(null)
+    val secondarySignedInGoogleAccount: StateFlow<GoogleSignInAccount?> = _secondarySignedInGoogleAccount.asStateFlow()
+
     fun updateSignedInAccount(account: GoogleSignInAccount?) {
+        updatePrimarySignedInAccount(account)
+    }
+
+    fun updatePrimarySignedInAccount(account: GoogleSignInAccount?) {
         _signedInGoogleAccount.value = account
         if (account != null) {
+            backupPrefs.setPrimaryAccount(account.email ?: "", account.displayName ?: "", true)
             fetchDriveBackups(account)
         } else {
+            backupPrefs.setPrimaryAccount("", "", false)
             _driveBackups.value = emptyList()
+        }
+    }
+
+    fun updateSecondarySignedInAccount(account: GoogleSignInAccount?) {
+        _secondarySignedInGoogleAccount.value = account
+        if (account != null) {
+            backupPrefs.setSecondaryAccount(account.email ?: "", account.displayName ?: "", true)
+            fetchSecondaryDriveBackups(account)
+        } else {
+            backupPrefs.setSecondaryAccount("", "", false)
+            _secondaryDriveBackups.value = emptyList()
         }
     }
 
@@ -885,6 +908,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 _driveBackups.value = list
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Could not list Drive backups: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun fetchSecondaryDriveBackups(account: GoogleSignInAccount) {
+        viewModelScope.launch {
+            val result = GoogleDriveService.listDriveBackups(getApplication(), account)
+            result.onSuccess { list ->
+                _secondaryDriveBackups.value = list
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Could not list Secondary Drive backups: ${err.localizedMessage}")
             }
         }
     }
@@ -901,10 +935,85 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao
             )
             result.onSuccess { driveRes ->
+                backupPrefs.recordPrimarySync()
                 _backupUiState.value = BackupUiState.Success("Database backed up to Google Drive (Visible 'Budgeter' folder & Hidden app folder)")
                 fetchDriveBackups(account)
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Google Drive backup failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun backupToSecondaryGoogleDrive(account: GoogleSignInAccount) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = GoogleDriveService.uploadBackupToDrive(
+                context = getApplication(),
+                account = account,
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao
+            )
+            result.onSuccess { driveRes ->
+                backupPrefs.recordSecondarySync()
+                _backupUiState.value = BackupUiState.Success("Database backed up to Secondary Google Drive (${account.email ?: "Account 2"})")
+                fetchSecondaryDriveBackups(account)
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Secondary Google Drive backup failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun backupToBothDrives(primary: GoogleSignInAccount?, secondary: GoogleSignInAccount?) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            var primarySuccess = false
+            var secondarySuccess = false
+            var errorMsg = ""
+
+            if (primary != null) {
+                val res1 = GoogleDriveService.uploadBackupToDrive(
+                    context = getApplication(),
+                    account = primary,
+                    accountDao = activeRepo.accountDao,
+                    categoryDao = activeRepo.categoryDao,
+                    transactionDao = activeRepo.transactionDao,
+                    recurringBillDao = activeRepo.recurringBillDao
+                )
+                if (res1.isSuccess) {
+                    primarySuccess = true
+                    backupPrefs.recordPrimarySync()
+                    fetchDriveBackups(primary)
+                } else {
+                    errorMsg += "Primary: ${res1.exceptionOrNull()?.localizedMessage}. "
+                }
+            }
+
+            if (secondary != null) {
+                val res2 = GoogleDriveService.uploadBackupToDrive(
+                    context = getApplication(),
+                    account = secondary,
+                    accountDao = activeRepo.accountDao,
+                    categoryDao = activeRepo.categoryDao,
+                    transactionDao = activeRepo.transactionDao,
+                    recurringBillDao = activeRepo.recurringBillDao
+                )
+                if (res2.isSuccess) {
+                    secondarySuccess = true
+                    backupPrefs.recordSecondarySync()
+                    fetchSecondaryDriveBackups(secondary)
+                } else {
+                    errorMsg += "Secondary: ${res2.exceptionOrNull()?.localizedMessage}. "
+                }
+            }
+
+            if (primarySuccess && secondarySuccess) {
+                _backupUiState.value = BackupUiState.Success("Dual Online Sync completed! Backed up to both Google Drive accounts.")
+            } else if (primarySuccess || secondarySuccess) {
+                _backupUiState.value = BackupUiState.Success("Synced to available account. $errorMsg")
+            } else {
+                _backupUiState.value = BackupUiState.Error("Dual sync failed: $errorMsg")
             }
         }
     }
@@ -929,6 +1038,26 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun restoreFromSecondaryGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = GoogleDriveService.restoreFromDriveFile(
+                context = getApplication(),
+                account = account,
+                fileId = backupFile.id,
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao
+            )
+            result.onSuccess { count ->
+                _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Secondary Google Drive!")
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Restore from Secondary Drive failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
     fun deleteDriveBackup(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
@@ -938,6 +1067,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 fetchDriveBackups(account)
             } else {
                 _backupUiState.value = BackupUiState.Error("Failed to delete Drive backup")
+            }
+        }
+    }
+
+    fun deleteSecondaryDriveBackup(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val success = GoogleDriveService.deleteDriveBackup(getApplication(), account, backupFile.id)
+            if (success) {
+                _backupUiState.value = BackupUiState.Success("Secondary Drive backup deleted")
+                fetchSecondaryDriveBackups(account)
+            } else {
+                _backupUiState.value = BackupUiState.Error("Failed to delete Secondary Drive backup")
             }
         }
     }
@@ -958,6 +1100,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     // Backup Settings Configuration
     fun setCloudProvider(provider: String) = backupPrefs.setCloudProvider(provider)
     fun setAccountLinked(linked: Boolean) = backupPrefs.setAccountLinked(linked)
+    fun setDualSyncEnabled(enabled: Boolean) = backupPrefs.setDualSyncEnabled(enabled)
+    fun setPrimaryAccount(email: String, displayName: String, isLinked: Boolean) = backupPrefs.setPrimaryAccount(email, displayName, isLinked)
+    fun setSecondaryAccount(email: String, displayName: String, isLinked: Boolean) = backupPrefs.setSecondaryAccount(email, displayName, isLinked)
     fun setLocalBackupDirectory(dir: String) = backupPrefs.setLocalBackupDirectory(dir)
     fun setAutoPhoneBackupEnabled(enabled: Boolean) = backupPrefs.setAutoPhoneBackupEnabled(enabled)
     fun setScheduledTime(hour: Int, minute: Int) = backupPrefs.setScheduledTime(hour, minute)

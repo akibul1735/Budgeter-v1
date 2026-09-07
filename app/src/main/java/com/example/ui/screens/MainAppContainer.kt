@@ -686,22 +686,48 @@ fun MainAppContainer(
             }
 
             WindowSizeClassType.MEDIUM -> {
-                // FOLDABLE / SMALL TABLET LAYOUT: Navigation Rail + Main Content Area
-                Row(modifier = Modifier.fillMaxSize()) {
-                    NavigationRail(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        header = {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                IconButton(onClick = { showTabCustomizationDialog = true }) {
-                                    Icon(Icons.Default.ViewCarousel, contentDescription = "Tabs", tint = MaterialTheme.colorScheme.primary)
+                // FOLDABLE / SMALL TABLET LAYOUT: Modal Navigation Drawer + Navigation Rail + Main Content Area
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet(
+                            drawerContainerColor = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.width(300.dp)
+                        ) {
+                            DrawerContent(
+                                viewModel = viewModel,
+                                currentView = currentView,
+                                onSelectView = {
+                                    selectView(it)
+                                    scope.launch { drawerState.close() }
+                                },
+                                accountsCount = allAccounts.size,
+                                categoriesCount = allCategories.size,
+                                netWorth = overview.netWorth,
+                                isBalanced = overview.isLedgerBalanced,
+                                languageMode = languageMode
+                            )
+                        }
+                    }
+                ) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        NavigationRail(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            header = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                    IconButton(onClick = { showTabCustomizationDialog = true }) {
+                                        Icon(Icons.Default.ViewCarousel, contentDescription = "Tabs", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(onClick = { showThemeFontSettings = true }) {
+                                        Icon(Icons.Default.Palette, contentDescription = "Theme", tint = MaterialTheme.colorScheme.primary)
+                                    }
                                 }
-                                IconButton(onClick = { showThemeFontSettings = true }) {
-                                    Icon(Icons.Default.Palette, contentDescription = "Theme", tint = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxHeight()
-                    ) {
+                            },
+                            modifier = Modifier.fillMaxHeight()
+                        ) {
                         tabConfig.visibleTabs.forEach { tab ->
                             val view = tab.toAppView()
                             val isSelected = currentView == view
@@ -818,6 +844,7 @@ fun MainAppContainer(
                     }
                 }
             }
+        }
 
             WindowSizeClassType.EXPANDED -> {
                 // LARGE TABLET / DESKTOP LAYOUT: Permanent Navigation Drawer
