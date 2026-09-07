@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -106,6 +107,7 @@ fun SettingsScreen(
     onOpenAutofillSettings: () -> Unit = {}
 ) {
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
+    val rootListState = rememberLazyListState()
 
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
@@ -244,6 +246,7 @@ fun SettingsScreen(
                 )
 
                 LazyColumn(
+                    state = rootListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
                 ) {

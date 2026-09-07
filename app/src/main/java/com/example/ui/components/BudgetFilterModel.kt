@@ -57,7 +57,7 @@ data class BudgetFilterState(
     val customEndDateMs: Long? = null,
 
     // 2. Comparison
-    val comparisonEnabled: Boolean = true,
+    val comparisonEnabled: Boolean = false,
     val comparisonPreset: BudgetComparisonPreset = BudgetComparisonPreset.LAST_MONTH,
     val customCompareStartMs: Long? = null,
     val customCompareEndMs: Long? = null,
@@ -92,8 +92,7 @@ data class BudgetFilterState(
         get() = datePreset != BudgetDateRangePreset.THIS_MONTH ||
                 customStartDateMs != null ||
                 customEndDateMs != null ||
-                !comparisonEnabled ||
-                comparisonPreset != BudgetComparisonPreset.LAST_MONTH ||
+                comparisonEnabled ||
                 customCompareStartMs != null ||
                 customCompareEndMs != null ||
                 selectedCategoryIds.isNotEmpty() ||
@@ -115,7 +114,7 @@ data class BudgetFilterState(
         get() {
             var count = 0
             if (datePreset != BudgetDateRangePreset.THIS_MONTH || customStartDateMs != null) count++
-            if (!comparisonEnabled || comparisonPreset != BudgetComparisonPreset.LAST_MONTH) count++
+            if (comparisonEnabled) count++
             if (selectedCategoryIds.isNotEmpty()) count++
             if (selectedAccountIds.isNotEmpty()) count++
             if (selectedLabels.isNotEmpty()) count++
@@ -285,15 +284,14 @@ fun formatBudgetAmount(
         return LanguageHelper.formatNumber(amount, languageMode, includeDecimals)
     }
     val config = LanguageHelper.activeCurrencyConfig
-    val formattedNum = LanguageHelper.formatNumber(kotlin.math.abs(amount), languageMode, includeDecimals)
-    val isNegative = amount < 0
-    val sign = if (isNegative) "-" else ""
-
-    return if (filterState.displayCurrencySymbol) {
-        val symbol = config.activeSymbol.ifBlank { "৳" }
-        "$sign$symbol $formattedNum"
+    val displayMode = if (filterState.displayCurrencySymbol) {
+        config.displayMode
     } else {
-        val code = config.activeCode.ifBlank { "BDT" }
-        "$sign$code $formattedNum"
+        com.example.util.CurrencyDisplayMode.CODE_ONLY
     }
+    return LanguageHelper.formatCurrency(
+        amount = amount,
+        mode = languageMode,
+        overrideDisplayMode = displayMode
+    )
 }

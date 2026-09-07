@@ -1956,7 +1956,7 @@ object BudgetFilterPresetsStorage {
                 val startMs = obj.optLong("customStartDateMs", -1L).takeIf { it != -1L }
                 val endMs = obj.optLong("customEndDateMs", -1L).takeIf { it != -1L }
 
-                val compEnabled = obj.optBoolean("comparisonEnabled", true)
+                val compEnabled = obj.optBoolean("comparisonEnabled", false)
                 val compPresetName = obj.optString("comparisonPreset", BudgetComparisonPreset.LAST_MONTH.name)
                 val compPreset = try { BudgetComparisonPreset.valueOf(compPresetName) } catch (_: Exception) { BudgetComparisonPreset.LAST_MONTH }
 
@@ -2126,10 +2126,10 @@ fun ActiveBudgetFilterBar(
                     )
                 }
 
-                if (!filterState.comparisonEnabled) {
+                if (filterState.comparisonEnabled) {
                     FilterChipPill(
-                        text = "No Comparison",
-                        onClear = { onFilterChange(filterState.copy(comparisonEnabled = true)) }
+                        text = if (languageMode == LanguageMode.BANGLA) "তুলনা সক্রিয়" else "Comparison On",
+                        onClear = { onFilterChange(filterState.copy(comparisonEnabled = false)) }
                     )
                 }
             }

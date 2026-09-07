@@ -800,7 +800,7 @@ fun BudgetTrackingScreen(
                             )
                             Spacer(modifier = Modifier.height(1.dp))
                             Text(
-                                text = "BDT ${LanguageHelper.formatNumber(totalFlowBudget, languageMode, false)}",
+                                text = formatBudgetAmount(totalFlowBudget, filterState, languageMode, false),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -844,7 +844,7 @@ fun BudgetTrackingScreen(
                             )
                             Spacer(modifier = Modifier.height(1.dp))
                             Text(
-                                text = "BDT ${LanguageHelper.formatNumber(totalFlowSpent, languageMode)}",
+                                text = formatBudgetAmount(totalFlowSpent, filterState, languageMode),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome,
@@ -858,7 +858,7 @@ fun BudgetTrackingScreen(
                                 val isIncrease = overallDeltaSpent > 0
                                 val sign = if (isIncrease) "+" else ""
                                 Text(
-                                    text = "Base: BDT ${LanguageHelper.formatNumber(totalFlowSpentBase, languageMode, false)} ($sign${overallDeltaPercent.roundToInt()}%)",
+                                    text = "Base: ${formatBudgetAmount(totalFlowSpentBase, filterState, languageMode, false)} ($sign${overallDeltaPercent.roundToInt()}%)",
                                     fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = SlateText,
@@ -899,7 +899,7 @@ fun BudgetTrackingScreen(
                             Spacer(modifier = Modifier.height(1.dp))
                             Text(
                                 text = if (totalFlowBudget > 0) {
-                                    "BDT ${LanguageHelper.formatNumber(overallDiff, languageMode)}"
+                                    formatBudgetAmount(overallDiff, filterState, languageMode)
                                 } else "-",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1556,7 +1556,7 @@ private fun CategoryGroupSection(
                                 contentAlignment = Alignment.CenterEnd
                             ) {
                                 Text(
-                                    text = "BDT ${LanguageHelper.formatNumber(group.totalSpentBase, languageMode, false)}",
+                                    text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = SlateText,
@@ -1571,7 +1571,7 @@ private fun CategoryGroupSection(
                                 contentAlignment = Alignment.CenterEnd
                             ) {
                                 Text(
-                                    text = "BDT ${LanguageHelper.formatNumber(group.totalSpent, languageMode)}",
+                                    text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
                                     fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (group.totalSpent > 0) CrimsonPink else SlateText,
@@ -1587,7 +1587,7 @@ private fun CategoryGroupSection(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = "BDT ${LanguageHelper.formatNumber(group.totalSpent, languageMode)}",
+                                text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (group.totalSpent > 0) CrimsonPink else SlateText,
@@ -1615,9 +1615,9 @@ private fun CategoryGroupSection(
                         )
 
                         val diffText = if (group.isOverBudget) {
-                            "BDT ${LanguageHelper.formatNumber(group.diffAmount, languageMode)} over ${LanguageHelper.formatNumber(group.totalBudget, languageMode, false)}"
+                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
                         } else {
-                            "BDT ${LanguageHelper.formatNumber(group.diffAmount, languageMode)} left from ${LanguageHelper.formatNumber(group.totalBudget, languageMode, false)}"
+                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
                         }
 
                         Text(
@@ -1741,7 +1741,7 @@ private fun CategoryRow(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = "BDT ${LanguageHelper.formatNumber(item.spentBaseAmount, languageMode, false)}",
+                                text = LanguageHelper.formatCurrency(item.spentBaseAmount, languageMode),
                                 fontSize = 11.5.sp,
                                 color = SlateText,
                                 textAlign = TextAlign.End,
@@ -1755,7 +1755,7 @@ private fun CategoryRow(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = "BDT ${LanguageHelper.formatNumber(item.spentAmount, languageMode)}",
+                                text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (item.spentAmount > 0) CrimsonPink else MaterialTheme.colorScheme.onSurface,
@@ -1771,7 +1771,7 @@ private fun CategoryRow(
                         contentAlignment = Alignment.CenterEnd
                     ) {
                         Text(
-                            text = "BDT ${LanguageHelper.formatNumber(item.spentAmount, languageMode)}",
+                            text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (item.spentAmount > 0) CrimsonPink else MaterialTheme.colorScheme.onSurface,
@@ -1800,9 +1800,9 @@ private fun CategoryRow(
                     )
 
                     val diffText = if (item.isOverBudget) {
-                        "BDT ${LanguageHelper.formatNumber(item.diffAmount, languageMode)} over ${LanguageHelper.formatNumber(item.budgetLimit, languageMode, false)}"
+                        "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
                     } else {
-                        "BDT ${LanguageHelper.formatNumber(item.diffAmount, languageMode)} left from ${LanguageHelper.formatNumber(item.budgetLimit, languageMode, false)}"
+                        "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
                     }
 
                     Text(
@@ -1938,7 +1938,7 @@ private fun CategoryTransactionsDetailDialog(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Total Spent: BDT ${LanguageHelper.formatNumber(item.spentAmount, languageMode)}",
+                            text = "Total Spent: ${LanguageHelper.formatCurrency(item.spentAmount, languageMode)}",
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = CrimsonPink
@@ -1963,7 +1963,7 @@ private fun CategoryTransactionsDetailDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Budget: BDT ${LanguageHelper.formatNumber(item.budgetLimit, languageMode)}",
+                                text = "Budget: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

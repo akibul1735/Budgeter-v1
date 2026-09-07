@@ -191,6 +191,7 @@ object LanguageHelper {
         "no_categories" to Trans("No categories found.", "কোনো ক্যাটাগরি পাওয়া যায়নি।"),
         "transactions" to Trans("Transactions", "লেনদেনসমূহ"),
         "main" to Trans("Main", "প্রধান"),
+        "settings" to Trans("Settings", "সেটিংস"),
         "budget" to Trans("Budget", "বাজেট"),
         "budget_maker" to Trans("Budget Maker", "বাজেট মেকার"),
         "categories_and_budget" to Trans("Categories & Budget", "ক্যাটাগরি ও বাজেট"),

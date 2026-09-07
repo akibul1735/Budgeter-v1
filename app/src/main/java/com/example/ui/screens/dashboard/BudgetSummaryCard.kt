@@ -436,7 +436,7 @@ fun BudgetSummaryCard(
                     color = Color(0xFF10B981) // Green label matching screenshot
                 )
                 Text(
-                    text = "BDT ${String.format(Locale.US, "%,.2f", totalSpent)}",
+                    text = LanguageHelper.formatCurrency(totalSpent, languageMode),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFFEA580C) // Amber / Orange total text
@@ -450,11 +450,10 @@ fun BudgetSummaryCard(
             val pctInt = (budgetRatio * 100).toInt()
             val diff = totalSpent - totalBudgetAmount
 
-            val progressText = if (diff > 0) {
-                "$pctInt%  BDT ${String.format(Locale.US, "%,.2f", diff)} over ${String.format(Locale.US, "%,.0f", totalBudgetAmount)}"
-            } else {
-                "$pctInt%  BDT ${String.format(Locale.US, "%,.2f", kotlin.math.abs(diff))} remaining of ${String.format(Locale.US, "%,.0f", totalBudgetAmount)}"
-            }
+            val formattedDiff = LanguageHelper.formatCurrency(kotlin.math.abs(diff), languageMode)
+            val formattedBudget = LanguageHelper.formatCurrency(totalBudgetAmount, languageMode)
+            val overStr = LanguageHelper.getString("over", languageMode).ifEmpty { "over" }
+            val leftStr = LanguageHelper.getString("left_from", languageMode).ifEmpty { "left of" }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -468,9 +467,9 @@ fun BudgetSummaryCard(
                 )
                 Text(
                     text = if (diff > 0) {
-                        "BDT ${String.format(Locale.US, "%,.2f", diff)} over ${String.format(Locale.US, "%,.0f", totalBudgetAmount)}"
+                        "$formattedDiff $overStr $formattedBudget"
                     } else {
-                        "BDT ${String.format(Locale.US, "%,.2f", kotlin.math.abs(diff))} left of ${String.format(Locale.US, "%,.0f", totalBudgetAmount)}"
+                        "$formattedDiff $leftStr $formattedBudget"
                     },
                     fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

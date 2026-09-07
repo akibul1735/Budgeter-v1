@@ -1180,7 +1180,7 @@ fun AddEditTransactionSheet(
                                     color = typePrimaryColor.copy(alpha = 0.15f)
                                 ) {
                                     Text(
-                                        text = "BDT",
+                                        text = LanguageHelper.activeCurrencyConfig.activeCode.ifBlank { "BDT" },
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = typePrimaryColor,

@@ -375,7 +375,7 @@ fun DailySummaryCard(
                                     )
 
                                     if (showValues) {
-                                        val formatted = if (day.expense >= 1000) "BDT ${(day.expense).toInt()}" else "BDT ${(day.expense).toInt()}"
+                                        val formatted = LanguageHelper.formatCurrency(day.expense, languageMode)
                                         drawContext.canvas.nativeCanvas.drawText(
                                             formatted,
                                             centerX,
@@ -400,7 +400,7 @@ fun DailySummaryCard(
                                     )
 
                                     if (showValues) {
-                                        val formatted = "BDT ${(day.income).toInt()}"
+                                        val formatted = LanguageHelper.formatCurrency(day.income, languageMode)
                                         drawContext.canvas.nativeCanvas.drawText(
                                             formatted,
                                             centerX,
@@ -448,7 +448,7 @@ fun DailySummaryCard(
                                         if (day.expense > 0) (day.expense / maxAmount * chartHeight).toFloat() else 0f
                                     )
                                     val net = day.income - day.expense
-                                    val formatted = if (net >= 0) "+${net.toInt()}" else "${net.toInt()}"
+                                    val formatted = if (net >= 0) "+${LanguageHelper.formatCurrency(net, languageMode)}" else LanguageHelper.formatCurrency(net, languageMode)
                                     drawContext.canvas.nativeCanvas.drawText(
                                         formatted,
                                         centerX,
@@ -496,10 +496,10 @@ fun DailySummaryCard(
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        val prefix7 = if (mode == DailySummaryMode.EXPENSE) "-BDT " else if (mode == DailySummaryMode.INCOME) "BDT " else if (sevenDaysAvg >= 0) "+BDT " else "-BDT "
+                        val prefix7 = if (mode == DailySummaryMode.EXPENSE) "-" else if (mode == DailySummaryMode.INCOME) "" else if (sevenDaysAvg >= 0) "+" else "-"
                         val color7 = if (mode == DailySummaryMode.EXPENSE) Color(0xFFF43F5E) else if (mode == DailySummaryMode.INCOME) Color(0xFF10B981) else if (sevenDaysAvg >= 0) Color(0xFF10B981) else Color(0xFFF43F5E)
                         Text(
-                            text = "$prefix7${String.format(Locale.US, "%,.2f", kotlin.math.abs(sevenDaysAvg))}",
+                            text = "$prefix7${LanguageHelper.formatCurrency(kotlin.math.abs(sevenDaysAvg), languageMode)}",
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = color7
@@ -517,10 +517,10 @@ fun DailySummaryCard(
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        val prefix30 = if (mode == DailySummaryMode.EXPENSE) "-BDT " else if (mode == DailySummaryMode.INCOME) "BDT " else if (thirtyDaysAvg >= 0) "+BDT " else "-BDT "
+                        val prefix30 = if (mode == DailySummaryMode.EXPENSE) "-" else if (mode == DailySummaryMode.INCOME) "" else if (thirtyDaysAvg >= 0) "+" else "-"
                         val color30 = if (mode == DailySummaryMode.EXPENSE) Color(0xFFF43F5E) else if (mode == DailySummaryMode.INCOME) Color(0xFF10B981) else if (thirtyDaysAvg >= 0) Color(0xFF10B981) else Color(0xFFF43F5E)
                         Text(
-                            text = "$prefix30${String.format(Locale.US, "%,.2f", kotlin.math.abs(thirtyDaysAvg))}",
+                            text = "$prefix30${LanguageHelper.formatCurrency(kotlin.math.abs(thirtyDaysAvg), languageMode)}",
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = color30

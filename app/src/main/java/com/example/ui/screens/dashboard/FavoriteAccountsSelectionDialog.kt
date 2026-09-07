@@ -228,7 +228,7 @@ fun FavoriteAccountsSelectionDialog(
                             }
 
                             Text(
-                                text = "BDT ${String.format(Locale.US, "%,.2f", item.currentBalance)}",
+                                text = LanguageHelper.formatCurrency(item.currentBalance, languageMode),
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (item.currentBalance >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
