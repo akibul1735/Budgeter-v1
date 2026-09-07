@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,57 +16,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Backup
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CurrencyExchange
-import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.ViewCarousel
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,7 +47,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -82,43 +55,59 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
-import com.example.ui.dialogs.PhoneNotificationDialog
-import com.example.ui.dialogs.SecuritySettingsDialog
-import com.example.ui.dialogs.TransactionSetupDialog
-import com.example.ui.theme.ColorIntensity
-import com.example.ui.theme.FontPreset
-import com.example.ui.theme.SolidExpense
-import com.example.ui.theme.SolidIncome
+import com.example.ui.components.AppTabHeader
+import com.example.ui.screens.settings.AboutSettingsPage
+import com.example.ui.screens.settings.AppearanceSettingsPage
+import com.example.ui.screens.settings.CalendarSettingsPage
+import com.example.ui.screens.settings.CurrencySettingsPage
+import com.example.ui.screens.settings.DateSettingsPage
+import com.example.ui.screens.settings.FaqSettingsPage
+import com.example.ui.screens.settings.LanguageSettingsPage
+import com.example.ui.screens.settings.NavigationTabsSettingsPage
+import com.example.ui.screens.settings.NotificationSettingsPage
+import com.example.ui.screens.settings.SecuritySettingsPage
+import com.example.ui.screens.settings.SmartAutofillSettingsPage
+import com.example.ui.screens.settings.TransactionSetupSettingsPage
 import com.example.ui.theme.SolidPrimary
-import com.example.ui.theme.ThemeMode
-import com.example.ui.theme.ThemePalette
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.CalendarDisplayMode
-import com.example.util.CurrencyConfig
-import com.example.util.CurrencyDisplayMode
-import com.example.util.CurrencyPreferences
-import com.example.util.DisplayFormatConfig
+import com.example.util.DateFormatOption
 import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
 
-import com.example.ui.components.AppTabHeader
-
 private val SectionHeaderColor = Color(0xFF4C7B5D)
 
-@OptIn(ExperimentalMaterial3Api::class)
+enum class SettingsSubPage {
+    ROOT,
+    LANGUAGE,
+    CURRENCY,
+    DATE_TIME,
+    THEMES,
+    NAVIGATION_TABS,
+    TRANSACTION_SETUP,
+    SMART_AUTOFILL,
+    CALENDAR,
+    NOTIFICATIONS,
+    SECURITY,
+    ABOUT,
+    FAQ
+}
+
 @Composable
 fun SettingsScreen(
     viewModel: BudgetViewModel,
     languageMode: LanguageMode,
+    onOpenDrawer: () -> Unit = {},
     onBack: () -> Unit = {},
     onNavigateToBackupSync: () -> Unit,
     onNavigateToReset: () -> Unit = {},
-    onOpenTabCustomizer: () -> Unit,
-    onOpenThemeFontSettings: () -> Unit,
-    onOpenAutofillSettings: () -> Unit
+    onOpenTabCustomizer: () -> Unit = {},
+    onOpenThemeFontSettings: () -> Unit = {},
+    onOpenAutofillSettings: () -> Unit = {}
 ) {
+    var currentSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
+
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
-    val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
     val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
     val displayFormatConfig by viewModel.displayFormatConfig.collectAsStateWithLifecycle()
     val dashboardConfig by viewModel.dashboardConfig.collectAsStateWithLifecycle()
@@ -126,814 +115,310 @@ fun SettingsScreen(
     val accounts by viewModel.allAccounts.collectAsStateWithLifecycle()
     val categories by viewModel.allCategories.collectAsStateWithLifecycle()
 
-    // Dialog States
-    var showLanguageDialog by remember { mutableStateOf(false) }
-    var showCurrencyDialog by remember { mutableStateOf(false) }
-    var showDateSettingsDialog by remember { mutableStateOf(false) }
-    var showAppearanceDialog by remember { mutableStateOf(false) }
-    var showDataManagementDialog by remember { mutableStateOf(false) }
-    var showTransactionSetupDialog by remember { mutableStateOf(false) }
-    var showCalendarDialog by remember { mutableStateOf(false) }
-    var showNotificationDialog by remember { mutableStateOf(false) }
-    var showSecurityDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-    var showFaqDialog by remember { mutableStateOf(false) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 14.dp)
-            .testTag("settings_screen")
-    ) {
-        AppTabHeader(
-            title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
-            onBack = onBack,
-            actions = {
-                IconButton(onClick = { showFaqDialog = true }) {
-                    Icon(
-                        Icons.Default.HelpOutline,
-                        contentDescription = "Help",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        )
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
-        ) {
-            // Group 1: Localization
-            item {
-                SettingsSectionHeader(title = if (languageMode == LanguageMode.BANGLA) "ভাষা ও এলাকা" else "Localization")
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference",
-                    subtitle = when (languageMode) {
-                        LanguageMode.ENGLISH -> "English"
-                        LanguageMode.BANGLA -> "বাংলা (Bangla)"
-                    },
-                    icon = Icons.Default.Language,
-                    onClick = { showLanguageDialog = true }
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup",
-                    subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol}) • ${if (languageMode == LanguageMode.BANGLA) currencyConfig.displayMode.titleBn else currencyConfig.displayMode.titleEn}",
-                    icon = Icons.Default.CurrencyExchange,
-                    onClick = { showCurrencyDialog = true }
-                )
-            }
-
-            item {
-                val currentFormatOption = com.example.util.DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
-                val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
-                val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
-                    java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
-                    java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
-                    else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
-                }
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও ক্যালেন্ডার সেটিংস" else "Date Settings",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট: $formatDisplay • প্রথম দিন: $firstDayName" else "Format: $formatDisplay • First day: $firstDayName",
-                    icon = Icons.Default.CalendarToday,
-                    onClick = { showDateSettingsDialog = true }
-                )
-            }
-
-            // Divider
-            item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            }
-
-            // Group 2: General
-            item {
-                SettingsSectionHeader(title = if (languageMode == LanguageMode.BANGLA) "সাধারণ সেটিংস" else "General")
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা কাস্টমাইজেশন" else "Themes & Appearance",
-                    subtitle = "${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }} mode • ${themeConfig.activeThemeDisplayName} • ${if (languageMode == LanguageMode.BANGLA) themeConfig.fontPreset.titleBn else themeConfig.fontPreset.titleEn}",
-                    icon = Icons.Default.Palette,
-                    onClick = onOpenThemeFontSettings
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক, লোকাল ব্যাকআপ ও এক্সপোর্ট/ইমপোর্ট" else "Online Sync, Local Backup & Export or Import",
-                    icon = Icons.Default.Storage,
-                    onClick = onNavigateToBackupSync
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
-                    subtitle = if (displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES)
-                        "Double-Line Display • Smart Autofill Enabled"
-                    else
-                        "Single-Line Display • Smart Autofill Enabled",
-                    icon = Icons.Default.AddCircleOutline,
-                    onClick = { showTransactionSetupDialog = true }
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার ও পরিসংখ্যান" else "Calendar",
-                    subtitle = if (dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS)
-                        "Indicator: Dots • Show Income & Expenses"
-                    else
-                        "Indicator: Numbers • Show Income & Expenses",
-                    icon = Icons.Default.DateRange,
-                    onClick = { showCalendarDialog = true }
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক হিসাব রিমাইন্ডার ও বিল সতর্কতা" else "Daily expense reminder & bill due alerts",
-                    icon = Icons.Default.NotificationsNone,
-                    onClick = { showNotificationDialog = true }
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও বায়োমেট্রিক" else "Password and Fingerprint",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সিকিউরিটি লক ও বায়োমেট্রিক সুরক্ষা" else "App lock, PIN protection & biometric security",
-                    icon = Icons.Default.Fingerprint,
-                    onClick = { showSecurityDialog = true }
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা, সেটিংস, অ্যাকাউন্ট বা ক্যাটাগরি রিসেট করুন" else "Reset data, settings, accounts, categories or wipe all",
-                    icon = Icons.Default.RestartAlt,
-                    onClick = onNavigateToReset
-                )
-            }
-
-            // Divider
-            item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            }
-
-            // Group 3: About
-            item {
-                SettingsSectionHeader(title = if (languageMode == LanguageMode.BANGLA) "সম্পর্কে" else "About")
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "বাজেটার সম্পর্কে" else "About Budgeter",
-                    subtitle = "Version 3.6 • Offline-First Personal Finance",
-                    icon = Icons.Default.Info,
-                    onClick = { showAboutDialog = true }
-                )
-            }
-
-            item {
-                SettingsListItem(
-                    title = if (languageMode == LanguageMode.BANGLA) "প্রশ্নোত্তর ও সহায়তা" else "FAQ & Support",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "ইউজার গাইড, প্রশ্নোত্তর ও সহায়তা" else "User guide, FAQ & developer feedback",
-                    icon = Icons.Default.HelpOutline,
-                    onClick = { showFaqDialog = true }
-                )
-            }
+    // Handle back presses when inside sub-pages
+    if (currentSubPage != SettingsSubPage.ROOT) {
+        BackHandler(enabled = true) {
+            currentSubPage = SettingsSubPage.ROOT
         }
     }
 
-    // 1. Language Preference Dialog
-    if (showLanguageDialog) {
-        AlertDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "ভাষা নির্বাচন করুন" else "Select Language",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LanguageOptionRow(
-                        title = "English",
-                        subtitle = "Standard English interface",
-                        isSelected = languageMode == LanguageMode.ENGLISH,
-                        onClick = {
-                            viewModel.setLanguageMode(LanguageMode.ENGLISH)
-                            showLanguageDialog = false
+    when (currentSubPage) {
+        SettingsSubPage.LANGUAGE -> {
+            LanguageSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.CURRENCY -> {
+            CurrencySettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.DATE_TIME -> {
+            DateSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.THEMES -> {
+            AppearanceSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.NAVIGATION_TABS -> {
+            NavigationTabsSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.TRANSACTION_SETUP -> {
+            TransactionSetupSettingsPage(
+                viewModel = viewModel,
+                accounts = accounts,
+                categories = categories,
+                languageMode = languageMode,
+                onNavigateToAutofill = { currentSubPage = SettingsSubPage.SMART_AUTOFILL },
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.SMART_AUTOFILL -> {
+            SmartAutofillSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
+            )
+        }
+        SettingsSubPage.CALENDAR -> {
+            CalendarSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.NOTIFICATIONS -> {
+            NotificationSettingsPage(
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.SECURITY -> {
+            SecuritySettingsPage(
+                securityConfig = securityConfig,
+                languageMode = languageMode,
+                onSetAppLockEnabled = { viewModel.setAppLockEnabled(it) },
+                onSetPin = { viewModel.setSecurityPin(it) },
+                onVerifyPin = { viewModel.verifySecurityPin(it) },
+                onSetBiometricEnabled = { viewModel.setBiometricEnabled(it) },
+                onSetRequireAuthForGroupDeletion = { viewModel.setRequireAuthForGroupDeletion(it) },
+                onSetRequireAuthForMultiSelect = { viewModel.setRequireAuthForMultiSelect(it) },
+                onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
+                onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
+                onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
+                onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) },
+                onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) },
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.ABOUT -> {
+            AboutSettingsPage(
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.FAQ -> {
+            FaqSettingsPage(
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.ROOT -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp)
+                    .testTag("settings_screen")
+            ) {
+                // Header with Menu Button, Icon, and text "Settings"
+                AppTabHeader(
+                    title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
+                    tabIcon = Icons.Default.Settings,
+                    showCoinIcon = false,
+                    onOpenDrawer = onOpenDrawer,
+                    onBack = null,
+                    actions = {
+                        IconButton(onClick = { currentSubPage = SettingsSubPage.FAQ }) {
+                            Icon(
+                                Icons.Default.HelpOutline,
+                                contentDescription = "Help",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    )
-                    LanguageOptionRow(
-                        title = "বাংলা",
-                        subtitle = "সম্পূর্ণ বাংলা ইন্টারফেস",
-                        isSelected = languageMode == LanguageMode.BANGLA,
-                        onClick = {
-                            viewModel.setLanguageMode(LanguageMode.BANGLA)
-                            showLanguageDialog = false
-                        }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showLanguageDialog = false }) {
-                    Text("Close")
-                }
-            }
-        )
-    }
-
-    // 2. Currency Setup Dialog
-    if (showCurrencyDialog) {
-        var customCodeInput by remember(currencyConfig) { mutableStateOf(currencyConfig.customCode) }
-        var customSymbolInput by remember(currencyConfig) { mutableStateOf(currencyConfig.customSymbol) }
-
-        AlertDialog(
-            onDismissRequest = { showCurrencyDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "মুদ্রা ও প্রতীক নির্বাচন" else "Currency Setup",
-                    fontWeight = FontWeight.Bold
+                    }
                 )
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
                 ) {
-                    // Preview
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Preview", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                Text(
-                                    text = LanguageHelper.formatCurrency(54000.0, languageMode),
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.surface
-                            ) {
-                                Text(
-                                    text = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
+                    // Group 1: Localization
+                    item {
+                        SettingsSectionHeader(title = if (languageMode == LanguageMode.BANGLA) "ভাষা ও এলাকা" else "Localization")
                     }
 
-                    // Display Mode
-                    Text("Display Mode", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        CurrencyDisplayMode.values().forEach { mode ->
-                            FilterChip(
-                                selected = currencyConfig.displayMode == mode,
-                                onClick = { viewModel.setCurrencyDisplayMode(mode) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) mode.titleBn else mode.titleEn,
-                                        fontSize = 10.sp
-                                    )
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-
-                    // Popular
-                    Text("Popular Currencies", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(CurrencyPreferences.POPULAR_CURRENCIES) { item ->
-                            val isSelected = currencyConfig.selectedCode == item.code && currencyConfig.customSymbol.isBlank()
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { viewModel.setCurrency(item) },
-                                label = { Text("${item.symbol} ${item.code}", fontSize = 11.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                        }
-                    }
-
-                    // Custom Code & Symbol
-                    Text("Custom Code & Symbol", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = customCodeInput,
-                            onValueChange = {
-                                customCodeInput = it
-                                viewModel.setCustomCurrency(it, customSymbolInput)
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference",
+                            subtitle = when (languageMode) {
+                                LanguageMode.ENGLISH -> "English (United States)"
+                                LanguageMode.BANGLA -> "বাংলা (বাংলাদেশ ও পশ্চিমবঙ্গ)"
                             },
-                            label = { Text("Code (BDT)", fontSize = 10.sp) },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = customSymbolInput,
-                            onValueChange = {
-                                customSymbolInput = it
-                                viewModel.setCustomCurrency(customCodeInput, it)
-                            },
-                            label = { Text("Symbol (৳)", fontSize = 10.sp) },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            icon = Icons.Default.Language,
+                            onClick = { currentSubPage = SettingsSubPage.LANGUAGE }
                         )
                     }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showCurrencyDialog = false }) {
-                    Text("Done")
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup",
+                            subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol}) • ${if (languageMode == LanguageMode.BANGLA) currencyConfig.displayMode.titleBn else currencyConfig.displayMode.titleEn}",
+                            icon = Icons.Default.CurrencyExchange,
+                            onClick = { currentSubPage = SettingsSubPage.CURRENCY }
+                        )
+                    }
+
+                    item {
+                        val currentFormatOption = DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
+                        val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
+                        val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
+                            java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
+                            java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
+                            else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
+                        }
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও ক্যালেন্ডার সেটিংস" else "Date Settings",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট: $formatDisplay • প্রথম দিন: $firstDayName" else "Format: $formatDisplay • First day: $firstDayName",
+                            icon = Icons.Default.CalendarToday,
+                            onClick = { currentSubPage = SettingsSubPage.DATE_TIME }
+                        )
+                    }
+
+                    // Divider
+                    item {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    }
+
+                    // Group 2: General
+                    item {
+                        SettingsSectionHeader(title = if (languageMode == LanguageMode.BANGLA) "সাধারণ সেটিংস" else "General")
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা কাস্টমাইজেশন" else "Themes & Appearance",
+                            subtitle = "${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }} mode • ${themeConfig.activeThemeDisplayName} • ${if (languageMode == LanguageMode.BANGLA) themeConfig.fontPreset.titleBn else themeConfig.fontPreset.titleEn}",
+                            icon = Icons.Default.Palette,
+                            onClick = { currentSubPage = SettingsSubPage.THEMES }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব কাস্টমাইজেশন" else "Navigation Tabs",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ট্যাব বারের অবস্থান, প্রদর্শন ও ক্রম পরিবর্তন" else "Tab position, visibility & custom ordering",
+                            icon = Icons.Default.ViewCarousel,
+                            onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক, লোকাল ব্যাকআপ ও এক্সপোর্ট/ইমপোর্ট" else "Online Sync, Local Backup & Export or Import",
+                            icon = Icons.Default.Storage,
+                            onClick = onNavigateToBackupSync
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
+                            subtitle = if (displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES)
+                                "Double-Line Display • Smart Autofill Configured"
+                            else
+                                "Single-Line Display • Smart Autofill Configured",
+                            icon = Icons.Default.AddCircleOutline,
+                            onClick = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "স্মার্ট অটোফিল ও পরামর্শ" else "Smart Autofill",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "বিবরণ ও অ্যাকাউন্টের স্বয়ংক্রিয় পূরণ" else "Auto-categorize by note & suggest previous amounts",
+                            icon = Icons.Default.AutoAwesome,
+                            onClick = { currentSubPage = SettingsSubPage.SMART_AUTOFILL }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার ও পরিসংখ্যান" else "Calendar",
+                            subtitle = if (dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS)
+                                "Indicator: Dots • Show Income & Expenses"
+                            else
+                                "Indicator: Amount Badges • Show Income & Expenses",
+                            icon = Icons.Default.DateRange,
+                            onClick = { currentSubPage = SettingsSubPage.CALENDAR }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক হিসাব রিমাইন্ডার ও বিল সতর্কতা" else "Daily expense reminder & bill due alerts",
+                            icon = Icons.Default.NotificationsNone,
+                            onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও বায়োমেট্রিক" else "Password and Fingerprint",
+                            subtitle = if (securityConfig.isAppLockEnabled)
+                                if (languageMode == LanguageMode.BANGLA) "অ্যাপ সুরক্ষা সক্রিয় • পিন ও বায়োমেট্রিক" else "App Lock Active • Protected with PIN & Biometrics"
+                            else
+                                if (languageMode == LanguageMode.BANGLA) "সুরক্ষা বন্ধ রয়েছে" else "App Lock Disabled",
+                            icon = Icons.Default.Fingerprint,
+                            onClick = { currentSubPage = SettingsSubPage.SECURITY }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা, সেটিংস, অ্যাকাউন্ট বা ক্যাটাগরি রিসেট করুন" else "Reset data, settings, accounts, categories or wipe all",
+                            icon = Icons.Default.RestartAlt,
+                            onClick = onNavigateToReset
+                        )
+                    }
+
+                    // Divider
+                    item {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    }
+
+                    // Group 3: About
+                    item {
+                        SettingsSectionHeader(title = if (languageMode == LanguageMode.BANGLA) "সম্পর্কে" else "About")
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "বাজেটার সম্পর্কে" else "About Budgeter",
+                            subtitle = "Version 3.6 • Offline-First Personal Finance",
+                            icon = Icons.Default.Info,
+                            onClick = { currentSubPage = SettingsSubPage.ABOUT }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "প্রশ্নোত্তর ও সহায়তা" else "FAQ & Support",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ইউজার গাইড, প্রশ্নোত্তর ও সহায়তা" else "User guide, FAQ & double-entry documentation",
+                            icon = Icons.Default.HelpOutline,
+                            onClick = { currentSubPage = SettingsSubPage.FAQ }
+                        )
+                    }
                 }
             }
-        )
-    }
-
-    // 3. Date Settings Dialog
-    if (showDateSettingsDialog) {
-        var customPatternInput by remember(displayFormatConfig) { mutableStateOf(displayFormatConfig.customDateFormat) }
-
-        AlertDialog(
-            onDismissRequest = { showDateSettingsDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "তারিখ ও ক্যালেন্ডার সেটিংস" else "Date & Calendar Settings",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Live Preview Card
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "লাইভ প্রিভিউ (আজকের তারিখ)" else "Live Preview (Today)",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = com.example.util.DateUtils.formatDate(System.currentTimeMillis(), languageMode),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "তারিখ ফরম্যাট পছন্দ করুন" else "Select Date Format",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp
-                    )
-
-                    // Scrollable list of DateFormatOptions
-                    androidx.compose.foundation.lazy.LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(com.example.util.DateFormatOption.entries.toList()) { option ->
-                            val isSelected = displayFormatConfig.dateFormatPattern == option.pattern
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.setDateFormatPattern(option.pattern)
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) option.titleBn else option.titleEn,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            fontSize = 12.sp,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        if (option != com.example.util.DateFormatOption.CUSTOM) {
-                                            Text(
-                                                text = "e.g. ${option.example}",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline
-                                            )
-                                        }
-                                    }
-                                    if (isSelected) {
-                                        Icon(
-                                            Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Custom pattern field if CUSTOM selected
-                    if (displayFormatConfig.dateFormatPattern == com.example.util.DateFormatOption.CUSTOM.pattern) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            OutlinedTextField(
-                                value = customPatternInput,
-                                onValueChange = {
-                                    customPatternInput = it
-                                    viewModel.setCustomDateFormat(it)
-                                },
-                                label = { Text("Custom Pattern (e.g. dddd, d MMM YYYY)", fontSize = 10.sp) },
-                                placeholder = { Text("e.g. DDD, DD MMM YYYY or dddd, d MMMM") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Text(
-                                text = "Tokens: d (6), DD (06), DDD (Sun), dddd (Sunday), MMM (Sep), MMMM (September), YYYY (2026)",
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "সপ্তাহের প্রথম দিন" else "First Day of the Week",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val days = listOf(
-                            Triple(java.util.Calendar.SUNDAY, "Sunday", "রবিবার"),
-                            Triple(java.util.Calendar.MONDAY, "Monday", "সোমবার"),
-                            Triple(java.util.Calendar.SATURDAY, "Saturday", "শনিবার")
-                        )
-                        days.forEach { (dayInt, nameEn, nameBn) ->
-                            val isSelected = displayFormatConfig.firstDayOfWeek == dayInt
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { viewModel.setFirstDayOfWeek(dayInt) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) nameBn else nameEn,
-                                        fontSize = 10.sp
-                                    )
-                                },
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showDateSettingsDialog = false }) {
-                    Text("OK")
-                }
-            }
-        )
-    }
-
-    // 4. Customize Appearance Dialog
-    if (showAppearanceDialog) {
-        AlertDialog(
-            onDismissRequest = { showAppearanceDialog = false },
-            title = { Text("Customize Appearance", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Display Mode", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = themeConfig.mode == ThemeMode.SYSTEM,
-                            onClick = { viewModel.setThemeMode(ThemeMode.SYSTEM) },
-                            label = { Text("System", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = themeConfig.mode == ThemeMode.LIGHT,
-                            onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
-                            label = { Text("Light", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = themeConfig.mode == ThemeMode.DARK,
-                            onClick = { viewModel.setThemeMode(ThemeMode.DARK) },
-                            label = { Text("Dark", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Text("Color Palette", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(ThemePalette.values()) { palette ->
-                            FilterChip(
-                                selected = themeConfig.palette == palette,
-                                onClick = { viewModel.setThemePalette(palette) },
-                                label = { Text(palette.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 11.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    OutlinedButton(
-                        onClick = {
-                            showAppearanceDialog = false
-                            onOpenThemeFontSettings()
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.FormatSize, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Fonts & Color Intensities", fontSize = 12.sp)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            showAppearanceDialog = false
-                            onOpenTabCustomizer()
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.ViewCarousel, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Customize Navigation Tabs", fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showAppearanceDialog = false }) {
-                    Text("Done")
-                }
-            }
-        )
-    }
-
-    // 5. Data Management Dialog
-    if (showDataManagementDialog) {
-        AlertDialog(
-            onDismissRequest = { showDataManagementDialog = false },
-            title = { Text("Data Management", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Demo Mode Switch
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Demo Sandbox Mode", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text(
-                                text = if (isDemoMode) "Sample data active (Isolated)" else "Real database in use",
-                                fontSize = 11.sp,
-                                color = if (isDemoMode) SolidIncome else MaterialTheme.colorScheme.outline
-                            )
-                        }
-                        Switch(
-                            checked = isDemoMode,
-                            onCheckedChange = { viewModel.setDemoMode(it) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = SolidIncome)
-                        )
-                    }
-
-                    if (isDemoMode) {
-                        OutlinedButton(
-                            onClick = { viewModel.resetDemoData() },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Reset Sample Demo Data", fontSize = 11.sp)
-                        }
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    Button(
-                        onClick = {
-                            showDataManagementDialog = false
-                            onNavigateToBackupSync()
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Google Drive & Backup Center", fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showDataManagementDialog = false }) {
-                    Text("Close")
-                }
-            }
-        )
-    }
-
-    // 6. Transaction Setup Dialog
-    if (showTransactionSetupDialog) {
-        TransactionSetupDialog(
-            accounts = accounts,
-            categories = categories,
-            languageMode = languageMode,
-            onDismiss = { showTransactionSetupDialog = false },
-            onOpenAutofillSettings = {
-                showTransactionSetupDialog = false
-                onOpenAutofillSettings()
-            }
-        )
-    }
-
-    // 7. Calendar Dialog
-    if (showCalendarDialog) {
-        AlertDialog(
-            onDismissRequest = { showCalendarDialog = false },
-            title = { Text("Calendar Display Settings", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Display Mode", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS,
-                            onClick = { viewModel.setCalendarSettings(CalendarDisplayMode.DOTS, dashboardConfig.calendarShowIncome, dashboardConfig.calendarShowExpense) },
-                            label = { Text("Dots Indicator", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        FilterChip(
-                            selected = dashboardConfig.calendarDisplayMode == CalendarDisplayMode.AMOUNTS,
-                            onClick = { viewModel.setCalendarSettings(CalendarDisplayMode.AMOUNTS, dashboardConfig.calendarShowIncome, dashboardConfig.calendarShowExpense) },
-                            label = { Text("Amount Badges", fontSize = 11.sp) },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showCalendarDialog = false }) {
-                    Text("OK")
-                }
-            }
-        )
-    }
-
-    // 8. Notification Dialog
-    if (showNotificationDialog) {
-        PhoneNotificationDialog(
-            languageMode = languageMode,
-            onDismiss = { showNotificationDialog = false }
-        )
-    }
-
-    // 9. Security Dialog
-    if (showSecurityDialog) {
-        SecuritySettingsDialog(
-            securityConfig = securityConfig,
-            languageMode = languageMode,
-            onDismiss = { showSecurityDialog = false },
-            onSetAppLockEnabled = { viewModel.setAppLockEnabled(it) },
-            onSetPin = { viewModel.setSecurityPin(it) },
-            onVerifyPin = { viewModel.verifySecurityPin(it) },
-            onSetBiometricEnabled = { viewModel.setBiometricEnabled(it) },
-            onSetRequireAuthForGroupDeletion = { viewModel.setRequireAuthForGroupDeletion(it) },
-            onSetRequireAuthForMultiSelect = { viewModel.setRequireAuthForMultiSelect(it) },
-            onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
-            onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
-            onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
-            onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) },
-            onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) }
-        )
-    }
-
-    // 10. About Dialog
-    if (showAboutDialog) {
-        AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = Color(0xFFFFD700),
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("৳", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF4A3800))
-                        }
-                    }
-                    Text("Budgeter v3.6", fontWeight = FontWeight.Bold)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Budgeter is a high-performance, offline-first personal financial manager built with double-entry accounting precision.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "• Double-entry transaction architecture\n• Real-time account balance tracking & transfer legs\n• Live interactive calculator with quick percentages\n• Google Drive sync & automated backups\n• Zero third-party ad tracking",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showAboutDialog = false }) {
-                    Text("Close")
-                }
-            }
-        )
-    }
-
-    // 11. FAQ & Support Dialog
-    if (showFaqDialog) {
-        AlertDialog(
-            onDismissRequest = { showFaqDialog = false },
-            title = { Text("FAQ & Support", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("How does double-entry work?", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text("Every transaction records a debit and credit leg across accounts and categories, ensuring zero discrepancies.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-
-                    Text("Where is my data stored?", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text("All data is stored offline on your device and can be backed up to your personal Google Drive account.", fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
-                }
-            },
-            confirmButton = {
-                Button(onClick = { showFaqDialog = false }) {
-                    Text("Done")
-                }
-            }
-        )
+        }
     }
 }
 
@@ -991,47 +476,6 @@ private fun SettingsListItem(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LanguageOptionRow(
-    title: String,
-    subtitle: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onClick() },
-        color = if (isSelected) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        border = androidx.compose.foundation.BorderStroke(
-            1.5.dp,
-            if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(text = subtitle, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
-            }
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = SolidPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
             }
         }
     }

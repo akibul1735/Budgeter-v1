@@ -378,7 +378,13 @@ fun MainAppContainer(
         handleBackPress()
     }
 
-    val isSubView = currentView in listOf(AppView.EXPENSES, AppView.INCOME, AppView.BACKUP_SYNC, AppView.BUDGET_MAKER)
+    val isSubView = currentView in listOf(
+        AppView.EXPENSES,
+        AppView.INCOME,
+        AppView.BACKUP_SYNC,
+        AppView.BUDGET_MAKER,
+        AppView.SETTINGS
+    )
 
     // Window Width Adaptive Layout Container
     CompositionLocalProvider(LocalHeaderScrollState provides headerScrollState) {

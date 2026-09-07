@@ -112,6 +112,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val displayFormatConfig: StateFlow<DisplayFormatConfig> = displayFormatPrefs.config
     val trashedItems: StateFlow<List<com.example.util.TrashedItem>> = trashManager.trashedItems
     val securityConfig: StateFlow<SecurityConfig> = securityPrefs.config
+    val autofillConfig: StateFlow<AutofillConfig> = autofillPrefs.config
+
+    fun updateAutofillConfig(config: AutofillConfig) {
+        autofillPrefs.updateConfig(config)
+    }
 
     private val _isAppLocked = MutableStateFlow(securityPrefs.config.value.isAppLockEnabled && securityPrefs.config.value.hasPin)
     val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
