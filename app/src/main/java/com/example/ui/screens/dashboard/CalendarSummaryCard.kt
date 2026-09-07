@@ -475,8 +475,7 @@ fun CalendarSummaryCard(
                             .background(MaterialTheme.colorScheme.surface)
                             .padding(12.dp)
                     ) {
-                        val sdf = SimpleDateFormat("EEEE, dd MMMM yyyy", Locale.ENGLISH)
-                        val fullDateStr = sdf.format(Date(day.dateEpochMs))
+                        val fullDateStr = com.example.util.DateUtils.formatDayHeader(day.dateEpochMs, languageMode)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

@@ -1165,7 +1165,7 @@ private fun CategoryTransactionsDetailDialog(
                     ) {
                         items(item.transactions) { txDetails ->
                             val tx = txDetails.transaction
-                            val dateStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(tx.dateEpochMs)
+                            val dateStr = com.example.util.DateUtils.formatDate(tx.dateEpochMs, languageMode)
 
                             Surface(
                                 shape = RoundedCornerShape(8.dp),

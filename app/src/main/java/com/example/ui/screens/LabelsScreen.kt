@@ -67,6 +67,7 @@ import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.util.DateUtils
 import com.example.util.LanguageHelper
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -422,7 +423,7 @@ fun LabelsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(Date(tx.dateEpochMs)),
+                                        text = DateUtils.formatDate(tx.dateEpochMs, languageMode),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.primary

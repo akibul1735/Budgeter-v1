@@ -2,19 +2,19 @@ package com.example.util
 
 import com.example.data.model.Account
 import com.example.data.model.AccountType
+import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
-import java.text.SimpleDateFormat
+import com.example.data.model.TransactionStatus
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
-enum class BalanceSheetComparisonPreset {
-    END_OF_LAST_MONTH,
-    BEGINNING_OF_MONTH,
-    PREVIOUS_MONTH,
-    BEGINNING_OF_YEAR,
-    LAST_30_DAYS,
-    CUSTOM
+enum class BalanceSheetComparisonPreset(val titleEn: String, val titleBn: String) {
+    END_OF_LAST_MONTH("End of Last Month", "গত মাসের শেষ"),
+    BEGINNING_OF_MONTH("Start of This Month", "এই মাসের শুরু"),
+    PREVIOUS_MONTH("Previous Month", "পূর্ববর্তী মাস"),
+    BEGINNING_OF_YEAR("Start of Year", "বছরের শুরু"),
+    LAST_30_DAYS("Last 30 Days", "গত ৩০ দিন"),
+    TODAY("Today", "আজকে"),
+    CUSTOM("Custom Date Range", "কাস্টম সময়কাল")
 }
 
 data class BalanceSheetAccountRow(
@@ -107,6 +107,15 @@ object BalanceSheetHelper {
                 val thirtyDaysAgo = now - (30L * 24L * 60L * 60L * 1000L)
                 Pair(thirtyDaysAgo, now)
             }
+            BalanceSheetComparisonPreset.TODAY -> {
+                cal.timeInMillis = now
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                val base = cal.timeInMillis
+                Pair(base, now)
+            }
             BalanceSheetComparisonPreset.CUSTOM -> {
                 Pair(now - (30L * 24L * 60L * 60L * 1000L), now)
             }
@@ -119,13 +128,23 @@ object BalanceSheetHelper {
         baseDateEpochMs: Long,
         compareDateEpochMs: Long,
         preset: BalanceSheetComparisonPreset = BalanceSheetComparisonPreset.END_OF_LAST_MONTH,
+        selectedAccountIds: Set<Long> = emptySet(),
+        selectedStatusSet: Set<TransactionStatus> = emptySet(),
         activeOnly: Boolean = true,
-        hideZeroBalance: Boolean = false,
-        searchQuery: String = ""
+        showHiddenAccounts: Boolean = false,
+        excludeZeroAmounts: Boolean = false,
+        searchQuery: String = "",
+        languageMode: LanguageMode = LanguageMode.ENGLISH
     ): BalanceSheetComparisonData {
-        val dateFormat = SimpleDateFormat("MMMM d, yyyy", Locale.US)
-        val baseDateLabel = dateFormat.format(Date(baseDateEpochMs))
-        val compareDateLabel = dateFormat.format(Date(compareDateEpochMs))
+        val baseDateLabel = DateUtils.formatDate(baseDateEpochMs, languageMode)
+        val compareDateLabel = DateUtils.formatDate(compareDateEpochMs, languageMode)
+
+        // Filter transactions if status filter is active
+        val validTransactions = if (selectedStatusSet.isNotEmpty()) {
+            transactions.filter { it.status in selectedStatusSet }
+        } else {
+            transactions
+        }
 
         // Pre-calculate debits and credits up to both timestamps
         val baseDebits = mutableMapOf<Long, Double>()
@@ -133,7 +152,7 @@ object BalanceSheetHelper {
         val currDebits = mutableMapOf<Long, Double>()
         val currCredits = mutableMapOf<Long, Double>()
 
-        for (tx in transactions) {
+        for (tx in validTransactions) {
             if (tx.dateEpochMs <= baseDateEpochMs) {
                 tx.debitAccountId?.let { baseDebits[it] = (baseDebits[it] ?: 0.0) + tx.amount }
                 tx.creditAccountId?.let { baseCredits[it] = (baseCredits[it] ?: 0.0) + tx.amount }
@@ -154,8 +173,12 @@ object BalanceSheetHelper {
         }
 
         val filteredAccounts = accounts.filter { acc ->
-            (!activeOnly || acc.isActive) &&
-            (searchQuery.isBlank() || acc.nameEn.contains(searchQuery, ignoreCase = true) || acc.nameBn.contains(searchQuery, ignoreCase = true))
+            val matchesHidden = if (showHiddenAccounts) true else (if (activeOnly) acc.isActive else true)
+            val matchesSearch = (searchQuery.isBlank() || acc.nameEn.contains(searchQuery, ignoreCase = true) || acc.nameBn.contains(searchQuery, ignoreCase = true))
+            val matchesSelected = if (selectedAccountIds.isEmpty()) true else {
+                selectedAccountIds.contains(acc.id) || (acc.parentId != null && selectedAccountIds.contains(acc.parentId))
+            }
+            matchesHidden && matchesSearch && matchesSelected
         }
 
         val parentAccounts = filteredAccounts.filter { it.parentId == null }
@@ -180,12 +203,12 @@ object BalanceSheetHelper {
                         currentBalance = currBal,
                         percentageShare = 0.0 // computed below
                     )
-                }.filter { !hideZeroBalance || Math.abs(it.baseBalance) > 0.001 || Math.abs(it.currentBalance) > 0.001 }
+                }.filter { !excludeZeroAmounts || Math.abs(it.baseBalance) > 0.001 || Math.abs(it.currentBalance) > 0.001 }
 
                 val parentBaseBal = if (subRows.isNotEmpty()) subRows.sumOf { it.baseBalance } else (baseBalanceMap[parent.id] ?: 0.0)
                 val parentCurrBal = if (subRows.isNotEmpty()) subRows.sumOf { it.currentBalance } else (currBalanceMap[parent.id] ?: 0.0)
 
-                if (!hideZeroBalance || Math.abs(parentBaseBal) > 0.001 || Math.abs(parentCurrBal) > 0.001 || subRows.isNotEmpty()) {
+                if (!excludeZeroAmounts || Math.abs(parentBaseBal) > 0.001 || Math.abs(parentCurrBal) > 0.001 || subRows.isNotEmpty()) {
                     groups.add(
                         BalanceSheetGroup(
                             parentAccount = parent,

@@ -71,7 +71,6 @@ fun DailySummaryDetailDialog(
         val daysToInclude = selectedPeriod.days
 
         val items = mutableListOf<DayDetailItem>()
-        val sdf = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
         val dayNameSdf = SimpleDateFormat("EEE", Locale.getDefault())
 
         val startCal = Calendar.getInstance().apply {
@@ -124,7 +123,7 @@ fun DailySummaryDetailDialog(
                     dateEpochMs = dStart,
                     dayLabel = dayNameSdf.format(Date(dStart)),
                     dateNum = tempCal.get(Calendar.DAY_OF_MONTH),
-                    fullDateString = sdf.format(Date(dStart)),
+                    fullDateString = com.example.util.DateUtils.formatDate(dStart, languageMode),
                     totalExpense = expense,
                     totalIncome = income,
                     transactions = dayTxs

@@ -129,10 +129,9 @@ fun DailySummaryCard(
             val exp = dayTxs.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
             val inc = dayTxs.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
 
-            val dayFormat = SimpleDateFormat("EEE", Locale.ENGLISH)
-            val fullFormat = SimpleDateFormat("dd MMM", Locale.ENGLISH)
+            val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
             val dayName = dayFormat.format(Date(startOfDay))
-            val fullDate = fullFormat.format(Date(startOfDay))
+            val fullDate = com.example.util.DateUtils.formatDate(startOfDay, languageMode)
 
             list.add(
                 DaySummaryData(

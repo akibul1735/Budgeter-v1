@@ -203,7 +203,6 @@ fun AccountTransactionsDetailDialog(
     }
 
     val accountLocalizedName = account.localizedName(languageMode)
-    val sdf = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -577,7 +576,7 @@ fun AccountTransactionsDetailDialog(
                                 else -> SolidExpense
                             }
 
-                            val dateStr = sdf.format(Date(tx.dateEpochMs))
+                            val dateStr = com.example.util.DateUtils.formatDate(tx.dateEpochMs, languageMode)
 
                             // Main Title: Note or Category / Transfer Info
                             val mainTitle = when (tx.type) {

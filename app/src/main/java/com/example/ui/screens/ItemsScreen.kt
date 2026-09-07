@@ -408,7 +408,7 @@ fun ItemsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()).format(Date(tx.dateEpochMs)),
+                                        text = DateUtils.formatDate(tx.dateEpochMs, languageMode),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.primary

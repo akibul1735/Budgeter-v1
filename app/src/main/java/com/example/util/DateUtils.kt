@@ -77,21 +77,17 @@ object DateUtils {
     fun formatDayHeader(epochMs: Long, mode: LanguageMode): String {
         val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 1 = Sunday ... 7 = Saturday
-        val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
-        val monthIdx = cal.get(Calendar.MONTH)
-        val year = cal.get(Calendar.YEAR)
+        val formattedDate = formatDate(epochMs, mode)
 
         return when (mode) {
             LanguageMode.BANGLA -> {
-                val dayNameBn = banglaDaysOfWeek[dayOfWeek - 1]
-                val dayBn = LanguageHelper.toBanglaDigits(dayOfMonth.toString())
-                val monthBn = banglaMonths[monthIdx]
-                val yearBn = LanguageHelper.toBanglaDigits(year.toString())
-                "$dayNameBn $dayBn $monthBn, $yearBn"
+                val dayNameBn = banglaDaysOfWeekFull[dayOfWeek - 1]
+                "$dayNameBn, $formattedDate"
             }
             LanguageMode.ENGLISH -> {
-                val sdf = SimpleDateFormat("EEE MMMM d, yyyy", Locale.US)
-                sdf.format(Date(epochMs)).uppercase(Locale.US)
+                val dayNamesEn = arrayOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+                val dayName = dayNamesEn[dayOfWeek - 1]
+                "$dayName, $formattedDate"
             }
         }
     }
@@ -109,19 +105,7 @@ object DateUtils {
     }
 
     fun formatDateFull(epochMs: Long, mode: LanguageMode): String {
-        return when (mode) {
-            LanguageMode.BANGLA -> {
-                val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
-                val dayBn = LanguageHelper.toBanglaDigits(cal.get(Calendar.DAY_OF_MONTH).toString())
-                val monthBn = banglaMonths[cal.get(Calendar.MONTH)]
-                val yearBn = LanguageHelper.toBanglaDigits(cal.get(Calendar.YEAR).toString())
-                "$monthBn $dayBn, $yearBn"
-            }
-            LanguageMode.ENGLISH -> {
-                val sdf = SimpleDateFormat("MMMM d, yyyy", Locale.US)
-                sdf.format(Date(epochMs))
-            }
-        }
+        return formatDate(epochMs, mode)
     }
 
     fun formatDate(epochMs: Long, mode: LanguageMode, customPattern: String? = null): String {
@@ -158,13 +142,7 @@ object DateUtils {
     }
 
     fun formatShortDate(epochMs: Long, mode: LanguageMode): String {
-        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.US)
-        val formatted = sdf.format(Date(epochMs))
-        return if (mode == LanguageMode.BANGLA) {
-            LanguageHelper.toBanglaDigits(formatted)
-        } else {
-            formatted
-        }
+        return formatDate(epochMs, mode)
     }
 
     fun getStartOfMonth(): Long {

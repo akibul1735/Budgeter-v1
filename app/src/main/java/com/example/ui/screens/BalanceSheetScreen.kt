@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,35 +25,44 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,11 +71,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,10 +93,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionStatus
 import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -93,11 +109,138 @@ import com.example.util.BalanceSheetComparisonData
 import com.example.util.BalanceSheetComparisonPreset
 import com.example.util.BalanceSheetGroup
 import com.example.util.BalanceSheetHelper
+import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+
+data class BalanceSheetFilterState(
+    val preset: BalanceSheetComparisonPreset = BalanceSheetComparisonPreset.END_OF_LAST_MONTH,
+    val customBaseDateMs: Long? = null,
+    val customCompareDateMs: Long? = null,
+    val selectedAccountIds: Set<Long> = emptySet(),
+    val selectedStatusSet: Set<TransactionStatus> = emptySet(),
+    val excludeZeroAmounts: Boolean = false,
+    val displayCurrency: Boolean = true,
+    val showHiddenAccounts: Boolean = false,
+    val showOnlyCurrentBalance: Boolean = false
+) {
+    val isFilterActive: Boolean
+        get() = preset != BalanceSheetComparisonPreset.END_OF_LAST_MONTH ||
+                selectedAccountIds.isNotEmpty() ||
+                selectedStatusSet.isNotEmpty() ||
+                excludeZeroAmounts ||
+                !displayCurrency ||
+                showHiddenAccounts ||
+                showOnlyCurrentBalance
+}
+
+data class SavedBalanceSheetPreset(
+    val id: String,
+    val name: String,
+    val filterState: BalanceSheetFilterState
+)
+
+object BalanceSheetPresetsStorage {
+    private const val PREFS_NAME = "bs_filter_presets"
+    private const val KEY_PRESETS = "presets_list"
+
+    fun loadPresets(context: Context): List<SavedBalanceSheetPreset> {
+        val sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = sp.getString(KEY_PRESETS, null) ?: return emptyList()
+        return try {
+            val jsonArr = JSONArray(raw)
+            val list = mutableListOf<SavedBalanceSheetPreset>()
+            for (i in 0 until jsonArr.length()) {
+                val obj = jsonArr.getJSONObject(i)
+                val id = obj.getString("id")
+                val name = obj.getString("name")
+                val presetName = obj.optString("preset", BalanceSheetComparisonPreset.END_OF_LAST_MONTH.name)
+                val preset = try {
+                    BalanceSheetComparisonPreset.valueOf(presetName)
+                } catch (e: Exception) {
+                    BalanceSheetComparisonPreset.END_OF_LAST_MONTH
+                }
+                val customBase = if (obj.has("baseDate")) obj.getLong("baseDate") else null
+                val customCompare = if (obj.has("compareDate")) obj.getLong("compareDate") else null
+
+                val accIds = mutableSetOf<Long>()
+                val accJson = obj.optJSONArray("accountIds")
+                if (accJson != null) {
+                    for (j in 0 until accJson.length()) {
+                        accIds.add(accJson.getLong(j))
+                    }
+                }
+
+                val statusSet = mutableSetOf<TransactionStatus>()
+                val statusJson = obj.optJSONArray("statuses")
+                if (statusJson != null) {
+                    for (j in 0 until statusJson.length()) {
+                        try {
+                            statusSet.add(TransactionStatus.valueOf(statusJson.getString(j)))
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                val excludeZero = obj.optBoolean("excludeZero", false)
+                val displayCurr = obj.optBoolean("displayCurr", true)
+                val showHidden = obj.optBoolean("showHidden", false)
+                val onlyCurrent = obj.optBoolean("onlyCurrent", false)
+
+                list.add(
+                    SavedBalanceSheetPreset(
+                        id = id,
+                        name = name,
+                        filterState = BalanceSheetFilterState(
+                            preset = preset,
+                            customBaseDateMs = customBase,
+                            customCompareDateMs = customCompare,
+                            selectedAccountIds = accIds,
+                            selectedStatusSet = statusSet,
+                            excludeZeroAmounts = excludeZero,
+                            displayCurrency = displayCurr,
+                            showHiddenAccounts = showHidden,
+                            showOnlyCurrentBalance = onlyCurrent
+                        )
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun savePresets(context: Context, presets: List<SavedBalanceSheetPreset>) {
+        val sp = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val jsonArr = JSONArray()
+        for (item in presets) {
+            val obj = JSONObject()
+            obj.put("id", item.id)
+            obj.put("name", item.name)
+            obj.put("preset", item.filterState.preset.name)
+            item.filterState.customBaseDateMs?.let { obj.put("baseDate", it) }
+            item.filterState.customCompareDateMs?.let { obj.put("compareDate", it) }
+
+            val accArr = JSONArray()
+            item.filterState.selectedAccountIds.forEach { accArr.put(it) }
+            obj.put("accountIds", accArr)
+
+            val statusArr = JSONArray()
+            item.filterState.selectedStatusSet.forEach { statusArr.put(it.name) }
+            obj.put("statuses", statusArr)
+
+            obj.put("excludeZero", item.filterState.excludeZeroAmounts)
+            obj.put("displayCurr", item.filterState.displayCurrency)
+            obj.put("showHidden", item.filterState.showHiddenAccounts)
+            obj.put("onlyCurrent", item.filterState.showOnlyCurrentBalance)
+            jsonArr.put(obj)
+        }
+        sp.edit().putString(KEY_PRESETS, jsonArr.toString()).apply()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,8 +257,9 @@ fun BalanceSheetScreen(
 ) {
     val context = LocalContext.current
 
-    // Timeline and Comparison state
-    var selectedPreset by remember { mutableStateOf(BalanceSheetComparisonPreset.END_OF_LAST_MONTH) }
+    // Active Filter State
+    var filterState by remember { mutableStateOf(BalanceSheetFilterState()) }
+
     var baseDateMs by remember {
         val (base, _) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.END_OF_LAST_MONTH)
         mutableStateOf(base)
@@ -125,12 +269,8 @@ fun BalanceSheetScreen(
         mutableStateOf(compare)
     }
 
-    // Vast Filter State
+    // Modal Filter Dialog
     var showFilterDialog by remember { mutableStateOf(false) }
-    var filterAccountType by remember { mutableStateOf<AccountType?>(null) } // null = All
-    var activeOnlyFilter by remember { mutableStateOf(true) }
-    var hideZeroBalanceFilter by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
     var isEditMode by remember { mutableStateOf(false) }
 
     // Date Pickers for Custom Mode
@@ -146,29 +286,33 @@ fun BalanceSheetScreen(
         transactions,
         baseDateMs,
         compareDateMs,
-        selectedPreset,
-        activeOnlyFilter,
-        hideZeroBalanceFilter,
-        searchQuery
+        filterState,
+        languageMode
     ) {
         BalanceSheetHelper.calculateBalanceSheet(
             accounts = accounts,
             transactions = transactions,
             baseDateEpochMs = baseDateMs,
             compareDateEpochMs = compareDateMs,
-            preset = selectedPreset,
-            activeOnly = activeOnlyFilter,
-            hideZeroBalance = hideZeroBalanceFilter,
-            searchQuery = searchQuery
+            preset = filterState.preset,
+            selectedAccountIds = filterState.selectedAccountIds,
+            selectedStatusSet = filterState.selectedStatusSet,
+            activeOnly = !filterState.showHiddenAccounts,
+            showHiddenAccounts = filterState.showHiddenAccounts,
+            excludeZeroAmounts = filterState.excludeZeroAmounts,
+            searchQuery = "",
+            languageMode = languageMode
         )
     }
 
-    val currency = "BDT"
-
     Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // Header bar with Filter button on right side
             AppTabHeader(
                 title = LanguageHelper.getString("balance_sheet", languageMode),
+                showFilterButton = true,
+                isFilterActive = filterState.isFilterActive,
+                onFilterClick = { showFilterDialog = true },
                 onOpenDrawer = onOpenDrawer
             )
 
@@ -179,46 +323,39 @@ fun BalanceSheetScreen(
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 88.dp)
             ) {
                 // 1. Top Net Worth Card
-            item {
-                NetWorthSummaryCard(
-                    data = balanceSheetData,
-                    currency = currency,
-                    languageMode = languageMode
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
+                item {
+                    NetWorthSummaryCard(
+                        data = balanceSheetData,
+                        displayCurrency = filterState.displayCurrency,
+                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                        languageMode = languageMode
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
-            // 2. Timeline Control & Date Columns Bar
-            item {
-                TimelineComparisonHeader(
-                    preset = selectedPreset,
-                    baseDateLabel = balanceSheetData.baseDateLabel,
-                    compareDateLabel = balanceSheetData.compareDateLabel,
-                    onSelectPreset = { preset ->
-                        selectedPreset = preset
-                        if (preset != BalanceSheetComparisonPreset.CUSTOM) {
-                            val (b, c) = BalanceSheetHelper.getPresetDateRanges(preset)
-                            baseDateMs = b
-                            compareDateMs = c
-                        } else {
-                            showBaseDatePicker = true
-                        }
-                    },
-                    onOpenFilter = { showFilterDialog = true },
-                    onToggleEditMode = { isEditMode = !isEditMode },
-                    isEditMode = isEditMode
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-            }
+                // 2. Timeline Control & Date Columns Bar
+                item {
+                    TimelineComparisonHeader(
+                        preset = filterState.preset,
+                        baseDateLabel = balanceSheetData.baseDateLabel,
+                        compareDateLabel = balanceSheetData.compareDateLabel,
+                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                        languageMode = languageMode,
+                        onOpenFilter = { showFilterDialog = true },
+                        onToggleEditMode = { isEditMode = !isEditMode },
+                        isEditMode = isEditMode
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
-            // 3. ASSETS Section
-            if (filterAccountType == null || filterAccountType == AccountType.ASSET) {
+                // 3. ASSETS Section
                 item {
                     SectionHeader(
                         title = if (languageMode == LanguageMode.BANGLA) "সম্পদ (ASSETS)" else "ASSETS",
                         baseAmount = balanceSheetData.totalAssetsBase,
                         currentAmount = balanceSheetData.totalAssetsCurrent,
-                        currency = currency,
+                        displayCurrency = filterState.displayCurrency,
+                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                         headerColor = MaterialTheme.colorScheme.primary,
                         languageMode = languageMode
                     )
@@ -227,7 +364,7 @@ fun BalanceSheetScreen(
                 if (balanceSheetData.assetGroups.isEmpty()) {
                     item {
                         EmptySectionPlaceholder(
-                            message = if (languageMode == LanguageMode.BANGLA) "কোন সম্পদ অ্যাকাউন্ট নেই" else "No asset accounts found"
+                            message = if (languageMode == LanguageMode.BANGLA) "কোন সম্পদ অ্যাকাউন্ট পাওয়া যায়নি" else "No asset accounts found"
                         )
                     }
                 } else {
@@ -237,7 +374,8 @@ fun BalanceSheetScreen(
                             group = group,
                             isExpanded = isExpanded,
                             isEditMode = isEditMode,
-                            currency = currency,
+                            displayCurrency = filterState.displayCurrency,
+                            showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onToggleExpand = {
                                 expandedMap[group.parentAccount.id] = !isExpanded
@@ -254,16 +392,15 @@ fun BalanceSheetScreen(
                 item {
                     Spacer(modifier = Modifier.height(12.dp))
                 }
-            }
 
-            // 4. LIABILITIES Section
-            if (filterAccountType == null || filterAccountType == AccountType.LIABILITY) {
+                // 4. LIABILITIES Section
                 item {
                     SectionHeader(
                         title = if (languageMode == LanguageMode.BANGLA) "দায় (LIABILITIES)" else "LIABILITIES",
                         baseAmount = balanceSheetData.totalLiabilitiesBase,
                         currentAmount = balanceSheetData.totalLiabilitiesCurrent,
-                        currency = currency,
+                        displayCurrency = filterState.displayCurrency,
+                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                         headerColor = SolidExpense,
                         languageMode = languageMode
                     )
@@ -272,7 +409,7 @@ fun BalanceSheetScreen(
                 if (balanceSheetData.liabilityGroups.isEmpty()) {
                     item {
                         EmptySectionPlaceholder(
-                            message = if (languageMode == LanguageMode.BANGLA) "কোন দায় অ্যাকাউন্ট নেই" else "No liability accounts found"
+                            message = if (languageMode == LanguageMode.BANGLA) "কোন দায় অ্যাকাউন্ট পাওয়া যায়নি" else "No liability accounts found"
                         )
                     }
                 } else {
@@ -282,7 +419,8 @@ fun BalanceSheetScreen(
                             group = group,
                             isExpanded = isExpanded,
                             isEditMode = isEditMode,
-                            currency = currency,
+                            displayCurrency = filterState.displayCurrency,
+                            showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onToggleExpand = {
                                 expandedMap[group.parentAccount.id] = !isExpanded
@@ -297,7 +435,6 @@ fun BalanceSheetScreen(
                 }
             }
         }
-    }
 
         // Action Buttons: Quick Add Account and Add Transaction
         Column(
@@ -343,26 +480,23 @@ fun BalanceSheetScreen(
         }
     }
 
-    // Vast Filter Dialog
+    // Material Style Filter Dialog
     if (showFilterDialog) {
-        BalanceSheetFilterDialog(
-            currentPreset = selectedPreset,
-            accountType = filterAccountType,
-            activeOnly = activeOnlyFilter,
-            hideZeroBalance = hideZeroBalanceFilter,
-            searchQuery = searchQuery,
+        MaterialBalanceSheetFilterDialog(
+            currentState = filterState,
+            accounts = accounts,
             languageMode = languageMode,
-            onApply = { newPreset, newType, newActiveOnly, newHideZero, newQuery ->
-                selectedPreset = newPreset
-                if (newPreset != BalanceSheetComparisonPreset.CUSTOM) {
-                    val (b, c) = BalanceSheetHelper.getPresetDateRanges(newPreset)
+            onApply = { newState ->
+                filterState = newState
+                if (newState.preset == BalanceSheetComparisonPreset.CUSTOM &&
+                    newState.customBaseDateMs != null && newState.customCompareDateMs != null) {
+                    baseDateMs = newState.customBaseDateMs
+                    compareDateMs = newState.customCompareDateMs
+                } else {
+                    val (b, c) = BalanceSheetHelper.getPresetDateRanges(newState.preset)
                     baseDateMs = b
                     compareDateMs = c
                 }
-                filterAccountType = newType
-                activeOnlyFilter = newActiveOnly
-                hideZeroBalanceFilter = newHideZero
-                searchQuery = newQuery
                 showFilterDialog = false
             },
             onSelectCustomDates = {
@@ -386,19 +520,24 @@ fun BalanceSheetScreen(
                         showCompareDatePicker = true
                     }
                 }) {
-                    Text("Next: Select Second Date")
+                    Text(if (languageMode == LanguageMode.BANGLA) "পরবর্তী" else "Next")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showBaseDatePicker = false }) {
-                    Text("Cancel")
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
                 }
             }
         ) {
-            DatePicker(
-                state = dateState,
-                title = { Text("Select Base Comparison Date", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold) }
-            )
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "বেস তারিখ নির্বাচন করুন" else "Select Base Comparison Date",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                DatePicker(state = dateState)
+            }
         }
     }
 
@@ -410,31 +549,1015 @@ fun BalanceSheetScreen(
                 TextButton(onClick = {
                     dateState.selectedDateMillis?.let {
                         compareDateMs = it
-                        selectedPreset = BalanceSheetComparisonPreset.CUSTOM
                         showCompareDatePicker = false
+                        filterState = filterState.copy(
+                            preset = BalanceSheetComparisonPreset.CUSTOM,
+                            customBaseDateMs = baseDateMs,
+                            customCompareDateMs = compareDateMs
+                        )
                     }
                 }) {
-                    Text("Apply Comparison")
+                    Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ" else "Apply")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCompareDatePicker = false }) {
-                    Text("Cancel")
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
                 }
             }
         ) {
-            DatePicker(
-                state = dateState,
-                title = { Text("Select Compare Target Date", modifier = Modifier.padding(16.dp), fontWeight = FontWeight.Bold) }
-            )
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক বর্তমান তারিখ নির্বাচন করুন" else "Select Compare Date",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                DatePicker(state = dateState)
+            }
         }
+    }
+}
+
+/**
+ * Format balance with or without currency based on displayCurrency toggle
+ */
+fun formatBalance(amount: Double, displayCurrency: Boolean, languageMode: LanguageMode): String {
+    return if (displayCurrency) {
+        LanguageHelper.formatCurrency(amount, languageMode)
+    } else {
+        LanguageHelper.formatNumber(amount, languageMode)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MaterialBalanceSheetFilterDialog(
+    currentState: BalanceSheetFilterState,
+    accounts: List<Account>,
+    languageMode: LanguageMode,
+    onApply: (BalanceSheetFilterState) -> Unit,
+    onSelectCustomDates: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    var tempPreset by remember { mutableStateOf(currentState.preset) }
+    var tempAccountIds by remember { mutableStateOf(currentState.selectedAccountIds) }
+    var tempStatuses by remember { mutableStateOf(currentState.selectedStatusSet) }
+    var tempExcludeZero by remember { mutableStateOf(currentState.excludeZeroAmounts) }
+    var tempDisplayCurrency by remember { mutableStateOf(currentState.displayCurrency) }
+    var tempShowHidden by remember { mutableStateOf(currentState.showHiddenAccounts) }
+    var tempShowOnlyCurrent by remember { mutableStateOf(currentState.showOnlyCurrentBalance) }
+
+    // Sub-dialog states
+    var showAccountPickerDialog by remember { mutableStateOf(false) }
+    var showStatusPickerDialog by remember { mutableStateOf(false) }
+    var showSavePresetDialog by remember { mutableStateOf(false) }
+    var showOpenPresetDialog by remember { mutableStateOf(false) }
+    var presetNameInput by remember { mutableStateOf("") }
+    var isDateRangeMenuExpanded by remember { mutableStateOf(false) }
+
+    val savedPresets = remember { mutableStateListOf<SavedBalanceSheetPreset>().apply { addAll(BalanceSheetPresetsStorage.loadPresets(context)) } }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.85f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
+                // Top drag handle & 3 Circular Action Icons
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Top drag handle
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.FilterAlt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স শিট ফিল্টার" else "Balance Sheet Filter",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // 3 Circular Action Icons: Reset, Save, Open
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 1. Reset Icon
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                onClick = {
+                                    tempPreset = BalanceSheetComparisonPreset.END_OF_LAST_MONTH
+                                    tempAccountIds = emptySet()
+                                    tempStatuses = emptySet()
+                                    tempExcludeZero = false
+                                    tempDisplayCurrency = true
+                                    tempShowHidden = false
+                                    tempShowOnlyCurrent = false
+                                    Toast.makeText(context, if (languageMode == LanguageMode.BANGLA) "ফিল্টার রিসেট করা হয়েছে" else "Filters reset to default", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.RestartAlt,
+                                        contentDescription = "Reset",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            // 2. Save (Custom filter save for reuse)
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                onClick = {
+                                    presetNameInput = ""
+                                    showSavePresetDialog = true
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.BookmarkAdd,
+                                        contentDescription = "Save Preset",
+                                        tint = SolidIncome,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            // 3. Open (Load saved presets)
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                onClick = {
+                                    showOpenPresetDialog = true
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.FolderOpen,
+                                        contentDescription = "Open Saved Filters",
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                // Scrollable Content Area
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // 1. Date Range Dropdown
+                    Column {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সময়কাল (Date Range)" else "Date Range",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                onClick = { isDateRangeMenuExpanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarMonth,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        val presetLabel = if (languageMode == LanguageMode.BANGLA) tempPreset.titleBn else tempPreset.titleEn
+                                        Text(
+                                            text = presetLabel,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = isDateRangeMenuExpanded,
+                                onDismissRequest = { isDateRangeMenuExpanded = false }
+                            ) {
+                                BalanceSheetComparisonPreset.values().forEach { preset ->
+                                    val isSelected = tempPreset == preset
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (isSelected) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            isDateRangeMenuExpanded = false
+                                            tempPreset = preset
+                                            if (preset == BalanceSheetComparisonPreset.CUSTOM) {
+                                                onSelectCustomDates()
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Account Dropdown
+                    Column {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট (Account)" else "Account",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            onClick = { showAccountPickerDialog = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountBalanceWallet,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    val label = if (tempAccountIds.isEmpty()) {
+                                        if (languageMode == LanguageMode.BANGLA) "সব অ্যাকাউন্ট (All Accounts)" else "All Accounts"
+                                    } else {
+                                        if (languageMode == LanguageMode.BANGLA) "${tempAccountIds.size} টি অ্যাকাউন্ট নির্বাচিত" else "${tempAccountIds.size} Accounts Selected"
+                                    }
+                                    Text(
+                                        text = label,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Status Dropdown
+                    Column {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস (Status)" else "Status",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            onClick = { showStatusPickerDialog = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Tune,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    val label = if (tempStatuses.isEmpty()) {
+                                        if (languageMode == LanguageMode.BANGLA) "(কোন ফিল্টার নেই)" else "(No Filter)"
+                                    } else {
+                                        tempStatuses.joinToString(", ") { if (languageMode == LanguageMode.BANGLA) it.titleBn else it.titleEn }
+                                    }
+                                    Text(
+                                        text = label,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Toggle Rows
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            // Row 1: Exclude zero amounts
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ দিন" else "Exclude zero amounts",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Switch(
+                                    checked = tempExcludeZero,
+                                    onCheckedChange = { tempExcludeZero = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32)
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 2: Display currency
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "কারেন্সি প্রদর্শন করুন" else "Display currency",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Switch(
+                                    checked = tempDisplayCurrency,
+                                    onCheckedChange = { tempDisplayCurrency = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32)
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 3: Show hidden accounts
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "লুকানো অ্যাকাউন্ট দেখান" else "Show hidden accounts",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Switch(
+                                    checked = tempShowHidden,
+                                    onCheckedChange = { tempShowHidden = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32)
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 4: Show only current balance
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বর্তমান ব্যালেন্স দেখান" else "Show only current balance",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "তুলনা বন্ধ করে একক ব্যালেন্স প্রদর্শন করবে" else "Turn off comparison & show current snapshot",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                    )
+                                }
+                                Switch(
+                                    checked = tempShowOnlyCurrent,
+                                    onCheckedChange = { tempShowOnlyCurrent = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Fixed Bottom Action Buttons: Cancel (outlined) and OK (green filled)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val newState = BalanceSheetFilterState(
+                                preset = tempPreset,
+                                customBaseDateMs = currentState.customBaseDateMs,
+                                customCompareDateMs = currentState.customCompareDateMs,
+                                selectedAccountIds = tempAccountIds,
+                                selectedStatusSet = tempStatuses,
+                                excludeZeroAmounts = tempExcludeZero,
+                                displayCurrency = tempDisplayCurrency,
+                                showHiddenAccounts = tempShowHidden,
+                                showOnlyCurrentBalance = tempShowOnlyCurrent
+                            )
+                            onApply(newState)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2E7D32),
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "ঠিক আছে" else "OK",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Account Multi-Select Picker Dialog
+    if (showAccountPickerDialog) {
+        var searchQuery by remember { mutableStateOf("") }
+        val tempSelected = remember { mutableStateListOf<Long>().apply { addAll(tempAccountIds) } }
+
+        AlertDialog(
+            onDismissRequest = { showAccountPickerDialog = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Accounts",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "অনুসন্ধান..." else "Search accounts...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = {
+                            tempSelected.clear()
+                            tempSelected.addAll(accounts.map { it.id })
+                        }) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp)
+                        }
+                        TextButton(onClick = {
+                            tempSelected.clear()
+                        }) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "মুছে ফেলুন" else "Clear All", fontSize = 11.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    val filtered = accounts.filter {
+                        searchQuery.isBlank() || it.nameEn.contains(searchQuery, ignoreCase = true) || it.nameBn.contains(searchQuery, ignoreCase = true)
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                    ) {
+                        items(filtered, key = { it.id }) { acc ->
+                            val isChecked = tempSelected.contains(acc.id)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        if (isChecked) tempSelected.remove(acc.id) else tempSelected.add(acc.id)
+                                    }
+                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = {
+                                        if (it) tempSelected.add(acc.id) else tempSelected.remove(acc.id)
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = IconHelper.getIconByName(acc.iconName),
+                                    contentDescription = null,
+                                    tint = if (acc.type == AccountType.ASSET) MaterialTheme.colorScheme.primary else SolidExpense,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) acc.nameBn else acc.nameEn,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (acc.parentId != null) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "সাব-অ্যাকাউন্ট" else "Sub-account",
+                                            fontSize = 9.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    tempAccountIds = tempSelected.toSet()
+                    showAccountPickerDialog = false
+                }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "সম্পন্ন" else "Done")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAccountPickerDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    // Status Multi-Select Picker Dialog
+    if (showStatusPickerDialog) {
+        val tempStatusSelected = remember { mutableStateListOf<TransactionStatus>().apply { addAll(tempStatuses) } }
+        val allStatuses = listOf(
+            TransactionStatus.CLEARED,
+            TransactionStatus.NONE,
+            TransactionStatus.RECONCILED,
+            TransactionStatus.VOID
+        )
+
+        AlertDialog(
+            onDismissRequest = { showStatusPickerDialog = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস নির্বাচন করুন" else "Select Transaction Status",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = {
+                            tempStatusSelected.clear()
+                            tempStatusSelected.addAll(allStatuses)
+                        }) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp)
+                        }
+                        TextButton(onClick = {
+                            tempStatusSelected.clear()
+                        }) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "মুছে ফেলুন" else "Clear All", fontSize = 11.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    allStatuses.forEach { status ->
+                        val isChecked = tempStatusSelected.contains(status)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    if (isChecked) tempStatusSelected.remove(status) else tempStatusSelected.add(status)
+                                }
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = isChecked,
+                                onCheckedChange = {
+                                    if (it) tempStatusSelected.add(status) else tempStatusSelected.remove(status)
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) status.titleBn else status.titleEn,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    tempStatuses = tempStatusSelected.toSet()
+                    showStatusPickerDialog = false
+                }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "সম্পন্ন" else "Done")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStatusPickerDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    // Save Custom Filter Dialog Prompt
+    if (showSavePresetDialog) {
+        AlertDialog(
+            onDismissRequest = { showSavePresetDialog = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার প্রিসেট সংরক্ষণ করুন" else "Save Custom Filter Preset",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "ভবিষ্যতে দ্রুত ব্যবহারের জন্য এই ফিল্টারের একটি নাম দিন:" else "Give this filter configuration a name for quick reuse:",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = presetNameInput,
+                        onValueChange = { presetNameInput = it },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "প্রিসেটের নাম" else "Preset Name") },
+                        placeholder = { Text("e.g., Active Assets Only") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val name = presetNameInput.trim().ifEmpty { "Filter Preset ${savedPresets.size + 1}" }
+                        val newPreset = SavedBalanceSheetPreset(
+                            id = UUID.randomUUID().toString(),
+                            name = name,
+                            filterState = BalanceSheetFilterState(
+                                preset = tempPreset,
+                                customBaseDateMs = currentState.customBaseDateMs,
+                                customCompareDateMs = currentState.customCompareDateMs,
+                                selectedAccountIds = tempAccountIds,
+                                selectedStatusSet = tempStatuses,
+                                excludeZeroAmounts = tempExcludeZero,
+                                displayCurrency = tempDisplayCurrency,
+                                showHiddenAccounts = tempShowHidden,
+                                showOnlyCurrentBalance = tempShowOnlyCurrent
+                            )
+                        )
+                        savedPresets.add(newPreset)
+                        BalanceSheetPresetsStorage.savePresets(context, savedPresets)
+                        showSavePresetDialog = false
+                        Toast.makeText(context, if (languageMode == LanguageMode.BANGLA) "প্রিসেট সংরক্ষিত হয়েছে" else "Filter preset saved successfully!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSavePresetDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    // Open / Load Saved Filter Presets Dialog
+    if (showOpenPresetDialog) {
+        AlertDialog(
+            onDismissRequest = { showOpenPresetDialog = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষিত ফিল্টারসমূহ" else "Saved Filter Presets",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (savedPresets.isEmpty()) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কোন সংরক্ষিত ফিল্টার নেই। নতুন ফিল্টার সংরক্ষণ করতে 'সংরক্ষণ' আইকন ব্যবহার করুন।" else "No saved filters found. Tap the Save icon to save your current filter settings for quick reuse.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(240.dp)
+                        ) {
+                            items(savedPresets, key = { it.id }) { presetItem ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clickable {
+                                            val fs = presetItem.filterState
+                                            tempPreset = fs.preset
+                                            tempAccountIds = fs.selectedAccountIds
+                                            tempStatuses = fs.selectedStatusSet
+                                            tempExcludeZero = fs.excludeZeroAmounts
+                                            tempDisplayCurrency = fs.displayCurrency
+                                            tempShowHidden = fs.showHiddenAccounts
+                                            tempShowOnlyCurrent = fs.showOnlyCurrentBalance
+                                            showOpenPresetDialog = false
+                                            Toast.makeText(context, if (languageMode == LanguageMode.BANGLA) "ফিল্টার প্রয়োগ করা হয়েছে" else "Loaded preset: ${presetItem.name}", Toast.LENGTH_SHORT).show()
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = presetItem.name,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            val summary = if (languageMode == LanguageMode.BANGLA) presetItem.filterState.preset.titleBn else presetItem.filterState.preset.titleEn
+                                            Text(
+                                                text = summary,
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                savedPresets.remove(presetItem)
+                                                BalanceSheetPresetsStorage.savePresets(context, savedPresets)
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete",
+                                                tint = SolidExpense,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showOpenPresetDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বন্ধ করুন" else "Close")
+                }
+            }
+        )
     }
 }
 
 @Composable
 private fun NetWorthSummaryCard(
     data: BalanceSheetComparisonData,
-    currency: String,
+    displayCurrency: Boolean,
+    showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode
 ) {
     val isPositive = data.netWorthDelta >= 0
@@ -465,36 +1588,38 @@ private fun NetWorthSummaryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                     Text(
-                        text = LanguageHelper.formatCurrency(data.netWorthCurrent, languageMode),
+                        text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense
                     )
                 }
 
-                // Growth badge
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isPositive) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                // Growth badge (hidden if showOnlyCurrentBalance is true)
+                if (!showOnlyCurrentBalance) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isPositive) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
                     ) {
-                        Icon(
-                            imageVector = if (isPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown,
-                            contentDescription = null,
-                            tint = if (isPositive) SolidIncome else SolidExpense,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        val sign = if (isPositive) "+" else ""
-                        Text(
-                            text = "$sign${String.format(Locale.US, "%.1f", deltaPercent)}%",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isPositive) SolidIncome else SolidExpense
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                contentDescription = null,
+                                tint = if (isPositive) SolidIncome else SolidExpense,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val sign = if (isPositive) "+" else ""
+                            Text(
+                                text = "$sign${LanguageHelper.formatNumber(deltaPercent, languageMode)}%",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPositive) SolidIncome else SolidExpense
+                            )
+                        }
                     }
                 }
             }
@@ -517,16 +1642,18 @@ private fun NetWorthSummaryCard(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = LanguageHelper.formatCurrency(data.totalAssetsCurrent, languageMode),
+                        text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Text(
-                        text = "Prev: ${LanguageHelper.formatCurrency(data.totalAssetsBase, languageMode)}",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
+                    if (!showOnlyCurrentBalance) {
+                        Text(
+                            text = "Prev: ${formatBalance(data.totalAssetsBase, displayCurrency, languageMode)}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 }
 
                 // Total Liabilities column
@@ -541,16 +1668,18 @@ private fun NetWorthSummaryCard(
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = LanguageHelper.formatCurrency(data.totalLiabilitiesCurrent, languageMode),
+                        text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode),
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = SolidExpense
                     )
-                    Text(
-                        text = "Prev: ${LanguageHelper.formatCurrency(data.totalLiabilitiesBase, languageMode)}",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
+                    if (!showOnlyCurrentBalance) {
+                        Text(
+                            text = "Prev: ${formatBalance(data.totalLiabilitiesBase, displayCurrency, languageMode)}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 }
             }
         }
@@ -562,7 +1691,8 @@ private fun TimelineComparisonHeader(
     preset: BalanceSheetComparisonPreset,
     baseDateLabel: String,
     compareDateLabel: String,
-    onSelectPreset: (BalanceSheetComparisonPreset) -> Unit,
+    showOnlyCurrentBalance: Boolean,
+    languageMode: LanguageMode,
     onOpenFilter: () -> Unit,
     onToggleEditMode: () -> Unit,
     isEditMode: Boolean
@@ -586,7 +1716,7 @@ private fun TimelineComparisonHeader(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Timeline",
+                    text = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Timeline",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.primary
@@ -611,14 +1741,7 @@ private fun TimelineComparisonHeader(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    val presetName = when (preset) {
-                        BalanceSheetComparisonPreset.END_OF_LAST_MONTH -> "End of Last Month"
-                        BalanceSheetComparisonPreset.BEGINNING_OF_MONTH -> "Beginning of Month"
-                        BalanceSheetComparisonPreset.PREVIOUS_MONTH -> "Previous Month"
-                        BalanceSheetComparisonPreset.BEGINNING_OF_YEAR -> "Beginning of Year"
-                        BalanceSheetComparisonPreset.LAST_30_DAYS -> "Last 30 Days"
-                        BalanceSheetComparisonPreset.CUSTOM -> "Custom Timeframe"
-                    }
+                    val presetName = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn
                     Text(
                         text = presetName,
                         fontSize = 12.sp,
@@ -651,28 +1774,44 @@ private fun TimelineComparisonHeader(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Dual Date Column Sub-Headers
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = baseDateLabel,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = compareDateLabel,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.End,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                modifier = Modifier.weight(1f)
-            )
+        // Dual Date Column Sub-Headers (or Single Current Balance Header)
+        if (showOnlyCurrentBalance) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স" else "Current Balance",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                )
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = baseDateLabel,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = compareDateLabel,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.End,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
         Spacer(modifier = Modifier.height(4.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
@@ -684,13 +1823,12 @@ private fun SectionHeader(
     title: String,
     baseAmount: Double,
     currentAmount: Double,
-    currency: String,
+    displayCurrency: Boolean,
+    showOnlyCurrentBalance: Boolean,
     headerColor: Color,
     languageMode: LanguageMode = LanguageMode.ENGLISH
 ) {
     val delta = currentAmount - baseAmount
-    val isUp = delta > 0.001
-    val isDown = delta < -0.001
 
     Row(
         modifier = Modifier
@@ -707,23 +1845,32 @@ private fun SectionHeader(
             letterSpacing = 0.5.sp
         )
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (showOnlyCurrentBalance) {
             Text(
-                text = LanguageHelper.formatCurrency(baseAmount, languageMode),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
+                text = formatBalance(currentAmount, displayCurrency, languageMode),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.width(16.dp))
+        } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = LanguageHelper.formatCurrency(currentAmount, languageMode),
+                    text = formatBalance(baseAmount, displayCurrency, languageMode),
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.width(2.dp))
-                ChangeIndicator(delta = delta)
+                Spacer(modifier = Modifier.width(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = formatBalance(currentAmount, displayCurrency, languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    ChangeIndicator(delta = delta)
+                }
             }
         }
     }
@@ -734,7 +1881,8 @@ private fun BalanceSheetGroupItem(
     group: BalanceSheetGroup,
     isExpanded: Boolean,
     isEditMode: Boolean,
-    currency: String,
+    displayCurrency: Boolean,
+    showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
     onToggleExpand: () -> Unit,
     onAddSubAccount: () -> Unit,
@@ -743,7 +1891,7 @@ private fun BalanceSheetGroupItem(
     onAccountClick: ((Account) -> Unit)? = null
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Parent Account Row (e.g., Cash 45% ৳890.00 ৳5,205.00 ▲)
+        // Parent Account Row
         Surface(
             shape = RoundedCornerShape(8.dp),
             color = Color.Transparent,
@@ -767,7 +1915,7 @@ private fun BalanceSheetGroupItem(
                 }
                 Spacer(modifier = Modifier.width(2.dp))
 
-                // Account Name with Group Icon Indicator - Clickable to view transactions
+                // Account Name with Group Icon Indicator
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -826,33 +1974,53 @@ private fun BalanceSheetGroupItem(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Comparative Amounts
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = LanguageHelper.formatCurrency(group.baseBalance, languageMode),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                // Comparative or Single Amounts
+                if (showOnlyCurrentBalance) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
                         Text(
-                            text = LanguageHelper.formatCurrency(group.currentBalance, languageMode),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            text = formatBalance(group.currentBalance, displayCurrency, languageMode),
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        ChangeIndicator(delta = group.delta)
+                        if (isEditMode) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(onClick = onEditAccount, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(14.dp))
+                            }
+                        }
                     }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = formatBalance(group.baseBalance, displayCurrency, languageMode),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formatBalance(group.currentBalance, displayCurrency, languageMode),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            ChangeIndicator(delta = group.delta)
+                        }
 
-                    if (isEditMode) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(onClick = onEditAccount, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(14.dp))
+                        if (isEditMode) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(onClick = onEditAccount, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(14.dp))
+                            }
                         }
                     }
                 }
@@ -885,7 +2053,8 @@ private fun BalanceSheetGroupItem(
                         SubAccountRowItem(
                             row = subRow,
                             isEditMode = isEditMode,
-                            currency = currency,
+                            displayCurrency = displayCurrency,
+                            showOnlyCurrentBalance = showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onEdit = { onEditSubAccount(subRow.account) },
                             onAccountClick = onAccountClick
@@ -916,7 +2085,8 @@ private fun BalanceSheetGroupItem(
 private fun SubAccountRowItem(
     row: BalanceSheetAccountRow,
     isEditMode: Boolean,
-    currency: String,
+    displayCurrency: Boolean,
+    showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
     onEdit: () -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
@@ -966,32 +2136,52 @@ private fun SubAccountRowItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // Base & Current Balances
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            Text(
-                text = LanguageHelper.formatCurrency(row.baseBalance, languageMode),
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        // Amounts
+        if (showOnlyCurrentBalance) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
                 Text(
-                    text = LanguageHelper.formatCurrency(row.currentBalance, languageMode),
-                    fontSize = 11.sp,
+                    text = formatBalance(row.currentBalance, displayCurrency, languageMode),
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.width(2.dp))
-                ChangeIndicator(delta = row.delta)
+                if (isEditMode) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(onClick = onEdit, modifier = Modifier.size(20.dp)) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(12.dp))
+                    }
+                }
             }
+        } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = formatBalance(row.baseBalance, displayCurrency, languageMode),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = formatBalance(row.currentBalance, displayCurrency, languageMode),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    ChangeIndicator(delta = row.delta)
+                }
 
-            if (isEditMode) {
-                Spacer(modifier = Modifier.width(4.dp))
-                IconButton(onClick = onEdit, modifier = Modifier.size(20.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(12.dp))
+                if (isEditMode) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(onClick = onEdit, modifier = Modifier.size(20.dp)) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(12.dp))
+                    }
                 }
             }
         }
@@ -1045,180 +2235,4 @@ private fun EmptySectionPlaceholder(message: String) {
             textAlign = TextAlign.Center
         )
     }
-}
-
-@Composable
-fun BalanceSheetFilterDialog(
-    currentPreset: BalanceSheetComparisonPreset,
-    accountType: AccountType?,
-    activeOnly: Boolean,
-    hideZeroBalance: Boolean,
-    searchQuery: String,
-    languageMode: LanguageMode,
-    onApply: (BalanceSheetComparisonPreset, AccountType?, Boolean, Boolean, String) -> Unit,
-    onSelectCustomDates: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var tempPreset by remember { mutableStateOf(currentPreset) }
-    var tempType by remember { mutableStateOf(accountType) }
-    var tempActiveOnly by remember { mutableStateOf(activeOnly) }
-    var tempHideZero by remember { mutableStateOf(hideZeroBalance) }
-    var tempQuery by remember { mutableStateOf(searchQuery) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স শিট ফিল্টার" else "Balance Sheet Filters",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Search Input
-                OutlinedTextField(
-                    value = tempQuery,
-                    onValueChange = { tempQuery = it },
-                    label = { Text("Search account...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (tempQuery.isNotBlank()) {
-                            IconButton(onClick = { tempQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Timeframe Comparison Presets
-                Text(
-                    text = "Comparison Timeframe:",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(
-                            selected = tempPreset == BalanceSheetComparisonPreset.END_OF_LAST_MONTH,
-                            onClick = { tempPreset = BalanceSheetComparisonPreset.END_OF_LAST_MONTH },
-                            label = { Text("End of Last Month", fontSize = 10.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = tempPreset == BalanceSheetComparisonPreset.BEGINNING_OF_MONTH,
-                            onClick = { tempPreset = BalanceSheetComparisonPreset.BEGINNING_OF_MONTH },
-                            label = { Text("Start of Month", fontSize = 10.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(
-                            selected = tempPreset == BalanceSheetComparisonPreset.PREVIOUS_MONTH,
-                            onClick = { tempPreset = BalanceSheetComparisonPreset.PREVIOUS_MONTH },
-                            label = { Text("Prev Month", fontSize = 10.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = tempPreset == BalanceSheetComparisonPreset.BEGINNING_OF_YEAR,
-                            onClick = { tempPreset = BalanceSheetComparisonPreset.BEGINNING_OF_YEAR },
-                            label = { Text("Start of Year", fontSize = 10.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        FilterChip(
-                            selected = tempPreset == BalanceSheetComparisonPreset.LAST_30_DAYS,
-                            onClick = { tempPreset = BalanceSheetComparisonPreset.LAST_30_DAYS },
-                            label = { Text("Last 30 Days", fontSize = 10.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = tempPreset == BalanceSheetComparisonPreset.CUSTOM,
-                            onClick = {
-                                tempPreset = BalanceSheetComparisonPreset.CUSTOM
-                                onSelectCustomDates()
-                            },
-                            label = { Text("Custom Dates 📅", fontSize = 10.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Account Type Filter
-                Text(
-                    text = "Account Types:",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = tempType == null,
-                        onClick = { tempType = null },
-                        label = { Text("All", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = tempType == AccountType.ASSET,
-                        onClick = { tempType = AccountType.ASSET },
-                        label = { Text("Assets Only", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = tempType == AccountType.LIABILITY,
-                        onClick = { tempType = AccountType.LIABILITY },
-                        label = { Text("Liabilities Only", fontSize = 11.sp) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Toggles: Active Only & Hide Zero Balance
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Active Accounts Only", fontSize = 12.sp)
-                    Switch(
-                        checked = tempActiveOnly,
-                        onCheckedChange = { tempActiveOnly = it }
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Hide Zero Balance", fontSize = 12.sp)
-                    Switch(
-                        checked = tempHideZero,
-                        onCheckedChange = { tempHideZero = it }
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                onApply(tempPreset, tempType, tempActiveOnly, tempHideZero, tempQuery)
-            }) {
-                Text("Apply Filters")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }

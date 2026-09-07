@@ -1418,6 +1418,15 @@ private fun DrawerContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // 0. Main Dashboard
+        DrawerItemRow(
+            title = if (languageMode == LanguageMode.BANGLA) "মূল ড্যাশবোর্ড" else "Main",
+            icon = Icons.Default.Dashboard,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.DASHBOARD,
+            onClick = { onSelectView(AppView.DASHBOARD) }
+        )
+
         // 1. Accounts
         DrawerItemRow(
             title = LanguageHelper.getString("accounts", languageMode),
