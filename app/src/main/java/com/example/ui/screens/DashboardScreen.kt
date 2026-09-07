@@ -150,6 +150,7 @@ fun DashboardScreen(
     var showCalendarSettingsDialog by remember { mutableStateOf(false) }
     var showFavoriteAccountsPicker by remember { mutableStateOf(false) }
     var showDailySummaryDetail by remember { mutableStateOf(false) }
+    var dailySummarySelectedDayEpoch by remember { mutableStateOf<Long?>(null) }
     var showBudgetSummaryPreview by remember { mutableStateOf(false) }
 
     // State for clicking any amount anywhere on the dashboard to view formula and transactions breakdown
@@ -908,26 +909,13 @@ fun DashboardScreen(
                                         )
                                     },
                                     onOpenSettings = { showDailySettingsDialog = true },
-                                    onCardClick = { showDailySummaryDetail = true },
+                                    onCardClick = {
+                                        dailySummarySelectedDayEpoch = null
+                                        showDailySummaryDetail = true
+                                    },
                                     onDayClick = { daySummary ->
-                                        val calTarget = Calendar.getInstance().apply { timeInMillis = daySummary.dateEpochMs }
-                                        val dayTxs = recentTransactions.filter {
-                                            val calTx = Calendar.getInstance().apply { timeInMillis = it.transaction.dateEpochMs }
-                                            calTx.get(Calendar.YEAR) == calTarget.get(Calendar.YEAR) &&
-                                                    calTx.get(Calendar.DAY_OF_YEAR) == calTarget.get(Calendar.DAY_OF_YEAR)
-                                        }
-                                        activeAmountDetail = AmountDetailInfo(
-                                            title = daySummary.fullDateLabel,
-                                            subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক লেনদেনের সারাংশ" else "Daily summary breakdown",
-                                            totalAmount = daySummary.expense,
-                                            formulaExplanation = "Expense: ${LanguageHelper.formatCurrency(daySummary.expense, languageMode)} | Income: ${LanguageHelper.formatCurrency(daySummary.income, languageMode)}",
-                                            formulaSteps = listOf(
-                                                FormulaStep("Income", daySummary.income, "+"),
-                                                FormulaStep("Expense", daySummary.expense, "−"),
-                                                FormulaStep("Net Day Flow", daySummary.income - daySummary.expense, "=")
-                                            ),
-                                            relatedTransactions = dayTxs
-                                        )
+                                        dailySummarySelectedDayEpoch = daySummary.dateEpochMs
+                                        showDailySummaryDetail = true
                                     }
                                 )
                             }
@@ -1190,10 +1178,17 @@ fun DashboardScreen(
     if (showDailySummaryDetail) {
         DailySummaryDetailDialog(
             transactions = recentTransactions,
+            allCategories = allCategories,
+            accounts = accountsWithBalances.map { it.account },
             languageMode = languageMode,
-            onDismiss = { showDailySummaryDetail = false },
+            initialSelectedDateEpoch = dailySummarySelectedDayEpoch,
+            onDismiss = {
+                showDailySummaryDetail = false
+                dailySummarySelectedDayEpoch = null
+            },
             onTransactionClick = { txItem ->
                 showDailySummaryDetail = false
+                dailySummarySelectedDayEpoch = null
                 onTransactionClick(txItem.transaction)
             }
         )

@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -171,7 +173,11 @@ fun DailySummaryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("daily_summary_card"),
+            .testTag("daily_summary_card")
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(enabled = onCardClick != null) {
+                onCardClick?.invoke()
+            },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
         border = androidx.compose.foundation.BorderStroke(
@@ -191,8 +197,6 @@ fun DailySummaryCard(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { showDropdownMenu = true }
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
                         Text(
@@ -201,13 +205,18 @@ fun DailySummaryCard(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Select Mode or Period",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        IconButton(
+                            onClick = { showDropdownMenu = true },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select Mode or Period",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
 
                     DropdownMenu(
@@ -317,7 +326,22 @@ fun DailySummaryCard(
                     .height(160.dp)
                     .padding(horizontal = 4.dp)
             ) {
-                Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .pointerInput(dailyDataList) {
+                            detectTapGestures { offset ->
+                                if (dailyDataList.isNotEmpty()) {
+                                    val slotWidth = size.width / dailyDataList.size
+                                    val index = (offset.x / slotWidth).toInt().coerceIn(0, dailyDataList.size - 1)
+                                    onDayClick(dailyDataList[index])
+                                } else {
+                                    onCardClick?.invoke()
+                                }
+                            }
+                        }
+                ) {
                     val width = size.width
                     val height = size.height
                     val bottomAxisHeight = 24.dp.toPx()
@@ -469,8 +493,6 @@ fun DailySummaryCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable(enabled = onCardClick != null) { onCardClick?.invoke() }
                         .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
