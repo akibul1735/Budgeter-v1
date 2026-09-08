@@ -58,6 +58,7 @@ import com.example.util.OneDriveService
 import com.example.util.AccountCalcConfig
 import com.example.util.AccountCalculationPreferences
 import com.example.util.AppTab
+import com.example.util.DropboxAuthBridge
 import com.example.util.BudgetChartShape
 import com.example.util.BudgetSummaryType
 import com.example.util.CalendarDisplayMode
@@ -261,6 +262,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _activeRepository = MutableStateFlow(createRepository(_isDemoMode.value))
     val activeRepo: BudgetRepository get() = _activeRepository.value
+
+    init {
+        viewModelScope.launch {
+            DropboxAuthBridge.authCodes.collect { code ->
+                handleDropboxAuthCode(code)
+            }
+        }
+        viewModelScope.launch {
+            DropboxAuthBridge.authErrors.collect { error ->
+                handleDropboxAuthError(error)
+            }
+        }
+    }
 
     fun setDemoMode(enabled: Boolean) {
         _isDemoMode.value = enabled
@@ -1167,8 +1181,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 accountInfo.provider.contains("Dropbox", ignoreCase = true) -> {
-                    if (accountInfo.accessToken.isNotBlank()) {
-                        val res = DropboxService.listBackups(accountInfo.accessToken)
+                    val validToken = DropboxService.getValidAccessToken(getApplication(), driveIndex)
+                    if (validToken.isNotBlank()) {
+                        val res = DropboxService.listBackups(validToken)
                         res.onSuccess { list ->
                             if (driveIndex == 1) _driveBackups.value = list else _secondaryDriveBackups.value = list
                         }.onFailure { err ->
@@ -1208,13 +1223,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 accountInfo.provider.contains("Dropbox", ignoreCase = true) -> {
-                    if (accountInfo.accessToken.isBlank()) {
+                    val validToken = DropboxService.getValidAccessToken(getApplication(), driveIndex)
+                    if (validToken.isBlank()) {
                         _backupUiState.value = BackupUiState.Error("Please connect your Dropbox account first")
                         return@launch
                     }
                     val res = DropboxService.uploadBackup(
                         context = getApplication(),
-                        accessToken = accountInfo.accessToken,
+                        accessToken = validToken,
                         accountDao = activeRepo.accountDao,
                         categoryDao = activeRepo.categoryDao,
                         transactionDao = activeRepo.transactionDao,
@@ -1280,7 +1296,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 accountInfo.provider.contains("Dropbox", ignoreCase = true) -> {
-                    val res = DropboxService.downloadBackup(accountInfo.accessToken, backupFile.id)
+                    val validToken = DropboxService.getValidAccessToken(getApplication(), driveIndex)
+                    if (validToken.isBlank()) {
+                        _backupUiState.value = BackupUiState.Error("Please connect your Dropbox account first")
+                        return@launch
+                    }
+                    val res = DropboxService.downloadBackup(validToken, backupFile.id)
                     res.onSuccess { jsonString ->
                         val importRes = BackupManager.restoreFromJson(
                             context = getApplication(),
@@ -1343,7 +1364,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 accountInfo.provider.contains("Dropbox", ignoreCase = true) -> {
-                    val res = DropboxService.deleteBackup(accountInfo.accessToken, backupFile.id)
+                    val validToken = DropboxService.getValidAccessToken(getApplication(), driveIndex)
+                    if (validToken.isBlank()) {
+                        _backupUiState.value = BackupUiState.Error("Please connect your Dropbox account first")
+                        return@launch
+                    }
+                    val res = DropboxService.deleteBackup(validToken, backupFile.id)
                     res.onSuccess {
                         _backupUiState.value = BackupUiState.Success("Dropbox snapshot deleted")
                         fetchCloudBackups(driveIndex)
@@ -1362,6 +1388,68 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         }
+    }
+
+    fun startDropboxAuth(context: android.content.Context, appKey: String = DropboxService.DEFAULT_APP_KEY, driveIndex: Int) {
+        val effectiveKey = appKey.trim().ifEmpty { DropboxService.DEFAULT_APP_KEY }
+        val url = DropboxService.generateAuthUrl(context, effectiveKey, driveIndex)
+        try {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            _backupUiState.value = BackupUiState.Error("Could not open browser: ${e.localizedMessage}")
+        }
+    }
+
+    fun handleDropboxAuthCode(code: String) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val res = DropboxService.exchangeAuthCode(getApplication(), code)
+            res.onSuccess { result ->
+                backupPrefs.setDropboxOAuthTokens(
+                    driveIndex = result.driveIndex,
+                    appKey = result.appKey,
+                    accessToken = result.accessToken,
+                    refreshToken = result.refreshToken,
+                    expiresInSeconds = result.expiresInSeconds,
+                    email = result.email,
+                    displayName = result.displayName
+                )
+                _backupUiState.value = BackupUiState.Success("Connected to Dropbox as ${result.displayName}")
+                fetchCloudBackups(result.driveIndex)
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Dropbox authentication failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun handleDropboxAuthError(error: String) {
+        _backupUiState.value = BackupUiState.Error("Dropbox authorization canceled or failed: $error")
+    }
+
+    fun disconnectDropbox(driveIndex: Int) {
+        if (driveIndex == 1) {
+            backupPrefs.setPrimaryAccount(
+                email = "",
+                displayName = "",
+                isLinked = false,
+                serverUrl = "",
+                accessToken = ""
+            )
+            _driveBackups.value = emptyList()
+        } else {
+            backupPrefs.setSecondaryAccount(
+                email = "",
+                displayName = "",
+                isLinked = false,
+                serverUrl = "",
+                accessToken = ""
+            )
+            _secondaryDriveBackups.value = emptyList()
+        }
+        _backupUiState.value = BackupUiState.Success("Disconnected Dropbox (Drive $driveIndex)")
     }
 
     fun connectDropbox(driveIndex: Int, token: String, onComplete: (Boolean, String) -> Unit) {

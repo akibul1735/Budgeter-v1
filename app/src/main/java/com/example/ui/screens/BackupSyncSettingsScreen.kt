@@ -129,6 +129,7 @@ import com.example.util.BackupManager
 import com.example.util.CloudAccountInfo
 import com.example.util.CsvExportConfig
 import com.example.util.DriveBackupLocation
+import com.example.util.DropboxService
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -564,6 +565,8 @@ fun BackupSyncSettingsScreen(
                                 if (isGoogleDrive) {
                                     val client = GoogleDriveService.getGoogleSignInClient(context)
                                     googleSignInLauncher.launch(client.signInIntent)
+                                } else if (primary.provider.contains("Dropbox", ignoreCase = true)) {
+                                    viewModel.startDropboxAuth(context, primary.appKey.ifEmpty { DropboxService.DEFAULT_APP_KEY }, 1)
                                 } else {
                                     showAccountEditDialogForAccount = 1
                                 }
@@ -575,6 +578,8 @@ fun BackupSyncSettingsScreen(
                                         viewModel.updateSignedInAccount(null)
                                         viewModel.setPrimaryAccount("", "", false)
                                     }
+                                } else if (primary.provider.contains("Dropbox", ignoreCase = true)) {
+                                    viewModel.disconnectDropbox(1)
                                 } else {
                                     viewModel.setPrimaryAccount("", "", false, "", "")
                                 }
@@ -697,6 +702,8 @@ fun BackupSyncSettingsScreen(
                                 if (isGoogleDrive) {
                                     val client = GoogleDriveService.getGoogleSignInClient(context)
                                     secondaryGoogleSignInLauncher.launch(client.signInIntent)
+                                } else if (secondary.provider.contains("Dropbox", ignoreCase = true)) {
+                                    viewModel.startDropboxAuth(context, secondary.appKey.ifEmpty { DropboxService.DEFAULT_APP_KEY }, 2)
                                 } else {
                                     showAccountEditDialogForAccount = 2
                                 }
@@ -705,6 +712,8 @@ fun BackupSyncSettingsScreen(
                                 if (isGoogleDrive) {
                                     viewModel.updateSecondarySignedInAccount(null)
                                     viewModel.setSecondaryAccount("", "", false)
+                                } else if (secondary.provider.contains("Dropbox", ignoreCase = true)) {
+                                    viewModel.disconnectDropbox(2)
                                 } else {
                                     viewModel.setSecondaryAccount("", "", false, "", "")
                                 }
@@ -1457,10 +1466,12 @@ fun BackupSyncSettingsScreen(
         val isDropbox = acc.provider.contains("Dropbox", ignoreCase = true)
         val isOneDrive = acc.provider.contains("OneDrive", ignoreCase = true)
 
+        var editAppKey by remember { mutableStateOf(acc.appKey.ifEmpty { DropboxService.DEFAULT_APP_KEY }) }
         var editEmail by remember { mutableStateOf(acc.email) }
         var editName by remember { mutableStateOf(acc.displayName) }
         var editServer by remember { mutableStateOf(acc.serverUrl) }
         var editToken by remember { mutableStateOf(acc.accessToken) }
+        var showManualTokenSection by remember { mutableStateOf(false) }
         var isVerifying by remember { mutableStateOf(false) }
         var verifyFeedback by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
 
@@ -1487,63 +1498,159 @@ fun BackupSyncSettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (isDropbox) {
-                        Text(
-                            text = "Direct Dropbox API Integration: Backups will be automatically synced to '/Budgeter' in your Dropbox account.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        OutlinedButton(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.dropbox.com/developers/apps"))
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Get Token from Dropbox Console", fontSize = 12.sp)
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(Icons.Default.CloudSync, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    Text("Dropbox Browser OAuth 2.0 (PKCE)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Text(
+                                    text = "Log in securely via your web browser with automatic token refresh. No manual token expiration or copy-pasting required.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         OutlinedTextField(
-                            value = editToken,
-                            onValueChange = {
-                                editToken = it
-                                verifyFeedback = null
-                            },
-                            label = { Text("Dropbox Access Token") },
-                            placeholder = { Text("Paste access token here...") },
-                            singleLine = false,
-                            maxLines = 2,
+                            value = editAppKey,
+                            onValueChange = { editAppKey = it.trim() },
+                            label = { Text("Dropbox App Key") },
+                            placeholder = { Text("e.g. 1f4eghd7kix90h9") },
+                            singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        Button(
-                            onClick = {
-                                isVerifying = true
-                                verifyFeedback = null
-                                viewModel.connectDropbox(driveIndex, editToken) { success, msg ->
-                                    isVerifying = false
-                                    verifyFeedback = Pair(success, msg)
-                                    if (success) {
-                                        val updated = if (driveIndex == 1) config.primaryAccount else config.secondaryAccount
-                                        editEmail = updated.email
-                                        editName = updated.displayName
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.dropbox.com/developers/apps"))
+                                    context.startActivity(intent)
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Dropbox Console", fontSize = 11.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (editAppKey.isNotBlank()) {
+                                        viewModel.startDropboxAuth(context, editAppKey, driveIndex)
+                                        showAccountEditDialogForAccount = null
                                     }
-                                }
-                            },
-                            enabled = editToken.isNotBlank() && !isVerifying,
+                                },
+                                enabled = editAppKey.isNotBlank(),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Sign In (Browser)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            if (isVerifying) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Verifying Token...")
-                            } else {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Test & Verify Dropbox Token")
+                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("Required Dropbox Console Redirect URI:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.outline)
+                                Text("budgeter://dropbox-auth", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+
+                        if (acc.isLinked && (acc.refreshToken.isNotBlank() || acc.accessToken.isNotBlank())) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Linked as: ${acc.displayName.ifEmpty { acc.email }}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text(if (acc.refreshToken.isNotBlank()) "OAuth Active • Auto-refreshing" else "Access Token active", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.disconnectDropbox(driveIndex)
+                                            showAccountEditDialogForAccount = null
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                    ) {
+                                        Icon(Icons.Default.LinkOff, contentDescription = null, modifier = Modifier.size(12.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Disconnect", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        TextButton(
+                            onClick = { showManualTokenSection = !showManualTokenSection },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (showManualTokenSection) "Hide Manual Access Token" else "Manual Access Token (Advanced / Alternative)", fontSize = 11.sp)
+                        }
+
+                        if (showManualTokenSection) {
+                            OutlinedTextField(
+                                value = editToken,
+                                onValueChange = {
+                                    editToken = it
+                                    verifyFeedback = null
+                                },
+                                label = { Text("Manual Access Token") },
+                                placeholder = { Text("Paste access token here...") },
+                                singleLine = false,
+                                maxLines = 2,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Button(
+                                onClick = {
+                                    isVerifying = true
+                                    verifyFeedback = null
+                                    viewModel.connectDropbox(driveIndex, editToken) { success, msg ->
+                                        isVerifying = false
+                                        verifyFeedback = Pair(success, msg)
+                                        if (success) {
+                                            val updated = if (driveIndex == 1) config.primaryAccount else config.secondaryAccount
+                                            editEmail = updated.email
+                                            editName = updated.displayName
+                                        }
+                                    }
+                                },
+                                enabled = editToken.isNotBlank() && !isVerifying,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (isVerifying) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Verifying Token...")
+                                } else {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Test & Verify Token")
+                                }
                             }
                         }
                     } else if (isOneDrive) {

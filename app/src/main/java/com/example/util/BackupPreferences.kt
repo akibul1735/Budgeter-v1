@@ -13,6 +13,9 @@ data class CloudAccountInfo(
     val displayName: String = "",
     val serverUrl: String = "",
     val accessToken: String = "",
+    val appKey: String = "",
+    val refreshToken: String = "",
+    val tokenExpiresAt: Long = 0L,
     val isLinked: Boolean = false,
     val lastSyncTimestamp: Long = 0L,
     val autoSync: Boolean = true,
@@ -63,12 +66,19 @@ class BackupPreferences(context: Context) {
         val primaryUploadAtt = prefs.getBoolean(KEY_PRIMARY_UPLOAD_ATTACHMENTS, prefs.getBoolean(KEY_UPLOAD_ATTACHMENTS, true))
         val primaryFolderType = prefs.getString(KEY_PRIMARY_FOLDER_TYPE, "Visible 'Budgeter' Folder") ?: "Visible 'Budgeter' Folder"
 
-        val secondaryProvider = prefs.getString(KEY_SECONDARY_PROVIDER, "Microsoft OneDrive") ?: "Microsoft OneDrive"
+        val primaryAppKey = prefs.getString(KEY_PRIMARY_APP_KEY, "") ?: ""
+        val primaryRefreshToken = prefs.getString(KEY_PRIMARY_REFRESH_TOKEN, "") ?: ""
+        val primaryTokenExpiresAt = prefs.getLong(KEY_PRIMARY_EXPIRES_AT, 0L)
+
+        val secondaryProvider = prefs.getString(KEY_SECONDARY_PROVIDER, "Dropbox") ?: "Dropbox"
         val secondaryLinked = prefs.getBoolean(KEY_SECONDARY_LINKED, false)
         val secondaryEmail = prefs.getString(KEY_SECONDARY_EMAIL, "") ?: ""
         val secondaryName = prefs.getString(KEY_SECONDARY_NAME, "") ?: ""
         val secondaryServer = prefs.getString(KEY_SECONDARY_SERVER, "") ?: ""
         val secondaryAccessToken = prefs.getString(KEY_SECONDARY_ACCESS_TOKEN, "") ?: ""
+        val secondaryAppKey = prefs.getString(KEY_SECONDARY_APP_KEY, "") ?: ""
+        val secondaryRefreshToken = prefs.getString(KEY_SECONDARY_REFRESH_TOKEN, "") ?: ""
+        val secondaryTokenExpiresAt = prefs.getLong(KEY_SECONDARY_EXPIRES_AT, 0L)
         val secondaryLastSync = prefs.getLong(KEY_SECONDARY_LAST_SYNC, 0L)
         val secondaryAutoSync = prefs.getBoolean(KEY_SECONDARY_AUTO_SYNC, true)
         val secondaryWifiOnly = prefs.getBoolean(KEY_SECONDARY_WIFI_ONLY, false)
@@ -84,6 +94,9 @@ class BackupPreferences(context: Context) {
                 displayName = primaryName,
                 serverUrl = primaryServer,
                 accessToken = primaryAccessToken,
+                appKey = primaryAppKey,
+                refreshToken = primaryRefreshToken,
+                tokenExpiresAt = primaryTokenExpiresAt,
                 isLinked = primaryLinked,
                 lastSyncTimestamp = primaryLastSync,
                 autoSync = primaryAutoSync,
@@ -97,6 +110,9 @@ class BackupPreferences(context: Context) {
                 displayName = secondaryName,
                 serverUrl = secondaryServer,
                 accessToken = secondaryAccessToken,
+                appKey = secondaryAppKey,
+                refreshToken = secondaryRefreshToken,
+                tokenExpiresAt = secondaryTokenExpiresAt,
                 isLinked = secondaryLinked,
                 lastSyncTimestamp = secondaryLastSync,
                 autoSync = secondaryAutoSync,
@@ -124,6 +140,9 @@ class BackupPreferences(context: Context) {
             .putString(KEY_PRIMARY_NAME, newConfig.primaryAccount.displayName)
             .putString(KEY_PRIMARY_SERVER, newConfig.primaryAccount.serverUrl)
             .putString(KEY_PRIMARY_ACCESS_TOKEN, newConfig.primaryAccount.accessToken)
+            .putString(KEY_PRIMARY_APP_KEY, newConfig.primaryAccount.appKey)
+            .putString(KEY_PRIMARY_REFRESH_TOKEN, newConfig.primaryAccount.refreshToken)
+            .putLong(KEY_PRIMARY_EXPIRES_AT, newConfig.primaryAccount.tokenExpiresAt)
             .putBoolean(KEY_PRIMARY_LINKED, newConfig.primaryAccount.isLinked)
             .putLong(KEY_PRIMARY_LAST_SYNC, newConfig.primaryAccount.lastSyncTimestamp)
             .putBoolean(KEY_PRIMARY_AUTO_SYNC, newConfig.primaryAccount.autoSync)
@@ -135,6 +154,9 @@ class BackupPreferences(context: Context) {
             .putString(KEY_SECONDARY_NAME, newConfig.secondaryAccount.displayName)
             .putString(KEY_SECONDARY_SERVER, newConfig.secondaryAccount.serverUrl)
             .putString(KEY_SECONDARY_ACCESS_TOKEN, newConfig.secondaryAccount.accessToken)
+            .putString(KEY_SECONDARY_APP_KEY, newConfig.secondaryAccount.appKey)
+            .putString(KEY_SECONDARY_REFRESH_TOKEN, newConfig.secondaryAccount.refreshToken)
+            .putLong(KEY_SECONDARY_EXPIRES_AT, newConfig.secondaryAccount.tokenExpiresAt)
             .putBoolean(KEY_SECONDARY_LINKED, newConfig.secondaryAccount.isLinked)
             .putLong(KEY_SECONDARY_LAST_SYNC, newConfig.secondaryAccount.lastSyncTimestamp)
             .putBoolean(KEY_SECONDARY_AUTO_SYNC, newConfig.secondaryAccount.autoSync)
@@ -286,6 +308,60 @@ class BackupPreferences(context: Context) {
         updateConfig(_config.value.copy(secondaryAccount = updated))
     }
 
+    fun setDropboxOAuthTokens(
+        driveIndex: Int,
+        appKey: String,
+        accessToken: String,
+        refreshToken: String,
+        expiresInSeconds: Long,
+        email: String,
+        displayName: String
+    ) {
+        val expiresAt = if (expiresInSeconds > 0) System.currentTimeMillis() + (expiresInSeconds * 1000L) else 0L
+        if (driveIndex == 1) {
+            val updated = _config.value.primaryAccount.copy(
+                provider = "Dropbox",
+                email = email,
+                displayName = displayName,
+                accessToken = accessToken,
+                appKey = appKey,
+                refreshToken = refreshToken,
+                tokenExpiresAt = expiresAt,
+                isLinked = true
+            )
+            updateConfig(_config.value.copy(primaryAccount = updated, isAccountLinked = true, cloudProvider = "Dropbox"))
+        } else {
+            val updated = _config.value.secondaryAccount.copy(
+                provider = "Dropbox",
+                email = email,
+                displayName = displayName,
+                accessToken = accessToken,
+                appKey = appKey,
+                refreshToken = refreshToken,
+                tokenExpiresAt = expiresAt,
+                isLinked = true
+            )
+            updateConfig(_config.value.copy(secondaryAccount = updated, isAccountLinked = true))
+        }
+    }
+
+    fun updateDropboxAccessToken(driveIndex: Int, accessToken: String, expiresInSeconds: Long) {
+        val expiresAt = if (expiresInSeconds > 0) System.currentTimeMillis() + (expiresInSeconds * 1000L) else 0L
+        if (driveIndex == 1) {
+            val updated = _config.value.primaryAccount.copy(
+                accessToken = accessToken,
+                tokenExpiresAt = expiresAt
+            )
+            updateConfig(_config.value.copy(primaryAccount = updated))
+        } else {
+            val updated = _config.value.secondaryAccount.copy(
+                accessToken = accessToken,
+                tokenExpiresAt = expiresAt
+            )
+            updateConfig(_config.value.copy(secondaryAccount = updated))
+        }
+    }
+
     fun recordSyncTimestamp(timestamp: Long = System.currentTimeMillis()) {
         updateConfig(_config.value.copy(lastSyncTimestamp = timestamp))
     }
@@ -303,6 +379,9 @@ class BackupPreferences(context: Context) {
         private const val KEY_PRIMARY_NAME = "primary_name"
         private const val KEY_PRIMARY_SERVER = "primary_server"
         private const val KEY_PRIMARY_ACCESS_TOKEN = "primary_access_token"
+        private const val KEY_PRIMARY_APP_KEY = "primary_app_key"
+        private const val KEY_PRIMARY_REFRESH_TOKEN = "primary_refresh_token"
+        private const val KEY_PRIMARY_EXPIRES_AT = "primary_token_expires_at"
         private const val KEY_PRIMARY_LINKED = "primary_linked"
         private const val KEY_PRIMARY_LAST_SYNC = "primary_last_sync"
         private const val KEY_PRIMARY_AUTO_SYNC = "primary_auto_sync"
@@ -314,6 +393,9 @@ class BackupPreferences(context: Context) {
         private const val KEY_SECONDARY_NAME = "secondary_name"
         private const val KEY_SECONDARY_SERVER = "secondary_server"
         private const val KEY_SECONDARY_ACCESS_TOKEN = "secondary_access_token"
+        private const val KEY_SECONDARY_APP_KEY = "secondary_app_key"
+        private const val KEY_SECONDARY_REFRESH_TOKEN = "secondary_refresh_token"
+        private const val KEY_SECONDARY_EXPIRES_AT = "secondary_token_expires_at"
         private const val KEY_SECONDARY_LINKED = "secondary_linked"
         private const val KEY_SECONDARY_LAST_SYNC = "secondary_last_sync"
         private const val KEY_SECONDARY_AUTO_SYNC = "secondary_auto_sync"
