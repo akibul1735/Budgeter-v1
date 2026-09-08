@@ -28,6 +28,9 @@ interface BudgetAdjustmentDao {
     @Query("DELETE FROM budget_adjustments WHERE year = :year AND month = :month AND itemType = :itemType AND itemId = :itemId")
     suspend fun deleteAdjustmentsForItem(year: Int, month: Int, itemType: String, itemId: Long)
 
+    @Query("SELECT * FROM budget_adjustments ORDER BY timestamp DESC")
+    suspend fun getAllAdjustmentsSnapshot(): List<BudgetAdjustment>
+
     @Query("DELETE FROM budget_adjustments")
     suspend fun deleteAll()
 }

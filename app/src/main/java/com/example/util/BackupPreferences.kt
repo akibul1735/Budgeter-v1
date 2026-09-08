@@ -11,7 +11,11 @@ data class CloudAccountInfo(
     val email: String = "",
     val displayName: String = "",
     val isLinked: Boolean = false,
-    val lastSyncTimestamp: Long = 0L
+    val lastSyncTimestamp: Long = 0L,
+    val autoSync: Boolean = true,
+    val wifiOnly: Boolean = false,
+    val uploadAttachments: Boolean = true,
+    val driveFolderType: String = "Visible 'Budgeter' Folder"
 )
 
 data class BackupSettingsConfig(
@@ -48,11 +52,19 @@ class BackupPreferences(context: Context) {
         val primaryEmail = prefs.getString(KEY_PRIMARY_EMAIL, "") ?: ""
         val primaryName = prefs.getString(KEY_PRIMARY_NAME, "") ?: ""
         val primaryLastSync = prefs.getLong(KEY_PRIMARY_LAST_SYNC, prefs.getLong(KEY_LAST_SYNC, 0L))
+        val primaryAutoSync = prefs.getBoolean(KEY_PRIMARY_AUTO_SYNC, prefs.getBoolean(KEY_AUTO_SYNC, true))
+        val primaryWifiOnly = prefs.getBoolean(KEY_PRIMARY_WIFI_ONLY, prefs.getBoolean(KEY_WIFI_ONLY, false))
+        val primaryUploadAtt = prefs.getBoolean(KEY_PRIMARY_UPLOAD_ATTACHMENTS, prefs.getBoolean(KEY_UPLOAD_ATTACHMENTS, true))
+        val primaryFolderType = prefs.getString(KEY_PRIMARY_FOLDER_TYPE, "Visible 'Budgeter' Folder") ?: "Visible 'Budgeter' Folder"
 
         val secondaryLinked = prefs.getBoolean(KEY_SECONDARY_LINKED, false)
         val secondaryEmail = prefs.getString(KEY_SECONDARY_EMAIL, "") ?: ""
         val secondaryName = prefs.getString(KEY_SECONDARY_NAME, "") ?: ""
         val secondaryLastSync = prefs.getLong(KEY_SECONDARY_LAST_SYNC, 0L)
+        val secondaryAutoSync = prefs.getBoolean(KEY_SECONDARY_AUTO_SYNC, true)
+        val secondaryWifiOnly = prefs.getBoolean(KEY_SECONDARY_WIFI_ONLY, false)
+        val secondaryUploadAtt = prefs.getBoolean(KEY_SECONDARY_UPLOAD_ATTACHMENTS, true)
+        val secondaryFolderType = prefs.getString(KEY_SECONDARY_FOLDER_TYPE, "Visible 'Budgeter' Folder") ?: "Visible 'Budgeter' Folder"
 
         return BackupSettingsConfig(
             cloudProvider = prefs.getString(KEY_CLOUD_PROVIDER, "Google Drive") ?: "Google Drive",
@@ -61,13 +73,21 @@ class BackupPreferences(context: Context) {
                 email = primaryEmail,
                 displayName = primaryName,
                 isLinked = primaryLinked,
-                lastSyncTimestamp = primaryLastSync
+                lastSyncTimestamp = primaryLastSync,
+                autoSync = primaryAutoSync,
+                wifiOnly = primaryWifiOnly,
+                uploadAttachments = primaryUploadAtt,
+                driveFolderType = primaryFolderType
             ),
             secondaryAccount = CloudAccountInfo(
                 email = secondaryEmail,
                 displayName = secondaryName,
                 isLinked = secondaryLinked,
-                lastSyncTimestamp = secondaryLastSync
+                lastSyncTimestamp = secondaryLastSync,
+                autoSync = secondaryAutoSync,
+                wifiOnly = secondaryWifiOnly,
+                uploadAttachments = secondaryUploadAtt,
+                driveFolderType = secondaryFolderType
             ),
             isDualSyncEnabled = prefs.getBoolean(KEY_DUAL_SYNC_ENABLED, true),
             localBackupDirectory = prefs.getString(KEY_LOCAL_DIR, "Documents/Budgeter") ?: "Documents/Budgeter",
@@ -89,10 +109,18 @@ class BackupPreferences(context: Context) {
             .putString(KEY_PRIMARY_NAME, newConfig.primaryAccount.displayName)
             .putBoolean(KEY_PRIMARY_LINKED, newConfig.primaryAccount.isLinked)
             .putLong(KEY_PRIMARY_LAST_SYNC, newConfig.primaryAccount.lastSyncTimestamp)
+            .putBoolean(KEY_PRIMARY_AUTO_SYNC, newConfig.primaryAccount.autoSync)
+            .putBoolean(KEY_PRIMARY_WIFI_ONLY, newConfig.primaryAccount.wifiOnly)
+            .putBoolean(KEY_PRIMARY_UPLOAD_ATTACHMENTS, newConfig.primaryAccount.uploadAttachments)
+            .putString(KEY_PRIMARY_FOLDER_TYPE, newConfig.primaryAccount.driveFolderType)
             .putString(KEY_SECONDARY_EMAIL, newConfig.secondaryAccount.email)
             .putString(KEY_SECONDARY_NAME, newConfig.secondaryAccount.displayName)
             .putBoolean(KEY_SECONDARY_LINKED, newConfig.secondaryAccount.isLinked)
             .putLong(KEY_SECONDARY_LAST_SYNC, newConfig.secondaryAccount.lastSyncTimestamp)
+            .putBoolean(KEY_SECONDARY_AUTO_SYNC, newConfig.secondaryAccount.autoSync)
+            .putBoolean(KEY_SECONDARY_WIFI_ONLY, newConfig.secondaryAccount.wifiOnly)
+            .putBoolean(KEY_SECONDARY_UPLOAD_ATTACHMENTS, newConfig.secondaryAccount.uploadAttachments)
+            .putString(KEY_SECONDARY_FOLDER_TYPE, newConfig.secondaryAccount.driveFolderType)
             .putBoolean(KEY_DUAL_SYNC_ENABLED, newConfig.isDualSyncEnabled)
             .putString(KEY_LOCAL_DIR, newConfig.localBackupDirectory)
             .putBoolean(KEY_AUTO_PHONE_BACKUP, newConfig.isAutoPhoneBackupEnabled)
@@ -184,6 +212,46 @@ class BackupPreferences(context: Context) {
         updateConfig(_config.value.copy(wifiOnly = enabled))
     }
 
+    fun setPrimaryAutoSync(enabled: Boolean) {
+        val updated = _config.value.primaryAccount.copy(autoSync = enabled)
+        updateConfig(_config.value.copy(primaryAccount = updated))
+    }
+
+    fun setPrimaryWifiOnly(enabled: Boolean) {
+        val updated = _config.value.primaryAccount.copy(wifiOnly = enabled)
+        updateConfig(_config.value.copy(primaryAccount = updated))
+    }
+
+    fun setPrimaryUploadAttachments(enabled: Boolean) {
+        val updated = _config.value.primaryAccount.copy(uploadAttachments = enabled)
+        updateConfig(_config.value.copy(primaryAccount = updated))
+    }
+
+    fun setPrimaryFolderType(type: String) {
+        val updated = _config.value.primaryAccount.copy(driveFolderType = type)
+        updateConfig(_config.value.copy(primaryAccount = updated))
+    }
+
+    fun setSecondaryAutoSync(enabled: Boolean) {
+        val updated = _config.value.secondaryAccount.copy(autoSync = enabled)
+        updateConfig(_config.value.copy(secondaryAccount = updated))
+    }
+
+    fun setSecondaryWifiOnly(enabled: Boolean) {
+        val updated = _config.value.secondaryAccount.copy(wifiOnly = enabled)
+        updateConfig(_config.value.copy(secondaryAccount = updated))
+    }
+
+    fun setSecondaryUploadAttachments(enabled: Boolean) {
+        val updated = _config.value.secondaryAccount.copy(uploadAttachments = enabled)
+        updateConfig(_config.value.copy(secondaryAccount = updated))
+    }
+
+    fun setSecondaryFolderType(type: String) {
+        val updated = _config.value.secondaryAccount.copy(driveFolderType = type)
+        updateConfig(_config.value.copy(secondaryAccount = updated))
+    }
+
     fun recordSyncTimestamp(timestamp: Long = System.currentTimeMillis()) {
         updateConfig(_config.value.copy(lastSyncTimestamp = timestamp))
     }
@@ -200,10 +268,18 @@ class BackupPreferences(context: Context) {
         private const val KEY_PRIMARY_NAME = "primary_name"
         private const val KEY_PRIMARY_LINKED = "primary_linked"
         private const val KEY_PRIMARY_LAST_SYNC = "primary_last_sync"
+        private const val KEY_PRIMARY_AUTO_SYNC = "primary_auto_sync"
+        private const val KEY_PRIMARY_WIFI_ONLY = "primary_wifi_only"
+        private const val KEY_PRIMARY_UPLOAD_ATTACHMENTS = "primary_upload_attachments"
+        private const val KEY_PRIMARY_FOLDER_TYPE = "primary_folder_type"
         private const val KEY_SECONDARY_EMAIL = "secondary_email"
         private const val KEY_SECONDARY_NAME = "secondary_name"
         private const val KEY_SECONDARY_LINKED = "secondary_linked"
         private const val KEY_SECONDARY_LAST_SYNC = "secondary_last_sync"
+        private const val KEY_SECONDARY_AUTO_SYNC = "secondary_auto_sync"
+        private const val KEY_SECONDARY_WIFI_ONLY = "secondary_wifi_only"
+        private const val KEY_SECONDARY_UPLOAD_ATTACHMENTS = "secondary_upload_attachments"
+        private const val KEY_SECONDARY_FOLDER_TYPE = "secondary_folder_type"
         private const val KEY_DUAL_SYNC_ENABLED = "dual_sync_enabled"
         private const val KEY_LOCAL_DIR = "local_backup_dir"
         private const val KEY_AUTO_PHONE_BACKUP = "auto_phone_backup"

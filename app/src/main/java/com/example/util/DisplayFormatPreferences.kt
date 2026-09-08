@@ -111,6 +111,18 @@ class DisplayFormatPreferences private constructor(context: Context) {
         DateUtils.activeFirstDayOfWeek = day
     }
 
+    fun updateConfig(newConfig: DisplayFormatConfig) {
+        prefs.edit()
+            .putString(KEY_DISPLAY_FORMAT, newConfig.itemDisplayFormat.name)
+            .putString(KEY_DATE_FORMAT, newConfig.dateFormatPattern)
+            .putString(KEY_CUSTOM_DATE_FORMAT, newConfig.customDateFormat)
+            .putInt(KEY_FIRST_DAY_OF_WEEK, newConfig.firstDayOfWeek)
+            .apply()
+        _config.value = newConfig
+        DateUtils.activeDateFormat = newConfig.effectiveDateFormatPattern
+        DateUtils.activeFirstDayOfWeek = newConfig.firstDayOfWeek
+    }
+
     fun resetToDefaults() {
         prefs.edit().clear().apply()
         val defaultCfg = loadConfig()

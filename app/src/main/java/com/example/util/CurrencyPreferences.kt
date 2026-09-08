@@ -95,6 +95,18 @@ class CurrencyPreferences private constructor(context: Context) {
         LanguageHelper.updateCurrencyConfig(newConfig)
     }
 
+    fun updateConfig(config: CurrencyConfig) {
+        prefs.edit()
+            .putString(KEY_CODE, config.selectedCode)
+            .putString(KEY_SYMBOL, config.selectedSymbol)
+            .putString(KEY_MODE, config.displayMode.name)
+            .putString(KEY_CUSTOM_CODE, config.customCode)
+            .putString(KEY_CUSTOM_SYMBOL, config.customSymbol)
+            .apply()
+        _config.value = config
+        LanguageHelper.updateCurrencyConfig(config)
+    }
+
     fun resetToDefaults() {
         prefs.edit().clear().apply()
         val def = loadConfig()

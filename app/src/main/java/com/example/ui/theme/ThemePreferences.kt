@@ -317,6 +317,23 @@ class ThemePreferences(context: Context) {
         )
     }
 
+    fun updateConfig(config: AppThemeConfig) {
+        prefs.edit()
+            .putString(KEY_PALETTE, config.palette.name)
+            .putString(KEY_SELECTED_CUSTOM_THEME_ID, config.customThemeId)
+            .putString(KEY_CUSTOM_THEMES, serializeCustomThemes(config.customThemes))
+            .putString(KEY_MODE, config.mode.name)
+            .putString(KEY_INTENSITY, config.colorIntensity.name)
+            .putBoolean(KEY_DYNAMIC_COLOR, config.dynamicColor)
+            .putString(KEY_FONT, config.fontPreset.name)
+            .putString(KEY_CORNER_RADIUS, config.cornerRadius.name)
+            .putString(KEY_FONT_SCALE, config.fontScale.name)
+            .putString(KEY_SEMANTIC_PALETTE, config.semanticPalette.name)
+            .putString(KEY_DARK_SURFACE_TONE, config.darkSurfaceTone.name)
+            .apply()
+        _themeConfig.value = config
+    }
+
     fun setMode(mode: ThemeMode) {
         prefs.edit().putString(KEY_MODE, mode.name).apply()
         _themeConfig.value = _themeConfig.value.copy(mode = mode)

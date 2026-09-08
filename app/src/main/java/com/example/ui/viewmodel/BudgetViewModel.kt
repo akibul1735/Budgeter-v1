@@ -4,6 +4,8 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.example.data.local.AppDatabase
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -35,6 +37,7 @@ import com.example.ui.theme.ThemePreferences
 import com.example.util.AutofillConfig
 import com.example.util.AutofillPreferences
 import com.example.util.BackupManager
+import com.example.util.BudgetBackupData
 import com.example.util.BackupPreferences
 import com.example.util.BackupSettingsConfig
 import com.example.util.CsvExportConfig
@@ -813,7 +816,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     transactionDao = activeRepo.transactionDao,
                     recurringBillDao = activeRepo.recurringBillDao,
                     monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                    targetDirectory = targetDir
+                    budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    targetDirectory = targetDir,
+                    includeSettings = true
                 )
                 _backupUiState.value = BackupUiState.Success("Backup created successfully: ${file.name}\nSaved to: ${file.parent ?: "Storage"}")
                 onFileReady(file)
@@ -823,7 +828,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun exportBackupToUri(uri: Uri) {
+    fun exportBackupToUri(uri: Uri, includeSettings: Boolean = true) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
             val success = BackupManager.exportBackupToUri(
@@ -833,7 +838,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao,
                 recurringBillDao = activeRepo.recurringBillDao,
-                monthlyBudgetDao = activeRepo.monthlyBudgetDao
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                includeSettings = includeSettings
             )
             if (success) {
                 _backupUiState.value = BackupUiState.Success("Backup exported successfully to storage")
@@ -843,7 +850,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun restoreBackupFromUri(uri: Uri) {
+    fun restoreBackupFromUri(uri: Uri, restoreData: Boolean = true, restoreSettings: Boolean = true) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
             val result = BackupManager.restoreBackupFromUri(
@@ -853,7 +860,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao,
                 recurringBillDao = activeRepo.recurringBillDao,
-                monthlyBudgetDao = activeRepo.monthlyBudgetDao
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                restoreData = restoreData,
+                restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Restored $count records successfully!")
@@ -861,6 +871,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 _backupUiState.value = BackupUiState.Error("Restore failed: ${err.localizedMessage}")
             }
         }
+    }
+
+    suspend fun getBackupPreviewFromUri(uri: Uri): BudgetBackupData? = withContext(Dispatchers.IO) {
+        BackupManager.parseBackupData(getApplication(), uri)
+    }
+
+    suspend fun getBackupPreviewFromDrive(account: GoogleSignInAccount, fileId: String): BudgetBackupData? = withContext(Dispatchers.IO) {
+        val json = GoogleDriveService.fetchDriveBackupJson(getApplication(), account, fileId)
+        if (json != null) BackupManager.parseBackupDataFromJson(json) else null
     }
 
     private val _driveBackups = MutableStateFlow<List<GoogleDriveBackupFile>>(emptyList())
@@ -926,17 +945,22 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun backupToGoogleDrive(account: GoogleSignInAccount) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
+            val folderType = backupSettingsConfig.value.primaryAccount.driveFolderType
             val result = GoogleDriveService.uploadBackupToDrive(
                 context = getApplication(),
                 account = account,
                 accountDao = activeRepo.accountDao,
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao,
-                recurringBillDao = activeRepo.recurringBillDao
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                folderType = folderType,
+                includeSettings = true
             )
             result.onSuccess { driveRes ->
                 backupPrefs.recordPrimarySync()
-                _backupUiState.value = BackupUiState.Success("Database backed up to Google Drive (Visible 'Budgeter' folder & Hidden app folder)")
+                _backupUiState.value = BackupUiState.Success("Database backed up to Google Drive ($folderType)")
                 fetchDriveBackups(account)
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Google Drive backup failed: ${err.localizedMessage}")
@@ -947,17 +971,22 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun backupToSecondaryGoogleDrive(account: GoogleSignInAccount) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
+            val folderType = backupSettingsConfig.value.secondaryAccount.driveFolderType
             val result = GoogleDriveService.uploadBackupToDrive(
                 context = getApplication(),
                 account = account,
                 accountDao = activeRepo.accountDao,
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao,
-                recurringBillDao = activeRepo.recurringBillDao
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                folderType = folderType,
+                includeSettings = true
             )
             result.onSuccess { driveRes ->
                 backupPrefs.recordSecondarySync()
-                _backupUiState.value = BackupUiState.Success("Database backed up to Secondary Google Drive (${account.email ?: "Account 2"})")
+                _backupUiState.value = BackupUiState.Success("Database backed up to Secondary Google Drive ($folderType)")
                 fetchSecondaryDriveBackups(account)
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Secondary Google Drive backup failed: ${err.localizedMessage}")
@@ -973,13 +1002,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             var errorMsg = ""
 
             if (primary != null) {
+                val pFolder = backupSettingsConfig.value.primaryAccount.driveFolderType
                 val res1 = GoogleDriveService.uploadBackupToDrive(
                     context = getApplication(),
                     account = primary,
                     accountDao = activeRepo.accountDao,
                     categoryDao = activeRepo.categoryDao,
                     transactionDao = activeRepo.transactionDao,
-                    recurringBillDao = activeRepo.recurringBillDao
+                    recurringBillDao = activeRepo.recurringBillDao,
+                    monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                    budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    folderType = pFolder,
+                    includeSettings = true
                 )
                 if (res1.isSuccess) {
                     primarySuccess = true
@@ -991,13 +1025,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             if (secondary != null) {
+                val sFolder = backupSettingsConfig.value.secondaryAccount.driveFolderType
                 val res2 = GoogleDriveService.uploadBackupToDrive(
                     context = getApplication(),
                     account = secondary,
                     accountDao = activeRepo.accountDao,
                     categoryDao = activeRepo.categoryDao,
                     transactionDao = activeRepo.transactionDao,
-                    recurringBillDao = activeRepo.recurringBillDao
+                    recurringBillDao = activeRepo.recurringBillDao,
+                    monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                    budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    folderType = sFolder,
+                    includeSettings = true
                 )
                 if (res2.isSuccess) {
                     secondarySuccess = true
@@ -1018,7 +1057,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun restoreFromGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile) {
+    fun restoreFromGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile, restoreData: Boolean = true, restoreSettings: Boolean = true) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
             val result = GoogleDriveService.restoreFromDriveFile(
@@ -1028,7 +1067,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 accountDao = activeRepo.accountDao,
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao,
-                recurringBillDao = activeRepo.recurringBillDao
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                restoreData = restoreData,
+                restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Google Drive!")
@@ -1038,7 +1081,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun restoreFromSecondaryGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile) {
+    fun restoreFromSecondaryGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile, restoreData: Boolean = true, restoreSettings: Boolean = true) {
         viewModelScope.launch {
             _backupUiState.value = BackupUiState.Loading
             val result = GoogleDriveService.restoreFromDriveFile(
@@ -1048,7 +1091,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 accountDao = activeRepo.accountDao,
                 categoryDao = activeRepo.categoryDao,
                 transactionDao = activeRepo.transactionDao,
-                recurringBillDao = activeRepo.recurringBillDao
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                restoreData = restoreData,
+                restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
                 _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Secondary Google Drive!")
@@ -1109,6 +1156,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setUploadAttachments(enabled: Boolean) = backupPrefs.setUploadAttachments(enabled)
     fun setAutoSyncData(enabled: Boolean) = backupPrefs.setAutoSyncData(enabled)
     fun setWifiOnly(enabled: Boolean) = backupPrefs.setWifiOnly(enabled)
+    fun setPrimaryAutoSync(enabled: Boolean) = backupPrefs.setPrimaryAutoSync(enabled)
+    fun setPrimaryWifiOnly(enabled: Boolean) = backupPrefs.setPrimaryWifiOnly(enabled)
+    fun setPrimaryUploadAttachments(enabled: Boolean) = backupPrefs.setPrimaryUploadAttachments(enabled)
+    fun setPrimaryFolderType(type: String) = backupPrefs.setPrimaryFolderType(type)
+    fun setSecondaryAutoSync(enabled: Boolean) = backupPrefs.setSecondaryAutoSync(enabled)
+    fun setSecondaryWifiOnly(enabled: Boolean) = backupPrefs.setSecondaryWifiOnly(enabled)
+    fun setSecondaryUploadAttachments(enabled: Boolean) = backupPrefs.setSecondaryUploadAttachments(enabled)
+    fun setSecondaryFolderType(type: String) = backupPrefs.setSecondaryFolderType(type)
 
     // Data Import: CSV (Excel) & QIF
     private val _csvImportPreview = MutableStateFlow<CsvImportPreview?>(null)
