@@ -4,7 +4,17 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -153,6 +163,7 @@ import com.example.util.TransactionConfig
 import com.example.util.TransactionPreferences
 import com.example.util.TransferFeePreferences
 import com.example.util.UnnamedPayeeMode
+import java.util.Calendar
 import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -396,6 +407,130 @@ fun AddEditTransactionSheet(
     val selectedDebitAccount = remember(accounts, debitAccountId) {
         accounts.firstOrNull { it.id == debitAccountId }
     }
+
+    // Base Account Balance Calculations (excluding existing transaction if editing to avoid double-counting)
+    val baseAccountBalances = remember(accounts, allTransactions, existingTransaction) {
+        val baseTxs = if (existingTransaction != null) {
+            allTransactions.filter { it.transaction.id != existingTransaction.id }
+        } else {
+            allTransactions
+        }
+        val debitSums = mutableMapOf<Long, Double>()
+        val creditSums = mutableMapOf<Long, Double>()
+        for (txWithDetails in baseTxs) {
+            val tx = txWithDetails.transaction
+            tx.debitAccountId?.let { id -> debitSums[id] = (debitSums[id] ?: 0.0) + tx.amount }
+            tx.creditAccountId?.let { id -> creditSums[id] = (creditSums[id] ?: 0.0) + tx.amount }
+        }
+        accounts.associate { acc ->
+            val dr = debitSums[acc.id] ?: 0.0
+            val cr = creditSums[acc.id] ?: 0.0
+            val bal = when (acc.type) {
+                AccountType.ASSET, AccountType.EXPENSE -> acc.initialBalance + (dr - cr)
+                AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
+            }
+            acc.id to bal
+        }
+    }
+
+    // Live entered amount and signed calculations
+    val liveParsedAmount = amountText.toDoubleOrNull() ?: amount
+    val isLiveRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
+    val isLiveRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
+    val liveEffectiveAmount = if (isLiveRevertExpense || isLiveRevertIncome) -liveParsedAmount else liveParsedAmount
+
+    // Live Account Projected Balances
+    val creditAccountCurrentBalance = remember(selectedCreditAccount, baseAccountBalances) {
+        selectedCreditAccount?.let { baseAccountBalances[it.id] ?: it.initialBalance } ?: 0.0
+    }
+    val creditAccountProjectedBalance = remember(
+        selectedCreditAccount,
+        creditAccountCurrentBalance,
+        txType,
+        liveEffectiveAmount,
+        liveParsedAmount,
+        hasTransferFee,
+        transferFeeAmount,
+        transferFeeAccountId
+    ) {
+        if (selectedCreditAccount != null) {
+            when (txType) {
+                TransactionType.EXPENSE -> {
+                    when (selectedCreditAccount.type) {
+                        AccountType.ASSET, AccountType.EXPENSE -> creditAccountCurrentBalance - liveEffectiveAmount
+                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> creditAccountCurrentBalance + liveEffectiveAmount
+                    }
+                }
+                TransactionType.TRANSFER -> {
+                    val feeDed = if (hasTransferFee && (transferFeeAccountId == null || transferFeeAccountId == selectedCreditAccount.id)) transferFeeAmount else 0.0
+                    when (selectedCreditAccount.type) {
+                        AccountType.ASSET, AccountType.EXPENSE -> creditAccountCurrentBalance - liveParsedAmount - feeDed
+                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> creditAccountCurrentBalance + liveParsedAmount + feeDed
+                    }
+                }
+                TransactionType.INCOME -> creditAccountCurrentBalance
+            }
+        } else 0.0
+    }
+
+    val debitAccountCurrentBalance = remember(selectedDebitAccount, baseAccountBalances) {
+        selectedDebitAccount?.let { baseAccountBalances[it.id] ?: it.initialBalance } ?: 0.0
+    }
+    val debitAccountProjectedBalance = remember(
+        selectedDebitAccount,
+        debitAccountCurrentBalance,
+        txType,
+        liveEffectiveAmount,
+        liveParsedAmount
+    ) {
+        if (selectedDebitAccount != null) {
+            when (txType) {
+                TransactionType.INCOME -> {
+                    when (selectedDebitAccount.type) {
+                        AccountType.ASSET, AccountType.EXPENSE -> debitAccountCurrentBalance + liveEffectiveAmount
+                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> debitAccountCurrentBalance - liveEffectiveAmount
+                    }
+                }
+                TransactionType.TRANSFER -> {
+                    when (selectedDebitAccount.type) {
+                        AccountType.ASSET, AccountType.EXPENSE -> debitAccountCurrentBalance + liveParsedAmount
+                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> debitAccountCurrentBalance - liveParsedAmount
+                    }
+                }
+                TransactionType.EXPENSE -> debitAccountCurrentBalance
+            }
+        } else 0.0
+    }
+
+    // Live Category Spending/Income Total (Current Month)
+    val categoryCurrentMonthTotal = remember(
+        selectedCategoryId,
+        selectedSubCategoryId,
+        selectedDateEpochMs,
+        allTransactions,
+        existingTransaction
+    ) {
+        val targetCatId = selectedSubCategoryId ?: selectedCategoryId
+        if (targetCatId == null) 0.0
+        else {
+            val cal = Calendar.getInstance().apply { timeInMillis = selectedDateEpochMs }
+            val yr = cal.get(Calendar.YEAR)
+            val mo = cal.get(Calendar.MONTH) + 1
+            val startMs = DateUtils.getStartOfMonth(yr, mo)
+            val endMs = DateUtils.getEndOfMonth(yr, mo)
+            val baseTxs = if (existingTransaction != null) {
+                allTransactions.filter { it.transaction.id != existingTransaction.id }
+            } else {
+                allTransactions
+            }
+            baseTxs.filter { txwd ->
+                val t = txwd.transaction
+                t.dateEpochMs in startMs..endMs &&
+                (t.subCategoryId == targetCatId || (t.subCategoryId == null && t.categoryId == targetCatId) || t.categoryId == targetCatId)
+            }.sumOf { it.transaction.amount }
+        }
+    }
+    val categoryProjectedTotal = categoryCurrentMonthTotal + liveEffectiveAmount
 
     // Type Colors
     val typePrimaryColor = when (txType) {
@@ -1293,6 +1428,20 @@ fun AddEditTransactionSheet(
                                     title = catTitle,
                                     subTitle = catSub,
                                     isTwoLine = isDoubleLine && catSub != null,
+                                    livePreview = if (selectedCategory != null) {
+                                        {
+                                            LiveImpactPill(
+                                                currentAmount = categoryCurrentMonthTotal,
+                                                projectedAmount = categoryProjectedTotal,
+                                                delta = liveEffectiveAmount,
+                                                languageMode = languageMode,
+                                                tintColor = typePrimaryColor,
+                                                prefix = if (languageMode == LanguageMode.BANGLA) "মাসিক" else "Month",
+                                                hasActiveInput = liveParsedAmount > 0.0,
+                                                budgetLimit = if (selectedCategory.budgetLimit > 0.0) selectedCategory.budgetLimit else null
+                                            )
+                                        }
+                                    } else null,
                                     onClick = { showCategoryPickerModal = true }
                                 )
 
@@ -1328,6 +1477,24 @@ fun AddEditTransactionSheet(
                                     title = accTitle,
                                     subTitle = accSub,
                                     isTwoLine = isDoubleLine && accSub != null,
+                                    livePreview = if (activeAcc != null) {
+                                        {
+                                            val activeCurBal = if (txType == TransactionType.EXPENSE) creditAccountCurrentBalance else debitAccountCurrentBalance
+                                            val activeProjBal = if (txType == TransactionType.EXPENSE) creditAccountProjectedBalance else debitAccountProjectedBalance
+                                            val delta = activeProjBal - activeCurBal
+                                            val changeColor = if (delta >= 0) SolidIncome else SolidExpense
+
+                                            LiveImpactPill(
+                                                currentAmount = activeCurBal,
+                                                projectedAmount = activeProjBal,
+                                                delta = delta,
+                                                languageMode = languageMode,
+                                                tintColor = changeColor,
+                                                prefix = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স" else "Bal",
+                                                hasActiveInput = liveParsedAmount > 0.0
+                                            )
+                                        }
+                                    } else null,
                                     onClick = {
                                         accountPickerTarget = if (txType == TransactionType.EXPENSE) 0 else 1
                                         showAccountPickerModal = true
@@ -1358,6 +1525,20 @@ fun AddEditTransactionSheet(
                                     title = fromTitle,
                                     subTitle = fromSub,
                                     isTwoLine = isDoubleLine && fromSub != null,
+                                    livePreview = if (fromAcc != null) {
+                                        {
+                                            val delta = creditAccountProjectedBalance - creditAccountCurrentBalance
+                                            LiveImpactPill(
+                                                currentAmount = creditAccountCurrentBalance,
+                                                projectedAmount = creditAccountProjectedBalance,
+                                                delta = delta,
+                                                languageMode = languageMode,
+                                                tintColor = SolidExpense,
+                                                prefix = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স" else "Bal",
+                                                hasActiveInput = liveParsedAmount > 0.0 || (hasTransferFee && transferFeeAmount > 0.0)
+                                            )
+                                        }
+                                    } else null,
                                     trailingContent = {
                                         IconButton(
                                             onClick = {
@@ -1411,6 +1592,20 @@ fun AddEditTransactionSheet(
                                     title = toTitle,
                                     subTitle = toSub,
                                     isTwoLine = isDoubleLine && toSub != null,
+                                    livePreview = if (toAcc != null) {
+                                        {
+                                            val delta = debitAccountProjectedBalance - debitAccountCurrentBalance
+                                            LiveImpactPill(
+                                                currentAmount = debitAccountCurrentBalance,
+                                                projectedAmount = debitAccountProjectedBalance,
+                                                delta = delta,
+                                                languageMode = languageMode,
+                                                tintColor = SolidIncome,
+                                                prefix = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স" else "Bal",
+                                                hasActiveInput = liveParsedAmount > 0.0
+                                            )
+                                        }
+                                    } else null,
                                     onClick = {
                                         accountPickerTarget = 1
                                         showAccountPickerModal = true
@@ -1529,6 +1724,16 @@ fun AddEditTransactionSheet(
                                                 else -> Pair(feeAcc.localizedName(languageMode), null)
                                             }
 
+                                            val feeAccCurBal = remember(feeAcc, baseAccountBalances) {
+                                                feeAcc?.let { baseAccountBalances[it.id] ?: it.initialBalance } ?: 0.0
+                                            }
+                                            val feeAccProjBal = if (feeAcc != null) {
+                                                when (feeAcc.type) {
+                                                    AccountType.ASSET, AccountType.EXPENSE -> feeAccCurBal - (if (effectiveFeeAccId == creditAccountId) (liveParsedAmount + transferFeeAmount) else transferFeeAmount)
+                                                    AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> feeAccCurBal + (if (effectiveFeeAccId == creditAccountId) (liveParsedAmount + transferFeeAmount) else transferFeeAmount)
+                                                }
+                                            } else 0.0
+
                                             OptionRowItem(
                                                 icon = {
                                                     Icon(
@@ -1541,6 +1746,20 @@ fun AddEditTransactionSheet(
                                                 title = "${if (languageMode == LanguageMode.BANGLA) "ফি একাউন্ট: " else "Fee Account: "}$feeAccTitle",
                                                 subTitle = feeAccSub,
                                                 isTwoLine = isDoubleLine && feeAccSub != null,
+                                                livePreview = if (feeAcc != null) {
+                                                    {
+                                                        val feeDelta = feeAccProjBal - feeAccCurBal
+                                                        LiveImpactPill(
+                                                            currentAmount = feeAccCurBal,
+                                                            projectedAmount = feeAccProjBal,
+                                                            delta = feeDelta,
+                                                            languageMode = languageMode,
+                                                            tintColor = SolidExpense,
+                                                            prefix = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স" else "Bal",
+                                                            hasActiveInput = transferFeeAmount > 0.0 || (effectiveFeeAccId == creditAccountId && liveParsedAmount > 0.0)
+                                                        )
+                                                    }
+                                                } else null,
                                                 onClick = {
                                                     accountPickerTarget = 2
                                                     showAccountPickerModal = true
@@ -1559,6 +1778,34 @@ fun AddEditTransactionSheet(
                                                 else -> Pair(feeCat.localizedName(languageMode), null)
                                             }
 
+                                            val targetFeeCatId = feeSubCat?.id ?: feeCat?.id
+                                            val feeCatCurrentMonthTotal = remember(
+                                                targetFeeCatId,
+                                                selectedDateEpochMs,
+                                                allTransactions,
+                                                existingTransaction
+                                            ) {
+                                                if (targetFeeCatId == null) 0.0
+                                                else {
+                                                    val cal = Calendar.getInstance().apply { timeInMillis = selectedDateEpochMs }
+                                                    val yr = cal.get(Calendar.YEAR)
+                                                    val mo = cal.get(Calendar.MONTH) + 1
+                                                    val startMs = DateUtils.getStartOfMonth(yr, mo)
+                                                    val endMs = DateUtils.getEndOfMonth(yr, mo)
+                                                    val baseTxs = if (existingTransaction != null) {
+                                                        allTransactions.filter { it.transaction.id != existingTransaction.id }
+                                                    } else {
+                                                        allTransactions
+                                                    }
+                                                    baseTxs.filter { txwd ->
+                                                        val t = txwd.transaction
+                                                        t.dateEpochMs in startMs..endMs &&
+                                                        (t.subCategoryId == targetFeeCatId || (t.subCategoryId == null && t.categoryId == targetFeeCatId) || t.categoryId == targetFeeCatId)
+                                                    }.sumOf { it.transaction.amount }
+                                                }
+                                            }
+                                            val feeCatProjectedTotal = feeCatCurrentMonthTotal + transferFeeAmount
+
                                             OptionRowItem(
                                                 icon = {
                                                     Icon(
@@ -1571,6 +1818,21 @@ fun AddEditTransactionSheet(
                                                 title = "${if (languageMode == LanguageMode.BANGLA) "ফি ক্যাটাগরি: " else "Fee Category: "}$feeCatTitle",
                                                 subTitle = feeCatSub,
                                                 isTwoLine = isDoubleLine && feeCatSub != null,
+                                                livePreview = if (targetFeeCatId != null) {
+                                                    {
+                                                        val feeCatBudget = feeCat?.budgetLimit ?: 0.0
+                                                        LiveImpactPill(
+                                                            currentAmount = feeCatCurrentMonthTotal,
+                                                            projectedAmount = feeCatProjectedTotal,
+                                                            delta = transferFeeAmount,
+                                                            languageMode = languageMode,
+                                                            tintColor = SolidExpense,
+                                                            prefix = if (languageMode == LanguageMode.BANGLA) "মাসিক" else "Month",
+                                                            hasActiveInput = transferFeeAmount > 0.0,
+                                                            budgetLimit = if (feeCatBudget > 0.0) feeCatBudget else null
+                                                        )
+                                                    }
+                                                } else null,
                                                 onClick = { showTransferFeeCategoryPicker = true }
                                             )
                                         }
@@ -2216,6 +2478,7 @@ private fun OptionRowItem(
     title: String,
     subTitle: String? = null,
     isTwoLine: Boolean = false,
+    livePreview: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
@@ -2223,7 +2486,7 @@ private fun OptionRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = if (isTwoLine && subTitle != null) 9.dp else 12.dp),
+            .padding(horizontal = 14.dp, vertical = if ((isTwoLine && subTitle != null) || livePreview != null) 9.dp else 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -2233,8 +2496,8 @@ private fun OptionRowItem(
         ) {
             icon()
             Spacer(modifier = Modifier.width(14.dp))
-            if (isTwoLine && subTitle != null) {
-                Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (isTwoLine && subTitle != null) {
                     Text(
                         text = title,
                         fontSize = 12.sp,
@@ -2251,17 +2514,20 @@ private fun OptionRowItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                } else {
+                    Text(
+                        text = title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-            } else {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                if (livePreview != null) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    livePreview()
+                }
             }
         }
         if (trailingContent != null) {
@@ -2283,6 +2549,148 @@ private fun parseItemColor(hex: String?, fallback: Color = Color(0xFFEA580C)): C
         Color(android.graphics.Color.parseColor(hex))
     } catch (_: Exception) {
         fallback
+    }
+}
+
+private fun formatSmartCurrency(amount: Double, languageMode: LanguageMode): String {
+    val isWhole = Math.abs(amount % 1.0) < 0.001
+    val base = LanguageHelper.formatCurrency(amount, languageMode)
+    return if (isWhole) {
+        base.replace(".00", "").replace(".০০", "")
+    } else {
+        base
+    }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+private fun LiveImpactPill(
+    currentAmount: Double,
+    projectedAmount: Double,
+    delta: Double,
+    languageMode: LanguageMode,
+    tintColor: Color,
+    prefix: String? = null,
+    hasActiveInput: Boolean = false,
+    budgetLimit: Double? = null
+) {
+    val curFmt = formatSmartCurrency(currentAmount, languageMode)
+    val projFmt = formatSmartCurrency(projectedAmount, languageMode)
+    val isPositive = delta >= 0
+    val deltaSign = if (isPositive) "+" else "−"
+    val absDeltaFmt = formatSmartCurrency(Math.abs(delta), languageMode)
+    val deltaFmt = "$deltaSign$absDeltaFmt"
+
+    Column(modifier = Modifier.padding(top = 2.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.5.dp)
+        ) {
+            if (!prefix.isNullOrBlank()) {
+                Text(
+                    text = "$prefix:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Text(
+                text = curFmt,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Normal
+            )
+
+            if (hasActiveInput) {
+                // Delta indicator e.g. (+৳100) or (−৳100)
+                Text(
+                    text = "($deltaFmt)",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = tintColor
+                )
+
+                Text(
+                    text = "➔",
+                    fontSize = 9.5.sp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)
+                )
+
+                // [New balance] framed in a small, clean, subtle card
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                    )
+                ) {
+                    AnimatedContent(
+                        targetState = projFmt,
+                        transitionSpec = {
+                            (slideInVertically { height -> height / 2 } + fadeIn())
+                                .togetherWith(slideOutVertically { height -> -height / 2 } + fadeOut())
+                        },
+                        label = "projAnim"
+                    ) { targetProj ->
+                        Text(
+                            text = targetProj,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Mini Budget Progress Bar (if budget limit exists and > 0)
+        if (budgetLimit != null && budgetLimit > 0.0) {
+            val progress = (projectedAmount / budgetLimit).toFloat().coerceIn(0f, 1.25f)
+            val animatedProgress by animateFloatAsState(
+                targetValue = progress,
+                animationSpec = spring(stiffness = Spring.StiffnessLow),
+                label = "budgetProgress"
+            )
+            val budgetPercent = ((projectedAmount / budgetLimit) * 100).toInt()
+            val barColor = when {
+                progress > 1.0f -> SolidExpense
+                progress > 0.80f -> Color(0xFFF59E0B)
+                else -> SolidIncome
+            }
+
+            Spacer(modifier = Modifier.height(3.5.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth(0.95f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(3.5.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(animatedProgress.coerceAtMost(1f))
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(barColor)
+                    )
+                }
+
+                Text(
+                    text = "${formatSmartCurrency(projectedAmount, languageMode)} / ${formatSmartCurrency(budgetLimit, languageMode)} ($budgetPercent%)",
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = barColor
+                )
+            }
+        }
     }
 }
 
