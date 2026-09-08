@@ -54,7 +54,6 @@ import com.example.util.DriveBackupResult
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
 import com.example.util.DropboxService
-import com.example.util.OneDriveService
 import com.example.util.AccountCalcConfig
 import com.example.util.AccountCalculationPreferences
 import com.example.util.AppTab
@@ -1178,6 +1177,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     val googleAcc = if (driveIndex == 1) _signedInGoogleAccount.value else _secondarySignedInGoogleAccount.value
                     if (googleAcc != null) {
                         if (driveIndex == 1) fetchDriveBackups(googleAcc) else fetchSecondaryDriveBackups(googleAcc)
+                    } else if (accountInfo.email.isNotBlank()) {
+                        val res = GoogleDriveService.listDriveBackupsForEmail(getApplication(), accountInfo.email)
+                        res.onSuccess { list ->
+                            if (driveIndex == 1) _driveBackups.value = list else _secondaryDriveBackups.value = list
+                        }.onFailure { err ->
+                            _backupUiState.value = BackupUiState.Error("Could not list Drive backups: ${err.localizedMessage}")
+                        }
                     }
                 }
                 accountInfo.provider.contains("Dropbox", ignoreCase = true) -> {
@@ -1188,18 +1194,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             if (driveIndex == 1) _driveBackups.value = list else _secondaryDriveBackups.value = list
                         }.onFailure { err ->
                             _backupUiState.value = BackupUiState.Error("Dropbox list failed: ${err.localizedMessage}")
-                        }
-                    } else {
-                        if (driveIndex == 1) _driveBackups.value = emptyList() else _secondaryDriveBackups.value = emptyList()
-                    }
-                }
-                accountInfo.provider.contains("OneDrive", ignoreCase = true) -> {
-                    if (accountInfo.accessToken.isNotBlank()) {
-                        val res = OneDriveService.listBackups(accountInfo.accessToken)
-                        res.onSuccess { list ->
-                            if (driveIndex == 1) _driveBackups.value = list else _secondaryDriveBackups.value = list
-                        }.onFailure { err ->
-                            _backupUiState.value = BackupUiState.Error("OneDrive list failed: ${err.localizedMessage}")
                         }
                     } else {
                         if (driveIndex == 1) _driveBackups.value = emptyList() else _secondaryDriveBackups.value = emptyList()
@@ -1216,8 +1210,30 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             when {
                 accountInfo.provider.contains("Google", ignoreCase = true) -> {
                     val googleAcc = if (driveIndex == 1) _signedInGoogleAccount.value else _secondarySignedInGoogleAccount.value
+                    val email = accountInfo.email
                     if (googleAcc != null) {
                         if (driveIndex == 1) backupToGoogleDrive(googleAcc) else backupToSecondaryGoogleDrive(googleAcc)
+                    } else if (email.isNotBlank()) {
+                        val folderType = accountInfo.driveFolderType
+                        val result = GoogleDriveService.uploadBackupToDriveForEmail(
+                            context = getApplication(),
+                            email = email,
+                            accountDao = activeRepo.accountDao,
+                            categoryDao = activeRepo.categoryDao,
+                            transactionDao = activeRepo.transactionDao,
+                            recurringBillDao = activeRepo.recurringBillDao,
+                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            folderType = folderType,
+                            includeSettings = true
+                        )
+                        result.onSuccess {
+                            if (driveIndex == 1) backupPrefs.recordPrimarySync() else backupPrefs.recordSecondarySync()
+                            _backupUiState.value = BackupUiState.Success("Database backed up to Google Drive ($folderType)")
+                            fetchCloudBackups(driveIndex)
+                        }.onFailure { err ->
+                            _backupUiState.value = BackupUiState.Error("Google Drive backup failed: ${err.localizedMessage}")
+                        }
                     } else {
                         _backupUiState.value = BackupUiState.Error("Please sign in with Google first")
                     }
@@ -1248,31 +1264,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         _backupUiState.value = BackupUiState.Error("Dropbox backup failed: ${err.localizedMessage}")
                     }
                 }
-                accountInfo.provider.contains("OneDrive", ignoreCase = true) -> {
-                    if (accountInfo.accessToken.isBlank()) {
-                        _backupUiState.value = BackupUiState.Error("Please connect your Microsoft OneDrive account first")
-                        return@launch
-                    }
-                    val res = OneDriveService.uploadBackup(
-                        context = getApplication(),
-                        accessToken = accountInfo.accessToken,
-                        accountDao = activeRepo.accountDao,
-                        categoryDao = activeRepo.categoryDao,
-                        transactionDao = activeRepo.transactionDao,
-                        recurringBillDao = activeRepo.recurringBillDao,
-                        monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                        budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
-                        folderName = "Budgeter",
-                        includeSettings = true
-                    )
-                    res.onSuccess {
-                        if (driveIndex == 1) backupPrefs.recordPrimarySync() else backupPrefs.recordSecondarySync()
-                        _backupUiState.value = BackupUiState.Success("Database backed up to Microsoft OneDrive (/Budgeter)")
-                        fetchCloudBackups(driveIndex)
-                    }.onFailure { err ->
-                        _backupUiState.value = BackupUiState.Error("OneDrive backup failed: ${err.localizedMessage}")
-                    }
-                }
                 else -> {
                     triggerQuickSync()
                 }
@@ -1287,11 +1278,31 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             when {
                 accountInfo.provider.contains("Google", ignoreCase = true) -> {
                     val googleAcc = if (driveIndex == 1) _signedInGoogleAccount.value else _secondarySignedInGoogleAccount.value
+                    val email = accountInfo.email
                     if (googleAcc != null) {
                         if (driveIndex == 1) {
                             restoreFromGoogleDrive(googleAcc, backupFile, restoreData, restoreSettings)
                         } else {
                             restoreFromSecondaryGoogleDrive(googleAcc, backupFile, restoreData, restoreSettings)
+                        }
+                    } else if (email.isNotBlank()) {
+                        val result = GoogleDriveService.restoreFromDriveFileForEmail(
+                            context = getApplication(),
+                            email = email,
+                            fileId = backupFile.id,
+                            accountDao = activeRepo.accountDao,
+                            categoryDao = activeRepo.categoryDao,
+                            transactionDao = activeRepo.transactionDao,
+                            recurringBillDao = activeRepo.recurringBillDao,
+                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            restoreData = restoreData,
+                            restoreSettings = restoreSettings
+                        )
+                        result.onSuccess { count ->
+                            _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Google Drive!")
+                        }.onFailure { err ->
+                            _backupUiState.value = BackupUiState.Error("Restore failed: ${err.localizedMessage}")
                         }
                     }
                 }
@@ -1324,30 +1335,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         _backupUiState.value = BackupUiState.Error("Dropbox download failed: ${err.localizedMessage}")
                     }
                 }
-                accountInfo.provider.contains("OneDrive", ignoreCase = true) -> {
-                    val res = OneDriveService.downloadBackup(accountInfo.accessToken, backupFile.id)
-                    res.onSuccess { jsonString ->
-                        val importRes = BackupManager.restoreFromJson(
-                            context = getApplication(),
-                            json = jsonString,
-                            accountDao = activeRepo.accountDao,
-                            categoryDao = activeRepo.categoryDao,
-                            transactionDao = activeRepo.transactionDao,
-                            recurringBillDao = activeRepo.recurringBillDao,
-                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
-                            restoreData = restoreData,
-                            restoreSettings = restoreSettings
-                        )
-                        importRes.onSuccess { count ->
-                            _backupUiState.value = BackupUiState.Success("Successfully restored $count records from OneDrive!")
-                        }.onFailure { err ->
-                            _backupUiState.value = BackupUiState.Error("Failed to parse OneDrive backup: ${err.localizedMessage}")
-                        }
-                    }.onFailure { err ->
-                        _backupUiState.value = BackupUiState.Error("OneDrive download failed: ${err.localizedMessage}")
-                    }
-                }
             }
         }
     }
@@ -1359,8 +1346,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             when {
                 accountInfo.provider.contains("Google", ignoreCase = true) -> {
                     val googleAcc = if (driveIndex == 1) _signedInGoogleAccount.value else _secondarySignedInGoogleAccount.value
+                    val email = accountInfo.email
                     if (googleAcc != null) {
                         if (driveIndex == 1) deleteDriveBackup(googleAcc, backupFile) else deleteSecondaryDriveBackup(googleAcc, backupFile)
+                    } else if (email.isNotBlank()) {
+                        val success = GoogleDriveService.deleteDriveBackupForEmail(getApplication(), email, backupFile.id)
+                        if (success) {
+                            _backupUiState.value = BackupUiState.Success("Drive backup deleted")
+                            fetchCloudBackups(driveIndex)
+                        } else {
+                            _backupUiState.value = BackupUiState.Error("Failed to delete Drive backup")
+                        }
                     }
                 }
                 accountInfo.provider.contains("Dropbox", ignoreCase = true) -> {
@@ -1375,15 +1371,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         fetchCloudBackups(driveIndex)
                     }.onFailure { err ->
                         _backupUiState.value = BackupUiState.Error("Failed to delete Dropbox snapshot: ${err.localizedMessage}")
-                    }
-                }
-                accountInfo.provider.contains("OneDrive", ignoreCase = true) -> {
-                    val res = OneDriveService.deleteBackup(accountInfo.accessToken, backupFile.id)
-                    res.onSuccess {
-                        _backupUiState.value = BackupUiState.Success("OneDrive snapshot deleted")
-                        fetchCloudBackups(driveIndex)
-                    }.onFailure { err ->
-                        _backupUiState.value = BackupUiState.Error("Failed to delete OneDrive snapshot: ${err.localizedMessage}")
                     }
                 }
             }
@@ -1482,35 +1469,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun connectOneDrive(driveIndex: Int, token: String, onComplete: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            val res = OneDriveService.testConnection(token)
-            res.onSuccess { info ->
-                if (driveIndex == 1) {
-                    backupPrefs.setPrimaryAccount(
-                        email = info.email,
-                        displayName = info.displayName,
-                        isLinked = true,
-                        accessToken = token.trim()
-                    )
-                } else {
-                    backupPrefs.setSecondaryAccount(
-                        email = info.email,
-                        displayName = info.displayName,
-                        isLinked = true,
-                        accessToken = token.trim()
-                    )
-                }
-                _backupUiState.value = BackupUiState.Success("Connected to OneDrive as ${info.displayName}")
-                fetchCloudBackups(driveIndex)
-                onComplete(true, "Connected as ${info.displayName} (${info.email})")
-            }.onFailure { err ->
-                val msg = err.localizedMessage ?: "Connection error"
-                _backupUiState.value = BackupUiState.Error("OneDrive connection failed: $msg")
-                onComplete(false, msg)
-            }
-        }
-    }
     fun setLocalBackupDirectory(dir: String) = backupPrefs.setLocalBackupDirectory(dir)
     fun setAutoPhoneBackupEnabled(enabled: Boolean) = backupPrefs.setAutoPhoneBackupEnabled(enabled)
     fun setScheduledTime(hour: Int, minute: Int) = backupPrefs.setScheduledTime(hour, minute)

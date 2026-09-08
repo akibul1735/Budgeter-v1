@@ -75,6 +75,22 @@ object GoogleDriveService {
     }
 
     /**
+     * Launches Google Sign-In while explicitly resetting the cached session first
+     * to force Google Play Services to ALWAYS show the account picker dialogue
+     * with all available Gmail accounts on the device.
+     */
+    fun launchGoogleSignIn(context: Context, launcher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>) {
+        val client = getGoogleSignInClient(context)
+        client.signOut().addOnCompleteListener {
+            try {
+                launcher.launch(client.signInIntent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
      * Gets the current signed-in Google account, or null if not signed in or scopes not granted
      */
     fun getSignedInAccount(context: Context): GoogleSignInAccount? {
@@ -484,6 +500,29 @@ object GoogleDriveService {
     ): String? = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account) ?: return@withContext null
+            val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) response.body?.string() else null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun fetchDriveBackupJsonForEmail(
+        context: Context,
+        email: String,
+        fileId: String
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val accessToken = getAccessTokenForEmail(context, email) ?: return@withContext null
             val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
             val request = Request.Builder()
                 .url(downloadUrl)

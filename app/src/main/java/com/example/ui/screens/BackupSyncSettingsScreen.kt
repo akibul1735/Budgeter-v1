@@ -147,19 +147,13 @@ enum class DataManagementTab(val titleEn: String, val titleBn: String, val icon:
 
 val SUPPORTED_CLOUD_PROVIDERS = listOf(
     "Google Drive",
-    "Microsoft OneDrive",
-    "Dropbox",
-    "Nextcloud / WebDAV",
-    "Custom Cloud Server"
+    "Dropbox"
 )
 
 fun getProviderIcon(provider: String): ImageVector {
     return when {
-        provider.contains("Google", ignoreCase = true) -> Icons.Default.Cloud
-        provider.contains("OneDrive", ignoreCase = true) -> Icons.Default.CloudQueue
         provider.contains("Dropbox", ignoreCase = true) -> Icons.Default.Folder
-        provider.contains("Nextcloud", ignoreCase = true) || provider.contains("WebDAV", ignoreCase = true) -> Icons.Default.Storage
-        else -> Icons.Default.SdStorage
+        else -> Icons.Default.Cloud
     }
 }
 
@@ -242,8 +236,12 @@ fun BackupSyncSettingsScreen(
 
     LaunchedEffect(config.localBackupDirectory, config.primaryAccount.provider, config.primaryAccount.accessToken, config.secondaryAccount.provider, config.secondaryAccount.accessToken) {
         refreshLocalBackups()
-        val existingAccount = GoogleDriveService.getSignedInAccount(context)
-        viewModel.updateSignedInAccount(existingAccount)
+        if (config.primaryAccount.provider.contains("Google", ignoreCase = true) && config.primaryAccount.isLinked && signedInAccount == null) {
+            val existingAccount = GoogleDriveService.getSignedInAccount(context)
+            if (existingAccount != null && (config.primaryAccount.email.isEmpty() || existingAccount.email.equals(config.primaryAccount.email, ignoreCase = true))) {
+                viewModel.updateSignedInAccount(existingAccount)
+            }
+        }
         viewModel.fetchCloudBackups(1)
         viewModel.fetchCloudBackups(2)
     }
@@ -259,7 +257,7 @@ fun BackupSyncSettingsScreen(
             if (account != null) {
                 viewModel.setPrimaryAccount(
                     email = account.email ?: "",
-                    displayName = account.displayName ?: "",
+                    displayName = account.displayName ?: (account.email ?: ""),
                     isLinked = true
                 )
                 viewModel.fetchDriveBackups(account)
@@ -281,7 +279,7 @@ fun BackupSyncSettingsScreen(
             if (account != null) {
                 viewModel.setSecondaryAccount(
                     email = account.email ?: "",
-                    displayName = account.displayName ?: "",
+                    displayName = account.displayName ?: (account.email ?: ""),
                     isLinked = true
                 )
                 viewModel.fetchSecondaryDriveBackups(account)
@@ -535,9 +533,9 @@ fun BackupSyncSettingsScreen(
                 if (onlineSubTabIndex == 0) {
                     val primary = config.primaryAccount
                     val isGoogleDrive = primary.provider.equals("Google Drive", ignoreCase = true)
-                    val isLinked = if (isGoogleDrive) signedInAccount != null else (primary.isLinked && (primary.email.isNotBlank() || primary.accessToken.isNotBlank()))
-                    val displayEmail = if (isGoogleDrive) (signedInAccount?.email ?: "") else primary.email
-                    val displayName = if (isGoogleDrive) (signedInAccount?.displayName ?: "") else primary.displayName
+                    val isLinked = if (isGoogleDrive) (signedInAccount != null || (primary.isLinked && primary.email.isNotBlank())) else (primary.isLinked && (primary.email.isNotBlank() || primary.accessToken.isNotBlank()))
+                    val displayEmail = if (isGoogleDrive) (signedInAccount?.email ?: primary.email) else primary.email
+                    val displayName = if (isGoogleDrive) (signedInAccount?.displayName ?: primary.displayName.ifEmpty { displayEmail }) else primary.displayName
 
                     // 1. Cloud Provider Selector Card
                     item {
@@ -563,8 +561,7 @@ fun BackupSyncSettingsScreen(
                             isLoading = isLoading,
                             onConnect = {
                                 if (isGoogleDrive) {
-                                    val client = GoogleDriveService.getGoogleSignInClient(context)
-                                    googleSignInLauncher.launch(client.signInIntent)
+                                    GoogleDriveService.launchGoogleSignIn(context, googleSignInLauncher)
                                 } else if (primary.provider.contains("Dropbox", ignoreCase = true)) {
                                     viewModel.startDropboxAuth(context, primary.appKey.ifEmpty { DropboxService.DEFAULT_APP_KEY }, 1)
                                 } else {
@@ -672,9 +669,9 @@ fun BackupSyncSettingsScreen(
                 if (onlineSubTabIndex == 1) {
                     val secondary = config.secondaryAccount
                     val isGoogleDrive = secondary.provider.equals("Google Drive", ignoreCase = true)
-                    val isLinked = if (isGoogleDrive) secondarySignedInAccount != null else (secondary.isLinked && (secondary.email.isNotBlank() || secondary.accessToken.isNotBlank()))
-                    val displayEmail = if (isGoogleDrive) (secondarySignedInAccount?.email ?: "") else secondary.email
-                    val displayName = if (isGoogleDrive) (secondarySignedInAccount?.displayName ?: "") else secondary.displayName
+                    val isLinked = if (isGoogleDrive) (secondarySignedInAccount != null || (secondary.isLinked && secondary.email.isNotBlank())) else (secondary.isLinked && (secondary.email.isNotBlank() || secondary.accessToken.isNotBlank()))
+                    val displayEmail = if (isGoogleDrive) (secondarySignedInAccount?.email ?: secondary.email) else secondary.email
+                    val displayName = if (isGoogleDrive) (secondarySignedInAccount?.displayName ?: secondary.displayName.ifEmpty { displayEmail }) else secondary.displayName
 
                     // 1. Cloud Provider Selector Card
                     item {
@@ -700,8 +697,7 @@ fun BackupSyncSettingsScreen(
                             isLoading = isLoading,
                             onConnect = {
                                 if (isGoogleDrive) {
-                                    val client = GoogleDriveService.getGoogleSignInClient(context)
-                                    secondaryGoogleSignInLauncher.launch(client.signInIntent)
+                                    GoogleDriveService.launchGoogleSignIn(context, secondaryGoogleSignInLauncher)
                                 } else if (secondary.provider.contains("Dropbox", ignoreCase = true)) {
                                     viewModel.startDropboxAuth(context, secondary.appKey.ifEmpty { DropboxService.DEFAULT_APP_KEY }, 2)
                                 } else {
@@ -710,8 +706,11 @@ fun BackupSyncSettingsScreen(
                             },
                             onDisconnect = {
                                 if (isGoogleDrive) {
-                                    viewModel.updateSecondarySignedInAccount(null)
-                                    viewModel.setSecondaryAccount("", "", false)
+                                    val client = GoogleDriveService.getGoogleSignInClient(context)
+                                    client.signOut().addOnCompleteListener {
+                                        viewModel.updateSecondarySignedInAccount(null)
+                                        viewModel.setSecondaryAccount("", "", false)
+                                    }
                                 } else if (secondary.provider.contains("Dropbox", ignoreCase = true)) {
                                     viewModel.disconnectDropbox(2)
                                 } else {
@@ -1460,11 +1459,10 @@ fun BackupSyncSettingsScreen(
         )
     }
 
-    // 2. Account Credentials Setup Dialog for Non-Google providers (OneDrive, Dropbox, Nextcloud, Custom Server)
+    // 2. Account Credentials Setup Dialog for Non-Google providers (Dropbox, etc.)
     showAccountEditDialogForAccount?.let { driveIndex ->
         val acc = if (driveIndex == 1) config.primaryAccount else config.secondaryAccount
         val isDropbox = acc.provider.contains("Dropbox", ignoreCase = true)
-        val isOneDrive = acc.provider.contains("OneDrive", ignoreCase = true)
 
         var editAppKey by remember { mutableStateOf(acc.appKey.ifEmpty { DropboxService.DEFAULT_APP_KEY }) }
         var editEmail by remember { mutableStateOf(acc.email) }
@@ -1480,7 +1478,7 @@ fun BackupSyncSettingsScreen(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(
-                        imageVector = if (isDropbox) Icons.Default.CloudSync else if (isOneDrive) Icons.Default.Cloud else Icons.Default.Storage,
+                        imageVector = if (isDropbox) Icons.Default.CloudSync else Icons.Default.Folder,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
@@ -1651,66 +1649,6 @@ fun BackupSyncSettingsScreen(
                                     Spacer(Modifier.width(6.dp))
                                     Text("Test & Verify Token")
                                 }
-                            }
-                        }
-                    } else if (isOneDrive) {
-                        Text(
-                            text = "Direct Microsoft OneDrive API Integration: Backups will be automatically synced to '/Budgeter' in your OneDrive account.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        OutlinedButton(
-                            onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://developer.microsoft.com/en-us/graph/graph-explorer"))
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Get Token from Microsoft Graph", fontSize = 12.sp)
-                        }
-
-                        OutlinedTextField(
-                            value = editToken,
-                            onValueChange = {
-                                editToken = it
-                                verifyFeedback = null
-                            },
-                            label = { Text("OneDrive Access Token") },
-                            placeholder = { Text("Paste access token here...") },
-                            singleLine = false,
-                            maxLines = 2,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Button(
-                            onClick = {
-                                isVerifying = true
-                                verifyFeedback = null
-                                viewModel.connectOneDrive(driveIndex, editToken) { success, msg ->
-                                    isVerifying = false
-                                    verifyFeedback = Pair(success, msg)
-                                    if (success) {
-                                        val updated = if (driveIndex == 1) config.primaryAccount else config.secondaryAccount
-                                        editEmail = updated.email
-                                        editName = updated.displayName
-                                    }
-                                }
-                            },
-                            enabled = editToken.isNotBlank() && !isVerifying,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (isVerifying) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Verifying Token...")
-                            } else {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Test & Verify OneDrive Token")
                             }
                         }
                     } else {
