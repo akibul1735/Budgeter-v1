@@ -29,6 +29,7 @@ data class TransactionConfig(
     // 1. Quick Date Picker & Show Time
     val enableQuickDatePicker: Boolean = true,
     val showTimePicker: Boolean = true,
+    val showKeyboardImmediately: Boolean = true,
 
     // 2. Display of Notes & Labels in Transaction Lists
     val notesDisplayMode: NotesDisplayMode = NotesDisplayMode.FULL_TEXT,
@@ -72,6 +73,7 @@ class TransactionPreferences private constructor(context: Context) {
         return TransactionConfig(
             enableQuickDatePicker = prefs.getBoolean(KEY_ENABLE_QUICK_DATE_PICKER, true),
             showTimePicker = prefs.getBoolean(KEY_SHOW_TIME_PICKER, true),
+            showKeyboardImmediately = prefs.getBoolean(KEY_SHOW_KEYBOARD_IMMEDIATELY, true),
             notesDisplayMode = try {
                 NotesDisplayMode.valueOf(prefs.getString(KEY_NOTES_DISPLAY_MODE, NotesDisplayMode.FULL_TEXT.name) ?: NotesDisplayMode.FULL_TEXT.name)
             } catch (e: Exception) {
@@ -110,6 +112,7 @@ class TransactionPreferences private constructor(context: Context) {
         val editor = prefs.edit()
             .putBoolean(KEY_ENABLE_QUICK_DATE_PICKER, newConfig.enableQuickDatePicker)
             .putBoolean(KEY_SHOW_TIME_PICKER, newConfig.showTimePicker)
+            .putBoolean(KEY_SHOW_KEYBOARD_IMMEDIATELY, newConfig.showKeyboardImmediately)
             .putString(KEY_NOTES_DISPLAY_MODE, newConfig.notesDisplayMode.name)
             .putString(KEY_LABELS_DISPLAY_MODE, newConfig.labelsDisplayMode.name)
             .putBoolean(KEY_ENABLE_CATEGORY_ICONS, newConfig.enableCategoryIcons)
@@ -151,6 +154,7 @@ class TransactionPreferences private constructor(context: Context) {
     companion object {
         private const val KEY_ENABLE_QUICK_DATE_PICKER = "enable_quick_date_picker"
         private const val KEY_SHOW_TIME_PICKER = "show_time_picker"
+        private const val KEY_SHOW_KEYBOARD_IMMEDIATELY = "show_keyboard_immediately"
         private const val KEY_NOTES_DISPLAY_MODE = "notes_display_mode"
         private const val KEY_LABELS_DISPLAY_MODE = "labels_display_mode"
         private const val KEY_DEFAULT_ACCOUNT_ID = "default_account_id"

@@ -132,12 +132,15 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -203,6 +206,8 @@ fun AddEditTransactionSheet(
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val nameFocusRequester = remember { FocusRequester() }
     val txPrefs = remember { TransactionPreferences.getInstance(context) }
     val txConfig by txPrefs.config.collectAsStateWithLifecycle()
     val autofillPrefs = remember { AutofillPreferences.getInstance(context) }
@@ -210,6 +215,17 @@ fun AddEditTransactionSheet(
     val displayFormatPrefs = remember { DisplayFormatPreferences.getInstance(context) }
     val displayFormatConfig by displayFormatPrefs.config.collectAsStateWithLifecycle()
     val transferFeePrefs = remember { TransferFeePreferences.getInstance(context) }
+
+    LaunchedEffect(Unit) {
+        if (existingTransaction == null && txConfig.showKeyboardImmediately) {
+            kotlinx.coroutines.delay(200)
+            try {
+                nameFocusRequester.requestFocus()
+                keyboardController?.show()
+            } catch (_: Exception) {
+            }
+        }
+    }
 
     var txType by remember {
         mutableStateOf(existingTransaction?.type ?: TransactionType.EXPENSE)
@@ -863,6 +879,13 @@ fun AddEditTransactionSheet(
                                                 if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ করা হয়েছে! পরবর্তী এন্ট্রি দিন" else "Saved! Enter next transaction",
                                                 Toast.LENGTH_SHORT
                                             ).show()
+                                            if (txConfig.showKeyboardImmediately) {
+                                                try {
+                                                    nameFocusRequester.requestFocus()
+                                                    keyboardController?.show()
+                                                } catch (_: Exception) {
+                                                }
+                                            }
                                         } else {
                                             Toast.makeText(
                                                 context,
@@ -938,6 +961,7 @@ fun AddEditTransactionSheet(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .focusRequester(nameFocusRequester)
                                 .testTag("tx_payee_input"),
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Done
@@ -2499,12 +2523,22 @@ fun AddEditTransactionSheet(
             txType = txType,
             creditAccountId = if (accountPickerTarget == 2) (transferFeeAccountId ?: creditAccountId) else creditAccountId,
             debitAccountId = debitAccountId,
+            initialTarget = accountPickerTarget,
             languageMode = languageMode,
             onAccountSelected = { sourceId, destId ->
-                when (accountPickerTarget) {
-                    0 -> creditAccountId = sourceId
-                    1 -> debitAccountId = if (txType == TransactionType.TRANSFER) sourceId else destId
-                    2 -> transferFeeAccountId = sourceId
+                if (txType == TransactionType.TRANSFER) {
+                    if (accountPickerTarget == 2) {
+                        transferFeeAccountId = sourceId
+                    } else {
+                        if (sourceId != null) creditAccountId = sourceId
+                        if (destId != null) debitAccountId = destId
+                    }
+                } else {
+                    when (accountPickerTarget) {
+                        0 -> creditAccountId = sourceId
+                        1 -> debitAccountId = destId ?: sourceId
+                        2 -> transferFeeAccountId = sourceId
+                    }
                 }
                 showAccountPickerModal = false
             },
@@ -3284,6 +3318,7 @@ private fun AccountPickerModalDialog(
     txType: TransactionType,
     creditAccountId: Long?,
     debitAccountId: Long?,
+    initialTarget: Int = 0, // 0 = Source / Expense, 1 = Destination / Income, 2 = Transfer Fee
     languageMode: LanguageMode,
     onAccountSelected: (Long?, Long?) -> Unit,
     onAddNewAccount: (Account) -> Unit,
@@ -3291,7 +3326,7 @@ private fun AccountPickerModalDialog(
 ) {
     var selectedCredit by remember { mutableStateOf(creditAccountId) }
     var selectedDebit by remember { mutableStateOf(debitAccountId) }
-    var transferTab by remember { mutableStateOf(0) } // 0 = Source (From), 1 = Destination (To)
+    var transferTab by remember { mutableStateOf(if (initialTarget == 1) 1 else 0) } // 0 = Source (From), 1 = Destination (To)
     var searchQuery by remember { mutableStateOf("") }
     var showInlineCreateAccount by remember { mutableStateOf(false) }
 
@@ -3301,8 +3336,21 @@ private fun AccountPickerModalDialog(
             parentAccounts = parentAccounts,
             languageMode = languageMode,
             onDismiss = { showInlineCreateAccount = false },
-            onAccountCreated = {
-                onAddNewAccount(it)
+            onAccountCreated = { newAcc ->
+                onAddNewAccount(newAcc)
+                if (txType == TransactionType.TRANSFER) {
+                    if (initialTarget == 2) {
+                        onAccountSelected(newAcc.id, null)
+                    } else if (transferTab == 0) {
+                        onAccountSelected(newAcc.id, selectedDebit)
+                    } else {
+                        onAccountSelected(selectedCredit, newAcc.id)
+                    }
+                } else if (txType == TransactionType.EXPENSE) {
+                    onAccountSelected(newAcc.id, null)
+                } else {
+                    onAccountSelected(null, newAcc.id)
+                }
                 showInlineCreateAccount = false
             }
         )
@@ -3343,7 +3391,7 @@ private fun AccountPickerModalDialog(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Transfer Tabs (if transfer)
-                    if (txType == TransactionType.TRANSFER) {
+                    if (txType == TransactionType.TRANSFER && initialTarget != 2) {
                         val fromAcc = accounts.firstOrNull { it.id == selectedCredit }
                         val toAcc = accounts.firstOrNull { it.id == selectedDebit }
 
@@ -3366,9 +3414,14 @@ private fun AccountPickerModalDialog(
                                     modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Text("From (Source)", fontSize = 11.sp, color = SolidExpense, fontWeight = FontWeight.Bold)
                                     Text(
-                                        text = fromAcc?.localizedName(languageMode) ?: "Select",
+                                        text = if (languageMode == LanguageMode.BANGLA) "উৎস (হতে)" else "From (Source)",
+                                        fontSize = 11.sp,
+                                        color = SolidExpense,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = fromAcc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "বাছাই করুন" else "Select"),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
@@ -3389,9 +3442,14 @@ private fun AccountPickerModalDialog(
                                     modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Text("To (Destination)", fontSize = 11.sp, color = SolidIncome, fontWeight = FontWeight.Bold)
                                     Text(
-                                        text = toAcc?.localizedName(languageMode) ?: "Select",
+                                        text = if (languageMode == LanguageMode.BANGLA) "গন্তব্য (পর্যন্ত)" else "To (Destination)",
+                                        fontSize = 11.sp,
+                                        color = SolidIncome,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = toAcc?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "বাছাই করুন" else "Select"),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 1,
@@ -3401,6 +3459,14 @@ private fun AccountPickerModalDialog(
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
+                    } else if (initialTarget == 2) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "ফি অ্যাকাউন্ট বাছাই করুন" else "Select Transfer Fee Account",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidExpense,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
                     }
 
                     // Top Search Bar with Green "New" Button
@@ -3505,9 +3571,11 @@ private fun AccountPickerModalDialog(
                                     onAccountSelected(null, acc.id)
                                 }
                                 TransactionType.TRANSFER -> {
-                                    if (transferTab == 0) {
+                                    if (initialTarget == 2) {
+                                        onAccountSelected(acc.id, null)
+                                    } else if (transferTab == 0) {
                                         selectedCredit = acc.id
-                                        transferTab = 1
+                                        onAccountSelected(acc.id, selectedDebit)
                                     } else {
                                         selectedDebit = acc.id
                                         onAccountSelected(selectedCredit, acc.id)

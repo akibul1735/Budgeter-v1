@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.DensityMedium
 import androidx.compose.material.icons.filled.DensitySmall
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.PlusOne
 import androidx.compose.material.icons.filled.Settings
@@ -255,6 +256,46 @@ fun TransactionSetupSettingsPage(
                                 Switch(
                                     checked = txConfig.showTimePicker,
                                     onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(showTimePicker = it) } },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                                )
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                            // Show Keyboard Immediately Toggle
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Keyboard,
+                                        contentDescription = null,
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = if (isBangla) "কিবোর্ড অবিলম্বে দেখান" else "Show Keyboard Immediately",
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = if (isBangla) "লেনদেন যোগ করার সময় নাম ফিল্ডে সরাসরি কিবোর্ড খুলবে" else "Open keyboard immediately in Name field when adding transaction",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+
+                                Switch(
+                                    checked = txConfig.showKeyboardImmediately,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(showKeyboardImmediately = it) } },
                                     colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
                                 )
                             }
