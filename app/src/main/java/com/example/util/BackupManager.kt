@@ -40,6 +40,8 @@ data class AppSettingsBackup(
     val scheduledMinute: Int? = null,
     val uploadAttachments: Boolean? = null,
     val autoSyncData: Boolean? = null,
+    val autoSyncOnAppStart: Boolean? = null,
+    val autoSyncOnAppClose: Boolean? = null,
     val wifiOnly: Boolean? = null,
     val primaryAutoSync: Boolean? = null,
     val primaryWifiOnly: Boolean? = null,
@@ -94,6 +96,8 @@ object BackupManager {
                 scheduledMinute = bConfig.scheduledBackupMinute,
                 uploadAttachments = bConfig.uploadAttachments,
                 autoSyncData = bConfig.autoSyncData,
+                autoSyncOnAppStart = bConfig.autoSyncOnAppStart,
+                autoSyncOnAppClose = bConfig.autoSyncOnAppClose,
                 wifiOnly = bConfig.wifiOnly,
                 primaryAutoSync = bConfig.primaryAccount.autoSync,
                 primaryWifiOnly = bConfig.primaryAccount.wifiOnly,
@@ -136,6 +140,8 @@ object BackupManager {
             settings.scheduledMinute?.let { bConfig = bConfig.copy(scheduledBackupMinute = it) }
             settings.uploadAttachments?.let { bConfig = bConfig.copy(uploadAttachments = it) }
             settings.autoSyncData?.let { bConfig = bConfig.copy(autoSyncData = it) }
+            settings.autoSyncOnAppStart?.let { bConfig = bConfig.copy(autoSyncOnAppStart = it) }
+            settings.autoSyncOnAppClose?.let { bConfig = bConfig.copy(autoSyncOnAppClose = it) }
             settings.wifiOnly?.let { bConfig = bConfig.copy(wifiOnly = it) }
 
             var prim = bConfig.primaryAccount

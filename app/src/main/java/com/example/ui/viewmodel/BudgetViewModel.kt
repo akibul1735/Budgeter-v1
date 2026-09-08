@@ -459,9 +459,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch {
             activeRepo.saveCategoryAccountAllocations(year, month, categoryId, allocations)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -473,9 +470,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch {
             activeRepo.deleteCategoryAccountAllocation(year, month, categoryId, accountId)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -493,9 +487,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 toYear = _selectedBudgetYear.value,
                 toMonth = _selectedBudgetMonth.value
             )
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -594,18 +585,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 activeRepo.updateTransaction(transaction)
             }
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
     fun updateTransactions(transactions: List<Transaction>) {
         viewModelScope.launch {
             activeRepo.updateTransactions(transactions)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -613,9 +598,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             trashManager.addTransaction(transaction)
             activeRepo.deleteTransaction(transaction)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -623,9 +605,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             transactions.forEach { trashManager.addTransaction(it) }
             activeRepo.deleteTransactions(transactions)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -636,18 +615,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 activeRepo.updateAccount(account)
             }
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
     fun saveAccounts(accounts: List<Account>) {
         viewModelScope.launch {
             activeRepo.updateAccounts(accounts)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -657,9 +630,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             trashManager.addAccount(account)
             activeRepo.deleteAccount(account)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -667,9 +637,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             accounts.forEach { trashManager.addAccount(it) }
             activeRepo.deleteAccounts(accounts)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -680,18 +647,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 activeRepo.updateCategory(category)
             }
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
     fun saveCategories(categories: List<Category>) {
         viewModelScope.launch {
             activeRepo.updateCategories(categories)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -701,9 +662,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             trashManager.addCategory(category)
             activeRepo.deleteCategory(category)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -711,9 +669,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             categories.forEach { trashManager.addCategory(it) }
             activeRepo.deleteCategories(categories)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -760,9 +715,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 trashManager.removeItem(item.id)
-                if (!_isDemoMode.value) {
-                    SyncManager.triggerInstantJsonSync(getApplication())
-                }
             } catch (e: Exception) {
                 // If restore fails silently log
             }
@@ -784,27 +736,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 activeRepo.updateRecurringBill(bill)
             }
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
     fun deleteRecurringBill(bill: RecurringBill) {
         viewModelScope.launch {
             activeRepo.deleteRecurringBill(bill)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
     fun payRecurringBill(bill: RecurringBill) {
         viewModelScope.launch {
             activeRepo.payRecurringBill(bill)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -1474,6 +1417,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setScheduledTime(hour: Int, minute: Int) = backupPrefs.setScheduledTime(hour, minute)
     fun setUploadAttachments(enabled: Boolean) = backupPrefs.setUploadAttachments(enabled)
     fun setAutoSyncData(enabled: Boolean) = backupPrefs.setAutoSyncData(enabled)
+    fun setAutoSyncOnAppStart(enabled: Boolean) = backupPrefs.setAutoSyncOnAppStart(enabled)
+    fun setAutoSyncOnAppClose(enabled: Boolean) = backupPrefs.setAutoSyncOnAppClose(enabled)
     fun setWifiOnly(enabled: Boolean) = backupPrefs.setWifiOnly(enabled)
     fun setPrimaryAutoSync(enabled: Boolean) = backupPrefs.setPrimaryAutoSync(enabled)
     fun setPrimaryWifiOnly(enabled: Boolean) = backupPrefs.setPrimaryWifiOnly(enabled)

@@ -145,6 +145,19 @@ object DateUtils {
         return formatDate(epochMs, mode)
     }
 
+    fun formatSyncTimestamp(epochMs: Long, mode: LanguageMode): String {
+        if (epochMs <= 0L) {
+            return if (mode == LanguageMode.BANGLA) "কখনও নয়" else "Never"
+        }
+        val diff = System.currentTimeMillis() - epochMs
+        if (diff < 60_000L) {
+            return if (mode == LanguageMode.BANGLA) "এইমাত্র" else "Just now"
+        }
+        val datePart = formatDate(epochMs, mode, "dd MMM")
+        val timePart = formatTime(epochMs, mode)
+        return "$datePart, $timePart"
+    }
+
     fun getStartOfMonth(): Long {
         val cal = Calendar.getInstance()
         cal.set(Calendar.DAY_OF_MONTH, 1)

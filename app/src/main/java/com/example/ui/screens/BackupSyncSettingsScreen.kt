@@ -527,6 +527,17 @@ fun BackupSyncSettingsScreen(
                     }
                 }
 
+                // Global Lifecycle Auto-Sync Controls (App Start / App Close)
+                item {
+                    LifecycleSyncCard(
+                        autoSyncOnAppStart = config.autoSyncOnAppStart,
+                        autoSyncOnAppClose = config.autoSyncOnAppClose,
+                        onToggleAutoSyncOnStart = { viewModel.setAutoSyncOnAppStart(it) },
+                        onToggleAutoSyncOnClose = { viewModel.setAutoSyncOnAppClose(it) },
+                        languageMode = languageMode
+                    )
+                }
+
                 // -------------------------------------------------------------
                 // DRIVE 1 (PRIMARY) SUB-TAB
                 // -------------------------------------------------------------
@@ -2239,8 +2250,8 @@ private fun DriveSettingsCard(
             SettingsListTile(
                 icon = Icons.Default.Sync,
                 iconTint = MaterialTheme.colorScheme.primary,
-                title = if (languageMode == LanguageMode.BANGLA) "অটো-সিঙ্ক (স্বয়ংক্রিয়)" else "Automatic Background Sync",
-                subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা পরিবর্তনের সাথে সাথে তাৎক্ষণিক ক্লাউডে সংরক্ষণ করুন" else "Upload snapshots on every transaction & budget change",
+                title = if (languageMode == LanguageMode.BANGLA) "অটো-সিঙ্ক (স্বয়ংক্রিয়)" else "Automatic Cloud Sync",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ শুরু ও বন্ধের সময় এই ড্রাইভে ক্লাউড স্ন্যাপশট আপলোড করুন" else "Upload snapshots to this cloud drive during app lifecycle sync",
                 trailingContent = {
                     Switch(checked = autoSync, onCheckedChange = onToggleAutoSync)
                 }
@@ -2346,6 +2357,102 @@ private fun EmptyStateCard(message: String) {
             Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(10.dp))
             Text(text = message, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun LifecycleSyncCard(
+    autoSyncOnAppStart: Boolean,
+    autoSyncOnAppClose: Boolean,
+    onToggleAutoSyncOnStart: (Boolean) -> Unit,
+    onToggleAutoSyncOnClose: (Boolean) -> Unit,
+    languageMode: LanguageMode
+) {
+    OutlinedCard(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "স্বয়ংক্রিয় সিঙ্ক স্ট্র্যাটেজি" else "Lifecycle Auto-Sync Options",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "অ্যাপ শুরু বা বন্ধের সময় সিঙ্ক হবে (যেকোনো একটি অবশ্যই সক্রিয় থাকবে)"
+                        else
+                            "Sync on start and/or close. At least one must be enabled.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        lineHeight = 15.sp
+                    )
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            // 1. Auto Sync on App Start
+            SettingsListTile(
+                icon = Icons.Default.CloudQueue,
+                iconTint = MaterialTheme.colorScheme.primary,
+                title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ শুরুর সময় অটো সিঙ্ক" else "Auto sync on app start",
+                subtitle = if (languageMode == LanguageMode.BANGLA)
+                    "অ্যাপ খোলার সময় ব্যাকগ্রাউন্ডে ক্লাউড ও লোকাল স্ন্যাপশট সিঙ্ক হবে"
+                else
+                    "Automatically trigger background sync when app starts",
+                trailingContent = {
+                    Switch(
+                        checked = autoSyncOnAppStart,
+                        onCheckedChange = { onToggleAutoSyncOnStart(it) }
+                    )
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            // 2. Auto Sync on App Close
+            SettingsListTile(
+                icon = Icons.Default.CloudUpload,
+                iconTint = MaterialTheme.colorScheme.primary,
+                title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ বন্ধের সময় অটো সিঙ্ক" else "Auto sync on app close",
+                subtitle = if (languageMode == LanguageMode.BANGLA)
+                    "অ্যাপ বন্ধ বা ব্যাকগ্রাউন্ডে যাওয়ার সময় ব্যাকআপ সুরক্ষিত রাখা হবে"
+                else
+                    "Automatically trigger background sync when app closes",
+                trailingContent = {
+                    Switch(
+                        checked = autoSyncOnAppClose,
+                        onCheckedChange = { onToggleAutoSyncOnClose(it) }
+                    )
+                }
+            )
         }
     }
 }

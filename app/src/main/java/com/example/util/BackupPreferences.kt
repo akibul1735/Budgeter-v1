@@ -36,6 +36,8 @@ data class BackupSettingsConfig(
     val scheduledBackupMinute: Int = 55,
     val uploadAttachments: Boolean = true,
     val autoSyncData: Boolean = true,
+    val autoSyncOnAppStart: Boolean = true,
+    val autoSyncOnAppClose: Boolean = true,
     val wifiOnly: Boolean = false,
     val lastSyncTimestamp: Long = 0L
 ) {
@@ -85,6 +87,15 @@ class BackupPreferences(context: Context) {
         val secondaryUploadAtt = prefs.getBoolean(KEY_SECONDARY_UPLOAD_ATTACHMENTS, true)
         val secondaryFolderType = prefs.getString(KEY_SECONDARY_FOLDER_TYPE, "Visible 'Budgeter' Folder") ?: "Visible 'Budgeter' Folder"
 
+        val autoStartSaved = prefs.getBoolean(KEY_AUTO_SYNC_ON_START, true)
+        val autoCloseSaved = prefs.getBoolean(KEY_AUTO_SYNC_ON_CLOSE, true)
+        // Ensure at least one is enabled
+        val (finalAutoStart, finalAutoClose) = if (!autoStartSaved && !autoCloseSaved) {
+            Pair(true, false)
+        } else {
+            Pair(autoStartSaved, autoCloseSaved)
+        }
+
         return BackupSettingsConfig(
             cloudProvider = primaryProvider,
             isAccountLinked = primaryLinked || secondaryLinked,
@@ -127,53 +138,64 @@ class BackupPreferences(context: Context) {
             scheduledBackupMinute = prefs.getInt(KEY_SCHEDULED_MINUTE, 55),
             uploadAttachments = prefs.getBoolean(KEY_UPLOAD_ATTACHMENTS, true),
             autoSyncData = prefs.getBoolean(KEY_AUTO_SYNC, true),
+            autoSyncOnAppStart = finalAutoStart,
+            autoSyncOnAppClose = finalAutoClose,
             wifiOnly = prefs.getBoolean(KEY_WIFI_ONLY, false),
             lastSyncTimestamp = prefs.getLong(KEY_LAST_SYNC, 0L)
         )
     }
 
     fun updateConfig(newConfig: BackupSettingsConfig) {
+        // Enforce constraint: at least one of autoSyncOnAppStart or autoSyncOnAppClose must be true
+        val safeConfig = if (!newConfig.autoSyncOnAppStart && !newConfig.autoSyncOnAppClose) {
+            newConfig.copy(autoSyncOnAppStart = true)
+        } else {
+            newConfig
+        }
+
         prefs.edit()
-            .putString(KEY_CLOUD_PROVIDER, newConfig.primaryAccount.provider)
-            .putString(KEY_PRIMARY_PROVIDER, newConfig.primaryAccount.provider)
-            .putString(KEY_PRIMARY_EMAIL, newConfig.primaryAccount.email)
-            .putString(KEY_PRIMARY_NAME, newConfig.primaryAccount.displayName)
-            .putString(KEY_PRIMARY_SERVER, newConfig.primaryAccount.serverUrl)
-            .putString(KEY_PRIMARY_ACCESS_TOKEN, newConfig.primaryAccount.accessToken)
-            .putString(KEY_PRIMARY_APP_KEY, newConfig.primaryAccount.appKey)
-            .putString(KEY_PRIMARY_REFRESH_TOKEN, newConfig.primaryAccount.refreshToken)
-            .putLong(KEY_PRIMARY_EXPIRES_AT, newConfig.primaryAccount.tokenExpiresAt)
-            .putBoolean(KEY_PRIMARY_LINKED, newConfig.primaryAccount.isLinked)
-            .putLong(KEY_PRIMARY_LAST_SYNC, newConfig.primaryAccount.lastSyncTimestamp)
-            .putBoolean(KEY_PRIMARY_AUTO_SYNC, newConfig.primaryAccount.autoSync)
-            .putBoolean(KEY_PRIMARY_WIFI_ONLY, newConfig.primaryAccount.wifiOnly)
-            .putBoolean(KEY_PRIMARY_UPLOAD_ATTACHMENTS, newConfig.primaryAccount.uploadAttachments)
-            .putString(KEY_PRIMARY_FOLDER_TYPE, newConfig.primaryAccount.driveFolderType)
-            .putString(KEY_SECONDARY_PROVIDER, newConfig.secondaryAccount.provider)
-            .putString(KEY_SECONDARY_EMAIL, newConfig.secondaryAccount.email)
-            .putString(KEY_SECONDARY_NAME, newConfig.secondaryAccount.displayName)
-            .putString(KEY_SECONDARY_SERVER, newConfig.secondaryAccount.serverUrl)
-            .putString(KEY_SECONDARY_ACCESS_TOKEN, newConfig.secondaryAccount.accessToken)
-            .putString(KEY_SECONDARY_APP_KEY, newConfig.secondaryAccount.appKey)
-            .putString(KEY_SECONDARY_REFRESH_TOKEN, newConfig.secondaryAccount.refreshToken)
-            .putLong(KEY_SECONDARY_EXPIRES_AT, newConfig.secondaryAccount.tokenExpiresAt)
-            .putBoolean(KEY_SECONDARY_LINKED, newConfig.secondaryAccount.isLinked)
-            .putLong(KEY_SECONDARY_LAST_SYNC, newConfig.secondaryAccount.lastSyncTimestamp)
-            .putBoolean(KEY_SECONDARY_AUTO_SYNC, newConfig.secondaryAccount.autoSync)
-            .putBoolean(KEY_SECONDARY_WIFI_ONLY, newConfig.secondaryAccount.wifiOnly)
-            .putBoolean(KEY_SECONDARY_UPLOAD_ATTACHMENTS, newConfig.secondaryAccount.uploadAttachments)
-            .putString(KEY_SECONDARY_FOLDER_TYPE, newConfig.secondaryAccount.driveFolderType)
-            .putBoolean(KEY_DUAL_SYNC_ENABLED, newConfig.isDualSyncEnabled)
-            .putString(KEY_LOCAL_DIR, newConfig.localBackupDirectory)
-            .putBoolean(KEY_AUTO_PHONE_BACKUP, newConfig.isAutoPhoneBackupEnabled)
-            .putInt(KEY_SCHEDULED_HOUR, newConfig.scheduledBackupHour)
-            .putInt(KEY_SCHEDULED_MINUTE, newConfig.scheduledBackupMinute)
-            .putBoolean(KEY_UPLOAD_ATTACHMENTS, newConfig.uploadAttachments)
-            .putBoolean(KEY_AUTO_SYNC, newConfig.autoSyncData)
-            .putBoolean(KEY_WIFI_ONLY, newConfig.wifiOnly)
-            .putLong(KEY_LAST_SYNC, newConfig.lastSyncTimestamp)
+            .putString(KEY_CLOUD_PROVIDER, safeConfig.primaryAccount.provider)
+            .putString(KEY_PRIMARY_PROVIDER, safeConfig.primaryAccount.provider)
+            .putString(KEY_PRIMARY_EMAIL, safeConfig.primaryAccount.email)
+            .putString(KEY_PRIMARY_NAME, safeConfig.primaryAccount.displayName)
+            .putString(KEY_PRIMARY_SERVER, safeConfig.primaryAccount.serverUrl)
+            .putString(KEY_PRIMARY_ACCESS_TOKEN, safeConfig.primaryAccount.accessToken)
+            .putString(KEY_PRIMARY_APP_KEY, safeConfig.primaryAccount.appKey)
+            .putString(KEY_PRIMARY_REFRESH_TOKEN, safeConfig.primaryAccount.refreshToken)
+            .putLong(KEY_PRIMARY_EXPIRES_AT, safeConfig.primaryAccount.tokenExpiresAt)
+            .putBoolean(KEY_PRIMARY_LINKED, safeConfig.primaryAccount.isLinked)
+            .putLong(KEY_PRIMARY_LAST_SYNC, safeConfig.primaryAccount.lastSyncTimestamp)
+            .putBoolean(KEY_PRIMARY_AUTO_SYNC, safeConfig.primaryAccount.autoSync)
+            .putBoolean(KEY_PRIMARY_WIFI_ONLY, safeConfig.primaryAccount.wifiOnly)
+            .putBoolean(KEY_PRIMARY_UPLOAD_ATTACHMENTS, safeConfig.primaryAccount.uploadAttachments)
+            .putString(KEY_PRIMARY_FOLDER_TYPE, safeConfig.primaryAccount.driveFolderType)
+            .putString(KEY_SECONDARY_PROVIDER, safeConfig.secondaryAccount.provider)
+            .putString(KEY_SECONDARY_EMAIL, safeConfig.secondaryAccount.email)
+            .putString(KEY_SECONDARY_NAME, safeConfig.secondaryAccount.displayName)
+            .putString(KEY_SECONDARY_SERVER, safeConfig.secondaryAccount.serverUrl)
+            .putString(KEY_SECONDARY_ACCESS_TOKEN, safeConfig.secondaryAccount.accessToken)
+            .putString(KEY_SECONDARY_APP_KEY, safeConfig.secondaryAccount.appKey)
+            .putString(KEY_SECONDARY_REFRESH_TOKEN, safeConfig.secondaryAccount.refreshToken)
+            .putLong(KEY_SECONDARY_EXPIRES_AT, safeConfig.secondaryAccount.tokenExpiresAt)
+            .putBoolean(KEY_SECONDARY_LINKED, safeConfig.secondaryAccount.isLinked)
+            .putLong(KEY_SECONDARY_LAST_SYNC, safeConfig.secondaryAccount.lastSyncTimestamp)
+            .putBoolean(KEY_SECONDARY_AUTO_SYNC, safeConfig.secondaryAccount.autoSync)
+            .putBoolean(KEY_SECONDARY_WIFI_ONLY, safeConfig.secondaryAccount.wifiOnly)
+            .putBoolean(KEY_SECONDARY_UPLOAD_ATTACHMENTS, safeConfig.secondaryAccount.uploadAttachments)
+            .putString(KEY_SECONDARY_FOLDER_TYPE, safeConfig.secondaryAccount.driveFolderType)
+            .putBoolean(KEY_DUAL_SYNC_ENABLED, safeConfig.isDualSyncEnabled)
+            .putString(KEY_LOCAL_DIR, safeConfig.localBackupDirectory)
+            .putBoolean(KEY_AUTO_PHONE_BACKUP, safeConfig.isAutoPhoneBackupEnabled)
+            .putInt(KEY_SCHEDULED_HOUR, safeConfig.scheduledBackupHour)
+            .putInt(KEY_SCHEDULED_MINUTE, safeConfig.scheduledBackupMinute)
+            .putBoolean(KEY_UPLOAD_ATTACHMENTS, safeConfig.uploadAttachments)
+            .putBoolean(KEY_AUTO_SYNC, safeConfig.autoSyncData)
+            .putBoolean(KEY_AUTO_SYNC_ON_START, safeConfig.autoSyncOnAppStart)
+            .putBoolean(KEY_AUTO_SYNC_ON_CLOSE, safeConfig.autoSyncOnAppClose)
+            .putBoolean(KEY_WIFI_ONLY, safeConfig.wifiOnly)
+            .putLong(KEY_LAST_SYNC, safeConfig.lastSyncTimestamp)
             .apply()
-        _config.value = newConfig
+        _config.value = safeConfig
     }
 
     fun setPrimaryProvider(provider: String) {
@@ -262,6 +284,24 @@ class BackupPreferences(context: Context) {
 
     fun setAutoSyncData(enabled: Boolean) {
         updateConfig(_config.value.copy(autoSyncData = enabled))
+    }
+
+    fun setAutoSyncOnAppStart(enabled: Boolean) {
+        var onStart = enabled
+        var onClose = _config.value.autoSyncOnAppClose
+        if (!onStart && !onClose) {
+            onClose = true // Enforce at least one is enabled
+        }
+        updateConfig(_config.value.copy(autoSyncOnAppStart = onStart, autoSyncOnAppClose = onClose))
+    }
+
+    fun setAutoSyncOnAppClose(enabled: Boolean) {
+        var onClose = enabled
+        var onStart = _config.value.autoSyncOnAppStart
+        if (!onClose && !onStart) {
+            onStart = true // Enforce at least one is enabled
+        }
+        updateConfig(_config.value.copy(autoSyncOnAppStart = onStart, autoSyncOnAppClose = onClose))
     }
 
     fun setWifiOnly(enabled: Boolean) {
@@ -409,6 +449,8 @@ class BackupPreferences(context: Context) {
         private const val KEY_SCHEDULED_MINUTE = "scheduled_minute"
         private const val KEY_UPLOAD_ATTACHMENTS = "upload_attachments"
         private const val KEY_AUTO_SYNC = "auto_sync"
+        private const val KEY_AUTO_SYNC_ON_START = "auto_sync_on_start"
+        private const val KEY_AUTO_SYNC_ON_CLOSE = "auto_sync_on_close"
         private const val KEY_WIFI_ONLY = "wifi_only"
         private const val KEY_LAST_SYNC = "last_sync_timestamp"
 

@@ -1352,16 +1352,7 @@ private fun DrawerContent(
     val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
 
     val lastSyncFormatted = remember(backupConfig.lastSyncTimestamp, languageMode) {
-        if (backupConfig.lastSyncTimestamp == 0L) {
-            if (languageMode == LanguageMode.BANGLA) "কখনও নয়" else "Never"
-        } else {
-            val diff = System.currentTimeMillis() - backupConfig.lastSyncTimestamp
-            if (diff < 60_000L) {
-                if (languageMode == LanguageMode.BANGLA) "এইমাত্র" else "Just now"
-            } else {
-                com.example.util.DateUtils.formatDate(backupConfig.lastSyncTimestamp, languageMode)
-            }
-        }
+        com.example.util.DateUtils.formatSyncTimestamp(backupConfig.lastSyncTimestamp, languageMode)
     }
 
     Column(
