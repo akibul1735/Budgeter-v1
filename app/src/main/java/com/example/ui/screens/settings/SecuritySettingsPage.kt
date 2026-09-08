@@ -110,6 +110,7 @@ fun SecuritySettingsPage(
     onSetRequireAuthForMultiSelect: (Boolean) -> Unit,
     onSetRequireAuthForTrashClear: (Boolean) -> Unit,
     onSetRequireAuthForBackupRestore: (Boolean) -> Unit,
+    onSetRequireAuthForBackupDeletion: (Boolean) -> Unit = {},
     onSetLockTimeoutSeconds: (Int) -> Unit,
     onSetSecurityRecovery: (String, String) -> Unit,
     onVerifySecurityAnswer: (String) -> Boolean,
@@ -729,6 +730,28 @@ fun SecuritySettingsPage(
                         Switch(
                             checked = securityConfig.requireAuthForBackupRestore,
                             onCheckedChange = { onSetRequireAuthForBackupRestore(it) },
+                            colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        )
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(if (isBangla) "ব্যাকআপ ফাইল ডিলিট" else "Delete Backup Files", fontSize = 12.sp)
+                            Text(
+                                text = if (isBangla) "লোকাল বা ড্রাইভ ব্যাকআপ মুছতে পিন/ফিঙ্গারপ্রিন্ট যাচাই" else "Require PIN/fingerprint to delete local or Drive backups",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Switch(
+                            checked = securityConfig.requireAuthForBackupDeletion,
+                            onCheckedChange = { onSetRequireAuthForBackupDeletion(it) },
                             colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
                         )
                     }

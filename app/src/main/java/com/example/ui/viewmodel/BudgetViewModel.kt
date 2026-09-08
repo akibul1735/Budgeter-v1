@@ -44,6 +44,7 @@ import com.example.util.CsvExportConfig
 import com.example.util.CsvImportPreview
 import com.example.util.CsvImportResult
 import com.example.util.CsvManager
+import com.example.util.ParsedCsvRow
 import com.example.util.CurrencyConfig
 import com.example.util.CurrencyDisplayMode
 import com.example.util.CurrencyItem
@@ -1220,7 +1221,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun confirmCsvImport(
         skipDuplicates: Boolean,
         autoCreateEntities: Boolean,
-        customHeaderMap: Map<String, Int>? = null
+        customHeaderMap: Map<String, Int>? = null,
+        repairedRows: List<ParsedCsvRow> = emptyList(),
+        autoRepairUnsupported: Boolean = false
     ) {
         val uri = _pendingCsvUri.value ?: return
         viewModelScope.launch {
@@ -1234,7 +1237,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 transactionDao = activeRepo.transactionDao,
                 skipDuplicates = skipDuplicates,
                 autoCreateEntities = autoCreateEntities,
-                customHeaderMap = customHeaderMap
+                customHeaderMap = customHeaderMap,
+                repairedRows = repairedRows,
+                autoRepairUnsupported = autoRepairUnsupported
             )
             _isImportingCsv.value = false
             _csvImportPreview.value = null
@@ -1356,6 +1361,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setRequireAuthForBackupRestore(enabled: Boolean) {
         securityPrefs.setRequireAuthForBackupRestore(enabled)
+    }
+
+    fun setRequireAuthForBackupDeletion(enabled: Boolean) {
+        securityPrefs.setRequireAuthForBackupDeletion(enabled)
     }
 
     fun setLockTimeoutSeconds(seconds: Int) {

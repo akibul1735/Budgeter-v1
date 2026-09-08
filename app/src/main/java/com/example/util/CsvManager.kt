@@ -78,7 +78,8 @@ data class UnsupportedRow(
     val lineNumber: Int,
     val rawTokens: List<String>,
     val reason: String,
-    val suggestion: String
+    val suggestion: String,
+    val candidateRow: ParsedCsvRow? = null
 )
 
 data class ParsedCsvRow(
@@ -275,12 +276,14 @@ object CsvManager {
                     val rawTokens = tokens.take(8)
                     val reason = row.errorMessage ?: "Validation failed"
                     val suggestion = row.suggestion ?: "Verify that Date and Amount columns are mapped correctly."
+                    val candidate = buildCandidateRow(tokens, effectiveHeaderMap, lineNo, row)
                     unsupportedRows.add(
                         UnsupportedRow(
                             lineNumber = lineNo,
                             rawTokens = rawTokens,
                             reason = reason,
-                            suggestion = suggestion
+                            suggestion = suggestion,
+                            candidateRow = candidate
                         )
                     )
                     return@forEachIndexed
@@ -356,7 +359,9 @@ object CsvManager {
         transactionDao: TransactionDao,
         skipDuplicates: Boolean = true,
         autoCreateEntities: Boolean = true,
-        customHeaderMap: Map<String, Int>? = null
+        customHeaderMap: Map<String, Int>? = null,
+        repairedRows: List<ParsedCsvRow> = emptyList(),
+        autoRepairUnsupported: Boolean = false
     ): Result<CsvImportResult> = withContext(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
@@ -452,14 +457,27 @@ object CsvManager {
                     continue
                 }
 
-                val row = parseRowFromTokens(tokens, headerMap, lineNo)
+                val repairedMatch = repairedRows.find { it.rawLineNumber == lineNo }
+                val row = if (repairedMatch != null && repairedMatch.isValid) {
+                    repairedMatch
+                } else {
+                    val parsed = parseRowFromTokens(tokens, headerMap, lineNo)
+                    if ((!parsed.isValid || parsed.amount <= 0.0) && autoRepairUnsupported) {
+                        buildCandidateRow(tokens, headerMap, lineNo, parsed)
+                    } else {
+                        parsed
+                    }
+                }
+
                 if (!row.isValid || row.amount <= 0.0) {
+                    val rawTokens = tokens.take(8)
                     unsupportedList.add(
                         UnsupportedRow(
                             lineNumber = lineNo,
-                            rawTokens = tokens.take(8),
+                            rawTokens = rawTokens,
                             reason = row.errorMessage ?: "Invalid row data",
-                            suggestion = row.suggestion ?: "Check date/amount columns in Column Mapping."
+                            suggestion = row.suggestion ?: "Check date/amount columns in Column Mapping.",
+                            candidateRow = buildCandidateRow(tokens, headerMap, lineNo, row)
                         )
                     )
                     continue
@@ -1116,17 +1134,84 @@ object CsvManager {
         )
     }
 
+    internal fun scanTokensForAnyAmount(tokens: List<String>): Double {
+        for (token in tokens) {
+            val amt = parseAmount(token)
+            if (amt > 0.0) return amt
+        }
+        return 0.0
+    }
+
+    internal fun buildCandidateRow(
+        tokens: List<String>,
+        headerMap: Map<String, Int>,
+        lineNo: Int,
+        baseRow: ParsedCsvRow
+    ): ParsedCsvRow {
+        val fallbackDate = if (baseRow.dateEpochMs > 0L) baseRow.dateEpochMs else System.currentTimeMillis()
+        val scannedAmt = if (baseRow.amount > 0.0) baseRow.amount else scanTokensForAnyAmount(tokens).let { if (it > 0.0) it else 100.0 }
+        val dateFormatted = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(fallbackDate))
+        val timeFormatted = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(fallbackDate))
+
+        val guessedName = if (baseRow.name.isNotBlank() && baseRow.name != "Transaction") {
+            baseRow.name
+        } else {
+            tokens.firstOrNull { it.isNotBlank() && parseAmount(it) == 0.0 && it.length in 2..50 } ?: "Transaction (Repaired)"
+        }
+
+        return baseRow.copy(
+            dateEpochMs = fallbackDate,
+            dateFormatted = dateFormatted,
+            timeFormatted = timeFormatted,
+            amount = scannedAmt,
+            rawAmount = String.format(Locale.US, "%.2f", scannedAmt),
+            name = guessedName,
+            category = baseRow.category.ifBlank { "General Expense" },
+            account = baseRow.account.ifBlank { "Cash" },
+            isValid = true,
+            errorMessage = null,
+            suggestion = "Auto-repaired using fallback values."
+        )
+    }
+
+    private fun detectDelimiter(line: String): Char {
+        var commas = 0
+        var semicolons = 0
+        var tabs = 0
+        var inQuotes = false
+
+        for (ch in line) {
+            if (ch == '\"') inQuotes = !inQuotes
+            else if (!inQuotes) {
+                when (ch) {
+                    ',' -> commas++
+                    ';' -> semicolons++
+                    '\t' -> tabs++
+                }
+            }
+        }
+
+        return when {
+            semicolons > commas && semicolons > tabs -> ';'
+            tabs > commas && tabs > semicolons -> '\t'
+            else -> ','
+        }
+    }
+
     internal fun parseCsvLine(line: String): List<String> {
         val tokens = mutableListOf<String>()
         val sb = StringBuilder()
         var inQuotes = false
 
         val cleanLine = if (line.startsWith("\uFEFF")) line.substring(1) else line
+        if (cleanLine.isBlank()) return emptyList()
+
+        val delimiter = detectDelimiter(cleanLine)
 
         for (ch in cleanLine) {
             when {
                 ch == '\"' -> inQuotes = !inQuotes
-                (ch == ',' || ch == '\t') && !inQuotes -> {
+                ch == delimiter && !inQuotes -> {
                     tokens.add(sb.toString().trim().replace("\"", ""))
                     sb.clear()
                 }

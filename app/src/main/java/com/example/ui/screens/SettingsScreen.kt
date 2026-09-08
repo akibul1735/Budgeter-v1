@@ -228,6 +228,7 @@ fun SettingsScreen(
                 onSetRequireAuthForMultiSelect = { viewModel.setRequireAuthForMultiSelect(it) },
                 onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
                 onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
+                onSetRequireAuthForBackupDeletion = { viewModel.setRequireAuthForBackupDeletion(it) },
                 onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
                 onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) },
                 onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) },

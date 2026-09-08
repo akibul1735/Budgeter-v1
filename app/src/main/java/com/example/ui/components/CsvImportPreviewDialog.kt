@@ -28,11 +28,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
@@ -50,11 +53,14 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -87,6 +93,8 @@ import com.example.util.ColumnMapping
 import com.example.util.CsvImportPreview
 import com.example.util.ParsedCsvRow
 import com.example.util.UnsupportedRow
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -95,13 +103,24 @@ fun CsvImportPreviewDialog(
     preview: CsvImportPreview,
     languageMode: LanguageMode,
     isImporting: Boolean,
-    onConfirmImport: (skipDuplicates: Boolean, autoCreateEntities: Boolean, customHeaderMap: Map<String, Int>?) -> Unit,
+    onConfirmImport: (
+        skipDuplicates: Boolean,
+        autoCreateEntities: Boolean,
+        customHeaderMap: Map<String, Int>?,
+        repairedRows: List<ParsedCsvRow>,
+        autoRepairUnsupported: Boolean
+    ) -> Unit,
     onRemapRequested: ((customHeaderMap: Map<String, Int>) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     var skipDuplicates by remember { mutableStateOf(true) }
     var autoCreateEntities by remember { mutableStateOf(true) }
+    var autoRepairUnsupported by remember { mutableStateOf(false) }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+
+    // Map of line number to repaired candidate row
+    val repairedRowsMap = remember { mutableStateMapOf<Int, ParsedCsvRow>() }
+    var editingUnsupportedRow by remember { mutableStateOf<UnsupportedRow?>(null) }
 
     // Header mapping state (appFieldKey -> columnIndex)
     val currentHeaderMap = remember(preview.detectedHeaderMap) {
@@ -110,11 +129,14 @@ fun CsvImportPreviewDialog(
         }
     }
 
-    val effectiveImportCount = if (skipDuplicates) {
+    val baseCount = if (skipDuplicates) {
         (preview.validRows - preview.duplicateRows).coerceAtLeast(0)
     } else {
         preview.validRows
     }
+    val repairedCount = repairedRowsMap.size
+    val autoRepairedCount = if (autoRepairUnsupported) (preview.unsupportedRowsCount - repairedCount).coerceAtLeast(0) else 0
+    val effectiveImportCount = baseCount + repairedCount + autoRepairedCount
 
     val tabs = listOf(
         if (languageMode == LanguageMode.BANGLA) "ওভারভিউ" else "Overview",
@@ -232,6 +254,9 @@ fun CsvImportPreviewDialog(
                             onSkipDuplicatesChanged = { skipDuplicates = it },
                             autoCreateEntities = autoCreateEntities,
                             onAutoCreateEntitiesChanged = { autoCreateEntities = it },
+                            autoRepairUnsupported = autoRepairUnsupported,
+                            onAutoRepairUnsupportedChanged = { autoRepairUnsupported = it },
+                            repairedRowsCount = repairedRowsMap.size,
                             onGoToMapping = { selectedTabIndex = 1 },
                             onGoToUnsupported = { selectedTabIndex = 3 }
                         )
@@ -255,7 +280,38 @@ fun CsvImportPreviewDialog(
                         3 -> UnsupportedRowsTabContent(
                             preview = preview,
                             languageMode = languageMode,
-                            onGoToMapping = { selectedTabIndex = 1 }
+                            repairedRowsMap = repairedRowsMap,
+                            onGoToMapping = { selectedTabIndex = 1 },
+                            onQuickFixClicked = { row -> editingUnsupportedRow = row },
+                            onAutoRepairAll = {
+                                preview.unsupportedRows.forEach { item ->
+                                    val candidate = item.candidateRow ?: ParsedCsvRow(
+                                        rawLineNumber = item.lineNumber,
+                                        type = TransactionType.EXPENSE,
+                                        dateEpochMs = System.currentTimeMillis(),
+                                        dateFormatted = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()),
+                                        timeFormatted = "12:00:00",
+                                        name = "Transaction #${item.lineNumber}",
+                                        amount = 100.0,
+                                        rawAmount = "100.00",
+                                        currency = "BDT",
+                                        exchangeRate = 1.0,
+                                        categoryGroup = "General",
+                                        category = "General Expense",
+                                        accountGroup = "Cash",
+                                        account = "Cash",
+                                        notes = "Auto-repaired from unsupported row",
+                                        labels = "",
+                                        status = "CLEARED",
+                                        isValid = true
+                                    )
+                                    repairedRowsMap[item.lineNumber] = candidate
+                                }
+                                autoRepairUnsupported = true
+                            },
+                            onRemoveRepairedRow = { lineNo ->
+                                repairedRowsMap.remove(lineNo)
+                            }
                         )
                     }
                 }
@@ -279,7 +335,13 @@ fun CsvImportPreviewDialog(
 
                     Button(
                         onClick = {
-                            onConfirmImport(skipDuplicates, autoCreateEntities, currentHeaderMap.toMap())
+                            onConfirmImport(
+                                skipDuplicates,
+                                autoCreateEntities,
+                                currentHeaderMap.toMap(),
+                                repairedRowsMap.values.toList(),
+                                autoRepairUnsupported
+                            )
                         },
                         enabled = !isImporting && effectiveImportCount > 0,
                         colors = ButtonDefaults.buttonColors(containerColor = SolidIncome),
@@ -307,6 +369,20 @@ fun CsvImportPreviewDialog(
             }
         }
     }
+
+    // Quick-Fix Row Dialog for editing unsupported rows
+    editingUnsupportedRow?.let { item ->
+        QuickFixRowDialog(
+            unsupportedRow = item,
+            existingRepaired = repairedRowsMap[item.lineNumber],
+            languageMode = languageMode,
+            onSaveFix = { fixedRow ->
+                repairedRowsMap[item.lineNumber] = fixedRow
+                editingUnsupportedRow = null
+            },
+            onDismiss = { editingUnsupportedRow = null }
+        )
+    }
 }
 
 // -------------------------------------------------------------
@@ -321,6 +397,9 @@ private fun OverviewTabContent(
     onSkipDuplicatesChanged: (Boolean) -> Unit,
     autoCreateEntities: Boolean,
     onAutoCreateEntitiesChanged: (Boolean) -> Unit,
+    autoRepairUnsupported: Boolean,
+    onAutoRepairUnsupportedChanged: (Boolean) -> Unit,
+    repairedRowsCount: Int,
     onGoToMapping: () -> Unit,
     onGoToUnsupported: () -> Unit
 ) {
@@ -361,12 +440,12 @@ private fun OverviewTabContent(
             }
         }
 
-        // Unsupported Rows Alert Card (if any)
+        // Unsupported Rows Alert & Workaround Action Card
         if (preview.unsupportedRowsCount > 0) {
             item {
                 Card(
                     shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = SolidExpense.copy(alpha = 0.1f)),
+                    colors = CardDefaults.cardColors(containerColor = if (repairedRowsCount > 0 || autoRepairUnsupported) SolidIncome.copy(alpha = 0.12f) else SolidExpense.copy(alpha = 0.1f)),
                     modifier = Modifier.fillMaxWidth().clickable { onGoToUnsupported() }
                 ) {
                     Row(
@@ -375,29 +454,40 @@ private fun OverviewTabContent(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(18.dp))
+                            Icon(
+                                if (repairedRowsCount > 0 || autoRepairUnsupported) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = if (repairedRowsCount > 0 || autoRepairUnsupported) SolidIncome else SolidExpense,
+                                modifier = Modifier.size(18.dp)
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA)
-                                        "${preview.unsupportedRowsCount} টি সারি ফরম্যাটের কারণে ইম্পোর্ট হবে না"
-                                    else
-                                        "${preview.unsupportedRowsCount} rows cannot be imported",
+                                    text = if (repairedRowsCount > 0 || autoRepairUnsupported) {
+                                        if (languageMode == LanguageMode.BANGLA) "$repairedRowsCount টি সমস্যাযুক্ত সারি মেরামত করা হয়েছে" else "$repairedRowsCount unsupported rows repaired & supported"
+                                    } else {
+                                        if (languageMode == LanguageMode.BANGLA) "${preview.unsupportedRowsCount} টি সারিতে ত্রুটি রয়েছে (সমাধান অপশন উপলব্ধ)" else "${preview.unsupportedRowsCount} rows have errors (Workaround available)"
+                                    },
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = SolidExpense
+                                    color = if (repairedRowsCount > 0 || autoRepairUnsupported) SolidIncome else SolidExpense
                                 )
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA)
-                                        "কারণ ও সমাধানের পরামর্শ দেখতে ক্লিক করুন"
+                                        "স্বয়ংক্রিয় সমাধান বা কাস্টম মান দিতে এখানে ট্যাপ করুন"
                                     else
-                                        "Tap to view specific reasons & suggestions",
+                                        "Tap to auto-repair with smart fallbacks or quick-fix rows",
                                     fontSize = 10.sp,
-                                    color = SolidExpense.copy(alpha = 0.8f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(14.dp))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = if (repairedRowsCount > 0 || autoRepairUnsupported) SolidIncome else SolidExpense,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
             }
@@ -554,7 +644,7 @@ private fun OverviewTabContent(
             }
         }
 
-        // Import Settings Checkboxes
+        // Import Settings Checkboxes & Workaround Option
         item {
             Card(
                 shape = RoundedCornerShape(12.dp),
@@ -599,6 +689,30 @@ private fun OverviewTabContent(
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
+                        }
+                    }
+
+                    if (preview.unsupportedRowsCount > 0) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = autoRepairUnsupported, onCheckedChange = onAutoRepairUnsupportedChanged)
+                            Column(modifier = Modifier.padding(start = 4.dp)) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "অসমর্থিত সারি স্বয়ংক্রিয় মেরামত ও ইম্পোর্ট করুন" else "Auto-repair & import unsupported rows",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "অনুপস্থিত তারিখ বা পরিমাণের ক্ষেত্রে ডিফল্ট মান ব্যবহার করে সম্পূর্ণ ফাইল সাপোর্ট করবে" else "Applies smart fallback dates/amounts so no record is lost",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
                         }
                     }
                 }
@@ -810,13 +924,17 @@ private fun SampleRowsTabContent(
 }
 
 // -------------------------------------------------------------
-// TAB 3: UNSUPPORTED / FAILED ROWS INSPECTOR & SUGGESTIONS
+// TAB 3: UNSUPPORTED / FAILED ROWS INSPECTOR & SUGGESTIONS & WORKAROUNDS
 // -------------------------------------------------------------
 @Composable
 private fun UnsupportedRowsTabContent(
     preview: CsvImportPreview,
     languageMode: LanguageMode,
-    onGoToMapping: () -> Unit
+    repairedRowsMap: Map<Int, ParsedCsvRow>,
+    onGoToMapping: () -> Unit,
+    onQuickFixClicked: (UnsupportedRow) -> Unit,
+    onAutoRepairAll: () -> Unit,
+    onRemoveRepairedRow: (Int) -> Unit
 ) {
     if (preview.unsupportedRows.isEmpty()) {
         Box(
@@ -847,47 +965,98 @@ private fun UnsupportedRowsTabContent(
             item {
                 Card(
                     shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = SolidExpense.copy(alpha = 0.08f)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (repairedRowsMap.size == preview.unsupportedRowsCount)
+                            SolidIncome.copy(alpha = 0.08f)
+                        else
+                            SolidExpense.copy(alpha = 0.08f)
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA)
-                                    "${preview.unsupportedRowsCount} টি অকার্যকর সারি চিহ্নিত হয়েছে"
-                                else
-                                    "${preview.unsupportedRowsCount} unsupported rows detected",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidExpense
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (repairedRowsMap.isNotEmpty()) Icons.Default.AutoFixHigh else Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = if (repairedRowsMap.isNotEmpty()) SolidIncome else SolidExpense,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA)
+                                        "${preview.unsupportedRowsCount} টি অকার্যকর সারি (${repairedRowsMap.size} টি মেরামতকৃত)"
+                                    else
+                                        "${preview.unsupportedRowsCount} unsupported rows (${repairedRowsMap.size} repaired)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (repairedRowsMap.isNotEmpty()) SolidIncome else SolidExpense
+                                )
+                            }
                         }
+
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA)
-                                "নিচের সারিগুলো তারিখ/পরিমাণ অনুপস্থিতি অথবা কলাম ম্যাপিং অসঙ্গতির কারণে বাদ পড়েছে। কলাম ম্যাপিং ঠিক করতে ট্যাবে ক্লিক করুন।"
+                                "অনুপস্থিত বা অমিল ফিল্ডের কারণে এই সারিগুলো সরাসরি পার্স হয়নি। আপনি প্রতিটি সারির জন্য কুইক-ফিক্স ওয়ার্কঅ্যারাউন্ড প্রয়োগ করতে পারেন অথবা স্বয়ংক্রিয়ভাবে মেরামত করতে পারেন।"
                             else
-                                "These rows failed validation (e.g. missing amount or unrecognized date). You can re-map columns to resolve them.",
+                                "These rows failed strict parsing. You can manually quick-fix any row or auto-repair all of them with smart fallbacks to support importing them.",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        OutlinedButton(
-                            onClick = onGoToMapping,
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                            modifier = Modifier.height(26.dp)
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "কলাম ম্যাপিং পরিবর্তন করুন" else "Fix Column Mapping", fontSize = 10.sp)
+                            Button(
+                                onClick = onAutoRepairAll,
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp).weight(1f)
+                            ) {
+                                Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সবগুলো মেরামত করুন" else "Auto-Repair All",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = onGoToMapping,
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp).weight(1f)
+                            ) {
+                                Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "কলাম ম্যাপিং" else "Column Mapping",
+                                    fontSize = 10.sp
+                                )
+                            }
                         }
                     }
                 }
             }
 
             items(preview.unsupportedRows) { item ->
-                UnsupportedRowCard(item = item, languageMode = languageMode)
+                UnsupportedRowCard(
+                    item = item,
+                    repairedRow = repairedRowsMap[item.lineNumber],
+                    languageMode = languageMode,
+                    onQuickFix = { onQuickFixClicked(item) },
+                    onRevertRepair = { onRemoveRepairedRow(item.lineNumber) }
+                )
             }
         }
     }
@@ -896,12 +1065,25 @@ private fun UnsupportedRowsTabContent(
 @Composable
 private fun UnsupportedRowCard(
     item: UnsupportedRow,
-    languageMode: LanguageMode
+    repairedRow: ParsedCsvRow?,
+    languageMode: LanguageMode,
+    onQuickFix: () -> Unit,
+    onRevertRepair: () -> Unit
 ) {
+    val isRepaired = repairedRow != null
+
     Card(
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, SolidExpense.copy(alpha = 0.25f)),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isRepaired)
+                SolidIncome.copy(alpha = 0.08f)
+            else
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isRepaired) SolidIncome.copy(alpha = 0.4f) else SolidExpense.copy(alpha = 0.25f)
+        ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
@@ -910,24 +1092,42 @@ private fun UnsupportedRowCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = SolidExpense.copy(alpha = 0.15f)
-                ) {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "সারি #${item.lineNumber}" else "Row #${item.lineNumber}",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SolidExpense,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (isRepaired) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সারি #${item.lineNumber}" else "Row #${item.lineNumber}",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isRepaired) SolidIncome else SolidExpense,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+
+                    if (isRepaired) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = SolidIncome.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "✓ মেরামতকৃত" else "✓ Repaired",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidIncome,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
 
                 Text(
                     text = item.reason,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = SolidExpense,
+                    color = if (isRepaired) SolidIncome else SolidExpense,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -956,6 +1156,36 @@ private fun UnsupportedRowCard(
                 }
             }
 
+            // If repaired, show the repaired transaction values
+            if (repairedRow != null) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = SolidIncome.copy(alpha = 0.1f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(6.dp).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "${repairedRow.name} • ${repairedRow.type.name} • ৳${String.format(Locale.US, "%.2f", repairedRow.amount)}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidIncome
+                            )
+                            Text(
+                                text = "${repairedRow.dateFormatted} | ${repairedRow.category} | ${repairedRow.account}",
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
+            }
+
             if (item.rawTokens.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -965,6 +1195,291 @@ private fun UnsupportedRowCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action Workaround Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isRepaired) {
+                    OutlinedButton(
+                        onClick = onRevertRepair,
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(26.dp)
+                    ) {
+                        Text(if (languageMode == LanguageMode.BANGLA) "পূর্বাবস্থায় ফেরান" else "Revert", fontSize = 10.sp)
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                Button(
+                    onClick = onQuickFix,
+                    shape = RoundedCornerShape(6.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isRepaired) MaterialTheme.colorScheme.secondary else SolidPrimary
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    modifier = Modifier.height(26.dp)
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(12.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isRepaired) {
+                            if (languageMode == LanguageMode.BANGLA) "সম্পাদনা করুন" else "Edit Fix"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "ওয়ার্কঅ্যারাউন্ড / ফিক্স" else "Quick Fix Workaround"
+                        },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// QUICK-FIX WORKAROUND DIALOG FOR UNSUPPORTED ROWS
+// -------------------------------------------------------------
+@Composable
+private fun QuickFixRowDialog(
+    unsupportedRow: UnsupportedRow,
+    existingRepaired: ParsedCsvRow?,
+    languageMode: LanguageMode,
+    onSaveFix: (ParsedCsvRow) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val initial = existingRepaired ?: unsupportedRow.candidateRow ?: ParsedCsvRow(
+        rawLineNumber = unsupportedRow.lineNumber,
+        type = TransactionType.EXPENSE,
+        dateEpochMs = System.currentTimeMillis(),
+        dateFormatted = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()),
+        timeFormatted = "12:00:00",
+        name = "Transaction #${unsupportedRow.lineNumber}",
+        amount = 100.0,
+        rawAmount = "100.00",
+        currency = "BDT",
+        exchangeRate = 1.0,
+        categoryGroup = "General",
+        category = "General Expense",
+        accountGroup = "Cash",
+        account = "Cash",
+        notes = "Fixed from unsupported row",
+        labels = "",
+        status = "CLEARED",
+        isValid = true
+    )
+
+    var selectedType by remember { mutableStateOf(initial.type) }
+    var amountText by remember { mutableStateOf(initial.amount.toString()) }
+    var nameText by remember { mutableStateOf(initial.name) }
+    var dateText by remember { mutableStateOf(initial.dateFormatted) }
+    var categoryText by remember { mutableStateOf(initial.category) }
+    var accountText by remember { mutableStateOf(initial.account) }
+    var notesText by remember { mutableStateOf(initial.notes) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .padding(vertical = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সারি #${unsupportedRow.lineNumber} মেরামত করুন" else "Fix Row #${unsupportedRow.lineNumber}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = SolidExpense.copy(alpha = 0.08f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "${unsupportedRow.reason} • ${unsupportedRow.suggestion}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Type selector
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            TransactionType.values().forEach { type ->
+                                FilterChip(
+                                    selected = selectedType == type,
+                                    onClick = { selectedType = type },
+                                    label = { Text(type.name, fontSize = 11.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = when (type) {
+                                            TransactionType.EXPENSE -> SolidExpense.copy(alpha = 0.2f)
+                                            TransactionType.INCOME -> SolidIncome.copy(alpha = 0.2f)
+                                            TransactionType.TRANSFER -> SolidPrimary.copy(alpha = 0.2f)
+                                        }
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // Amount & Date
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = amountText,
+                                onValueChange = { amountText = it },
+                                label = { Text(if (languageMode == LanguageMode.BANGLA) "পরিমাণ" else "Amount", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = dateText,
+                                onValueChange = { dateText = it },
+                                label = { Text(if (languageMode == LanguageMode.BANGLA) "তারিখ (YYYY-MM-DD)" else "Date (YYYY-MM-DD)", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+                    }
+
+                    // Name
+                    item {
+                        OutlinedTextField(
+                            value = nameText,
+                            onValueChange = { nameText = it },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "লেনদেনের নাম / বিবরণ" else "Transaction Name / Payee", fontSize = 11.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+
+                    // Category & Account
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = categoryText,
+                                onValueChange = { categoryText = it },
+                                label = { Text(if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = accountText,
+                                onValueChange = { accountText = it },
+                                label = { Text(if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+                    }
+
+                    // Notes
+                    item {
+                        OutlinedTextField(
+                            value = notesText,
+                            onValueChange = { notesText = it },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "নোট" else "Notes", fontSize = 11.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            val parsedAmount = amountText.trim()
+                                .replace('০', '0').replace('১', '1').replace('২', '2')
+                                .replace('৩', '3').replace('৪', '4').replace('৫', '5')
+                                .replace('৬', '6').replace('৭', '7').replace('৮', '8')
+                                .replace('৯', '9')
+                                .toDoubleOrNull() ?: 100.0
+
+                            val fixedRow = initial.copy(
+                                type = selectedType,
+                                amount = parsedAmount,
+                                rawAmount = parsedAmount.toString(),
+                                name = nameText.trim().ifEmpty { "Transaction #${unsupportedRow.lineNumber}" },
+                                dateFormatted = dateText.trim().ifEmpty { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) },
+                                category = categoryText.trim().ifEmpty { "General Expense" },
+                                account = accountText.trim().ifEmpty { "Cash" },
+                                notes = notesText.trim(),
+                                isValid = true
+                            )
+                            onSaveFix(fixedRow)
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolidIncome),
+                        modifier = Modifier.weight(1.3f)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সারি সাপোর্ট করুন" else "Apply Workaround",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }

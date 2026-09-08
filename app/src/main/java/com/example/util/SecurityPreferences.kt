@@ -15,6 +15,7 @@ data class SecurityConfig(
     val requireAuthForMultiSelect: Boolean = true,
     val requireAuthForTrashClear: Boolean = true,
     val requireAuthForBackupRestore: Boolean = true,
+    val requireAuthForBackupDeletion: Boolean = true,
     val lockTimeoutSeconds: Int = 0, // 0 = Immediately, 60 = 1 min, 300 = 5 mins, 900 = 15 mins
     val securityQuestion: String = "What was the name of your first school?",
     val securityAnswerHash: String = ""
@@ -41,6 +42,7 @@ class SecurityPreferences(context: Context) {
             requireAuthForMultiSelect = prefs.getBoolean(KEY_REQUIRE_AUTH_MULTI_SELECT, true),
             requireAuthForTrashClear = prefs.getBoolean(KEY_REQUIRE_AUTH_TRASH_CLEAR, true),
             requireAuthForBackupRestore = prefs.getBoolean(KEY_REQUIRE_AUTH_BACKUP_RESTORE, true),
+            requireAuthForBackupDeletion = prefs.getBoolean(KEY_REQUIRE_AUTH_BACKUP_DELETION, true),
             lockTimeoutSeconds = prefs.getInt(KEY_LOCK_TIMEOUT_SECONDS, 0),
             securityQuestion = prefs.getString(KEY_SECURITY_QUESTION, "What is your favorite color?") ?: "What is your favorite color?",
             securityAnswerHash = prefs.getString(KEY_SECURITY_ANSWER_HASH, "") ?: ""
@@ -95,6 +97,11 @@ class SecurityPreferences(context: Context) {
         _config.value = _config.value.copy(requireAuthForBackupRestore = enabled)
     }
 
+    fun setRequireAuthForBackupDeletion(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_REQUIRE_AUTH_BACKUP_DELETION, enabled).apply()
+        _config.value = _config.value.copy(requireAuthForBackupDeletion = enabled)
+    }
+
     fun setLockTimeoutSeconds(seconds: Int) {
         prefs.edit().putInt(KEY_LOCK_TIMEOUT_SECONDS, seconds).apply()
         _config.value = _config.value.copy(lockTimeoutSeconds = seconds)
@@ -131,6 +138,7 @@ class SecurityPreferences(context: Context) {
         private const val KEY_REQUIRE_AUTH_MULTI_SELECT = "key_require_auth_multi_select"
         private const val KEY_REQUIRE_AUTH_TRASH_CLEAR = "key_require_auth_trash_clear"
         private const val KEY_REQUIRE_AUTH_BACKUP_RESTORE = "key_require_auth_backup_restore"
+        private const val KEY_REQUIRE_AUTH_BACKUP_DELETION = "key_require_auth_backup_deletion"
         private const val KEY_LOCK_TIMEOUT_SECONDS = "key_lock_timeout_seconds"
         private const val KEY_SECURITY_QUESTION = "key_security_question"
         private const val KEY_SECURITY_ANSWER_HASH = "key_security_answer_hash"

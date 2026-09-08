@@ -2,6 +2,9 @@ package com.example.util
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import com.example.data.local.AccountDao
 import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
@@ -596,5 +599,97 @@ object BackupManager {
             }
         }
         return path
+    }
+
+    /**
+     * Robustly deletes a local backup file across SAF Tree URI, MediaStore Documents,
+     * external public folders, internal storage, and cache mirror.
+     */
+    fun deleteLocalBackup(context: Context, file: File, customDirectoryPath: String? = null): Boolean {
+        var deleted = false
+        try {
+            // 1. If custom SAF tree URI
+            if (!customDirectoryPath.isNullOrBlank() && customDirectoryPath.startsWith("content://")) {
+                try {
+                    val treeUri = Uri.parse(customDirectoryPath)
+                    val pickedDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                    pickedDir?.listFiles()?.forEach { doc ->
+                        if (doc.name == file.name) {
+                            if (doc.delete()) {
+                                deleted = true
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            // 2. MediaStore Documents / Files query deletion (Android 10+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ?"
+                    val selectionArgs = arrayOf(file.name)
+                    val rows = context.contentResolver.delete(collection, selection, selectionArgs)
+                    if (rows > 0) deleted = true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            // 3. Delete from public Documents / Downloads / Custom folder
+            try {
+                val publicDocs = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Budgeter")
+                val targetFileInDocs = File(publicDocs, file.name)
+                if (targetFileInDocs.exists()) {
+                    if (targetFileInDocs.delete()) deleted = true
+                }
+            } catch (_: Exception) {}
+
+            try {
+                val publicDownloads = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Budgeter")
+                val targetFileInDownloads = File(publicDownloads, file.name)
+                if (targetFileInDownloads.exists()) {
+                    if (targetFileInDownloads.delete()) deleted = true
+                }
+            } catch (_: Exception) {}
+
+            if (!customDirectoryPath.isNullOrBlank() && !customDirectoryPath.startsWith("content://") && !customDirectoryPath.equals("internal", ignoreCase = true)) {
+                try {
+                    val customDir = File(customDirectoryPath)
+                    val targetInCustom = File(customDir, file.name)
+                    if (targetInCustom.exists()) {
+                        if (targetInCustom.delete()) deleted = true
+                    }
+                } catch (_: Exception) {}
+            }
+
+            // 4. Delete from internal files/backups
+            try {
+                val internalDir = File(context.filesDir, "backups")
+                val targetInternal = File(internalDir, file.name)
+                if (targetInternal.exists()) {
+                    if (targetInternal.delete()) deleted = true
+                }
+            } catch (_: Exception) {}
+
+            // 5. Delete from cache saf_backups
+            try {
+                val cacheDir = File(context.cacheDir, "saf_backups")
+                val targetCache = File(cacheDir, file.name)
+                if (targetCache.exists()) {
+                    if (targetCache.delete()) deleted = true
+                }
+            } catch (_: Exception) {}
+
+            // 6. Direct file deletion
+            if (file.exists()) {
+                if (file.delete()) deleted = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return deleted
     }
 }

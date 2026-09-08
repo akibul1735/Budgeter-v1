@@ -2216,39 +2216,31 @@ fun BackupSyncSettingsScreen(
 
     // 5. Drive Delete Confirmation Dialog
     deleteConfirmDriveFile?.let { backupFile ->
-        AlertDialog(
-            onDismissRequest = { deleteConfirmDriveFile = null },
-            title = { Text("Delete Drive Backup?", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "Are you sure you want to delete '${backupFile.name}' from your Google Drive storage?",
-                    fontSize = 13.sp
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (activeDriveAccountTab == 1) {
-                            secondarySignedInAccount?.let { acc ->
-                                viewModel.deleteSecondaryDriveBackup(acc, backupFile)
-                            }
-                        } else {
-                            signedInAccount?.let { acc ->
-                                viewModel.deleteDriveBackup(acc, backupFile)
-                            }
-                        }
-                        deleteConfirmDriveFile = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SolidExpense)
-                ) {
-                    Text("Delete")
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ব্যাকআপ ডিলিট করবেন?" else "Delete Drive Backup?",
+            message = if (languageMode == LanguageMode.BANGLA)
+                "আপনি কি নিশ্চিত যে '${backupFile.name}' ব্যাকআপ ফাইলটি গুগল ড্রাইভ স্টোরেজ থেকে চিরতরে মুছে ফেলতে চান?"
+            else
+                "Are you sure you want to permanently delete '${backupFile.name}' from your Google Drive storage?",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "ডিলিট করুন" else "Delete",
+            isDestructive = true,
+            requiresAuth = securityConfig.requireAuthForBackupDeletion,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onConfirm = {
+                if (activeDriveAccountTab == 1) {
+                    secondarySignedInAccount?.let { acc ->
+                        viewModel.deleteSecondaryDriveBackup(acc, backupFile)
+                    }
+                } else {
+                    signedInAccount?.let { acc ->
+                        viewModel.deleteDriveBackup(acc, backupFile)
+                    }
                 }
+                deleteConfirmDriveFile = null
             },
-            dismissButton = {
-                TextButton(onClick = { deleteConfirmDriveFile = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { deleteConfirmDriveFile = null }
         )
     }
 
@@ -2277,33 +2269,28 @@ fun BackupSyncSettingsScreen(
 
     // 7. Local Delete Confirmation Dialog
     deleteConfirmLocalFile?.let { file ->
-        AlertDialog(
-            onDismissRequest = { deleteConfirmLocalFile = null },
-            title = { Text("Delete Local Backup?", fontWeight = FontWeight.Bold) },
-            text = {
-                Text("Are you sure you want to delete '${file.name}' from device storage?", fontSize = 13.sp)
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        try {
-                            file.delete()
-                            refreshLocalBackups()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                        deleteConfirmLocalFile = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SolidExpense)
-                ) {
-                    Text("Delete")
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "লোকাল ব্যাকআপ ডিলিট করবেন?" else "Delete Local Backup?",
+            message = if (languageMode == LanguageMode.BANGLA)
+                "আপনি কি নিশ্চিত যে '${file.name}' ফাইলটি ডিভাইস স্টোরেজ থেকে মুছে ফেলতে চান?"
+            else
+                "Are you sure you want to delete '${file.name}' from device storage?",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "ডিলিট করুন" else "Delete",
+            isDestructive = true,
+            requiresAuth = securityConfig.requireAuthForBackupDeletion,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onConfirm = {
+                try {
+                    BackupManager.deleteLocalBackup(context, file, config.localBackupDirectory)
+                    refreshLocalBackups()
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
+                deleteConfirmLocalFile = null
             },
-            dismissButton = {
-                TextButton(onClick = { deleteConfirmLocalFile = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { deleteConfirmLocalFile = null }
         )
     }
 
@@ -2313,11 +2300,13 @@ fun BackupSyncSettingsScreen(
             preview = preview,
             languageMode = languageMode,
             isImporting = isImportingCsv,
-            onConfirmImport = { skipDuplicates, autoCreateEntities, customHeaderMap ->
+            onConfirmImport = { skipDuplicates, autoCreateEntities, customHeaderMap, repairedRows, autoRepairUnsupported ->
                 viewModel.confirmCsvImport(
                     skipDuplicates = skipDuplicates,
                     autoCreateEntities = autoCreateEntities,
-                    customHeaderMap = customHeaderMap
+                    customHeaderMap = customHeaderMap,
+                    repairedRows = repairedRows,
+                    autoRepairUnsupported = autoRepairUnsupported
                 )
             },
             onRemapRequested = { customHeaderMap ->
