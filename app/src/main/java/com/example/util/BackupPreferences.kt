@@ -12,6 +12,7 @@ data class CloudAccountInfo(
     val email: String = "",
     val displayName: String = "",
     val serverUrl: String = "",
+    val accessToken: String = "",
     val isLinked: Boolean = false,
     val lastSyncTimestamp: Long = 0L,
     val autoSync: Boolean = true,
@@ -55,6 +56,7 @@ class BackupPreferences(context: Context) {
         val primaryEmail = prefs.getString(KEY_PRIMARY_EMAIL, "") ?: ""
         val primaryName = prefs.getString(KEY_PRIMARY_NAME, "") ?: ""
         val primaryServer = prefs.getString(KEY_PRIMARY_SERVER, "") ?: ""
+        val primaryAccessToken = prefs.getString(KEY_PRIMARY_ACCESS_TOKEN, "") ?: ""
         val primaryLastSync = prefs.getLong(KEY_PRIMARY_LAST_SYNC, prefs.getLong(KEY_LAST_SYNC, 0L))
         val primaryAutoSync = prefs.getBoolean(KEY_PRIMARY_AUTO_SYNC, prefs.getBoolean(KEY_AUTO_SYNC, true))
         val primaryWifiOnly = prefs.getBoolean(KEY_PRIMARY_WIFI_ONLY, prefs.getBoolean(KEY_WIFI_ONLY, false))
@@ -66,6 +68,7 @@ class BackupPreferences(context: Context) {
         val secondaryEmail = prefs.getString(KEY_SECONDARY_EMAIL, "") ?: ""
         val secondaryName = prefs.getString(KEY_SECONDARY_NAME, "") ?: ""
         val secondaryServer = prefs.getString(KEY_SECONDARY_SERVER, "") ?: ""
+        val secondaryAccessToken = prefs.getString(KEY_SECONDARY_ACCESS_TOKEN, "") ?: ""
         val secondaryLastSync = prefs.getLong(KEY_SECONDARY_LAST_SYNC, 0L)
         val secondaryAutoSync = prefs.getBoolean(KEY_SECONDARY_AUTO_SYNC, true)
         val secondaryWifiOnly = prefs.getBoolean(KEY_SECONDARY_WIFI_ONLY, false)
@@ -80,6 +83,7 @@ class BackupPreferences(context: Context) {
                 email = primaryEmail,
                 displayName = primaryName,
                 serverUrl = primaryServer,
+                accessToken = primaryAccessToken,
                 isLinked = primaryLinked,
                 lastSyncTimestamp = primaryLastSync,
                 autoSync = primaryAutoSync,
@@ -92,6 +96,7 @@ class BackupPreferences(context: Context) {
                 email = secondaryEmail,
                 displayName = secondaryName,
                 serverUrl = secondaryServer,
+                accessToken = secondaryAccessToken,
                 isLinked = secondaryLinked,
                 lastSyncTimestamp = secondaryLastSync,
                 autoSync = secondaryAutoSync,
@@ -118,6 +123,7 @@ class BackupPreferences(context: Context) {
             .putString(KEY_PRIMARY_EMAIL, newConfig.primaryAccount.email)
             .putString(KEY_PRIMARY_NAME, newConfig.primaryAccount.displayName)
             .putString(KEY_PRIMARY_SERVER, newConfig.primaryAccount.serverUrl)
+            .putString(KEY_PRIMARY_ACCESS_TOKEN, newConfig.primaryAccount.accessToken)
             .putBoolean(KEY_PRIMARY_LINKED, newConfig.primaryAccount.isLinked)
             .putLong(KEY_PRIMARY_LAST_SYNC, newConfig.primaryAccount.lastSyncTimestamp)
             .putBoolean(KEY_PRIMARY_AUTO_SYNC, newConfig.primaryAccount.autoSync)
@@ -128,6 +134,7 @@ class BackupPreferences(context: Context) {
             .putString(KEY_SECONDARY_EMAIL, newConfig.secondaryAccount.email)
             .putString(KEY_SECONDARY_NAME, newConfig.secondaryAccount.displayName)
             .putString(KEY_SECONDARY_SERVER, newConfig.secondaryAccount.serverUrl)
+            .putString(KEY_SECONDARY_ACCESS_TOKEN, newConfig.secondaryAccount.accessToken)
             .putBoolean(KEY_SECONDARY_LINKED, newConfig.secondaryAccount.isLinked)
             .putLong(KEY_SECONDARY_LAST_SYNC, newConfig.secondaryAccount.lastSyncTimestamp)
             .putBoolean(KEY_SECONDARY_AUTO_SYNC, newConfig.secondaryAccount.autoSync)
@@ -157,11 +164,12 @@ class BackupPreferences(context: Context) {
         updateConfig(_config.value.copy(secondaryAccount = updated))
     }
 
-    fun setPrimaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "") {
+    fun setPrimaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "") {
         val updatedPrimary = _config.value.primaryAccount.copy(
             email = email,
             displayName = displayName,
             serverUrl = serverUrl,
+            accessToken = if (accessToken.isNotBlank()) accessToken else _config.value.primaryAccount.accessToken,
             isLinked = isLinked
         )
         updateConfig(
@@ -172,11 +180,12 @@ class BackupPreferences(context: Context) {
         )
     }
 
-    fun setSecondaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "") {
+    fun setSecondaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "") {
         val updatedSecondary = _config.value.secondaryAccount.copy(
             email = email,
             displayName = displayName,
             serverUrl = serverUrl,
+            accessToken = if (accessToken.isNotBlank()) accessToken else _config.value.secondaryAccount.accessToken,
             isLinked = isLinked
         )
         updateConfig(
@@ -293,6 +302,7 @@ class BackupPreferences(context: Context) {
         private const val KEY_PRIMARY_EMAIL = "primary_email"
         private const val KEY_PRIMARY_NAME = "primary_name"
         private const val KEY_PRIMARY_SERVER = "primary_server"
+        private const val KEY_PRIMARY_ACCESS_TOKEN = "primary_access_token"
         private const val KEY_PRIMARY_LINKED = "primary_linked"
         private const val KEY_PRIMARY_LAST_SYNC = "primary_last_sync"
         private const val KEY_PRIMARY_AUTO_SYNC = "primary_auto_sync"
@@ -303,6 +313,7 @@ class BackupPreferences(context: Context) {
         private const val KEY_SECONDARY_EMAIL = "secondary_email"
         private const val KEY_SECONDARY_NAME = "secondary_name"
         private const val KEY_SECONDARY_SERVER = "secondary_server"
+        private const val KEY_SECONDARY_ACCESS_TOKEN = "secondary_access_token"
         private const val KEY_SECONDARY_LINKED = "secondary_linked"
         private const val KEY_SECONDARY_LAST_SYNC = "secondary_last_sync"
         private const val KEY_SECONDARY_AUTO_SYNC = "secondary_auto_sync"

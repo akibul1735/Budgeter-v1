@@ -1,6 +1,8 @@
 package com.example.ui.dialogs
 
+import android.graphics.Rect
 import android.net.Uri
+import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -8,6 +10,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -16,6 +22,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -37,6 +44,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
@@ -110,6 +118,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -129,6 +138,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -141,6 +151,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.model.Account
@@ -674,6 +686,29 @@ fun AddEditTransactionSheet(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
+        val view = LocalView.current
+        var isKeyboardPhysicallyVisible by remember { mutableStateOf(false) }
+
+        DisposableEffect(view) {
+            val listener = ViewTreeObserver.OnGlobalLayoutListener {
+                val rect = Rect()
+                view.getWindowVisibleDisplayFrame(rect)
+                val screenHeight = view.rootView.height
+                val keypadHeight = screenHeight - rect.bottom
+                val insets = ViewCompat.getRootWindowInsets(view)
+                val imeVisibleFromInsets = insets?.isVisible(WindowInsetsCompat.Type.ime()) == true
+                val imeBottomFromInsets = insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
+                val isNowVisible = (keypadHeight > screenHeight * 0.15) || imeVisibleFromInsets || (imeBottomFromInsets > 80)
+                if (isKeyboardPhysicallyVisible != isNowVisible) {
+                    isKeyboardPhysicallyVisible = isNowVisible
+                }
+            }
+            view.viewTreeObserver.addOnGlobalLayoutListener(listener)
+            onDispose {
+                view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+            }
+        }
+
         Surface(
             modifier = Modifier
                 .fillMaxSize()
@@ -1714,9 +1749,13 @@ fun AddEditTransactionSheet(
                                                         keyboardType = KeyboardType.Decimal,
                                                         imeAction = ImeAction.Done
                                                     ),
+                                                    keyboardActions = KeyboardActions(
+                                                        onDone = { focusManager.clearFocus() }
+                                                    ),
                                                     modifier = Modifier
                                                         .weight(1f)
-                                                        .padding(end = 6.dp),
+                                                        .padding(end = 6.dp)
+                                                        .onFocusChanged { isTransferFeeAmountFocused = it.isFocused },
                                                     colors = OutlinedTextFieldDefaults.colors(
                                                         focusedBorderColor = SolidTransfer,
                                                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
@@ -2016,19 +2055,20 @@ fun AddEditTransactionSheet(
                 }
 
                 // Bottom Action Bar: Type Selector Pills or Keyboard Accessory Toolbar (Pinned above Keyboard)
-                val density = LocalDensity.current
-                val imeBottom = WindowInsets.ime.getBottom(density)
-                val isKeyboardVisible = WindowInsets.isImeVisible || imeBottom > 0
                 val isAnyFieldFocused = isNameFocused || isAmountFocused || isNoteFocused || isTransferFeeAmountFocused
 
-                // Keyboard mode is active only when keyboard is physically present on screen AND an input is focused
-                val isKeyboardOpen = isKeyboardVisible && isAnyFieldFocused
+                // Keyboard mode is active ONLY when keyboard is physically present on screen AND an input is focused
+                val isKeyboardOpen = isKeyboardPhysicallyVisible && isAnyFieldFocused
 
                 // When keyboard closes (dismissed via back button, down arrow, or Done),
                 // clear focus so the form and bottom bar cleanly transition back to normal mode
-                LaunchedEffect(isKeyboardVisible) {
-                    if (!isKeyboardVisible) {
-                        focusManager.clearFocus()
+                LaunchedEffect(isKeyboardPhysicallyVisible) {
+                    if (!isKeyboardPhysicallyVisible) {
+                        focusManager.clearFocus(force = true)
+                        isNameFocused = false
+                        isAmountFocused = false
+                        isNoteFocused = false
+                        isTransferFeeAmountFocused = false
                     }
                 }
 
@@ -2139,29 +2179,36 @@ fun AddEditTransactionSheet(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 6.dp,
                     shadowElevation = 8.dp,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .animateContentSize(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
                 ) {
                     AnimatedContent(
                         targetState = isKeyboardOpen,
                         transitionSpec = {
                             if (targetState) {
                                 // Keyboard open / input focused: transition to mini buttons mode on right above keyboard
-                                (fadeIn(animationSpec = tween(220)) +
-                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 2 } +
-                                 scaleIn(initialScale = 0.90f, animationSpec = tween(220)))
+                                (fadeIn(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                                 scaleIn(initialScale = 0.88f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                 slideInHorizontally(animationSpec = tween(220, easing = FastOutSlowInEasing)) { it / 3 })
                                     .togetherWith(
-                                        fadeOut(animationSpec = tween(150)) +
-                                        slideOutVertically(animationSpec = tween(150)) { -it / 2 }
+                                        fadeOut(animationSpec = tween(140, easing = FastOutLinearInEasing)) +
+                                        scaleOut(targetScale = 0.90f, animationSpec = tween(140))
                                     )
                             } else {
                                 // Keyboard closed: smooth, appealing transition back to normal bottom mode
-                                (fadeIn(animationSpec = tween(250)) +
-                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 2 } +
-                                 scaleIn(initialScale = 0.92f, animationSpec = tween(250)))
+                                (fadeIn(animationSpec = tween(280, delayMillis = 40, easing = LinearOutSlowInEasing)) +
+                                 scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 3 })
                                     .togetherWith(
-                                        fadeOut(animationSpec = tween(150)) +
-                                        slideOutVertically(animationSpec = tween(150)) { it / 2 } +
-                                        scaleOut(targetScale = 0.90f, animationSpec = tween(150))
+                                        fadeOut(animationSpec = tween(140, easing = FastOutLinearInEasing)) +
+                                        scaleOut(targetScale = 0.90f, animationSpec = tween(140))
                                     )
                             }.using(SizeTransform(clip = false))
                         },
