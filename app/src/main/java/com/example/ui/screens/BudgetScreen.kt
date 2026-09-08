@@ -240,7 +240,7 @@ fun BudgetScreen(
     onAddTransactionWithAccount: (Account) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
-    // Top Tabs: 0 -> BM Dashboard., 1 -> Expenses., 2 -> Liabilities., 3 -> Incomes., 4 -> Assets.
+    // Top Tabs: 0 -> BM Dashboard, 1 -> Expenses, 2 -> Incomes, 3 -> Assets, 4 -> Liabilities
     var selectedTab by remember { mutableIntStateOf(initialTab) }
     var globalExpenseFrequency by remember { mutableStateOf(BudgetFrequency.MONTHLY) }
     var globalIncomeFrequency by remember { mutableStateOf(BudgetFrequency.MONTHLY) }
@@ -424,13 +424,13 @@ fun BudgetScreen(
         }
     }
 
-    // Tabs definition matching user screenshot: BM Dashboard., Expenses., Liabilities., Incomes., Assets.
+    // Tabs definition matching user requested order: BM Dashboard, Expenses, Incomes, Assets, Liabilities
     val tabLabels = listOf(
-        "BM Dashboard.",
-        if (languageMode == LanguageMode.BANGLA) "ব্যয়." else "Expenses.",
-        if (languageMode == LanguageMode.BANGLA) "দায়." else "Liabilities.",
-        if (languageMode == LanguageMode.BANGLA) "আয়." else "Incomes.",
-        if (languageMode == LanguageMode.BANGLA) "সম্পদ." else "Assets."
+        if (languageMode == LanguageMode.BANGLA) "বিএম ড্যাশবোর্ড" else "BM Dashboard",
+        if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expenses",
+        if (languageMode == LanguageMode.BANGLA) "আয়" else "Incomes",
+        if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Assets",
+        if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities"
     )
 
     Scaffold(
@@ -551,9 +551,9 @@ fun BudgetScreen(
                                 color = when (selectedTab) {
                                     0 -> MaterialTheme.colorScheme.primary
                                     1 -> SolidExpense
-                                    2 -> AmberGold
-                                    3 -> SolidIncome
-                                    4 -> SolidPrimary
+                                    2 -> SolidIncome
+                                    3 -> SolidPrimary
+                                    4 -> AmberGold
                                     else -> MaterialTheme.colorScheme.primary
                                 },
                                 height = 2.5.dp
@@ -566,9 +566,9 @@ fun BudgetScreen(
                         val activeColor = when (index) {
                             0 -> MaterialTheme.colorScheme.primary
                             1 -> SolidExpense
-                            2 -> AmberGold
-                            3 -> SolidIncome
-                            4 -> SolidPrimary
+                            2 -> SolidIncome
+                            3 -> SolidPrimary
+                            4 -> AmberGold
                             else -> MaterialTheme.colorScheme.primary
                         }
 
@@ -659,52 +659,7 @@ fun BudgetScreen(
                     )
                 }
                 2 -> {
-                    // TAB 2: LIABILITIES
-                    CategoriesBudgetEntryView(
-                        title = LanguageHelper.getString("liabilities", languageMode),
-                        items = liabilityItems,
-                        monthlyBudgets = monthlyBudgets,
-                        allTransactions = transactionsWithDetails,
-                        accountsWithBalances = accountsWithBalances,
-                        selectedYear = selectedYear,
-                        selectedMonth = selectedMonth,
-                        languageMode = languageMode,
-                        sectionColor = AmberGold,
-                        isPeriodicFlow = false,
-                        globalFrequency = BudgetFrequency.MONTHLY,
-                        onGlobalFrequencyChange = {},
-                        totalBudgetAmount = totalLiabilitiesBudget,
-                        searchQuery = searchQuery,
-                        selectedFilter = selectedFilter,
-                        onFilterChange = { selectedFilter = it },
-                        selectedSort = selectedSort,
-                        onSortChange = { selectedSort = it },
-                        onMonthClick = { showMonthYearPicker = true },
-                        onPrevMonth = { viewModel.prevBudgetMonth() },
-                        onNextMonth = { viewModel.nextBudgetMonth() },
-                        onShowHelp = { showHelpDialog = true },
-                        onCopyPrevious = {
-                            viewModel.copyBudgetsFromPreviousMonth()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Copied previous month's budgets")
-                            }
-                        },
-                        onItemClick = handleBudgetItemClick,
-                        onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
-                                itemType = item.itemType,
-                                itemId = item.id,
-                                amount = amount,
-                                isEnabled = enabled
-                            )
-                        },
-                        onSaveMultiple = { budgets ->
-                            viewModel.saveMultipleMonthlyBudgets(budgets)
-                        }
-                    )
-                }
-                3 -> {
-                    // TAB 3: INCOMES
+                    // TAB 2: INCOMES
                     CategoriesBudgetEntryView(
                         title = LanguageHelper.getString("incomes", languageMode),
                         items = incomeItems,
@@ -748,8 +703,8 @@ fun BudgetScreen(
                         }
                     )
                 }
-                4 -> {
-                    // TAB 4: ASSETS
+                3 -> {
+                    // TAB 3: ASSETS
                     CategoriesBudgetEntryView(
                         title = LanguageHelper.getString("assets", languageMode),
                         items = assetItems,
@@ -764,6 +719,51 @@ fun BudgetScreen(
                         globalFrequency = BudgetFrequency.MONTHLY,
                         onGlobalFrequencyChange = {},
                         totalBudgetAmount = totalAssetsBudget,
+                        searchQuery = searchQuery,
+                        selectedFilter = selectedFilter,
+                        onFilterChange = { selectedFilter = it },
+                        selectedSort = selectedSort,
+                        onSortChange = { selectedSort = it },
+                        onMonthClick = { showMonthYearPicker = true },
+                        onPrevMonth = { viewModel.prevBudgetMonth() },
+                        onNextMonth = { viewModel.nextBudgetMonth() },
+                        onShowHelp = { showHelpDialog = true },
+                        onCopyPrevious = {
+                            viewModel.copyBudgetsFromPreviousMonth()
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Copied previous month's budgets")
+                            }
+                        },
+                        onItemClick = handleBudgetItemClick,
+                        onSaveBudget = { item, amount, enabled ->
+                            viewModel.saveMonthlyBudget(
+                                itemType = item.itemType,
+                                itemId = item.id,
+                                amount = amount,
+                                isEnabled = enabled
+                            )
+                        },
+                        onSaveMultiple = { budgets ->
+                            viewModel.saveMultipleMonthlyBudgets(budgets)
+                        }
+                    )
+                }
+                4 -> {
+                    // TAB 4: LIABILITIES
+                    CategoriesBudgetEntryView(
+                        title = LanguageHelper.getString("liabilities", languageMode),
+                        items = liabilityItems,
+                        monthlyBudgets = monthlyBudgets,
+                        allTransactions = transactionsWithDetails,
+                        accountsWithBalances = accountsWithBalances,
+                        selectedYear = selectedYear,
+                        selectedMonth = selectedMonth,
+                        languageMode = languageMode,
+                        sectionColor = AmberGold,
+                        isPeriodicFlow = false,
+                        globalFrequency = BudgetFrequency.MONTHLY,
+                        onGlobalFrequencyChange = {},
+                        totalBudgetAmount = totalLiabilitiesBudget,
                         searchQuery = searchQuery,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
@@ -2286,13 +2286,13 @@ private fun BudgetDashboardView(
                     languageMode = languageMode
                 )
 
-                // Liabilities Card (Tab 2)
+                // Incomes Card (Tab 2)
                 CategorySummaryCard(
-                    title = "Liabilities",
-                    amount = totalLiabilities,
-                    actualAmount = actualLiabilities,
-                    color = AmberGold,
-                    icon = Icons.Default.CreditCard,
+                    title = "Incomes",
+                    amount = totalIncomes,
+                    actualAmount = actualIncomes,
+                    color = SolidIncome,
+                    icon = Icons.Default.AddCircleOutline,
                     modifier = Modifier.weight(1f),
                     onClick = { onNavigateToTab(2) },
                     languageMode = languageMode
@@ -2305,25 +2305,25 @@ private fun BudgetDashboardView(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Incomes Card (Tab 3)
-                CategorySummaryCard(
-                    title = "Incomes",
-                    amount = totalIncomes,
-                    actualAmount = actualIncomes,
-                    color = SolidIncome,
-                    icon = Icons.Default.AddCircleOutline,
-                    modifier = Modifier.weight(1f),
-                    onClick = { onNavigateToTab(3) },
-                    languageMode = languageMode
-                )
-
-                // Assets Card (Tab 4)
+                // Assets Card (Tab 3)
                 CategorySummaryCard(
                     title = "Assets",
                     amount = totalAssets,
                     actualAmount = actualAssets,
                     color = SolidPrimary,
                     icon = Icons.Default.AccountBalance,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onNavigateToTab(3) },
+                    languageMode = languageMode
+                )
+
+                // Liabilities Card (Tab 4)
+                CategorySummaryCard(
+                    title = "Liabilities",
+                    amount = totalLiabilities,
+                    actualAmount = actualLiabilities,
+                    color = AmberGold,
+                    icon = Icons.Default.CreditCard,
                     modifier = Modifier.weight(1f),
                     onClick = { onNavigateToTab(4) },
                     languageMode = languageMode
