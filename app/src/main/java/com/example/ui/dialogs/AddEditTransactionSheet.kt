@@ -7,17 +7,22 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.BorderStroke
@@ -40,6 +46,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -103,6 +110,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -120,6 +128,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -181,6 +190,7 @@ fun AddEditTransactionSheet(
     onAddNewAccount: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     val txPrefs = remember { TransactionPreferences.getInstance(context) }
     val txConfig by txPrefs.config.collectAsStateWithLifecycle()
     val autofillPrefs = remember { AutofillPreferences.getInstance(context) }
@@ -880,6 +890,12 @@ fun AddEditTransactionSheet(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusManager.clearFocus()
+                        }
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     // 1. Title / Payee Name Field with Dropdown Suggestions & Partial Matching
@@ -894,6 +910,12 @@ fun AddEditTransactionSheet(
                                 .fillMaxWidth()
                                 .testTag("tx_payee_input")
                                 .onFocusChanged { isNameFocused = it.isFocused },
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = { focusManager.clearFocus() }
+                            ),
                             placeholder = {
                                 Text(
                                     text = LanguageHelper.getString("payee_payer", languageMode).ifEmpty { "Name / Payee" },
@@ -1269,6 +1291,9 @@ fun AddEditTransactionSheet(
                                     keyboardOptions = KeyboardOptions(
                                         keyboardType = KeyboardType.Decimal,
                                         imeAction = ImeAction.Done
+                                    ),
+                                    keyboardActions = KeyboardActions(
+                                        onDone = { focusManager.clearFocus() }
                                     ),
                                     singleLine = true,
                                     modifier = Modifier
@@ -1991,7 +2016,21 @@ fun AddEditTransactionSheet(
                 }
 
                 // Bottom Action Bar: Type Selector Pills or Keyboard Accessory Toolbar (Pinned above Keyboard)
-                val isKeyboardOpen = WindowInsets.isImeVisible || isNameFocused || isAmountFocused || isNoteFocused
+                val density = LocalDensity.current
+                val imeBottom = WindowInsets.ime.getBottom(density)
+                val isKeyboardVisible = WindowInsets.isImeVisible || imeBottom > 0
+                val isAnyFieldFocused = isNameFocused || isAmountFocused || isNoteFocused || isTransferFeeAmountFocused
+
+                // Keyboard mode is active only when keyboard is physically present on screen AND an input is focused
+                val isKeyboardOpen = isKeyboardVisible && isAnyFieldFocused
+
+                // When keyboard closes (dismissed via back button, down arrow, or Done),
+                // clear focus so the form and bottom bar cleanly transition back to normal mode
+                LaunchedEffect(isKeyboardVisible) {
+                    if (!isKeyboardVisible) {
+                        focusManager.clearFocus()
+                    }
+                }
 
                 val executeSave: () -> Unit = {
                     val rawMag = Math.abs(amount)
@@ -2102,198 +2141,225 @@ fun AddEditTransactionSheet(
                     shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (isKeyboardOpen) {
-                        // When keyboard is focused: show three buttons just above keyboard on right side: Expense icon, Income icon, Transfer icon, Save button
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            // Expense icon button
-                            Surface(
-                                shape = CircleShape,
-                                color = if (txType == TransactionType.EXPENSE) SolidExpense else SolidExpense.copy(alpha = 0.12f),
-                                border = if (txType == TransactionType.EXPENSE) null else BorderStroke(1.dp, SolidExpense.copy(alpha = 0.35f)),
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .clickable {
-                                        txType = TransactionType.EXPENSE
-                                        selectedSign = "−"
-                                        val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
-                                        if (currentCat == null || currentCat.type != CategoryType.EXPENSE) {
-                                            val relevant = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
-                                            val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                            selectedCategoryId = defaultGroup?.id
-                                            val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
-                                            selectedSubCategoryId = subs.firstOrNull()?.id
-                                        }
-                                    }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowDownward,
-                                        contentDescription = "Expense",
-                                        tint = if (txType == TransactionType.EXPENSE) Color.White else SolidExpense,
-                                        modifier = Modifier.size(20.dp)
+                    AnimatedContent(
+                        targetState = isKeyboardOpen,
+                        transitionSpec = {
+                            if (targetState) {
+                                // Keyboard open / input focused: transition to mini buttons mode on right above keyboard
+                                (fadeIn(animationSpec = tween(220)) +
+                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 2 } +
+                                 scaleIn(initialScale = 0.90f, animationSpec = tween(220)))
+                                    .togetherWith(
+                                        fadeOut(animationSpec = tween(150)) +
+                                        slideOutVertically(animationSpec = tween(150)) { -it / 2 }
                                     )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // Income icon button
-                            Surface(
-                                shape = CircleShape,
-                                color = if (txType == TransactionType.INCOME) SolidIncome else SolidIncome.copy(alpha = 0.12f),
-                                border = if (txType == TransactionType.INCOME) null else BorderStroke(1.dp, SolidIncome.copy(alpha = 0.35f)),
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .clickable {
-                                        txType = TransactionType.INCOME
-                                        selectedSign = "+"
-                                        val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
-                                        if (currentCat == null || currentCat.type != CategoryType.INCOME) {
-                                            val relevant = categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
-                                            val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                            selectedCategoryId = defaultGroup?.id
-                                            val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
-                                            selectedSubCategoryId = subs.firstOrNull()?.id
-                                        }
-                                    }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowUpward,
-                                        contentDescription = "Income",
-                                        tint = if (txType == TransactionType.INCOME) Color.White else SolidIncome,
-                                        modifier = Modifier.size(20.dp)
+                            } else {
+                                // Keyboard closed: smooth, appealing transition back to normal bottom mode
+                                (fadeIn(animationSpec = tween(250)) +
+                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 2 } +
+                                 scaleIn(initialScale = 0.92f, animationSpec = tween(250)))
+                                    .togetherWith(
+                                        fadeOut(animationSpec = tween(150)) +
+                                        slideOutVertically(animationSpec = tween(150)) { it / 2 } +
+                                        scaleOut(targetScale = 0.90f, animationSpec = tween(150))
                                     )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // Transfer icon button
-                            Surface(
-                                shape = CircleShape,
-                                color = if (txType == TransactionType.TRANSFER) SolidTransfer else SolidTransfer.copy(alpha = 0.12f),
-                                border = if (txType == TransactionType.TRANSFER) null else BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.35f)),
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .clickable {
-                                        txType = TransactionType.TRANSFER
-                                        selectedSign = "⇄"
-                                        selectedCategoryId = null
-                                        selectedSubCategoryId = null
-                                    }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.SwapHoriz,
-                                        contentDescription = "Transfer",
-                                        tint = if (txType == TransactionType.TRANSFER) Color.White else SolidTransfer,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            // Save button
-                            FloatingActionButton(
-                                onClick = executeSave,
-                                containerColor = typePrimaryColor,
-                                contentColor = Color.White,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .testTag("save_transaction_btn")
-                            ) {
-                                Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    } else {
-                        // Standard Bottom Action Bar: Type Selector Pills + Save FAB
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Segmented Type Pills: EXPENSE, INCOME, TRANSFER
+                            }.using(SizeTransform(clip = false))
+                        },
+                        label = "BottomBarModeTransition"
+                    ) { keyboardActive ->
+                        if (keyboardActive) {
+                            // When keyboard is focused: show three buttons just above keyboard on right side: Expense icon, Income icon, Transfer icon, Save button
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
+                                horizontalArrangement = Arrangement.End
                             ) {
-                                val types = listOf(
-                                    Triple(TransactionType.EXPENSE, "− " + (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
-                                    Triple(TransactionType.INCOME, "+ " + (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
-                                    Triple(TransactionType.TRANSFER, "⇄ " + (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
-                                )
-
-                                types.forEach { (type, label, color) ->
-                                    val isSelected = txType == type
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) color else color.copy(alpha = 0.12f),
-                                        border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.25f)),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                txType = type
-                                                selectedSign = when (type) {
-                                                    TransactionType.EXPENSE -> "−"
-                                                    TransactionType.INCOME -> "+"
-                                                    TransactionType.TRANSFER -> "⇄"
-                                                }
-                                                if (type != TransactionType.TRANSFER) {
-                                                    val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                                                    val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
-                                                    val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                                    selectedCategoryId = othersCat?.id
-                                                    val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
-                                                    selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
-                                                } else {
-                                                    selectedCategoryId = null
-                                                    selectedSubCategoryId = null
-                                                }
+                                // Expense icon button
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (txType == TransactionType.EXPENSE) SolidExpense else SolidExpense.copy(alpha = 0.12f),
+                                    border = if (txType == TransactionType.EXPENSE) null else BorderStroke(1.dp, SolidExpense.copy(alpha = 0.35f)),
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            txType = TransactionType.EXPENSE
+                                            selectedSign = "−"
+                                            val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
+                                            if (currentCat == null || currentCat.type != CategoryType.EXPENSE) {
+                                                val relevant = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
+                                                val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                                selectedCategoryId = defaultGroup?.id
+                                                val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
+                                                selectedSubCategoryId = subs.firstOrNull()?.id
                                             }
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isSelected) Color.White else color,
-                                            textAlign = TextAlign.Center,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 9.dp)
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDownward,
+                                            contentDescription = "Expense",
+                                            tint = if (txType == TransactionType.EXPENSE) Color.White else SolidExpense,
+                                            modifier = Modifier.size(20.dp)
                                         )
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Income icon button
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (txType == TransactionType.INCOME) SolidIncome else SolidIncome.copy(alpha = 0.12f),
+                                    border = if (txType == TransactionType.INCOME) null else BorderStroke(1.dp, SolidIncome.copy(alpha = 0.35f)),
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            txType = TransactionType.INCOME
+                                            selectedSign = "+"
+                                            val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
+                                            if (currentCat == null || currentCat.type != CategoryType.INCOME) {
+                                                val relevant = categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
+                                                val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                                selectedCategoryId = defaultGroup?.id
+                                                val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
+                                                selectedSubCategoryId = subs.firstOrNull()?.id
+                                            }
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowUpward,
+                                            contentDescription = "Income",
+                                            tint = if (txType == TransactionType.INCOME) Color.White else SolidIncome,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                // Transfer icon button
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (txType == TransactionType.TRANSFER) SolidTransfer else SolidTransfer.copy(alpha = 0.12f),
+                                    border = if (txType == TransactionType.TRANSFER) null else BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.35f)),
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            txType = TransactionType.TRANSFER
+                                            selectedSign = "⇄"
+                                            selectedCategoryId = null
+                                            selectedSubCategoryId = null
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.SwapHoriz,
+                                            contentDescription = "Transfer",
+                                            tint = if (txType == TransactionType.TRANSFER) Color.White else SolidTransfer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                // Save button
+                                FloatingActionButton(
+                                    onClick = executeSave,
+                                    containerColor = typePrimaryColor,
+                                    contentColor = Color.White,
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .testTag("save_transaction_btn")
+                                ) {
+                                    Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(20.dp))
+                                }
                             }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            // Save Floating Action Button
-                            FloatingActionButton(
-                                onClick = executeSave,
-                                containerColor = typePrimaryColor,
-                                contentColor = Color.White,
-                                shape = RoundedCornerShape(14.dp),
+                        } else {
+                            // Standard Bottom Action Bar: Type Selector Pills + Save FAB
+                            Row(
                                 modifier = Modifier
-                                    .size(46.dp)
-                                    .testTag("save_transaction_btn")
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(24.dp))
+                                // Segmented Type Pills: EXPENSE, INCOME, TRANSFER
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    val types = listOf(
+                                        Triple(TransactionType.EXPENSE, "− " + (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
+                                        Triple(TransactionType.INCOME, "+ " + (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
+                                        Triple(TransactionType.TRANSFER, "⇄ " + (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
+                                    )
+
+                                    types.forEach { (type, label, color) ->
+                                        val isSelected = txType == type
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isSelected) color else color.copy(alpha = 0.12f),
+                                            border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.25f)),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable {
+                                                    txType = type
+                                                    selectedSign = when (type) {
+                                                        TransactionType.EXPENSE -> "−"
+                                                        TransactionType.INCOME -> "+"
+                                                        TransactionType.TRANSFER -> "⇄"
+                                                    }
+                                                    if (type != TransactionType.TRANSFER) {
+                                                        val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                                                        val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
+                                                        val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                                        selectedCategoryId = othersCat?.id
+                                                        val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
+                                                        selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
+                                                    } else {
+                                                        selectedCategoryId = null
+                                                        selectedSubCategoryId = null
+                                                    }
+                                                }
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color.White else color,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 9.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                // Save Floating Action Button
+                                FloatingActionButton(
+                                    onClick = executeSave,
+                                    containerColor = typePrimaryColor,
+                                    contentColor = Color.White,
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .testTag("save_transaction_btn")
+                                ) {
+                                    Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(24.dp))
+                                }
                             }
                         }
                     }
