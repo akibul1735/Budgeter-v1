@@ -273,10 +273,6 @@ fun AddEditTransactionSheet(
     var showNameDropdown by remember { mutableStateOf(false) }
     var keepFormOpen by remember { mutableStateOf(false) }
 
-    var isNameFocused by remember { mutableStateOf(false) }
-    var isAmountFocused by remember { mutableStateOf(false) }
-    var isNoteFocused by remember { mutableStateOf(false) }
-
     // Double-entry Accounts
     var debitAccountId by remember {
         mutableStateOf(
@@ -315,7 +311,6 @@ fun AddEditTransactionSheet(
     var transferFeeAccountId by remember { mutableStateOf<Long?>(null) }
     var transferFeeCategoryId by remember { mutableStateOf<Long?>(null) }
     var transferFeeSubCategoryId by remember { mutableStateOf<Long?>(null) }
-    var isTransferFeeAmountFocused by remember { mutableStateOf(false) }
     var showTransferFeeCalculator by remember { mutableStateOf(false) }
     var showTransferFeeCategoryPicker by remember { mutableStateOf(false) }
 
@@ -943,8 +938,7 @@ fun AddEditTransactionSheet(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("tx_payee_input")
-                                .onFocusChanged { isNameFocused = it.isFocused },
+                                .testTag("tx_payee_input"),
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Done
                             ),
@@ -1333,8 +1327,7 @@ fun AddEditTransactionSheet(
                                     singleLine = true,
                                     modifier = Modifier
                                         .weight(1f)
-                                        .testTag("tx_amount_input")
-                                        .onFocusChanged { isAmountFocused = it.isFocused },
+                                        .testTag("tx_amount_input"),
                                     decorationBox = { innerTextField ->
                                         Box(contentAlignment = Alignment.CenterStart) {
                                             if (amountText.isEmpty()) {
@@ -1754,8 +1747,7 @@ fun AddEditTransactionSheet(
                                                     ),
                                                     modifier = Modifier
                                                         .weight(1f)
-                                                        .padding(end = 6.dp)
-                                                        .onFocusChanged { isTransferFeeAmountFocused = it.isFocused },
+                                                        .padding(end = 6.dp),
                                                     colors = OutlinedTextFieldDefaults.colors(
                                                         focusedBorderColor = SolidTransfer,
                                                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
@@ -2033,8 +2025,7 @@ fun AddEditTransactionSheet(
                             onValueChange = { note = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(4.dp)
-                                .onFocusChanged { isNoteFocused = it.isFocused },
+                                .padding(4.dp),
                             placeholder = {
                                 Text(
                                     text = LanguageHelper.getString("notes", languageMode).ifEmpty { "Note" },
@@ -2055,20 +2046,18 @@ fun AddEditTransactionSheet(
                 }
 
                 // Bottom Action Bar: Type Selector Pills or Keyboard Accessory Toolbar (Pinned above Keyboard)
-                val isAnyFieldFocused = isNameFocused || isAmountFocused || isNoteFocused || isTransferFeeAmountFocused
+                val density = LocalDensity.current
+                val imeBottom = WindowInsets.ime.getBottom(density)
+                val isImeVisible = WindowInsets.isImeVisible || imeBottom > 0
+                val isKeyboardShowing = isKeyboardPhysicallyVisible || isImeVisible
 
-                // Keyboard mode is active ONLY when keyboard is physically present on screen AND an input is focused
-                val isKeyboardOpen = isKeyboardPhysicallyVisible && isAnyFieldFocused
+                // Compact mode is active whenever the software keyboard is visible on screen
+                val isKeyboardOpen = isKeyboardShowing
 
-                // When keyboard closes (dismissed via back button, down arrow, or Done),
-                // clear focus so the form and bottom bar cleanly transition back to normal mode
-                LaunchedEffect(isKeyboardPhysicallyVisible) {
-                    if (!isKeyboardPhysicallyVisible) {
+                // When keyboard is dismissed, clear focus so fields don't hold dangling focus
+                LaunchedEffect(isKeyboardShowing) {
+                    if (!isKeyboardShowing) {
                         focusManager.clearFocus(force = true)
-                        isNameFocused = false
-                        isAmountFocused = false
-                        isNoteFocused = false
-                        isTransferFeeAmountFocused = false
                     }
                 }
 
