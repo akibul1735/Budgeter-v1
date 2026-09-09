@@ -617,7 +617,7 @@ fun BackupSyncSettingsScreen(
                         )
                     }
 
-                    // 4. Drive 1 Snapshots / Backups
+                    // 4. Drive 1 Synced Cloud Data
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -625,7 +625,7 @@ fun BackupSyncSettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ ক্লাউড স্ন্যাপশটস (${driveBackups.size})" else "Drive 1 Cloud Snapshots (${driveBackups.size})",
+                                text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ সিঙ্ককৃত ক্লাউড ডাটা" else "Drive 1 Synced Cloud Data",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -753,7 +753,7 @@ fun BackupSyncSettingsScreen(
                         )
                     }
 
-                    // 4. Drive 2 Snapshots / Backups
+                    // 4. Drive 2 Synced Cloud Data
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -761,7 +761,7 @@ fun BackupSyncSettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ ক্লাউড স্ন্যাপশটস (${secondaryDriveBackups.size})" else "Drive 2 Cloud Snapshots (${secondaryDriveBackups.size})",
+                                text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ সিঙ্ককৃত ক্লাউড ডাটা" else "Drive 2 Synced Cloud Data",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.secondary

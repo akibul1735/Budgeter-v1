@@ -71,21 +71,6 @@ class JsonSyncWorker(
 
             latestSyncFile.writeText(json)
 
-            // Keep historical backup record
-            val mainBackupDir = File(applicationContext.filesDir, "backups")
-            if (!mainBackupDir.exists()) mainBackupDir.mkdirs()
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val historyFile = File(mainBackupDir, "AutoSync_$timeStamp.json")
-            historyFile.writeText(json)
-
-            // Clean up old auto-sync files if too many (> 10)
-            val existingBackups = mainBackupDir.listFiles { f -> f.name.startsWith("AutoSync_") }
-            if (existingBackups != null && existingBackups.size > 10) {
-                existingBackups.sortedBy { it.lastModified() }
-                    .take(existingBackups.size - 10)
-                    .forEach { it.delete() }
-            }
-
             val timestamp = System.currentTimeMillis()
             val backupPrefs = BackupPreferences.getInstance(applicationContext)
             val config = backupPrefs.config.value

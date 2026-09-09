@@ -302,8 +302,7 @@ object DropboxService {
             )
             val jsonContent = adapter.indent("  ").toJson(backupData)
 
-            val timeStamp = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
-            val fileName = "budgeter_backup_$timeStamp.json"
+            val fileName = "budgeter_sync_data.json"
             val cleanFolder = if (folderPath.startsWith("/")) folderPath else "/$folderPath"
             val targetPath = if (cleanFolder == "/" || cleanFolder.isEmpty()) "/$fileName" else "$cleanFolder/$fileName"
 
@@ -333,8 +332,45 @@ object DropboxService {
                 val resObj = JSONObject(bodyStr)
                 val fileId = resObj.optString("id", "")
                 val name = resObj.optString("name", fileName)
-                val modified = resObj.optString("client_modified", timeStamp)
+                val modified = resObj.optString("client_modified", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
                 val size = resObj.optLong("size", jsonContent.length.toLong())
+
+                // Clean up any legacy older backup files in the folder so ONLY the single sync file remains
+                try {
+                    val listBody = JSONObject().apply {
+                        put("path", if (cleanFolder == "/" || cleanFolder.isEmpty()) "" else cleanFolder)
+                        put("recursive", false)
+                    }.toString()
+                    val listReq = Request.Builder()
+                        .url("https://api.dropboxapi.com/2/files/list_folder")
+                        .addHeader("Authorization", "Bearer ${accessToken.trim()}")
+                        .addHeader("Content-Type", "application/json")
+                        .post(listBody.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    httpClient.newCall(listReq).execute().use { lResp ->
+                        if (lResp.isSuccessful) {
+                            val lJson = JSONObject(lResp.body?.string() ?: "")
+                            val entries = lJson.optJSONArray("entries") ?: JSONArray()
+                            for (i in 0 until entries.length()) {
+                                val item = entries.optJSONObject(i) ?: continue
+                                val itemName = item.optString("name")
+                                val itemPath = item.optString("path_lower")
+                                if (item.optString(".tag") == "file" && itemName != fileName && itemName.endsWith(".json", ignoreCase = true)) {
+                                    val delBody = JSONObject().apply { put("path", itemPath) }.toString()
+                                    val delReq = Request.Builder()
+                                        .url("https://api.dropboxapi.com/2/files/delete_v2")
+                                        .addHeader("Authorization", "Bearer ${accessToken.trim()}")
+                                        .addHeader("Content-Type", "application/json")
+                                        .post(delBody.toRequestBody("application/json".toMediaType()))
+                                        .build()
+                                    httpClient.newCall(delReq).execute().close()
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Ignore background cleanup errors
+                }
 
                 Result.success(
                     GoogleDriveBackupFile(

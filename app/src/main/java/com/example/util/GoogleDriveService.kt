@@ -256,8 +256,7 @@ object GoogleDriveService {
         )
         val jsonContent = adapter.indent("  ").toJson(backupData)
 
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val fileName = "Budgeter_Backup_$timeStamp.json"
+        val syncFileName = "budgeter_sync_data.json"
 
         var visibleFileId: String? = null
         var appDataFileId: String? = null
@@ -265,24 +264,26 @@ object GoogleDriveService {
         val uploadToVisible = folderType.contains("Visible", ignoreCase = true) || folderType.contains("Both", ignoreCase = true)
         val uploadToHidden = folderType.contains("Hidden", ignoreCase = true) || folderType.contains("Both", ignoreCase = true)
 
-        // 1. Upload to Visible "Budgeter" Folder if configured
+        // 1. Sync to Visible "Budgeter" Folder if configured (single file: budgeter_sync_data.json)
         if (uploadToVisible) {
             val folderId = getOrCreateVisibleBudgeterFolder(accessToken)
-            visibleFileId = uploadFile(
+            visibleFileId = syncSingleFileToDrive(
                 accessToken = accessToken,
-                fileName = fileName,
+                fileName = syncFileName,
                 jsonContent = jsonContent,
-                parents = if (folderId != null) listOf(folderId) else listOf("root")
+                parentFolderId = folderId,
+                isAppData = false
             )
         }
 
-        // 2. Upload to Hidden "appDataFolder" if configured
+        // 2. Sync to Hidden "appDataFolder" if configured (single file: budgeter_sync_data.json)
         if (uploadToHidden || (!uploadToVisible && !uploadToHidden)) {
-            appDataFileId = uploadFile(
+            appDataFileId = syncSingleFileToDrive(
                 accessToken = accessToken,
-                fileName = fileName,
+                fileName = syncFileName,
                 jsonContent = jsonContent,
-                parents = listOf("appDataFolder")
+                parentFolderId = null,
+                isAppData = true
             )
         }
 
@@ -290,9 +291,105 @@ object GoogleDriveService {
             DriveBackupResult(
                 visibleFileId = visibleFileId,
                 appDataFileId = appDataFileId,
-                fileName = fileName
+                fileName = syncFileName
             )
         )
+    }
+
+    /**
+     * Synchronizes a single file into Google Drive by updating in-place if it exists,
+     * or creating it if it does not exist, and cleaning up any older legacy duplicates.
+     */
+    private fun syncSingleFileToDrive(
+        accessToken: String,
+        fileName: String,
+        jsonContent: String,
+        parentFolderId: String?,
+        isAppData: Boolean
+    ): String? {
+        try {
+            // 1. Query for existing file(s)
+            val query = if (isAppData) {
+                "trashed = false and (name = '$fileName' or name contains 'Budgeter' or name contains 'budgeter')"
+            } else {
+                val folder = parentFolderId ?: "root"
+                "'$folder' in parents and trashed = false and (name = '$fileName' or name contains 'Budgeter' or name contains 'budgeter')"
+            }
+
+            val spaceParam = if (isAppData) "appDataFolder" else "drive"
+            val queryUrl = "https://www.googleapis.com/drive/v3/files?q=${java.net.URLEncoder.encode(query, "UTF-8")}&spaces=$spaceParam&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc"
+
+            val searchReq = Request.Builder()
+                .url(queryUrl)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            var existingFileId: String? = null
+            val extraFileIdsToDelete = mutableListOf<String>()
+
+            httpClient.newCall(searchReq).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val json = JSONObject(body)
+                    val files = json.optJSONArray("files") ?: JSONArray()
+                    if (files.length() > 0) {
+                        existingFileId = files.getJSONObject(0).optString("id")
+                        // Collect any older duplicates to clean up so only ONE single sync file remains
+                        for (i in 1 until files.length()) {
+                            val oldId = files.getJSONObject(i).optString("id")
+                            if (oldId.isNotBlank()) extraFileIdsToDelete.add(oldId)
+                        }
+                    }
+                }
+            }
+
+            // Clean up older legacy duplicates in background
+            for (oldId in extraFileIdsToDelete) {
+                try {
+                    val delReq = Request.Builder()
+                        .url("https://www.googleapis.com/drive/v3/files/$oldId")
+                        .addHeader("Authorization", "Bearer $accessToken")
+                        .delete()
+                        .build()
+                    httpClient.newCall(delReq).execute().close()
+                } catch (e: Exception) {
+                    // Ignore deletion error for old files
+                }
+            }
+
+            // 2. If existing file found, update it in-place
+            if (!existingFileId.isNullOrBlank()) {
+                val updateUrl = "https://www.googleapis.com/upload/drive/v3/files/$existingFileId?uploadType=media"
+                val updateReq = Request.Builder()
+                    .url(updateUrl)
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .addHeader("Content-Type", "application/json; charset=UTF-8")
+                    .patch(jsonContent.toRequestBody("application/json; charset=UTF-8".toMediaType()))
+                    .build()
+
+                httpClient.newCall(updateReq).execute().use { response ->
+                    if (response.isSuccessful) {
+                        // Ensure filename is canonical
+                        val renameReq = Request.Builder()
+                            .url("https://www.googleapis.com/drive/v3/files/$existingFileId")
+                            .addHeader("Authorization", "Bearer $accessToken")
+                            .addHeader("Content-Type", "application/json")
+                            .patch("{\"name\":\"$fileName\"}".toRequestBody("application/json; charset=UTF-8".toMediaType()))
+                            .build()
+                        httpClient.newCall(renameReq).execute().close()
+                        return existingFileId
+                    }
+                }
+            }
+
+            // 3. If not found or update failed, create new single file
+            val parents = if (isAppData) listOf("appDataFolder") else if (parentFolderId != null) listOf(parentFolderId) else listOf("root")
+            return uploadFile(accessToken, fileName, jsonContent, parents)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
     }
 
     private fun uploadFile(
