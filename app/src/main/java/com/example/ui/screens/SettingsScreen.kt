@@ -61,11 +61,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
-import com.example.ui.components.AppCoinEmblem
 import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.screens.settings.AboutSettingsPage
-import com.example.ui.screens.settings.AppIconSettingsPage
 import com.example.ui.screens.settings.AppearanceSettingsPage
 import com.example.ui.screens.settings.CalendarSettingsPage
 import com.example.ui.screens.settings.CurrencySettingsPage
@@ -92,7 +90,6 @@ enum class SettingsSubPage {
     CURRENCY,
     DATE_TIME,
     THEMES,
-    CUSTOM_APP_ICON,
     NAVIGATION_TABS,
     TRANSACTION_SETUP,
     SMART_AUTOFILL,
@@ -178,14 +175,6 @@ fun SettingsScreen(
         }
         SettingsSubPage.THEMES -> {
             AppearanceSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onNavigateToCustomIcon = { currentSubPage = SettingsSubPage.CUSTOM_APP_ICON },
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.CUSTOM_APP_ICON -> {
-            AppIconSettingsPage(
                 viewModel = viewModel,
                 languageMode = languageMode,
                 onBack = { currentSubPage = SettingsSubPage.ROOT }
@@ -336,14 +325,6 @@ fun SettingsScreen(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "কাস্টম অ্যাপ আইকন" else "Custom App Icon") },
-                                    leadingIcon = { Icon(Icons.Default.MonetizationOn, contentDescription = null) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        currentSubPage = SettingsSubPage.CUSTOM_APP_ICON
-                                    }
-                                )
-                                DropdownMenuItem(
                                     text = { Text(if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup") },
                                     leadingIcon = { Icon(Icons.Default.CurrencyExchange, contentDescription = null) },
                                     onClick = {
@@ -443,23 +424,6 @@ fun SettingsScreen(
                             subtitle = "${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }} mode • ${themeConfig.activeThemeDisplayName} • ${if (languageMode == LanguageMode.BANGLA) themeConfig.fontPreset.titleBn else themeConfig.fontPreset.titleEn}",
                             icon = Icons.Default.Palette,
                             onClick = { currentSubPage = SettingsSubPage.THEMES }
-                        )
-                    }
-
-                    item {
-                        val currentAppIcon by viewModel.currentAppIcon.collectAsStateWithLifecycle()
-                        SettingsListItem(
-                            title = if (languageMode == LanguageMode.BANGLA) "কাস্টম অ্যাপ আইকন" else "Custom App Icon",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) currentAppIcon.titleBn else currentAppIcon.titleEn,
-                            icon = Icons.Default.MonetizationOn,
-                            leading = {
-                                AppCoinEmblem(
-                                    icon = currentAppIcon,
-                                    size = 24.dp,
-                                    elevation = 0.dp
-                                )
-                            },
-                            onClick = { currentSubPage = SettingsSubPage.CUSTOM_APP_ICON }
                         )
                     }
 

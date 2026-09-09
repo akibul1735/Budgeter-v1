@@ -59,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
-import com.example.ui.components.AppCoinEmblem
 import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.AppCornerRadius
 import com.example.ui.theme.ColorIntensity
@@ -69,19 +68,15 @@ import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
 import com.example.ui.viewmodel.BudgetViewModel
-import com.example.util.AvailableAppIcons
-import com.example.util.CustomAppIcon
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppearanceSettingsPage(
     viewModel: BudgetViewModel,
     languageMode: LanguageMode,
-    onNavigateToCustomIcon: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
-    val currentAppIcon by viewModel.currentAppIcon.collectAsStateWithLifecycle()
     val isBangla = languageMode == LanguageMode.BANGLA
 
     Column(
@@ -385,116 +380,6 @@ fun AppearanceSettingsPage(
                             checked = themeConfig.dynamicColor,
                             onCheckedChange = { viewModel.setDynamicColor(it) }
                         )
-                    }
-                }
-            }
-
-            // Custom App Icon Section
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MonetizationOn,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = if (isBangla) "অ্যাপ লঞ্চার আইকন" else "App Launcher Icon",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Text(
-                        text = if (isBangla) "সব আইকন দেখুন →" else "View all →",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onNavigateToCustomIcon() }
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                    )
-                }
-
-                Text(
-                    text = if (isBangla) "হোম স্ক্রিনের জন্য বাংলাদেশি টাকা (৳) কয়েন আইকন নির্বাচন করুন:" else "Choose your home screen Bangladesh Taka (৳) coin emblem:",
-                    fontSize = 11.5.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                ) {
-                    items(AvailableAppIcons.allIcons, key = { it.id }) { icon ->
-                        val isSelected = icon.id == currentAppIcon.id
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected)
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                            border = if (isSelected)
-                                androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
-                            else null,
-                            modifier = Modifier
-                                .width(94.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { viewModel.setCustomAppIcon(icon) }
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(8.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    AppCoinEmblem(
-                                        icon = icon,
-                                        size = 38.dp,
-                                        elevation = if (isSelected) 3.dp else 1.dp
-                                    )
-                                    if (isSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.BottomEnd)
-                                                .size(16.dp)
-                                                .background(MaterialTheme.colorScheme.primary, CircleShape),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Selected",
-                                                tint = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.size(11.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = if (isBangla) icon.titleBn.substringBefore(" ") else icon.titleEn.substringBefore(" ৳"),
-                                    fontSize = 10.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
-                                )
-                            }
-                        }
                     }
                 }
             }
