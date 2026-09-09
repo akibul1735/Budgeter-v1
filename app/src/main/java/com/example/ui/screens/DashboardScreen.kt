@@ -1532,14 +1532,14 @@ private fun RedesignedFinancialOverviewCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("expendable_overview_card"),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             // Card Title Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1549,7 +1549,7 @@ private fun RedesignedFinancialOverviewCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(28.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(SolidPrimary.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
@@ -1558,20 +1558,20 @@ private fun RedesignedFinancialOverviewCard(
                             imageVector = Icons.Default.Payments,
                             contentDescription = null,
                             tint = SolidPrimary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
                             text = LanguageHelper.getString("financial_overview", languageMode),
-                            fontSize = 15.sp,
+                            fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "ট্যাপ করে বিস্তারিত হিসাব দেখুন" else "Tap any amount to view calculation breakdown",
-                            fontSize = 10.5.sp,
+                            fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -1579,35 +1579,35 @@ private fun RedesignedFinancialOverviewCard(
 
                 IconButton(
                     onClick = { showFormulaBreakdown = !showFormulaBreakdown },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
                         imageVector = if (showFormulaBreakdown) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = "Toggle Formula",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Primary Expendable & Expected Expendable Sub-Cards
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Expendable Hero Sub-card
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = if (overview.expendable >= 0) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f) else Color(0xFFFFEBEE),
                     border = BorderStroke(1.dp, if (overview.expendable >= 0) SolidPrimary.copy(alpha = 0.3f) else Color(0xFFEF9A9A)),
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable(onClick = onExpendableClick)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1615,7 +1615,7 @@ private fun RedesignedFinancialOverviewCard(
                         ) {
                             Text(
                                 text = LanguageHelper.getString("expendable", languageMode),
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (overview.expendable >= 0) MaterialTheme.colorScheme.onPrimaryContainer else Color(0xFFC62828),
                                 maxLines = 1,
@@ -1629,20 +1629,20 @@ private fun RedesignedFinancialOverviewCard(
                             ) {
                                 Text(
                                     text = if (overview.expendable >= 0) "Safe" else "Deficit",
-                                    fontSize = 9.sp,
+                                    fontSize = 8.5.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color.White,
                                     maxLines = 1,
                                     softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = LanguageHelper.formatCurrency(overview.expendable, languageMode),
-                                fontSize = 17.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = if (overview.expendable >= 0) MaterialTheme.colorScheme.onPrimaryContainer else Color(0xFFC62828)
                             )
@@ -1651,7 +1651,7 @@ private fun RedesignedFinancialOverviewCard(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
                                 tint = if (overview.expendable >= 0) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f) else Color(0xFFC62828).copy(alpha = 0.6f),
-                                modifier = Modifier.size(13.dp)
+                                modifier = Modifier.size(12.dp)
                             )
                         }
                     }
@@ -1659,15 +1659,15 @@ private fun RedesignedFinancialOverviewCard(
 
                 // Expected Expendable Sub-card
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f)),
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable(onClick = onExpectedExpendableClick)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1675,7 +1675,7 @@ private fun RedesignedFinancialOverviewCard(
                         ) {
                             Text(
                                 text = LanguageHelper.getString("expected_expendable", languageMode),
-                                fontSize = 11.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 maxLines = 1,
@@ -1689,7 +1689,7 @@ private fun RedesignedFinancialOverviewCard(
                             ) {
                                 Text(
                                     text = "+Income",
-                                    fontSize = 9.sp,
+                                    fontSize = 8.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     maxLines = 1,
@@ -1698,11 +1698,11 @@ private fun RedesignedFinancialOverviewCard(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = LanguageHelper.formatCurrency(overview.expectedExpendable, languageMode),
-                                fontSize = 17.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
@@ -1711,21 +1711,21 @@ private fun RedesignedFinancialOverviewCard(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f),
-                                modifier = Modifier.size(13.dp)
+                                modifier = Modifier.size(12.dp)
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 6 Financial Indicators Sub-Cards in 2x3 Grid
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Sub-Card 1: Current Assets
                 FinancialIndicatorItem(
@@ -1764,11 +1764,11 @@ private fun RedesignedFinancialOverviewCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Sub-Card 4: Additional Cost
                 FinancialIndicatorItem(
@@ -1812,19 +1812,19 @@ private fun RedesignedFinancialOverviewCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 14.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .padding(top = 8.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)), RoundedCornerShape(12.dp))
-                        .padding(12.dp)
+                        .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)), RoundedCornerShape(10.dp))
+                        .padding(10.dp)
                 ) {
                     Text(
                         text = LanguageHelper.getString("expendable_breakdown", languageMode),
-                        fontSize = 12.5.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "• Available Money = Total Assets (${LanguageHelper.formatCurrency(overview.availableMoney, languageMode)})",
                         fontSize = 11.sp,
@@ -1882,13 +1882,13 @@ private fun FinancialIndicatorItem(
 ) {
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1898,12 +1898,12 @@ private fun FinancialIndicatorItem(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(13.dp)
+                    modifier = Modifier.size(12.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                     text = label,
-                    fontSize = 10.sp,
+                    fontSize = 9.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1914,16 +1914,16 @@ private fun FinancialIndicatorItem(
                     Spacer(modifier = Modifier.width(2.dp))
                     Text(
                         text = trendIndicator,
-                        fontSize = 9.sp,
+                        fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = trendColor
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = LanguageHelper.formatCurrency(amount, languageMode),
-                fontSize = 12.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = amountColor,
                 maxLines = 1,
