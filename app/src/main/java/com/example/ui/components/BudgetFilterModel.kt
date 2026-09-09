@@ -70,8 +70,9 @@ data class BudgetFilterState(
     val selectedLabels: Set<String> = emptySet(),
     val selectedStatusSet: Set<TransactionStatus> = emptySet(),
 
-    // 5. Exclude Zero Amounts
+    // 5. Exclude Zero Amounts & Hide Empty Groups
     val excludeZeroAmounts: Boolean = false,
+    val hideEmptyGroups: Boolean = true,
 
     // 6. Display Currency & Symbol
     val displayCurrency: Boolean = true,

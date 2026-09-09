@@ -1605,6 +1605,7 @@ private fun BudgetItemRow(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .padding(start = 12.dp)
             .testTag("budget_item_${item.id}")
     ) {
         Column(

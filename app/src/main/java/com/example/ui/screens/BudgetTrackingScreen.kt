@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -411,7 +412,13 @@ fun BudgetTrackingScreen(
                     }
                 }
 
-                if (sortedTrackingItems.isNotEmpty() || (searchQuery.isEmpty() && !filterState.filterOnlyBudgeted && !filterState.filterOnlyOverBudget && filterState.selectedCategoryIds.isEmpty())) {
+                val shouldIncludeGroup = if (filterState.excludeZeroAmounts || filterState.hideEmptyGroups) {
+                    sortedTrackingItems.isNotEmpty()
+                } else {
+                    sortedTrackingItems.isNotEmpty() || (searchQuery.isEmpty() && !filterState.filterOnlyBudgeted && !filterState.filterOnlyOverBudget && filterState.selectedCategoryIds.isEmpty())
+                }
+
+                if (shouldIncludeGroup) {
                     resultList.add(
                         CategoryGroupBudgetTracking(
                             parentCategory = parent,
@@ -771,7 +778,7 @@ fun BudgetTrackingScreen(
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 // Date 1: Base Period Box
                                 Surface(
@@ -780,12 +787,12 @@ fun BudgetTrackingScreen(
                                     border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(38.dp)
+                                        .heightIn(min = 44.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 2.dp),
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 3.dp, vertical = 3.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
@@ -805,20 +812,22 @@ fun BudgetTrackingScreen(
                                                     customCompareEndMs = DateUtils.getEndOfMonth(y, m)
                                                 )
                                             },
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(20.dp)
                                         ) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled.ArrowBack,
                                                 contentDescription = "Prev Base Month",
-                                                modifier = Modifier.size(13.dp),
+                                                modifier = Modifier.size(12.dp),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
 
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
                                             modifier = Modifier
                                                 .weight(1f)
+                                                .padding(horizontal = 2.dp)
                                                 .clip(RoundedCornerShape(4.dp))
                                                 .clickable { showBaseMonthPicker = true }
                                         ) {
@@ -827,14 +836,17 @@ fun BudgetTrackingScreen(
                                                 fontSize = 8.5.sp,
                                                 color = SlateText,
                                                 fontWeight = FontWeight.Medium,
-                                                maxLines = 1
+                                                maxLines = 1,
+                                                textAlign = TextAlign.Center
                                             )
                                             Text(
                                                 text = baseDateLabel,
-                                                fontSize = 11.5.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 2,
+                                                softWrap = true,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                         }
@@ -855,12 +867,12 @@ fun BudgetTrackingScreen(
                                                     customCompareEndMs = DateUtils.getEndOfMonth(y, m)
                                                 )
                                             },
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(20.dp)
                                         ) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled.ArrowForward,
                                                 contentDescription = "Next Base Month",
-                                                modifier = Modifier.size(13.dp),
+                                                modifier = Modifier.size(12.dp),
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
@@ -872,7 +884,7 @@ fun BudgetTrackingScreen(
                                     shape = CircleShape,
                                     color = BrandBlueLight.copy(alpha = 0.12f),
                                     modifier = Modifier
-                                        .size(26.dp)
+                                        .size(24.dp)
                                         .clip(CircleShape)
                                         .clickable {
                                             filterState = filterState.copy(comparisonEnabled = false)
@@ -881,7 +893,7 @@ fun BudgetTrackingScreen(
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
                                             text = "VS",
-                                            fontSize = 9.sp,
+                                            fontSize = 8.5.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = BrandBlueLight
                                         )
@@ -895,31 +907,33 @@ fun BudgetTrackingScreen(
                                     border = BorderStroke(0.5.dp, BrandBlueLight.copy(alpha = 0.4f)),
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(38.dp)
+                                        .heightIn(min = 44.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 2.dp),
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 3.dp, vertical = 3.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         IconButton(
                                             onClick = { viewModel.prevBudgetMonth() },
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(20.dp)
                                         ) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled.ArrowBack,
                                                 contentDescription = "Prev Compare Month",
-                                                modifier = Modifier.size(13.dp),
+                                                modifier = Modifier.size(12.dp),
                                                 tint = BrandBlueLight
                                             )
                                         }
 
                                         Column(
                                             horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
                                             modifier = Modifier
                                                 .weight(1f)
+                                                .padding(horizontal = 2.dp)
                                                 .clip(RoundedCornerShape(4.dp))
                                                 .clickable { showMonthPicker = true }
                                         ) {
@@ -928,26 +942,29 @@ fun BudgetTrackingScreen(
                                                 fontSize = 8.5.sp,
                                                 color = BrandBlueLight,
                                                 fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1
+                                                maxLines = 1,
+                                                textAlign = TextAlign.Center
                                             )
                                             Text(
                                                 text = compareDateLabel,
-                                                fontSize = 11.5.sp,
+                                                fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 2,
+                                                softWrap = true,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                         }
 
                                         IconButton(
                                             onClick = { viewModel.nextBudgetMonth() },
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(20.dp)
                                         ) {
                                             Icon(
                                                 Icons.AutoMirrored.Filled.ArrowForward,
                                                 contentDescription = "Next Compare Month",
-                                                modifier = Modifier.size(13.dp),
+                                                modifier = Modifier.size(12.dp),
                                                 tint = BrandBlueLight
                                             )
                                         }
@@ -1039,7 +1056,8 @@ fun BudgetTrackingScreen(
                                         fontWeight = FontWeight.Medium,
                                         color = SlateText,
                                         textAlign = TextAlign.Center,
-                                        maxLines = 1,
+                                        maxLines = 2,
+                                        softWrap = true,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
@@ -1877,102 +1895,133 @@ private fun CategoryGroupSection(
     onToggleExpand: () -> Unit,
     onCategoryClick: (CategoryBudgetTrackingItem) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        // Group Header Row
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
+    val isStandaloneParent = group.parentCategory != null && 
+        group.items.size == 1 && 
+        group.items[0].category.id == group.parentCategory.id
+
+    if (isStandaloneParent) {
+        // Single standalone category: render cleanly without redundant collapsible container
+        CategoryRow(
+            item = group.items[0],
+            isSubcategory = false,
+            showComparison = showComparison,
+            todayPaceRatio = todayPaceRatio,
+            languageMode = languageMode,
+            onClick = { onCategoryClick(group.items[0]) }
+        )
+    } else {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onToggleExpand() }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(vertical = 3.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Left: Blue Circle Chevron + Arrow Symbol + Group Name
+            // Group Header Row
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleExpand() }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f, fill = false)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Blue circular chevron toggle
-                        Surface(
-                            shape = CircleShape,
-                            color = BrandBlueLight,
-                            modifier = Modifier.size(20.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                tint = Color.White,
-                                modifier = Modifier.padding(2.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Group Indicating Icon Badge
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(BrandBlueLight.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
-                                contentDescription = null,
-                                tint = BrandBlueLight,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        Text(
-                            text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandBlueLight,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // Right: Group Total Spent Amount in straight right-aligned columns
-                    if (showComparison) {
+                        // Left: Blue Circle Chevron + Arrow Symbol + Group Name
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End
+                            modifier = Modifier.weight(1f, fill = false)
                         ) {
-                            Box(
-                                modifier = Modifier.widthIn(min = 75.dp),
-                                contentAlignment = Alignment.CenterEnd
+                            // Blue circular chevron toggle
+                            Surface(
+                                shape = CircleShape,
+                                color = BrandBlueLight,
+                                modifier = Modifier.size(20.dp)
                             ) {
-                                Text(
-                                    text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = SlateText,
-                                    textAlign = TextAlign.End,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                Icon(
+                                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                    tint = Color.White,
+                                    modifier = Modifier.padding(2.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // Group Indicating Icon Badge
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(BrandBlueLight.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
+                                    contentDescription = null,
+                                    tint = BrandBlueLight,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Text(
+                                text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandBlueLight,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Right: Group Total Spent Amount in straight right-aligned columns
+                        if (showComparison) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Box(
+                                    modifier = Modifier.widthIn(min = 75.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = SlateText,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Box(
+                                    modifier = Modifier.widthIn(min = 85.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (group.totalSpent > 0) CrimsonPink else SlateText,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        } else {
                             Box(
                                 modifier = Modifier.widthIn(min = 85.dp),
                                 contentAlignment = Alignment.CenterEnd
                             ) {
                                 Text(
                                     text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                    fontSize = 13.5.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (group.totalSpent > 0) CrimsonPink else SlateText,
                                     textAlign = TextAlign.End,
@@ -1981,81 +2030,67 @@ private fun CategoryGroupSection(
                                 )
                             }
                         }
-                    } else {
-                        Box(
-                            modifier = Modifier.widthIn(min = 85.dp),
-                            contentAlignment = Alignment.CenterEnd
+                    }
+
+                    // If group has an overall budget, show group-level progress bar and stats
+                    if (group.hasBudget) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (group.totalSpent > 0) CrimsonPink else SlateText,
-                                textAlign = TextAlign.End,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = "${group.percentageInt}%",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            val diffText = if (group.isOverBudget) {
+                                "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                            } else {
+                                "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                            }
+
+                            Text(
+                                text = diffText,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (group.isOverBudget) CrimsonPink else SlateText
                             )
                         }
-                    }
-                }
 
-                // If group has an overall budget, show group-level progress bar and stats
-                if (group.hasBudget) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${group.percentageInt}%",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                        val diffText = if (group.isOverBudget) {
-                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                        } else {
-                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                        }
-
-                        Text(
-                            text = diffText,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (group.isOverBudget) CrimsonPink else SlateText
+                        BudgetProgressBarWithTodayMarker(
+                            progressRatio = group.progressRatio,
+                            todayPaceRatio = todayPaceRatio,
+                            isOverBudget = group.isOverBudget,
+                            barHeight = 5.dp,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    BudgetProgressBarWithTodayMarker(
-                        progressRatio = group.progressRatio,
-                        todayPaceRatio = todayPaceRatio,
-                        isOverBudget = group.isOverBudget,
-                        barHeight = 5.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             }
-        }
 
-        // Collapsible Children Rows
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                group.items.forEach { item ->
-                    CategoryRow(
-                        item = item,
-                        showComparison = showComparison,
-                        todayPaceRatio = todayPaceRatio,
-                        languageMode = languageMode,
-                        onClick = { onCategoryClick(item) }
-                    )
+            // Collapsible Children Rows indented slightly right of group name
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    group.items.forEach { item ->
+                        CategoryRow(
+                            item = item,
+                            isSubcategory = true,
+                            showComparison = showComparison,
+                            todayPaceRatio = todayPaceRatio,
+                            languageMode = languageMode,
+                            onClick = { onCategoryClick(item) }
+                        )
+                    }
                 }
             }
         }
@@ -2066,10 +2101,12 @@ private fun CategoryGroupSection(
  * Individual Category Row matching screenshot:
  * Avatar icon (colored circle), category name, actual spent amount on right,
  * and if budgeted, % progress, remaining text, and progress bar with | TODAY marker.
+ * Subcategories are indented slightly right of the group header.
  */
 @Composable
 private fun CategoryRow(
     item: CategoryBudgetTrackingItem,
+    isSubcategory: Boolean = false,
     showComparison: Boolean,
     todayPaceRatio: Float,
     languageMode: LanguageMode,
@@ -2088,7 +2125,12 @@ private fun CategoryRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 7.dp)
+            .padding(
+                start = if (isSubcategory) 36.dp else 16.dp,
+                end = 16.dp,
+                top = if (isSubcategory) 5.dp else 7.dp,
+                bottom = if (isSubcategory) 5.dp else 7.dp
+            )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Main Line: Category Icon + Name + Spent Amount

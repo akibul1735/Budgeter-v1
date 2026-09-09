@@ -821,6 +821,32 @@ fun BudgetFilterDialog(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
 
+                            // Row 1b: Hide empty / 0 amount groups
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "শূন্য বা ফাঁকা গ্রুপ লুকান" else "Hide empty groups",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = tempFilter.hideEmptyGroups,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(hideEmptyGroups = it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = BrandGreen
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
                             // Row 2: Display currency
                             Row(
                                 modifier = Modifier
@@ -1918,6 +1944,7 @@ object BudgetFilterPresetsStorage {
                     put("comparisonEnabled", p.filterState.comparisonEnabled)
                     put("comparisonPreset", p.filterState.comparisonPreset.name)
                     put("excludeZeroAmounts", p.filterState.excludeZeroAmounts)
+                    put("hideEmptyGroups", p.filterState.hideEmptyGroups)
                     put("displayCurrency", p.filterState.displayCurrency)
                     put("displayCurrencySymbol", p.filterState.displayCurrencySymbol)
                     put("showExpenseCategoriesFirst", p.filterState.showExpenseCategoriesFirst)
@@ -1961,6 +1988,7 @@ object BudgetFilterPresetsStorage {
                 val compPreset = try { BudgetComparisonPreset.valueOf(compPresetName) } catch (_: Exception) { BudgetComparisonPreset.LAST_MONTH }
 
                 val excludeZero = obj.optBoolean("excludeZeroAmounts", false)
+                val hideEmpty = obj.optBoolean("hideEmptyGroups", true)
                 val dispCurr = obj.optBoolean("displayCurrency", true)
                 val dispSym = obj.optBoolean("displayCurrencySymbol", true)
                 val expFirst = obj.optBoolean("showExpenseCategoriesFirst", true)
@@ -2005,6 +2033,7 @@ object BudgetFilterPresetsStorage {
                             selectedLabels = labels,
                             selectedStatusSet = statuses,
                             excludeZeroAmounts = excludeZero,
+                            hideEmptyGroups = hideEmpty,
                             displayCurrency = dispCurr,
                             displayCurrencySymbol = dispSym,
                             showExpenseCategoriesFirst = expFirst,
