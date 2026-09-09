@@ -1,6 +1,9 @@
 package com.example.ui.screens.dashboard
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.example.util.DecimalPrecision
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,23 +57,43 @@ fun DailySummarySettingsDialog(
     currentPeriod: DailySummaryPeriod,
     currentShowValues: Boolean,
     currentShowAverages: Boolean,
+    currentDecimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
+    currentShowCurrency: Boolean = true,
+    currentShowCurrencySymbol: Boolean = true,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onSave: (mode: DailySummaryMode, period: DailySummaryPeriod, showValues: Boolean, showAverages: Boolean) -> Unit
+    onSave: (
+        mode: DailySummaryMode,
+        period: DailySummaryPeriod,
+        showValues: Boolean,
+        showAverages: Boolean,
+        decimalPrecision: DecimalPrecision,
+        showCurrency: Boolean,
+        showCurrencySymbol: Boolean
+    ) -> Unit
 ) {
     var mode by remember { mutableStateOf(currentMode) }
     var period by remember { mutableStateOf(currentPeriod) }
     var showValues by remember { mutableStateOf(currentShowValues) }
     var showAverages by remember { mutableStateOf(currentShowAverages) }
+    var decimalPrecision by remember { mutableStateOf(currentDecimalPrecision) }
+    var showCurrency by remember { mutableStateOf(currentShowCurrency) }
+    var showCurrencySymbol by remember { mutableStateOf(currentShowCurrencySymbol) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -169,7 +192,91 @@ fun DailySummarySettingsDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Toggles
+                // Decimal Point Precision (Off, 1 Digit, 2 Digits)
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "দশমিক স্থান" else "Decimal Point",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                DecimalPrecision.values().forEach { prec ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { decimalPrecision = prec }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (decimalPrecision == prec),
+                            onClick = { decimalPrecision = prec },
+                            colors = RadioButtonDefaults.colors(selectedColor = SolidPrimary)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = prec.getLabel(languageMode),
+                            fontSize = 13.5.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Currency Toggles
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "কারেন্সি সেটিংস" else "Currency Display",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "কারেন্সি দেখান" else "Currency (On / Off)",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Switch(
+                        checked = showCurrency,
+                        onCheckedChange = { showCurrency = it },
+                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                    )
+                }
+
+                if (showCurrency) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কারেন্সি প্রতীক দেখান (৳ / $)" else "Currency Symbol (On / Off)",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Switch(
+                            checked = showCurrencySymbol,
+                            onCheckedChange = { showCurrencySymbol = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Chart Toggles
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -216,7 +323,17 @@ fun DailySummarySettingsDialog(
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Button(
-                        onClick = { onSave(mode, period, showValues, showAverages) },
+                        onClick = {
+                            onSave(
+                                mode,
+                                period,
+                                showValues,
+                                showAverages,
+                                decimalPrecision,
+                                showCurrency,
+                                showCurrencySymbol
+                            )
+                        },
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
                     ) {

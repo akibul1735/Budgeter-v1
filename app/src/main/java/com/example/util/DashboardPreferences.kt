@@ -81,6 +81,19 @@ enum class DailySummaryPeriod(val labelEn: String, val labelBn: String, val days
     }
 }
 
+enum class DecimalPrecision(val labelEn: String, val labelBn: String, val decimals: Int) {
+    OFF("Off (Integer)", "বন্ধ (পূর্ণসংখ্যা)", 0),
+    ONE_DIGIT("1 Digit", "১ দশমিক স্থান", 1),
+    TWO_DIGITS("2 Digits", "২ দশমিক স্থান", 2);
+
+    fun getLabel(languageMode: LanguageMode): String {
+        return when (languageMode) {
+            LanguageMode.ENGLISH -> labelEn
+            LanguageMode.BANGLA -> labelBn
+        }
+    }
+}
+
 enum class BudgetSummaryType(val labelEn: String, val labelBn: String) {
     EXPENSE("Expense", "খরচ"),
     INCOME("Income", "আয়"),
@@ -146,6 +159,9 @@ data class DashboardConfig(
     val dailySummaryPeriod: DailySummaryPeriod = DailySummaryPeriod.LAST_7_DAYS,
     val dailyShowValues: Boolean = true,
     val dailyShowAverages: Boolean = true,
+    val dailyDecimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
+    val dailyShowCurrency: Boolean = true,
+    val dailyShowCurrencySymbol: Boolean = true,
     val budgetChartShape: BudgetChartShape = BudgetChartShape.DONUT,
     val budgetCategoryType: BudgetSummaryType = BudgetSummaryType.EXPENSE,
     val budgetMaxCategories: Int = 6,
@@ -206,6 +222,12 @@ class DashboardPreferences private constructor(context: Context) {
         val dailyShowValues = prefs.getBoolean(KEY_DAILY_SHOW_VALUES, true)
         val dailyShowAverages = prefs.getBoolean(KEY_DAILY_SHOW_AVERAGES, true)
 
+        val dailyPrecisionStr = prefs.getString(KEY_DAILY_DECIMAL_PRECISION, DecimalPrecision.TWO_DIGITS.name)
+        val dailyPrecision = runCatching { DecimalPrecision.valueOf(dailyPrecisionStr ?: "") }.getOrDefault(DecimalPrecision.TWO_DIGITS)
+
+        val dailyShowCurrency = prefs.getBoolean(KEY_DAILY_SHOW_CURRENCY, true)
+        val dailyShowCurrencySymbol = prefs.getBoolean(KEY_DAILY_SHOW_CURRENCY_SYMBOL, true)
+
         val budgetShapeStr = prefs.getString(KEY_BUDGET_SHAPE, BudgetChartShape.DONUT.name)
         val budgetShape = runCatching { BudgetChartShape.valueOf(budgetShapeStr ?: "") }.getOrDefault(BudgetChartShape.DONUT)
 
@@ -236,6 +258,9 @@ class DashboardPreferences private constructor(context: Context) {
             dailySummaryPeriod = dailyPeriod,
             dailyShowValues = dailyShowValues,
             dailyShowAverages = dailyShowAverages,
+            dailyDecimalPrecision = dailyPrecision,
+            dailyShowCurrency = dailyShowCurrency,
+            dailyShowCurrencySymbol = dailyShowCurrencySymbol,
             budgetChartShape = budgetShape,
             budgetCategoryType = budgetCatType,
             budgetMaxCategories = budgetMaxCats,
@@ -256,6 +281,9 @@ class DashboardPreferences private constructor(context: Context) {
             .putString(KEY_DAILY_PERIOD, newConfig.dailySummaryPeriod.name)
             .putBoolean(KEY_DAILY_SHOW_VALUES, newConfig.dailyShowValues)
             .putBoolean(KEY_DAILY_SHOW_AVERAGES, newConfig.dailyShowAverages)
+            .putString(KEY_DAILY_DECIMAL_PRECISION, newConfig.dailyDecimalPrecision.name)
+            .putBoolean(KEY_DAILY_SHOW_CURRENCY, newConfig.dailyShowCurrency)
+            .putBoolean(KEY_DAILY_SHOW_CURRENCY_SYMBOL, newConfig.dailyShowCurrencySymbol)
             .putString(KEY_BUDGET_SHAPE, newConfig.budgetChartShape.name)
             .putString(KEY_BUDGET_CAT_TYPE, newConfig.budgetCategoryType.name)
             .putInt(KEY_BUDGET_MAX_CATS, newConfig.budgetMaxCategories)
@@ -297,14 +325,20 @@ class DashboardPreferences private constructor(context: Context) {
         mode: DailySummaryMode = _config.value.dailySummaryMode,
         period: DailySummaryPeriod = _config.value.dailySummaryPeriod,
         showValues: Boolean = _config.value.dailyShowValues,
-        showAverages: Boolean = _config.value.dailyShowAverages
+        showAverages: Boolean = _config.value.dailyShowAverages,
+        decimalPrecision: DecimalPrecision = _config.value.dailyDecimalPrecision,
+        showCurrency: Boolean = _config.value.dailyShowCurrency,
+        showCurrencySymbol: Boolean = _config.value.dailyShowCurrencySymbol
     ) {
         saveConfig(
             _config.value.copy(
                 dailySummaryMode = mode,
                 dailySummaryPeriod = period,
                 dailyShowValues = showValues,
-                dailyShowAverages = showAverages
+                dailyShowAverages = showAverages,
+                dailyDecimalPrecision = decimalPrecision,
+                dailyShowCurrency = showCurrency,
+                dailyShowCurrencySymbol = showCurrencySymbol
             )
         )
     }
@@ -363,6 +397,9 @@ class DashboardPreferences private constructor(context: Context) {
         private const val KEY_DAILY_PERIOD = "dashboard_daily_period"
         private const val KEY_DAILY_SHOW_VALUES = "dashboard_daily_show_values"
         private const val KEY_DAILY_SHOW_AVERAGES = "dashboard_daily_show_averages"
+        private const val KEY_DAILY_DECIMAL_PRECISION = "dashboard_daily_decimal_precision"
+        private const val KEY_DAILY_SHOW_CURRENCY = "dashboard_daily_show_currency"
+        private const val KEY_DAILY_SHOW_CURRENCY_SYMBOL = "dashboard_daily_show_currency_symbol"
         private const val KEY_BUDGET_SHAPE = "dashboard_budget_shape"
         private const val KEY_BUDGET_CAT_TYPE = "dashboard_budget_cat_type"
         private const val KEY_BUDGET_MAX_CATS = "dashboard_budget_max_cats"

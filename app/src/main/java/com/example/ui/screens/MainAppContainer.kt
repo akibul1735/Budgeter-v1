@@ -298,26 +298,32 @@ fun MainAppContainer(
         pageCount = { visibleTabs.size }
     )
 
-    // Sync pager and show header when currentView changes programmatically
-    LaunchedEffect(currentView, visibleTabs) {
-        headerScrollState.show()
-        val targetIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
-        if (targetIndex >= 0 && pagerState.currentPage != targetIndex && pagerState.targetPage != targetIndex && !pagerState.isScrollInProgress) {
-            pagerState.animateScrollToPage(targetIndex)
-        }
-    }
-
     // Sync currentView when user swipes left/right between tabs
     LaunchedEffect(pagerState, visibleTabs) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             if (page in visibleTabs.indices) {
                 val swipedTab = visibleTabs[page]
                 val swipedView = swipedTab.toAppView()
-                if (isTabInVisibleTabs && currentView != swipedView) {
+                if (currentView != swipedView) {
                     headerScrollState.show()
                     currentView = swipedView
+                    if (swipedView == AppView.DASHBOARD) {
+                        viewHistory.clear()
+                        viewHistory.add(AppView.DASHBOARD)
+                    } else if (viewHistory.lastOrNull() != swipedView) {
+                        viewHistory.add(swipedView)
+                    }
                 }
             }
+        }
+    }
+
+    // Sync pager when currentView changes programmatically from drawer, back, etc.
+    LaunchedEffect(currentView, visibleTabs) {
+        val targetIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
+        if (targetIndex >= 0 && pagerState.currentPage != targetIndex && !pagerState.isScrollInProgress) {
+            headerScrollState.show()
+            pagerState.animateScrollToPage(targetIndex)
         }
     }
 
@@ -325,11 +331,6 @@ fun MainAppContainer(
         headerScrollState.show()
         if (currentView != targetView) {
             val tabIndex = visibleTabs.indexOfFirst { it.toAppView() == targetView }
-            if (tabIndex >= 0 && pagerState.currentPage != tabIndex) {
-                scope.launch {
-                    pagerState.animateScrollToPage(tabIndex)
-                }
-            }
             if (targetView == AppView.DASHBOARD) {
                 viewHistory.clear()
                 viewHistory.add(AppView.DASHBOARD)
@@ -337,6 +338,11 @@ fun MainAppContainer(
                 viewHistory.add(targetView)
             }
             currentView = targetView
+            if (tabIndex >= 0 && pagerState.currentPage != tabIndex) {
+                scope.launch {
+                    pagerState.animateScrollToPage(tabIndex)
+                }
+            }
         }
     }
 
@@ -1036,6 +1042,8 @@ fun MainAppContainer(
         val parentAccounts = allAccounts.filter { it.parentId == null }
         AddEditAccountGroupOrCategoryDialog(
             allGroups = parentAccounts,
+            allAccounts = allAccounts,
+            transactions = transactionsWithDetails,
             languageMode = languageMode,
             existingAccount = editingAccount,
             defaultGroupId = presetAccountParentId,
@@ -1043,7 +1051,10 @@ fun MainAppContainer(
             onVerifyPin = { viewModel.verifySecurityPin(it) },
             onDismiss = { showAddAccountDialog = false },
             onSave = { acc -> viewModel.saveAccount(acc) },
-            onDelete = { acc -> viewModel.deleteAccount(acc) }
+            onDelete = { acc -> viewModel.deleteAccount(acc) },
+            onDeleteWithStrategy = { acc, deleteTx, targetId ->
+                viewModel.deleteAccountWithStrategy(acc, deleteTx, targetId)
+            }
         )
     }
 
@@ -1051,6 +1062,8 @@ fun MainAppContainer(
         val parentCategories = allCategories.filter { it.parentId == null }
         AddEditCategoryDialog(
             parentCategories = parentCategories,
+            allCategories = allCategories,
+            transactions = transactionsWithDetails,
             languageMode = languageMode,
             existingCategory = editingCategory,
             defaultType = presetCategoryType,
@@ -1059,7 +1072,10 @@ fun MainAppContainer(
             onVerifyPin = { viewModel.verifySecurityPin(it) },
             onDismiss = { showAddCategoryDialog = false },
             onSave = { cat -> viewModel.saveCategory(cat) },
-            onDelete = { cat -> viewModel.deleteCategory(cat) }
+            onDelete = { cat -> viewModel.deleteCategory(cat) },
+            onDeleteWithStrategy = { cat, deleteTx, targetId ->
+                viewModel.deleteCategoryWithStrategy(cat, deleteTx, targetId)
+            }
         )
     }
 
@@ -1816,7 +1832,7 @@ private fun ScreenRouter(
             },
             onToggleCardVisibility = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
             onReorderCards = { from, to -> viewModel.moveDashboardCard(from, to) },
-            onUpdateDailySummarySettings = { m, p, sv, sa -> viewModel.setDailySummarySettings(m, p, sv, sa) },
+            onUpdateDailySummarySettings = { m, p, sv, sa, dp, sc, scs -> viewModel.setDailySummarySettings(m, p, sv, sa, dp, sc, scs) },
             onUpdateBudgetSummarySettings = { s, t, mc, sp, tp -> viewModel.setBudgetSummarySettings(s, t, mc, sp, tp) },
             onUpdateCalendarSettings = { dm, si, se -> viewModel.setCalendarSettings(dm, si, se) },
             onUpdateFavoriteAccounts = { favs -> viewModel.setFavoriteAccounts(favs) },

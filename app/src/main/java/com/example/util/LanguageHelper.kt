@@ -50,6 +50,43 @@ object LanguageHelper {
         return "$sign$prefix$formattedNum"
     }
 
+    fun formatWithPrecision(
+        amount: Double,
+        mode: LanguageMode,
+        decimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
+        showCurrency: Boolean = true,
+        showCurrencySymbol: Boolean = true
+    ): String {
+        val pattern = when (decimalPrecision) {
+            DecimalPrecision.OFF -> "#,##0"
+            DecimalPrecision.ONE_DIGIT -> "#,##0.0"
+            DecimalPrecision.TWO_DIGITS -> "#,##0.00"
+        }
+        val df = DecimalFormat(pattern)
+        val formattedNum = df.format(Math.abs(amount))
+        val finalNum = if (mode == LanguageMode.BANGLA) toBanglaDigits(formattedNum) else formattedNum
+        val isNegative = amount < 0
+        val sign = if (isNegative) "-" else ""
+
+        if (!showCurrency) {
+            return "$sign$finalNum"
+        }
+
+        val config = activeCurrencyConfig
+        val symbol = if (showCurrencySymbol) config.activeSymbol else ""
+        val code = if (config.displayMode == CurrencyDisplayMode.CODE_ONLY || config.displayMode == CurrencyDisplayMode.CODE_AND_SYMBOL) {
+            "${config.activeCode} "
+        } else ""
+
+        val prefix = if (showCurrencySymbol) {
+            if (code.isNotEmpty()) "$code$symbol" else symbol
+        } else {
+            if (code.isNotEmpty()) "${code.trim()} " else ""
+        }
+
+        return "$sign$prefix$finalNum"
+    }
+
     /**
      * Splits or formats long account/category/label titles across up to 2 lines cleanly
      * if the text exceeds the threshold.

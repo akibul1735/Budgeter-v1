@@ -43,6 +43,7 @@ import com.example.util.BackupSettingsConfig
 import com.example.util.CsvExportConfig
 import com.example.util.CsvImportPreview
 import com.example.util.CsvImportResult
+import com.example.util.DecimalPrecision
 import com.example.util.CsvManager
 import com.example.util.ParsedCsvRow
 import com.example.util.CurrencyConfig
@@ -172,9 +173,20 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         mode: DailySummaryMode,
         period: DailySummaryPeriod,
         showValues: Boolean,
-        showAverages: Boolean
+        showAverages: Boolean,
+        decimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
+        showCurrency: Boolean = true,
+        showCurrencySymbol: Boolean = true
     ) {
-        dashboardPrefs.setDailySummarySettings(mode, period, showValues, showAverages)
+        dashboardPrefs.setDailySummarySettings(
+            mode = mode,
+            period = period,
+            showValues = showValues,
+            showAverages = showAverages,
+            decimalPrecision = decimalPrecision,
+            showCurrency = showCurrency,
+            showCurrencySymbol = showCurrencySymbol
+        )
     }
 
     fun setBudgetSummarySettings(
@@ -633,6 +645,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun deleteAccountWithStrategy(account: Account, deleteTransactions: Boolean, targetAccountId: Long?) {
+        viewModelScope.launch {
+            trashManager.addAccount(account)
+            activeRepo.deleteAccountWithStrategy(account, deleteTransactions, targetAccountId)
+        }
+    }
+
     fun deleteAccounts(accounts: List<Account>) {
         viewModelScope.launch {
             accounts.forEach { trashManager.addAccount(it) }
@@ -662,6 +681,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             trashManager.addCategory(category)
             activeRepo.deleteCategory(category)
+        }
+    }
+
+    fun deleteCategoryWithStrategy(category: Category, deleteTransactions: Boolean, targetCategoryId: Long?) {
+        viewModelScope.launch {
+            trashManager.addCategory(category)
+            activeRepo.deleteCategoryWithStrategy(category, deleteTransactions, targetCategoryId)
         }
     }
 

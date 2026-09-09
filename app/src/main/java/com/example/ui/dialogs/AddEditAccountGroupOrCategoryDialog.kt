@@ -59,6 +59,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
+import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.DatePickerModal
 import com.example.ui.components.IconPickerModal
 import com.example.ui.theme.SolidExpense
@@ -78,6 +79,8 @@ enum class AccountEntryMode {
 @Composable
 fun AddEditAccountGroupOrCategoryDialog(
     allGroups: List<Account>, // Top-level accounts (parentId == null)
+    allAccounts: List<Account> = emptyList(),
+    transactions: List<TransactionWithDetails> = emptyList(),
     languageMode: LanguageMode,
     existingAccount: Account? = null,
     defaultGroupId: Long? = null,
@@ -86,7 +89,8 @@ fun AddEditAccountGroupOrCategoryDialog(
     onVerifyPin: ((String) -> Boolean)? = null,
     onDismiss: () -> Unit,
     onSave: (Account) -> Unit,
-    onDelete: ((Account) -> Unit)? = null
+    onDelete: ((Account) -> Unit)? = null,
+    onDeleteWithStrategy: ((Account, Boolean, Long?) -> Unit)? = null
 ) {
     // Determine entry mode: If editing a top-level group, NEW_GROUP. If editing child, NEW_CATEGORY.
     var entryMode by remember {
@@ -524,33 +528,24 @@ fun AddEditAccountGroupOrCategoryDialog(
         )
     }
 
-    if (showDeleteConfirmDialog && existingAccount != null && onDelete != null) {
-        val isGroup = existingAccount.parentId == null
-        if (isGroup) {
-            GroupDeletionAuthDialog(
-                groupName = existingAccount.localizedName(languageMode),
-                securityConfig = securityConfig,
-                languageMode = languageMode,
-                onVerifyPin = { onVerifyPin?.invoke(it) ?: true },
-                onConfirm = {
-                    onDelete(existingAccount)
-                    showDeleteConfirmDialog = false
-                    onDismiss()
-                },
-                onDismiss = { showDeleteConfirmDialog = false }
-            )
-        } else {
-            SimpleDeleteConfirmationDialog(
-                itemName = existingAccount.localizedName(languageMode),
-                itemTypeLabel = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
-                languageMode = languageMode,
-                onConfirm = {
-                    onDelete(existingAccount)
-                    showDeleteConfirmDialog = false
-                    onDismiss()
-                },
-                onDismiss = { showDeleteConfirmDialog = false }
-            )
-        }
+    if (showDeleteConfirmDialog && existingAccount != null && (onDelete != null || onDeleteWithStrategy != null)) {
+        AccountDeleteConfirmDialog(
+            account = existingAccount,
+            allAccounts = if (allAccounts.isNotEmpty()) allAccounts else allGroups,
+            transactions = transactions,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = onVerifyPin,
+            onConfirmDelete = { deleteTx, targetId ->
+                if (onDeleteWithStrategy != null) {
+                    onDeleteWithStrategy(existingAccount, deleteTx, targetId)
+                } else {
+                    onDelete?.invoke(existingAccount)
+                }
+                showDeleteConfirmDialog = false
+                onDismiss()
+            },
+            onDismiss = { showDeleteConfirmDialog = false }
+        )
     }
 }

@@ -597,37 +597,7 @@ fun LedgerScreen(
                         (if (selectedStatusFilter != null) 1 else 0) +
                         (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
                 onFilterClick = { showFilterDialog = true },
-                actions = {
-                    if (filteredTransactions.isNotEmpty()) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                text = "${filteredTransactions.size}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    // Multi-select mode trigger button
-                    IconButton(
-                        onClick = {
-                            val firstId = filteredTransactions.firstOrNull()?.transaction?.id
-                            if (firstId != null) selectedTransactionIds = setOf(firstId)
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.CheckBox,
-                            contentDescription = "Select Mode",
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
+                actions = {}
             )
         }
 
@@ -643,51 +613,78 @@ fun LedgerScreen(
             if (!isSelectionMode) {
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        // Type Filter Chips (All, Expense, Income, Transfer)
+                        // Type Filter Chips (All, Expense, Income, Transfer) with Count Badge
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            FilterChip(
-                                selected = selectedTypeFilter == null,
-                                onClick = { selectedTypeFilter = null },
-                                label = { Text(LanguageHelper.getString("all", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SolidPrimary,
-                                    selectedLabelColor = Color.White
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                FilterChip(
+                                    selected = selectedTypeFilter == null,
+                                    onClick = { selectedTypeFilter = null },
+                                    label = { Text(LanguageHelper.getString("all", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidPrimary,
+                                        selectedLabelColor = Color.White
+                                    )
                                 )
-                            )
-                            FilterChip(
-                                selected = selectedTypeFilter == TransactionType.EXPENSE,
-                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.EXPENSE) null else TransactionType.EXPENSE },
-                                label = { Text(LanguageHelper.getString("expense", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SolidExpense,
-                                    selectedLabelColor = Color.White
+                                FilterChip(
+                                    selected = selectedTypeFilter == TransactionType.EXPENSE,
+                                    onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.EXPENSE) null else TransactionType.EXPENSE },
+                                    label = { Text(LanguageHelper.getString("expense", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidExpense,
+                                        selectedLabelColor = Color.White
+                                    )
                                 )
-                            )
-                            FilterChip(
-                                selected = selectedTypeFilter == TransactionType.INCOME,
-                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.INCOME) null else TransactionType.INCOME },
-                                label = { Text(LanguageHelper.getString("income", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SolidIncome,
-                                    selectedLabelColor = Color.White
+                                FilterChip(
+                                    selected = selectedTypeFilter == TransactionType.INCOME,
+                                    onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.INCOME) null else TransactionType.INCOME },
+                                    label = { Text(LanguageHelper.getString("income", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidIncome,
+                                        selectedLabelColor = Color.White
+                                    )
                                 )
-                            )
-                            FilterChip(
-                                selected = selectedTypeFilter == TransactionType.TRANSFER,
-                                onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.TRANSFER) null else TransactionType.TRANSFER },
-                                label = { Text(LanguageHelper.getString("transfer", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SolidTransfer,
-                                    selectedLabelColor = Color.White
+                                FilterChip(
+                                    selected = selectedTypeFilter == TransactionType.TRANSFER,
+                                    onClick = { selectedTypeFilter = if (selectedTypeFilter == TransactionType.TRANSFER) null else TransactionType.TRANSFER },
+                                    label = { Text(LanguageHelper.getString("transfer", languageMode), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidTransfer,
+                                        selectedLabelColor = Color.White
+                                    )
                                 )
-                            )
+                            }
+
+                            if (filteredTransactions.isNotEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                ) {
+                                    val countText = if (languageMode == LanguageMode.BANGLA) {
+                                        "${LanguageHelper.toBanglaDigits(filteredTransactions.size.toString())}টি"
+                                    } else {
+                                        "${filteredTransactions.size}"
+                                    }
+                                    Text(
+                                        text = countText,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
 
                         // Active Filter Indicators bar

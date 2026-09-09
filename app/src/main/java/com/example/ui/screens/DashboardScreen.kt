@@ -113,6 +113,7 @@ import com.example.util.CalendarDisplayMode
 import com.example.util.DailySummaryMode
 import com.example.util.DailySummaryPeriod
 import com.example.util.DashboardCardType
+import com.example.util.DecimalPrecision
 import com.example.util.DashboardConfig
 import com.example.util.DateUtils
 import com.example.util.IconHelper
@@ -137,7 +138,7 @@ fun DashboardScreen(
     onAccountClick: (Account) -> Unit = {},
     onToggleCardVisibility: (DashboardCardType, Boolean) -> Unit,
     onReorderCards: (fromIndex: Int, toIndex: Int) -> Unit,
-    onUpdateDailySummarySettings: (DailySummaryMode, DailySummaryPeriod, Boolean, Boolean) -> Unit,
+    onUpdateDailySummarySettings: (DailySummaryMode, DailySummaryPeriod, Boolean, Boolean, DecimalPrecision, Boolean, Boolean) -> Unit,
     onUpdateBudgetSummarySettings: (BudgetChartShape, BudgetSummaryType, Int, Boolean, Boolean) -> Unit,
     onUpdateCalendarSettings: (CalendarDisplayMode, Boolean, Boolean) -> Unit,
     onUpdateFavoriteAccounts: (Set<Long>) -> Unit,
@@ -891,13 +892,19 @@ fun DashboardScreen(
                                     period = dashboardConfig.dailySummaryPeriod,
                                     showValues = dashboardConfig.dailyShowValues,
                                     showAverages = dashboardConfig.dailyShowAverages,
+                                    decimalPrecision = dashboardConfig.dailyDecimalPrecision,
+                                    showCurrency = dashboardConfig.dailyShowCurrency,
+                                    showCurrencySymbol = dashboardConfig.dailyShowCurrencySymbol,
                                     languageMode = languageMode,
                                     onModeChange = { newMode ->
                                         onUpdateDailySummarySettings(
                                             newMode,
                                             dashboardConfig.dailySummaryPeriod,
                                             dashboardConfig.dailyShowValues,
-                                            dashboardConfig.dailyShowAverages
+                                            dashboardConfig.dailyShowAverages,
+                                            dashboardConfig.dailyDecimalPrecision,
+                                            dashboardConfig.dailyShowCurrency,
+                                            dashboardConfig.dailyShowCurrencySymbol
                                         )
                                     },
                                     onPeriodChange = { newPeriod ->
@@ -905,7 +912,10 @@ fun DashboardScreen(
                                             dashboardConfig.dailySummaryMode,
                                             newPeriod,
                                             dashboardConfig.dailyShowValues,
-                                            dashboardConfig.dailyShowAverages
+                                            dashboardConfig.dailyShowAverages,
+                                            dashboardConfig.dailyDecimalPrecision,
+                                            dashboardConfig.dailyShowCurrency,
+                                            dashboardConfig.dailyShowCurrencySymbol
                                         )
                                     },
                                     onOpenSettings = { showDailySettingsDialog = true },
@@ -1100,10 +1110,13 @@ fun DashboardScreen(
             currentPeriod = dashboardConfig.dailySummaryPeriod,
             currentShowValues = dashboardConfig.dailyShowValues,
             currentShowAverages = dashboardConfig.dailyShowAverages,
+            currentDecimalPrecision = dashboardConfig.dailyDecimalPrecision,
+            currentShowCurrency = dashboardConfig.dailyShowCurrency,
+            currentShowCurrencySymbol = dashboardConfig.dailyShowCurrencySymbol,
             languageMode = languageMode,
             onDismiss = { showDailySettingsDialog = false },
-            onSave = { m, p, sv, sa ->
-                onUpdateDailySummarySettings(m, p, sv, sa)
+            onSave = { m, p, sv, sa, dp, sc, scs ->
+                onUpdateDailySummarySettings(m, p, sv, sa, dp, sc, scs)
                 showDailySettingsDialog = false
             }
         )

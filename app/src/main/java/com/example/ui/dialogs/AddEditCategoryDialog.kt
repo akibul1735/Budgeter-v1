@@ -57,6 +57,7 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
+import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.IconPickerModal
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -74,6 +75,8 @@ private val categoryPresetColors = listOf(
 @Composable
 fun AddEditCategoryDialog(
     parentCategories: List<Category>,
+    allCategories: List<Category> = emptyList(),
+    transactions: List<TransactionWithDetails> = emptyList(),
     languageMode: LanguageMode,
     existingCategory: Category? = null,
     defaultType: CategoryType = CategoryType.EXPENSE,
@@ -82,7 +85,8 @@ fun AddEditCategoryDialog(
     onVerifyPin: ((String) -> Boolean)? = null,
     onDismiss: () -> Unit,
     onSave: (Category) -> Unit,
-    onDelete: ((Category) -> Unit)? = null
+    onDelete: ((Category) -> Unit)? = null,
+    onDeleteWithStrategy: ((Category, Boolean, Long?) -> Unit)? = null
 ) {
     var nameEn by remember { mutableStateOf(existingCategory?.nameEn ?: "") }
     var nameBn by remember { mutableStateOf(existingCategory?.nameBn ?: "") }
@@ -497,33 +501,24 @@ fun AddEditCategoryDialog(
         )
     }
 
-    if (showDeleteConfirmDialog && existingCategory != null && onDelete != null) {
-        val isGroup = existingCategory.parentId == null
-        if (isGroup) {
-            GroupDeletionAuthDialog(
-                groupName = existingCategory.localizedName(languageMode),
-                securityConfig = securityConfig,
-                languageMode = languageMode,
-                onVerifyPin = { onVerifyPin?.invoke(it) ?: true },
-                onConfirm = {
-                    onDelete(existingCategory)
-                    showDeleteConfirmDialog = false
-                    onDismiss()
-                },
-                onDismiss = { showDeleteConfirmDialog = false }
-            )
-        } else {
-            SimpleDeleteConfirmationDialog(
-                itemName = existingCategory.localizedName(languageMode),
-                itemTypeLabel = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
-                languageMode = languageMode,
-                onConfirm = {
-                    onDelete(existingCategory)
-                    showDeleteConfirmDialog = false
-                    onDismiss()
-                },
-                onDismiss = { showDeleteConfirmDialog = false }
-            )
-        }
+    if (showDeleteConfirmDialog && existingCategory != null && (onDelete != null || onDeleteWithStrategy != null)) {
+        CategoryDeleteConfirmDialog(
+            category = existingCategory,
+            allCategories = if (allCategories.isNotEmpty()) allCategories else parentCategories,
+            transactions = transactions,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = onVerifyPin,
+            onConfirmDelete = { deleteTx, targetId ->
+                if (onDeleteWithStrategy != null) {
+                    onDeleteWithStrategy(existingCategory, deleteTx, targetId)
+                } else {
+                    onDelete?.invoke(existingCategory)
+                }
+                showDeleteConfirmDialog = false
+                onDismiss()
+            },
+            onDismiss = { showDeleteConfirmDialog = false }
+        )
     }
 }

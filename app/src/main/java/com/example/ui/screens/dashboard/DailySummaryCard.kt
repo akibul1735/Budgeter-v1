@@ -59,6 +59,7 @@ import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DailySummaryMode
 import com.example.util.DailySummaryPeriod
+import com.example.util.DecimalPrecision
 import com.example.util.LanguageHelper
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -81,6 +82,9 @@ fun DailySummaryCard(
     period: DailySummaryPeriod,
     showValues: Boolean,
     showAverages: Boolean,
+    decimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
+    showCurrency: Boolean = true,
+    showCurrencySymbol: Boolean = true,
     languageMode: LanguageMode,
     onModeChange: (DailySummaryMode) -> Unit,
     onPeriodChange: (DailySummaryPeriod) -> Unit,
@@ -399,7 +403,13 @@ fun DailySummaryCard(
                                     )
 
                                     if (showValues) {
-                                        val formatted = LanguageHelper.formatCurrency(day.expense, languageMode)
+                                        val formatted = LanguageHelper.formatWithPrecision(
+                                            day.expense,
+                                            languageMode,
+                                            decimalPrecision,
+                                            showCurrency,
+                                            showCurrencySymbol
+                                        )
                                         drawContext.canvas.nativeCanvas.drawText(
                                             formatted,
                                             centerX,
@@ -424,7 +434,13 @@ fun DailySummaryCard(
                                     )
 
                                     if (showValues) {
-                                        val formatted = LanguageHelper.formatCurrency(day.income, languageMode)
+                                        val formatted = LanguageHelper.formatWithPrecision(
+                                            day.income,
+                                            languageMode,
+                                            decimalPrecision,
+                                            showCurrency,
+                                            showCurrencySymbol
+                                        )
                                         drawContext.canvas.nativeCanvas.drawText(
                                             formatted,
                                             centerX,
@@ -472,7 +488,14 @@ fun DailySummaryCard(
                                         if (day.expense > 0) (day.expense / maxAmount * chartHeight).toFloat() else 0f
                                     )
                                     val net = day.income - day.expense
-                                    val formatted = if (net >= 0) "+${LanguageHelper.formatCurrency(net, languageMode)}" else LanguageHelper.formatCurrency(net, languageMode)
+                                    val formattedVal = LanguageHelper.formatWithPrecision(
+                                        kotlin.math.abs(net),
+                                        languageMode,
+                                        decimalPrecision,
+                                        showCurrency,
+                                        showCurrencySymbol
+                                    )
+                                    val formatted = if (net >= 0) "+$formattedVal" else "-$formattedVal"
                                     drawContext.canvas.nativeCanvas.drawText(
                                         formatted,
                                         centerX,
@@ -520,8 +543,15 @@ fun DailySummaryCard(
                         )
                         val prefix7 = if (mode == DailySummaryMode.EXPENSE) "-" else if (mode == DailySummaryMode.INCOME) "" else if (sevenDaysAvg >= 0) "+" else "-"
                         val color7 = if (mode == DailySummaryMode.EXPENSE) Color(0xFFF43F5E) else if (mode == DailySummaryMode.INCOME) Color(0xFF10B981) else if (sevenDaysAvg >= 0) Color(0xFF10B981) else Color(0xFFF43F5E)
+                        val formatted7 = LanguageHelper.formatWithPrecision(
+                            kotlin.math.abs(sevenDaysAvg),
+                            languageMode,
+                            decimalPrecision,
+                            showCurrency,
+                            showCurrencySymbol
+                        )
                         Text(
-                            text = "$prefix7${LanguageHelper.formatCurrency(kotlin.math.abs(sevenDaysAvg), languageMode)}",
+                            text = "$prefix7$formatted7",
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = color7
@@ -541,8 +571,15 @@ fun DailySummaryCard(
                         )
                         val prefix30 = if (mode == DailySummaryMode.EXPENSE) "-" else if (mode == DailySummaryMode.INCOME) "" else if (thirtyDaysAvg >= 0) "+" else "-"
                         val color30 = if (mode == DailySummaryMode.EXPENSE) Color(0xFFF43F5E) else if (mode == DailySummaryMode.INCOME) Color(0xFF10B981) else if (thirtyDaysAvg >= 0) Color(0xFF10B981) else Color(0xFFF43F5E)
+                        val formatted30 = LanguageHelper.formatWithPrecision(
+                            kotlin.math.abs(thirtyDaysAvg),
+                            languageMode,
+                            decimalPrecision,
+                            showCurrency,
+                            showCurrencySymbol
+                        )
                         Text(
-                            text = "$prefix30${LanguageHelper.formatCurrency(kotlin.math.abs(thirtyDaysAvg), languageMode)}",
+                            text = "$prefix30$formatted30",
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = color30

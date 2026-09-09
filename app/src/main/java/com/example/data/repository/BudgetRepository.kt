@@ -456,12 +456,90 @@ class BudgetRepository(
 
     suspend fun deleteAccount(account: Account) = accountDao.deleteAccount(account)
 
+    suspend fun deleteAccountWithStrategy(
+        account: Account,
+        deleteTransactions: Boolean,
+        targetAccountId: Long?
+    ) {
+        val allAccounts = accountDao.getAllAccountsSnapshot()
+        val affectedIds = if (account.parentId == null) {
+            val children = allAccounts.filter { it.parentId == account.id }
+            (setOf(account.id) + children.map { it.id }).toSet()
+        } else {
+            setOf(account.id)
+        }
+
+        val allTx = transactionDao.getAllTransactionsSnapshot()
+        val relatedTx = allTx.filter { (it.debitAccountId != null && it.debitAccountId in affectedIds) || (it.creditAccountId != null && it.creditAccountId in affectedIds) }
+
+        if (deleteTransactions) {
+            transactionDao.deleteTransactions(relatedTx)
+        } else if (targetAccountId != null) {
+            val updatedTx = relatedTx.map { tx ->
+                var updated = tx
+                if (tx.debitAccountId != null && tx.debitAccountId in affectedIds) {
+                    updated = updated.copy(debitAccountId = targetAccountId)
+                }
+                if (tx.creditAccountId != null && tx.creditAccountId in affectedIds) {
+                    updated = updated.copy(creditAccountId = targetAccountId)
+                }
+                updated
+            }
+            transactionDao.updateTransactions(updatedTx)
+        }
+
+        if (account.parentId == null) {
+            val children = allAccounts.filter { it.parentId == account.id }
+            children.forEach { accountDao.deleteAccount(it) }
+        }
+        accountDao.deleteAccount(account)
+    }
+
     suspend fun insertCategory(category: Category): Long = categoryDao.insertCategory(category)
     suspend fun updateCategory(category: Category) = categoryDao.updateCategory(category)
     suspend fun updateCategories(categories: List<Category>) = categoryDao.insertCategories(categories)
     suspend fun deleteCategory(category: Category) = categoryDao.deleteCategory(category)
     suspend fun deleteCategories(categories: List<Category>) {
         categories.forEach { categoryDao.deleteCategory(it) }
+    }
+
+    suspend fun deleteCategoryWithStrategy(
+        category: Category,
+        deleteTransactions: Boolean,
+        targetCategoryId: Long?
+    ) {
+        val allCats = categoryDao.getAllCategoriesSnapshot()
+        val affectedIds = if (category.parentId == null) {
+            val children = allCats.filter { it.parentId == category.id }
+            (setOf(category.id) + children.map { it.id }).toSet()
+        } else {
+            setOf(category.id)
+        }
+
+        val allTx = transactionDao.getAllTransactionsSnapshot()
+        val relatedTx = allTx.filter { (it.categoryId != null && it.categoryId in affectedIds) || (it.subCategoryId != null && it.subCategoryId in affectedIds) }
+
+        if (deleteTransactions) {
+            transactionDao.deleteTransactions(relatedTx)
+        } else if (targetCategoryId != null) {
+            val updatedTx = relatedTx.map { tx ->
+                var updated = tx
+                if (tx.categoryId != null && tx.categoryId in affectedIds) {
+                    updated = updated.copy(categoryId = targetCategoryId)
+                }
+                if (tx.subCategoryId != null && tx.subCategoryId in affectedIds) {
+                    updated = updated.copy(subCategoryId = targetCategoryId)
+                }
+                updated
+            }
+            transactionDao.updateTransactions(updatedTx)
+        }
+
+        if (category.parentId == null) {
+            val children = allCats.filter { it.parentId == category.id }
+            children.forEach { categoryDao.deleteCategory(it) }
+        }
+        categoryDao.deleteCategory(category)
     }
     suspend fun updateAccounts(accounts: List<Account>) {
         val sanitized = accounts.map { acc ->
