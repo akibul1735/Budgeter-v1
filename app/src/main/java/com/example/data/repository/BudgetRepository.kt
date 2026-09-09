@@ -18,8 +18,10 @@ import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 
 data class FinancialOverview(
     val totalAssets: Double,
@@ -222,7 +224,7 @@ class BudgetRepository(
                 subCategory = bill.subCategoryId?.let { categoryMap[it] }
             )
         }
-    }
+    }.flowOn(Dispatchers.Default)
 
     val transactionsWithDetails: Flow<List<TransactionWithDetails>> = combine(
         allTransactions,
@@ -241,7 +243,7 @@ class BudgetRepository(
                 subCategory = tx.subCategoryId?.let { categoryMap[it] }
             )
         }
-    }
+    }.flowOn(Dispatchers.Default)
 
     val accountsWithBalances: Flow<List<AccountWithBalance>> = combine(
         allAccounts,
@@ -292,7 +294,7 @@ class BudgetRepository(
                 isParent = true
             )
         }
-    }
+    }.flowOn(Dispatchers.Default)
 
     val financialOverview: Flow<FinancialOverview> = combine(
         accountsWithBalances,
@@ -440,7 +442,7 @@ class BudgetRepository(
             liabilitiesChange = liabilitiesChange,
             hasBudgetConfigured = hasBudgetConfigured
         )
-    }
+    }.flowOn(Dispatchers.Default)
 
     suspend fun insertAccount(account: Account): Long {
         val finalAcc = if (account.parentId == null) account.copy(initialBalance = 0.0) else account

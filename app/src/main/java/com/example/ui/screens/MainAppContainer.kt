@@ -302,7 +302,7 @@ fun MainAppContainer(
     LaunchedEffect(currentView, visibleTabs) {
         headerScrollState.show()
         val targetIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
-        if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
+        if (targetIndex >= 0 && pagerState.currentPage != targetIndex && pagerState.targetPage != targetIndex && !pagerState.isScrollInProgress) {
             pagerState.animateScrollToPage(targetIndex)
         }
     }
@@ -325,7 +325,7 @@ fun MainAppContainer(
         headerScrollState.show()
         if (currentView != targetView) {
             val tabIndex = visibleTabs.indexOfFirst { it.toAppView() == targetView }
-            if (tabIndex >= 0) {
+            if (tabIndex >= 0 && pagerState.currentPage != tabIndex) {
                 scope.launch {
                     pagerState.animateScrollToPage(tabIndex)
                 }
@@ -477,6 +477,8 @@ fun MainAppContainer(
                             if (isTabInVisibleTabs && visibleTabs.isNotEmpty()) {
                                 HorizontalPager(
                                     state = pagerState,
+                                    key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
+                                    beyondViewportPageCount = 1,
                                     modifier = Modifier.fillMaxSize()
                                 ) { page ->
                                     val pageTab = visibleTabs.getOrNull(page)
@@ -1837,40 +1839,45 @@ private fun ScreenRouter(
                 onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
             )
         }
-        AppView.BALANCE_SHEET -> BalanceSheetScreen(
-            accounts = allAccounts,
-            transactions = transactionsWithDetails.map { it.transaction },
-            languageMode = languageMode,
-            onOpenDrawer = onOpenDrawer,
-            onAddAccountClick = { onAddAccount(null) },
-            onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
-            onEditAccountClick = onEditAccount,
-            onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
-            onAccountClick = onAccountClick,
-            accountCalcConfig = accountCalcConfig,
-            onToggleIncludeStatus = { acc, isIncluded ->
-                viewModel.setAccountIncludeStatus(acc.id, isIncluded)
-            },
-            onSaveCalculationSetting = { acc, isIncluded, adjustment ->
-                viewModel.setAccountCalcSetting(acc.id, isIncluded, adjustment)
-            },
-            onResetAccountCalculation = { acc ->
-                viewModel.resetAccountCalculation(acc.id)
-            }
-        )
-        AppView.PAYMENT_SOURCE -> PaymentSourceScreen(
-            allAccounts = allAccounts,
-            accountsWithBalances = accountsWithBalances,
-            allCategories = allCategories,
-            monthlyBudgets = monthlyBudgets,
-            allTransactions = transactionsWithDetails,
-            recurringBills = recurringBills.map { it.bill },
-            selectedYear = selectedBudgetYear,
-            selectedMonth = selectedBudgetMonth,
-            languageMode = languageMode,
-            onOpenDrawer = onOpenDrawer,
-            onPrevMonth = { viewModel.prevBudgetMonth() },
-            onNextMonth = { viewModel.nextBudgetMonth() },
+        AppView.BALANCE_SHEET -> {
+            val rawTransactions = remember(transactionsWithDetails) { transactionsWithDetails.map { it.transaction } }
+            BalanceSheetScreen(
+                accounts = allAccounts,
+                transactions = rawTransactions,
+                languageMode = languageMode,
+                onOpenDrawer = onOpenDrawer,
+                onAddAccountClick = { onAddAccount(null) },
+                onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
+                onEditAccountClick = onEditAccount,
+                onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
+                onAccountClick = onAccountClick,
+                accountCalcConfig = accountCalcConfig,
+                onToggleIncludeStatus = { acc, isIncluded ->
+                    viewModel.setAccountIncludeStatus(acc.id, isIncluded)
+                },
+                onSaveCalculationSetting = { acc, isIncluded, adjustment ->
+                    viewModel.setAccountCalcSetting(acc.id, isIncluded, adjustment)
+                },
+                onResetAccountCalculation = { acc ->
+                    viewModel.resetAccountCalculation(acc.id)
+                }
+            )
+        }
+        AppView.PAYMENT_SOURCE -> {
+            val rawBills = remember(recurringBills) { recurringBills.map { it.bill } }
+            PaymentSourceScreen(
+                allAccounts = allAccounts,
+                accountsWithBalances = accountsWithBalances,
+                allCategories = allCategories,
+                monthlyBudgets = monthlyBudgets,
+                allTransactions = transactionsWithDetails,
+                recurringBills = rawBills,
+                selectedYear = selectedBudgetYear,
+                selectedMonth = selectedBudgetMonth,
+                languageMode = languageMode,
+                onOpenDrawer = onOpenDrawer,
+                onPrevMonth = { viewModel.prevBudgetMonth() },
+                onNextMonth = { viewModel.nextBudgetMonth() },
             onSetCurrentMonth = {
                 val cal = java.util.Calendar.getInstance()
                 viewModel.setBudgetYearMonth(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
@@ -1883,6 +1890,7 @@ private fun ScreenRouter(
             },
             onAccountClick = onAccountClick
         )
+    }
         AppView.BUDGET -> BudgetTrackingScreen(
             viewModel = viewModel,
             allCategories = allCategories,
