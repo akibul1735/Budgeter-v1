@@ -315,12 +315,14 @@ object DropboxService {
                 put("strict_conflict", false)
             }.toString()
 
+            val fileBytes = jsonContent.toByteArray(Charsets.UTF_8)
+            val requestBody = fileBytes.toRequestBody("application/octet-stream".toMediaType())
+
             val request = Request.Builder()
                 .url("https://content.dropboxapi.com/2/files/upload")
                 .addHeader("Authorization", "Bearer ${accessToken.trim()}")
                 .addHeader("Dropbox-API-Arg", argJson)
-                .addHeader("Content-Type", "application/octet-stream")
-                .post(jsonContent.toRequestBody("application/octet-stream".toMediaType()))
+                .post(requestBody)
                 .build()
 
             httpClient.newCall(request).execute().use { response ->
