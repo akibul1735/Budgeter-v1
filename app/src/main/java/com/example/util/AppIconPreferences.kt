@@ -30,7 +30,7 @@ object AvailableAppIcons {
         subtitleEn = "Rich golden coin with deep bronze Taka emblem",
         subtitleBn = "উজ্জ্বল সোনালী ধাতব মুদ্রা ও ব্রোঞ্জ টাকা প্রতীক",
         badge = "DEFAULT",
-        activityAlias = ".MainActivity",
+        activityAlias = ".MainActivityClassic",
         primaryColor = 0xFFF59E0B,
         secondaryColor = 0xFFB45309,
         takaSymbolColor = 0xFF451A03,
@@ -176,26 +176,35 @@ class AppIconPreferences private constructor(private val context: Context) {
             val packageManager = context.packageManager
             val packageName = context.packageName
 
-            // Enable selected alias and disable others safely
-            AvailableAppIcons.allIcons.forEach { target ->
+            // 1. Enable selected alias first so launcher always has an active launcher entry
+            val enabledComp = ComponentName(
+                packageName,
+                if (icon.activityAlias.startsWith(".")) "$packageName${icon.activityAlias}"
+                else icon.activityAlias
+            )
+            try {
+                packageManager.setComponentEnabledSetting(
+                    enabledComp,
+                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    PackageManager.DONT_KILL_APP
+                )
+            } catch (_: Exception) {
+            }
+
+            // 2. Disable all other aliases safely
+            AvailableAppIcons.allIcons.filter { it.id != icon.id }.forEach { target ->
                 val compName = ComponentName(
                     packageName,
                     if (target.activityAlias.startsWith(".")) "$packageName${target.activityAlias}"
                     else target.activityAlias
                 )
-                val newState = if (target.id == icon.id) {
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                } else {
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                }
                 try {
                     packageManager.setComponentEnabledSetting(
                         compName,
-                        newState,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                         PackageManager.DONT_KILL_APP
                     )
                 } catch (_: Exception) {
-                    // Ignore alias missing on device if running in unit tests / Robolectric
                 }
             }
         } catch (_: Exception) {
