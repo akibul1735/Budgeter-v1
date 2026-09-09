@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.components.AppCoinEmblem
 import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.AppCornerRadius
 import com.example.ui.theme.ColorIntensity
@@ -70,9 +72,11 @@ import com.example.ui.viewmodel.BudgetViewModel
 fun AppearanceSettingsPage(
     viewModel: BudgetViewModel,
     languageMode: LanguageMode,
+    onNavigateToCustomIcon: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
+    val currentAppIcon by viewModel.currentAppIcon.collectAsStateWithLifecycle()
     val isBangla = languageMode == LanguageMode.BANGLA
 
     Column(
@@ -377,6 +381,56 @@ fun AppearanceSettingsPage(
                             onCheckedChange = { viewModel.setDynamicColor(it) }
                         )
                     }
+                }
+            }
+
+            // Custom App Icon Section Card
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onNavigateToCustomIcon() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        AppCoinEmblem(
+                            icon = currentAppIcon,
+                            size = 36.dp,
+                            elevation = 1.dp
+                        )
+                        Column {
+                            Text(
+                                text = if (isBangla) "কাস্টম অ্যাপ আইকন" else "Custom App Icon",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isBangla) currentAppIcon.titleBn else currentAppIcon.titleEn,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Navigate to Custom App Icon",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
 
