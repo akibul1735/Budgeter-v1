@@ -1,6 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,9 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
 import com.example.util.ExportFormat
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExportMenuButton(
     onExport: (ExportFormat) -> Unit,
@@ -51,15 +54,20 @@ fun ExportMenuButton(
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
-        IconButton(
-            onClick = { expanded = true },
+        Box(
             modifier = Modifier
                 .size(38.dp)
-                .testTag(testTag)
+                .clip(RoundedCornerShape(10.dp))
+                .combinedClickable(
+                    onClick = { onExport(ExportFormat.PDF) },
+                    onLongClick = { expanded = true }
+                )
+                .testTag(testTag),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.FileDownload,
-                contentDescription = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট করুন" else "Export",
+                imageVector = Icons.Default.Print,
+                contentDescription = if (languageMode == LanguageMode.BANGLA) "প্রিন্ট করুন" else "Print",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -78,7 +86,7 @@ fun ExportMenuButton(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট ফরম্যাট নির্বাচন করুন" else "Export Format",
+                    text = if (languageMode == LanguageMode.BANGLA) "প্রিন্ট ও এক্সপোর্ট" else "Print & Export",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -87,12 +95,12 @@ fun ExportMenuButton(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // 1. PDF Document
+            // 1. Print / PDF Document
             DropdownMenuItem(
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "PDF ডকুমেন্ট (প্রিন্ট/সেভ)" else "PDF Document (Print/Save)",
+                            text = if (languageMode == LanguageMode.BANGLA) "প্রিন্ট করুন (PDF ডকুমেন্ট)" else "Print Document (PDF)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -105,7 +113,12 @@ fun ExportMenuButton(
                         modifier = Modifier.size(28.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("PDF", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFFDC2626))
+                            Icon(
+                                imageVector = Icons.Default.Print,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 },

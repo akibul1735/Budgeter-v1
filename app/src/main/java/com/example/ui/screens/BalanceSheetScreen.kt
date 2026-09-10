@@ -150,7 +150,8 @@ data class BalanceSheetFilterState(
     val displayCurrencySymbol: Boolean = true,
     val sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.DEFAULT,
     val showHiddenAccounts: Boolean = false,
-    val showOnlyCurrentBalance: Boolean = false
+    val showOnlyCurrentBalance: Boolean = false,
+    val showOnlyAccountsWithoutGroups: Boolean = false
 ) {
     val isFilterActive: Boolean
         get() = preset != BalanceSheetComparisonPreset.END_OF_LAST_MONTH ||
@@ -162,7 +163,8 @@ data class BalanceSheetFilterState(
                 !displayCurrencySymbol ||
                 sortOrder != BalanceSheetSortOrder.DEFAULT ||
                 showHiddenAccounts ||
-                showOnlyCurrentBalance
+                showOnlyCurrentBalance ||
+                showOnlyAccountsWithoutGroups
 }
 
 data class SavedBalanceSheetPreset(
@@ -224,6 +226,7 @@ object BalanceSheetPresetsStorage {
                 }
                 val showHidden = obj.optBoolean("showHidden", false)
                 val onlyCurrent = obj.optBoolean("onlyCurrent", false)
+                val onlyWithoutGroups = obj.optBoolean("onlyWithoutGroups", false)
 
                 list.add(
                     SavedBalanceSheetPreset(
@@ -241,7 +244,8 @@ object BalanceSheetPresetsStorage {
                             displayCurrencySymbol = displayCurrSym,
                             sortOrder = sortOrder,
                             showHiddenAccounts = showHidden,
-                            showOnlyCurrentBalance = onlyCurrent
+                            showOnlyCurrentBalance = onlyCurrent,
+                            showOnlyAccountsWithoutGroups = onlyWithoutGroups
                         )
                     )
                 )
@@ -278,6 +282,7 @@ object BalanceSheetPresetsStorage {
             obj.put("sortOrder", item.filterState.sortOrder.name)
             obj.put("showHidden", item.filterState.showHiddenAccounts)
             obj.put("onlyCurrent", item.filterState.showOnlyCurrentBalance)
+            obj.put("onlyWithoutGroups", item.filterState.showOnlyAccountsWithoutGroups)
             jsonArr.put(obj)
         }
         sp.edit().putString(KEY_PRESETS, jsonArr.toString()).apply()
@@ -364,6 +369,7 @@ fun BalanceSheetScreen(
             sortOrder = filterState.sortOrder,
             searchQuery = "",
             accountCalcConfig = accountCalcConfig,
+            showOnlyAccountsWithoutGroups = filterState.showOnlyAccountsWithoutGroups,
             languageMode = languageMode
         )
     }
@@ -819,6 +825,7 @@ fun MaterialBalanceSheetFilterDialog(
     var tempSortOrder by remember { mutableStateOf(currentState.sortOrder) }
     var tempShowHidden by remember { mutableStateOf(currentState.showHiddenAccounts) }
     var tempShowOnlyCurrent by remember { mutableStateOf(currentState.showOnlyCurrentBalance) }
+    var tempShowOnlyWithoutGroups by remember { mutableStateOf(currentState.showOnlyAccountsWithoutGroups) }
 
     // Sub-dialog states
     var showAccountPickerDialog by remember { mutableStateOf(false) }
@@ -906,6 +913,7 @@ fun MaterialBalanceSheetFilterDialog(
                                     tempSortOrder = BalanceSheetSortOrder.DEFAULT
                                     tempShowHidden = false
                                     tempShowOnlyCurrent = false
+                                    tempShowOnlyWithoutGroups = false
                                     Toast.makeText(context, if (languageMode == LanguageMode.BANGLA) "ফিল্টার রিসেট করা হয়েছে" else "Filters reset to default", Toast.LENGTH_SHORT).show()
                                 },
                                 modifier = Modifier.size(34.dp)
@@ -1567,6 +1575,39 @@ fun MaterialBalanceSheetFilterDialog(
                                     )
                                 )
                             }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 7: Show only accounts without groups
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ছাড়া শুধুমাত্র অ্যাকাউন্ট দেখান" else "Show only accounts without groups",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ বাদ দিয়ে সরাসরি প্রতিটি অ্যাকাউন্ট প্রদর্শন করবে" else "List individual accounts directly without groups",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                    )
+                                }
+                                Switch(
+                                    checked = tempShowOnlyWithoutGroups,
+                                    onCheckedChange = { tempShowOnlyWithoutGroups = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32)
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -1606,7 +1647,8 @@ fun MaterialBalanceSheetFilterDialog(
                                 displayCurrencySymbol = tempDisplayCurrencySymbol,
                                 sortOrder = tempSortOrder,
                                 showHiddenAccounts = tempShowHidden,
-                                showOnlyCurrentBalance = tempShowOnlyCurrent
+                                showOnlyCurrentBalance = tempShowOnlyCurrent,
+                                showOnlyAccountsWithoutGroups = tempShowOnlyWithoutGroups
                             )
                             onApply(newState)
                         },
@@ -2011,6 +2053,7 @@ fun MaterialBalanceSheetFilterDialog(
                                             tempSortOrder = fs.sortOrder
                                             tempShowHidden = fs.showHiddenAccounts
                                             tempShowOnlyCurrent = fs.showOnlyCurrentBalance
+                                            tempShowOnlyWithoutGroups = fs.showOnlyAccountsWithoutGroups
                                             showOpenPresetDialog = false
                                             Toast.makeText(context, if (languageMode == LanguageMode.BANGLA) "ফিল্টার প্রয়োগ করা হয়েছে" else "Loaded preset: ${presetItem.name}", Toast.LENGTH_SHORT).show()
                                         }
@@ -2663,18 +2706,22 @@ private fun BalanceSheetGroupItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Expand/collapse icon
-                IconButton(
-                    onClick = onToggleExpand,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
+                if (group.subAccounts.isNotEmpty()) {
+                    IconButton(
+                        onClick = onToggleExpand,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(2.dp))
+                } else {
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
-                Spacer(modifier = Modifier.width(2.dp))
 
                 // Account Name with Group Icon Indicator
                 Row(

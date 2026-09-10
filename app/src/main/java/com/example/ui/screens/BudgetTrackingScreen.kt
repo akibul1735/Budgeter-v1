@@ -1383,26 +1383,60 @@ fun BudgetTrackingScreen(
                         }
                     }
                 } else {
-                    items(
-                        items = categoryGroups,
-                        key = { "${it.parentCategory?.id ?: "others"}_${it.groupNameEn}_${it.groupNameBn}" }
-                    ) { group ->
-                        val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
-                        val isExpanded = expandedGroups[groupKey] ?: true
-
-                        CategoryGroupSection(
-                            group = group,
-                            isExpanded = isExpanded,
-                            showComparison = filterState.comparisonEnabled && baseRange != null,
-                            todayPaceRatio = todayPaceRatio,
-                            languageMode = languageMode,
-                            onToggleExpand = {
-                                expandedGroups[groupKey] = !isExpanded
-                            },
-                            onCategoryClick = { trackingItem ->
-                                selectedCategoryForDetail = trackingItem
+                    if (filterState.showOnlyCategoriesWithoutGroups) {
+                        val flatItems = categoryGroups.flatMap { it.items }.let { list ->
+                            val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
+                            if (shouldSortByAmount) {
+                                list.sortedByDescending { it.spentAmount }
+                            } else {
+                                when (filterState.sortOrder) {
+                                    BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> list.sortedByDescending { it.spentAmount }
+                                    BudgetSortOrder.AMOUNT_ASC -> list.sortedBy { it.spentAmount }
+                                    BudgetSortOrder.BUDGET_DESC -> list.sortedByDescending { it.budgetLimit }
+                                    BudgetSortOrder.BUDGET_ASC -> list.sortedBy { it.budgetLimit }
+                                    BudgetSortOrder.UTILIZATION_DESC -> list.sortedByDescending { it.percentageInt }
+                                    BudgetSortOrder.NAME_ASC -> list.sortedBy { it.category.nameEn.lowercase() }
+                                    BudgetSortOrder.DEFAULT -> list
+                                }
                             }
-                        )
+                        }
+                        items(
+                            items = flatItems,
+                            key = { "${it.category.id}_${it.category.nameEn}" }
+                        ) { item ->
+                            CategoryRow(
+                                item = item,
+                                isSubcategory = false,
+                                showComparison = filterState.comparisonEnabled && baseRange != null,
+                                todayPaceRatio = todayPaceRatio,
+                                languageMode = languageMode,
+                                onClick = {
+                                    selectedCategoryForDetail = item
+                                }
+                            )
+                        }
+                    } else {
+                        items(
+                            items = categoryGroups,
+                            key = { "${it.parentCategory?.id ?: "others"}_${it.groupNameEn}_${it.groupNameBn}" }
+                        ) { group ->
+                            val groupKey = "${group.parentCategory?.id ?: "others"}_${group.groupNameEn}_${group.groupNameBn}"
+                            val isExpanded = expandedGroups[groupKey] ?: true
+
+                            CategoryGroupSection(
+                                group = group,
+                                isExpanded = isExpanded,
+                                showComparison = filterState.comparisonEnabled && baseRange != null,
+                                todayPaceRatio = todayPaceRatio,
+                                languageMode = languageMode,
+                                onToggleExpand = {
+                                    expandedGroups[groupKey] = !isExpanded
+                                },
+                                onCategoryClick = { trackingItem ->
+                                    selectedCategoryForDetail = trackingItem
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -2288,6 +2322,26 @@ private fun CategoryGroupSection(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+
+                        if (group.hasBudget) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (group.isOverBudget) {
+                                    CrimsonPink.copy(alpha = 0.12f)
+                                } else {
+                                    BrandBlueLight.copy(alpha = 0.12f)
+                                }
+                            ) {
+                                Text(
+                                    text = "${group.percentageInt}%",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (group.isOverBudget) CrimsonPink else BrandBlueLight,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                )
+                            }
+                        }
                     }
 
                     // Right: Group Total Spent Amount in straight right-aligned columns
@@ -2431,20 +2485,29 @@ private fun CategoryRow(
         }
     }
 
+    val rowShape = RoundedCornerShape(12.dp)
     Surface(
         color = MaterialTheme.colorScheme.surface,
+        shape = rowShape,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        shadowElevation = 0.5.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
             .padding(
-                start = if (isSubcategory) 36.dp else 16.dp,
-                end = 16.dp,
-                top = if (isSubcategory) 5.dp else 7.dp,
-                bottom = if (isSubcategory) 5.dp else 7.dp
+                start = if (isSubcategory) 28.dp else 12.dp,
+                end = 12.dp,
+                top = 4.dp,
+                bottom = 4.dp
             )
+            .clip(rowShape)
+            .clickable { onClick() }
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Main Line: Category Icon + Name + Spent Amount
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            // Main Line: Category Icon + Name + Percentage Badge + Spent Amount
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -2458,14 +2521,14 @@ private fun CategoryRow(
                     Surface(
                         shape = CircleShape,
                         color = parsedColor,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = IconHelper.getIconByName(item.category.iconName),
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(13.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         }
                     }
@@ -2475,12 +2538,33 @@ private fun CategoryRow(
                     // Category Name
                     Text(
                         text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+
+                    // Percentage next to name, kept close
+                    if (item.hasBudget) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (item.isOverBudget) {
+                                CrimsonPink.copy(alpha = 0.12f)
+                            } else {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                            }
+                        ) {
+                            Text(
+                                text = "${item.percentageInt}%",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (item.isOverBudget) CrimsonPink else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                            )
+                        }
+                    }
                 }
 
                 // Spent Amount in straight right-aligned columns
@@ -2509,7 +2593,7 @@ private fun CategoryRow(
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                                fontSize = 13.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (item.spentAmount > 0) CrimsonPink else MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.End,
@@ -2525,7 +2609,7 @@ private fun CategoryRow(
                     ) {
                         Text(
                             text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                            fontSize = 13.5.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = if (item.spentAmount > 0) CrimsonPink else MaterialTheme.colorScheme.onSurface,
                             textAlign = TextAlign.End,
@@ -2538,26 +2622,19 @@ private fun CategoryRow(
 
             // Budget Sub-row (if category has an active budget limit)
             if (item.hasBudget) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val diffText = if (item.isOverBudget) {
+                    "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
+                } else {
+                    "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${item.percentageInt}%",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    val diffText = if (item.isOverBudget) {
-                        "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
-                    } else {
-                        "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
-                    }
-
                     Text(
                         text = diffText,
                         fontSize = 11.5.sp,

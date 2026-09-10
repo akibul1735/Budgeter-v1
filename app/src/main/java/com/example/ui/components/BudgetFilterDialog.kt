@@ -855,6 +855,32 @@ fun BudgetFilterDialog(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
 
+                            // Row 1c: Show only categories without groups
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ছাড়া শুধুমাত্র ক্যাটাগরি দেখান" else "Show only categories without groups",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = tempFilter.showOnlyCategoriesWithoutGroups,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyCategoriesWithoutGroups = it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = BrandGreen
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
                             // Row 2: Display currency
                             Row(
                                 modifier = Modifier
@@ -2071,6 +2097,7 @@ object BudgetFilterPresetsStorage {
                     put("comparisonPreset", p.filterState.comparisonPreset.name)
                     put("excludeZeroAmounts", p.filterState.excludeZeroAmounts)
                     put("hideEmptyGroups", p.filterState.hideEmptyGroups)
+                    put("showOnlyCategoriesWithoutGroups", p.filterState.showOnlyCategoriesWithoutGroups)
                     put("displayCurrency", p.filterState.displayCurrency)
                     put("displayCurrencySymbol", p.filterState.displayCurrencySymbol)
                     put("showExpenseCategoriesFirst", p.filterState.showExpenseCategoriesFirst)
@@ -2115,6 +2142,7 @@ object BudgetFilterPresetsStorage {
 
                 val excludeZero = obj.optBoolean("excludeZeroAmounts", false)
                 val hideEmpty = obj.optBoolean("hideEmptyGroups", true)
+                val onlyWithoutGroups = obj.optBoolean("showOnlyCategoriesWithoutGroups", false)
                 val dispCurr = obj.optBoolean("displayCurrency", true)
                 val dispSym = obj.optBoolean("displayCurrencySymbol", true)
                 val expFirst = obj.optBoolean("showExpenseCategoriesFirst", true)
@@ -2160,6 +2188,7 @@ object BudgetFilterPresetsStorage {
                             selectedStatusSet = statuses,
                             excludeZeroAmounts = excludeZero,
                             hideEmptyGroups = hideEmpty,
+                            showOnlyCategoriesWithoutGroups = onlyWithoutGroups,
                             displayCurrency = dispCurr,
                             displayCurrencySymbol = dispSym,
                             showExpenseCategoriesFirst = expFirst,

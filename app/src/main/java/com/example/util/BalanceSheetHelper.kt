@@ -152,6 +152,7 @@ object BalanceSheetHelper {
         sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.DEFAULT,
         searchQuery: String = "",
         accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
+        showOnlyAccountsWithoutGroups: Boolean = false,
         languageMode: LanguageMode = LanguageMode.ENGLISH
     ): BalanceSheetComparisonData {
         val baseDateLabel = DateUtils.formatDate(baseDateEpochMs, languageMode)
@@ -207,8 +208,53 @@ object BalanceSheetHelper {
         val currBalanceMap = filteredAccounts.associate { it.id to getAccountBalance(it, false) }
 
         fun buildGroups(accountType: AccountType): List<BalanceSheetGroup> {
-            val parents = parentAccounts.filter { it.type == accountType }
+            val typeAccounts = filteredAccounts.filter { it.type == accountType }
             val groups = mutableListOf<BalanceSheetGroup>()
+
+            if (showOnlyAccountsWithoutGroups) {
+                for (acc in typeAccounts) {
+                    val subs = subAccountsByParent[acc.id] ?: emptyList()
+                    val isParentWithSubs = acc.parentId == null && subs.isNotEmpty()
+
+                    val baseBal = baseBalanceMap[acc.id] ?: 0.0
+                    val currBal = currBalanceMap[acc.id] ?: 0.0
+
+                    // If account is a parent with subaccounts, only include it if it has its own direct balance
+                    if (isParentWithSubs && Math.abs(baseBal) < 0.001 && Math.abs(currBal) < 0.001) {
+                        continue
+                    }
+
+                    if (excludeZeroAmounts && Math.abs(baseBal) < 0.001 && Math.abs(currBal) < 0.001) {
+                        continue
+                    }
+
+                    val isInc = accountCalcConfig.isIncluded(acc.id)
+                    val adj = accountCalcConfig.getAdjustment(acc.id)
+                    val effBase = if (!isInc) 0.0 else (baseBal + adj)
+                    val effCurr = if (!isInc) 0.0 else (currBal + adj)
+
+                    if (filterNonZeroGroups && Math.abs(effCurr) < 0.001 && Math.abs(effBase) < 0.001) {
+                        continue
+                    }
+
+                    groups.add(
+                        BalanceSheetGroup(
+                            parentAccount = acc,
+                            baseBalance = baseBal,
+                            currentBalance = currBal,
+                            percentageShare = 0.0,
+                            subAccounts = emptyList(),
+                            isIncludedInCalc = isInc,
+                            adjustmentAmount = adj,
+                            effectiveBaseBalance = effBase,
+                            effectiveCurrentBalance = effCurr
+                        )
+                    )
+                }
+                return groups
+            }
+
+            val parents = parentAccounts.filter { it.type == accountType }
 
             for (parent in parents) {
                 val subs = subAccountsByParent[parent.id] ?: emptyList()

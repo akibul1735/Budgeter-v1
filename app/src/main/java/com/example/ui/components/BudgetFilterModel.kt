@@ -76,6 +76,7 @@ data class BudgetFilterState(
     // 5. Exclude Zero Amounts & Hide Empty Groups
     val excludeZeroAmounts: Boolean = false,
     val hideEmptyGroups: Boolean = true,
+    val showOnlyCategoriesWithoutGroups: Boolean = false,
 
     // 6. Display Currency & Symbol
     val displayCurrency: Boolean = true,
@@ -104,6 +105,7 @@ data class BudgetFilterState(
                 selectedLabels.isNotEmpty() ||
                 selectedStatusSet.isNotEmpty() ||
                 excludeZeroAmounts ||
+                showOnlyCategoriesWithoutGroups ||
                 !displayCurrency ||
                 !displayCurrencySymbol ||
                 sortByAmount ||
@@ -124,6 +126,7 @@ data class BudgetFilterState(
             if (selectedLabels.isNotEmpty()) count++
             if (selectedStatusSet.isNotEmpty()) count++
             if (excludeZeroAmounts) count++
+            if (showOnlyCategoriesWithoutGroups) count++
             if (!displayCurrency || !displayCurrencySymbol) count++
             if (sortByAmount || !showExpenseCategoriesFirst || sortOrder != BudgetSortOrder.DEFAULT) count++
             if (filterOnlyBudgeted || filterOnlyOverBudget) count++
