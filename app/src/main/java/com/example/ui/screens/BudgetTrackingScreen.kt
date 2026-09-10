@@ -122,6 +122,7 @@ import com.example.ui.components.BudgetComparisonPreset
 import com.example.ui.components.BudgetFilterDialog
 import com.example.ui.components.BudgetFilterState
 import com.example.ui.components.BudgetSortOrder
+import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.calculateBudgetFilterRanges
 import com.example.ui.components.formatBudgetAmount
 import com.example.ui.theme.SolidIncome
@@ -129,6 +130,8 @@ import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabExportHelper
+import androidx.compose.ui.platform.LocalContext
 import java.util.Calendar
 import kotlin.math.roundToInt
 
@@ -197,6 +200,7 @@ fun BudgetTrackingScreen(
     onEditTransaction: (Transaction) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     // Filter State
     var filterState by remember { mutableStateOf(BudgetFilterState()) }
     var showTimelineScreen by remember { mutableStateOf(false) }
@@ -608,6 +612,23 @@ fun BudgetTrackingScreen(
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
+                    ExportMenuButton(
+                        languageMode = languageMode,
+                        onExport = { format ->
+                            val periodLabel = "${DateUtils.getMonthName(selectedMonth, languageMode)} $selectedYear"
+                            TabExportHelper.exportBudget(
+                                context = context,
+                                format = format,
+                                periodLabel = periodLabel,
+                                activeTabMode = activeTabMode,
+                                groups = categoryGroups,
+                                totalBudget = totalFlowBudget,
+                                totalSpent = totalFlowSpent,
+                                showComparison = filterState.comparisonEnabled && baseRange != null,
+                                languageMode = languageMode
+                            )
+                        }
+                    )
                 }
             )
 

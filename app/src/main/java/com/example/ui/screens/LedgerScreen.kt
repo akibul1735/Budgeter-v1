@@ -119,6 +119,7 @@ import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.DatePickerModal
+import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.theme.SolidExpense
@@ -134,8 +135,10 @@ import com.example.util.LabelsDisplayMode
 import com.example.util.LanguageHelper
 import com.example.util.NotesDisplayMode
 import com.example.util.SecurityConfig
+import com.example.util.TabExportHelper
 import com.example.util.TransactionPreferences
 import com.example.util.UnnamedPayeeMode
+import androidx.compose.ui.platform.LocalContext
 import java.util.Calendar
 
 enum class LedgerRowStyle {
@@ -184,6 +187,7 @@ fun LedgerScreen(
     onDeleteTransactions: (List<Transaction>) -> Unit = {},
     onDeleteTransaction: (Transaction) -> Unit = {}
 ) {
+    val context = LocalContext.current
     // Search & Filter state - long search bar auto open by default
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
@@ -597,7 +601,20 @@ fun LedgerScreen(
                         (if (selectedStatusFilter != null) 1 else 0) +
                         (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
                 onFilterClick = { showFilterDialog = true },
-                actions = {}
+                actions = {
+                    ExportMenuButton(
+                        languageMode = languageMode,
+                        onExport = { format ->
+                            TabExportHelper.exportTransactions(
+                                context = context,
+                                format = format,
+                                transactions = filteredTransactions,
+                                filterSummary = if (selectedDatePreset != LedgerDatePreset.ALL_TIME) selectedDatePreset.displayName else "",
+                                languageMode = languageMode
+                            )
+                        }
+                    )
+                }
             )
         }
 

@@ -111,6 +111,7 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.ExportMenuButton
 import com.example.ui.dialogs.AccountCalculationDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -124,6 +125,7 @@ import com.example.util.BalanceSheetHelper
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabExportHelper
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -353,7 +355,25 @@ fun BalanceSheetScreen(
                 showFilterButton = true,
                 isFilterActive = filterState.isFilterActive,
                 onFilterClick = { showFilterDialog = true },
-                onOpenDrawer = onOpenDrawer
+                onOpenDrawer = onOpenDrawer,
+                actions = {
+                    ExportMenuButton(
+                        languageMode = languageMode,
+                        onExport = { format ->
+                            TabExportHelper.exportBalanceSheet(
+                                context = context,
+                                format = format,
+                                asOfDateLabel = balanceSheetData.compareDateLabel,
+                                assetGroups = balanceSheetData.assetGroups,
+                                totalAssets = balanceSheetData.totalAssetsCurrent,
+                                liabilityGroups = balanceSheetData.liabilityGroups,
+                                totalLiabilities = balanceSheetData.totalLiabilitiesCurrent,
+                                netWorth = balanceSheetData.netWorthCurrent,
+                                languageMode = languageMode
+                            )
+                        }
+                    )
+                }
             )
 
             // Fixed Timeline Control & Date Columns Card at top

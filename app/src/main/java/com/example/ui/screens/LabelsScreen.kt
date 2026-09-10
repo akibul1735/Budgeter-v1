@@ -64,11 +64,14 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.ExportMenuButton
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
 import com.example.util.LanguageHelper
+import com.example.util.TabExportHelper
+import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -107,6 +110,7 @@ fun LabelsScreen(
     onOpenDrawer: () -> Unit = {},
     onTransactionClick: (Transaction) -> Unit
 ) {
+    val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
     var selectedPreset by remember { mutableStateOf(LabelDateFilterPreset.ALL_TIME) }
@@ -241,7 +245,21 @@ fun LabelsScreen(
         AppTabHeader(
             title = LanguageHelper.getString("labels", languageMode),
             onOpenDrawer = onOpenDrawer,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
+            actions = {
+                ExportMenuButton(
+                    languageMode = languageMode,
+                    onExport = { format ->
+                        TabExportHelper.exportLabels(
+                            context = context,
+                            format = format,
+                            filterSubtitle = if (selectedPreset != LabelDateFilterPreset.ALL_TIME) selectedPreset.name else "",
+                            labels = aggregatedLabels,
+                            languageMode = languageMode
+                        )
+                    }
+                )
+            }
         )
 
         // Top Search & Vast Filter Action Bar

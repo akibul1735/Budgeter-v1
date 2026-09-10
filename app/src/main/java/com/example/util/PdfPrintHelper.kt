@@ -21,7 +21,7 @@ object PdfPrintHelper {
         printHtml(context, "Accounts_Balances_Over_Time", htmlContent)
     }
 
-    private fun printHtml(context: Context, jobName: String, htmlContent: String) {
+    fun printHtml(context: Context, jobName: String, htmlContent: String, isLandscape: Boolean = false) {
         try {
             val webView = WebView(context)
             webView.webViewClient = object : WebViewClient() {
@@ -30,8 +30,13 @@ object PdfPrintHelper {
                     val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager
                     if (printManager != null) {
                         val printAdapter = webView.createPrintDocumentAdapter(jobName)
+                        val mediaSize = if (isLandscape) {
+                            PrintAttributes.MediaSize.ISO_A4.asLandscape()
+                        } else {
+                            PrintAttributes.MediaSize.ISO_A4.asPortrait()
+                        }
                         val builder = PrintAttributes.Builder()
-                            .setMediaSize(PrintAttributes.MediaSize.ISO_A4.asLandscape())
+                            .setMediaSize(mediaSize)
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .setColorMode(PrintAttributes.COLOR_MODE_COLOR)
                         printManager.print(jobName, printAdapter, builder.build())
