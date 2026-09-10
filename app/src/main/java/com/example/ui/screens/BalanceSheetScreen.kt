@@ -144,11 +144,11 @@ data class BalanceSheetFilterState(
     val customCompareDateMs: Long? = null,
     val selectedAccountIds: Set<Long> = emptySet(),
     val selectedStatusSet: Set<TransactionStatus> = emptySet(),
-    val excludeZeroAmounts: Boolean = false,
+    val excludeZeroAmounts: Boolean = true,
     val filterNonZeroGroups: Boolean = false,
     val displayCurrency: Boolean = true,
     val displayCurrencySymbol: Boolean = true,
-    val sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.DEFAULT,
+    val sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.AMOUNT_DESC,
     val showHiddenAccounts: Boolean = false,
     val showOnlyCurrentBalance: Boolean = false,
     val showOnlyAccountsWithoutGroups: Boolean = false
@@ -157,11 +157,11 @@ data class BalanceSheetFilterState(
         get() = preset != BalanceSheetComparisonPreset.END_OF_LAST_MONTH ||
                 selectedAccountIds.isNotEmpty() ||
                 selectedStatusSet.isNotEmpty() ||
-                excludeZeroAmounts ||
+                !excludeZeroAmounts ||
                 filterNonZeroGroups ||
                 !displayCurrency ||
                 !displayCurrencySymbol ||
-                sortOrder != BalanceSheetSortOrder.DEFAULT ||
+                (sortOrder != BalanceSheetSortOrder.DEFAULT && sortOrder != BalanceSheetSortOrder.AMOUNT_DESC) ||
                 showHiddenAccounts ||
                 showOnlyCurrentBalance ||
                 showOnlyAccountsWithoutGroups
@@ -906,11 +906,11 @@ fun MaterialBalanceSheetFilterDialog(
                                     tempPreset = BalanceSheetComparisonPreset.END_OF_LAST_MONTH
                                     tempAccountIds = emptySet()
                                     tempStatuses = emptySet()
-                                    tempExcludeZero = false
+                                    tempExcludeZero = true
                                     tempFilterNonZeroGroups = false
                                     tempDisplayCurrency = true
                                     tempDisplayCurrencySymbol = true
-                                    tempSortOrder = BalanceSheetSortOrder.DEFAULT
+                                    tempSortOrder = BalanceSheetSortOrder.AMOUNT_DESC
                                     tempShowHidden = false
                                     tempShowOnlyCurrent = false
                                     tempShowOnlyWithoutGroups = false

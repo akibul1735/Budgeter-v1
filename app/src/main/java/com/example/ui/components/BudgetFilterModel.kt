@@ -74,7 +74,7 @@ data class BudgetFilterState(
     val selectedStatusSet: Set<TransactionStatus> = emptySet(),
 
     // 5. Exclude Zero Amounts & Hide Empty Groups
-    val excludeZeroAmounts: Boolean = false,
+    val excludeZeroAmounts: Boolean = true,
     val hideEmptyGroups: Boolean = true,
     val showOnlyCategoriesWithoutGroups: Boolean = false,
 
@@ -83,9 +83,9 @@ data class BudgetFilterState(
     val displayCurrencySymbol: Boolean = true,
 
     // 7. Sort Options & Category order
-    val sortByAmount: Boolean = false,
+    val sortByAmount: Boolean = true,
     val showExpenseCategoriesFirst: Boolean = true,
-    val sortOrder: BudgetSortOrder = BudgetSortOrder.DEFAULT,
+    val sortOrder: BudgetSortOrder = BudgetSortOrder.AMOUNT_DESC,
 
     // 8. Other Useful Filters
     val filterOnlyBudgeted: Boolean = false,
@@ -104,13 +104,13 @@ data class BudgetFilterState(
                 selectedAccountIds.isNotEmpty() ||
                 selectedLabels.isNotEmpty() ||
                 selectedStatusSet.isNotEmpty() ||
-                excludeZeroAmounts ||
+                !excludeZeroAmounts ||
                 showOnlyCategoriesWithoutGroups ||
                 !displayCurrency ||
                 !displayCurrencySymbol ||
-                sortByAmount ||
+                !sortByAmount ||
                 !showExpenseCategoriesFirst ||
-                sortOrder != BudgetSortOrder.DEFAULT ||
+                (sortOrder != BudgetSortOrder.DEFAULT && sortOrder != BudgetSortOrder.AMOUNT_DESC) ||
                 filterOnlyBudgeted ||
                 filterOnlyOverBudget ||
                 minAmount != null ||
@@ -125,10 +125,10 @@ data class BudgetFilterState(
             if (selectedAccountIds.isNotEmpty()) count++
             if (selectedLabels.isNotEmpty()) count++
             if (selectedStatusSet.isNotEmpty()) count++
-            if (excludeZeroAmounts) count++
+            if (!excludeZeroAmounts) count++
             if (showOnlyCategoriesWithoutGroups) count++
             if (!displayCurrency || !displayCurrencySymbol) count++
-            if (sortByAmount || !showExpenseCategoriesFirst || sortOrder != BudgetSortOrder.DEFAULT) count++
+            if (!sortByAmount || !showExpenseCategoriesFirst || (sortOrder != BudgetSortOrder.DEFAULT && sortOrder != BudgetSortOrder.AMOUNT_DESC)) count++
             if (filterOnlyBudgeted || filterOnlyOverBudget) count++
             if (minAmount != null || maxAmount != null) count++
             return count

@@ -150,7 +150,8 @@ data class CategoryBudgetTrackingItem(
     val budgetLimit: Double,
     val isEnabled: Boolean,
     val transactions: List<TransactionWithDetails>,
-    val baseTransactions: List<TransactionWithDetails> = emptyList()
+    val baseTransactions: List<TransactionWithDetails> = emptyList(),
+    val percentageShare: Double = 0.0
 ) {
     val hasBudget: Boolean get() = budgetLimit > 0 && isEnabled
     val progressRatio: Float get() = if (budgetLimit > 0) (spentAmount / budgetLimit).toFloat() else 0f
@@ -165,7 +166,8 @@ data class CategoryGroupBudgetTracking(
     val parentCategory: Category?,
     val groupNameEn: String,
     val groupNameBn: String,
-    val items: List<CategoryBudgetTrackingItem>
+    val items: List<CategoryBudgetTrackingItem>,
+    val percentageShare: Double = 0.0
 ) {
     val totalSpent: Double get() = items.sumOf { it.spentAmount }
     val totalSpentBase: Double get() = items.sumOf { it.spentBaseAmount }
@@ -566,7 +568,24 @@ fun BudgetTrackingScreen(
             resultList.sortBy { it.groupNameEn.lowercase() }
         }
 
-        resultList
+        val totalGrandSpent = resultList.sumOf { it.totalSpent }
+        val mappedGroups = resultList.map { group ->
+            val groupShare = if (totalGrandSpent > 0) (group.totalSpent / totalGrandSpent) * 100.0 else 0.0
+            val updatedItems = group.items.map { item ->
+                val itemShare = if (group.items.size > 1 && group.totalSpent > 0) {
+                    (item.spentAmount / group.totalSpent) * 100.0
+                } else if (totalGrandSpent > 0) {
+                    (item.spentAmount / totalGrandSpent) * 100.0
+                } else 0.0
+                item.copy(percentageShare = itemShare.coerceAtLeast(0.0))
+            }
+            group.copy(
+                percentageShare = groupShare.coerceAtLeast(0.0),
+                items = updatedItems
+            )
+        }
+
+        mappedGroups
     }
 
     // Overall Totals
@@ -1384,7 +1403,10 @@ fun BudgetTrackingScreen(
                     }
                 } else {
                     if (filterState.showOnlyCategoriesWithoutGroups) {
-                        val flatItems = categoryGroups.flatMap { it.items }.let { list ->
+                        val flatItems = categoryGroups.flatMap { it.items }.map { item ->
+                            val flatShare = if (totalFlowSpent > 0) (item.spentAmount / totalFlowSpent) * 100.0 else 0.0
+                            item.copy(percentageShare = flatShare.coerceAtLeast(0.0))
+                        }.let { list ->
                             val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
                             if (shouldSortByAmount) {
                                 list.sortedByDescending { it.spentAmount }
@@ -2323,22 +2345,21 @@ private fun CategoryGroupSection(
                             overflow = TextOverflow.Ellipsis
                         )
 
-                        if (group.hasBudget) {
+                        // % Share badge like Balance Sheet tab
+                        if (group.percentageShare > 0) {
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (group.isOverBudget) {
-                                    CrimsonPink.copy(alpha = 0.12f)
-                                } else {
-                                    BrandBlueLight.copy(alpha = 0.12f)
-                                }
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                             ) {
                                 Text(
-                                    text = "${group.percentageInt}%",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (group.isOverBudget) CrimsonPink else BrandBlueLight,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                    text = "${group.percentageShare.toInt()}%",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
                         }
@@ -2545,23 +2566,21 @@ private fun CategoryRow(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Percentage next to name, kept close
-                    if (item.hasBudget) {
+                    // % Share badge like Balance Sheet tab
+                    if (item.percentageShare > 0) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (item.isOverBudget) {
-                                CrimsonPink.copy(alpha = 0.12f)
-                            } else {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                            }
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                         ) {
                             Text(
-                                text = "${item.percentageInt}%",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (item.isOverBudget) CrimsonPink else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                text = "${item.percentageShare.toInt()}%",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
                     }
