@@ -122,6 +122,7 @@ import com.example.ui.components.DatePickerModal
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.SecurityAuthDialog
+import com.example.ui.dialogs.TransactionDetailViewDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidExpenseContainer
 import com.example.ui.theme.SolidIncome
@@ -210,6 +211,7 @@ fun LedgerScreen(
     val isSelectionMode = selectedTransactionIds.isNotEmpty()
 
     // Dialog Visibilities
+    var viewingTransactionItem by remember { mutableStateOf<TransactionWithDetails?>(null) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showCustomStartPicker by remember { mutableStateOf(false) }
     var showCustomEndPicker by remember { mutableStateOf(false) }
@@ -967,7 +969,7 @@ fun LedgerScreen(
                                                 if (isSelectionMode) {
                                                     selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
                                                 } else {
-                                                    onTransactionClick(tx)
+                                                    viewingTransactionItem = item
                                                 }
                                             },
                                             onLongClick = {
@@ -1004,7 +1006,7 @@ fun LedgerScreen(
                                                 if (isSelectionMode) {
                                                     selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
                                                 } else {
-                                                    onTransactionClick(tx)
+                                                    viewingTransactionItem = item
                                                 }
                                             },
                                             onLongClick = {
@@ -1042,7 +1044,7 @@ fun LedgerScreen(
                                                     selectedTransactionIds + tx.id
                                                 }
                                             } else {
-                                                onTransactionClick(tx)
+                                                viewingTransactionItem = item
                                             }
                                         },
                                         onLongClick = {
@@ -1068,6 +1070,23 @@ fun LedgerScreen(
                 }
             }
         }
+    }
+
+    // Transaction View Dialog
+    viewingTransactionItem?.let { viewItem ->
+        TransactionDetailViewDialog(
+            item = viewItem,
+            languageMode = languageMode,
+            onDismiss = { viewingTransactionItem = null },
+            onEdit = { tx ->
+                viewingTransactionItem = null
+                onTransactionClick(tx)
+            },
+            onShowSimilar = { query ->
+                viewingTransactionItem = null
+                searchQuery = query
+            }
+        )
     }
 
     // Advanced Filtering Dialog (Matching Screenshot 2 - Bluecoins style)
@@ -1820,13 +1839,36 @@ private fun TransactionRowItem(
         TransactionType.TRANSFER -> LanguageHelper.getString("transfer", languageMode)
     }
 
-    val accountDisplay = accountName ?: when (tx.type) {
-        TransactionType.EXPENSE -> item.creditAccount?.localizedName(languageMode) ?: ""
-        TransactionType.INCOME -> item.debitAccount?.localizedName(languageMode) ?: ""
+    val isAccountIncrease = when {
+        overrideSign == "+" -> true
+        overrideSign == "−" -> false
+        tx.type == TransactionType.INCOME -> tx.amount >= 0
+        tx.type == TransactionType.EXPENSE -> tx.amount < 0
+        else -> false
+    }
+    val accountCaret = if (isAccountIncrease) "⩓" else "⩔"
+
+    val accountDisplay = if (accountName != null) {
+        if (accountName.isNotBlank()) "$accountCaret $accountName" else ""
+    } else when (tx.type) {
+        TransactionType.EXPENSE -> {
+            val name = item.creditAccount?.localizedName(languageMode) ?: ""
+            if (name.isNotBlank()) {
+                val c = if (tx.amount >= 0) "⩔" else "⩓"
+                "$c $name"
+            } else ""
+        }
+        TransactionType.INCOME -> {
+            val name = item.debitAccount?.localizedName(languageMode) ?: ""
+            if (name.isNotBlank()) {
+                val c = if (tx.amount >= 0) "⩓" else "⩔"
+                "$c $name"
+            } else ""
+        }
         TransactionType.TRANSFER -> {
             val from = item.creditAccount?.localizedName(languageMode) ?: "Source"
             val to = item.debitAccount?.localizedName(languageMode) ?: "Dest"
-            "$from ➔ $to"
+            "⩔ $from ➔ ⩓ $to"
         }
     }
 
@@ -2092,10 +2134,15 @@ private fun TransactionRowItem(
             } else ""
 
             if (accountLine.isNotBlank()) {
+                val accountForIcon = when (tx.type) {
+                    TransactionType.EXPENSE -> item.creditAccount
+                    TransactionType.INCOME -> item.debitAccount
+                    TransactionType.TRANSFER -> if (overrideSign == "+") item.debitAccount else item.creditAccount
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (txConfig.enableAccountIcons && item.creditAccount != null) {
+                    if (txConfig.enableAccountIcons && accountForIcon != null) {
                         Icon(
-                            imageVector = IconHelper.getIconByName(item.creditAccount.iconName),
+                            imageVector = IconHelper.getIconByName(accountForIcon.iconName),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.size(11.dp)
