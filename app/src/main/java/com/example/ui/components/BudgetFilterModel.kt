@@ -27,10 +27,13 @@ enum class BudgetDateRangePreset(val labelEn: String, val labelBn: String) {
  * Comparison baseline presets for Budget tracking.
  */
 enum class BudgetComparisonPreset(val titleEn: String, val titleBn: String) {
-    LAST_MONTH("Previous Month", "গত মাস"),
-    SAME_MONTH_LAST_YEAR("Same Month Last Year", "গত বছরের একই মাস"),
-    LAST_3_MONTHS_AVG("Last 3 Months", "গত ৩ মাস"),
-    CUSTOM("Custom Baseline", "কাস্টম বেসলাইন")
+    SAME_DATE_PREV_MONTH("Same Date Prev Month", "পূর্ববর্তী মাসের একই তারিখ"),
+    SAME_DATE_PREV_YEAR("Same Date Prev Year", "গত বছরের একই তারিখ"),
+    LAST_MONTH("Previous Full Month", "গত পুরো মাস"),
+    SAME_MONTH_LAST_YEAR("Same Month Last Year", "গত বছরের এই মাস"),
+    LAST_3_MONTHS_AVG("Previous 3 Months", "পূর্ববর্তী ৩ মাস"),
+    LAST_YEAR("Previous Full Year", "গত বছর"),
+    CUSTOM("Custom Date Range", "নির্দিষ্ট সময়সীমা")
 }
 
 /**
@@ -220,6 +223,42 @@ fun calculateBudgetFilterRanges(
         null
     } else {
         when (filterState.comparisonPreset) {
+            BudgetComparisonPreset.SAME_DATE_PREV_MONTH -> {
+                val calStart = Calendar.getInstance().apply {
+                    timeInMillis = primaryStartMs
+                    add(Calendar.MONTH, -1)
+                }
+                val calEnd = Calendar.getInstance().apply {
+                    timeInMillis = primaryEndMs
+                    add(Calendar.MONTH, -1)
+                }
+                val start = calStart.timeInMillis
+                val end = calEnd.timeInMillis
+                val label = if (filterState.datePreset == BudgetDateRangePreset.THIS_MONTH) {
+                    DateUtils.formatMonthYear(calStart.get(Calendar.YEAR), calStart.get(Calendar.MONTH) + 1, languageMode)
+                } else {
+                    "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+                }
+                Pair(Pair(start, end), label)
+            }
+            BudgetComparisonPreset.SAME_DATE_PREV_YEAR -> {
+                val calStart = Calendar.getInstance().apply {
+                    timeInMillis = primaryStartMs
+                    add(Calendar.YEAR, -1)
+                }
+                val calEnd = Calendar.getInstance().apply {
+                    timeInMillis = primaryEndMs
+                    add(Calendar.YEAR, -1)
+                }
+                val start = calStart.timeInMillis
+                val end = calEnd.timeInMillis
+                val label = if (filterState.datePreset == BudgetDateRangePreset.THIS_MONTH) {
+                    DateUtils.formatMonthYear(calStart.get(Calendar.YEAR), calStart.get(Calendar.MONTH) + 1, languageMode)
+                } else {
+                    "${sdfShort.format(Date(start))} - ${sdfShort.format(Date(end))}"
+                }
+                Pair(Pair(start, end), label)
+            }
             BudgetComparisonPreset.LAST_MONTH -> {
                 cal.set(Calendar.YEAR, year)
                 cal.set(Calendar.MONTH, month - 1)
@@ -247,6 +286,13 @@ fun calculateBudgetFilterRanges(
                 val prevEnd = DateUtils.getEndOfMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
                 val label = if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ৩ মাস" else "Prev 3 Months"
                 Pair(Pair(prevStart, prevEnd), label)
+            }
+            BudgetComparisonPreset.LAST_YEAR -> {
+                val prevYear = year - 1
+                val start = DateUtils.getStartOfMonth(prevYear, 1)
+                val end = DateUtils.getEndOfMonth(prevYear, 12)
+                val label = if (languageMode == LanguageMode.BANGLA) "$prevYear সাল" else "$prevYear"
+                Pair(Pair(start, end), label)
             }
             BudgetComparisonPreset.CUSTOM -> {
                 val start = filterState.customCompareStartMs ?: (primaryStartMs - (30L * 24 * 60 * 60 * 1000L))

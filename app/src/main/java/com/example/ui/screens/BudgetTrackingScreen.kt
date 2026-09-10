@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -36,6 +37,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -201,8 +204,12 @@ fun BudgetTrackingScreen(
     var showMonthPicker by remember { mutableStateOf(false) }
     var showBaseMonthPicker by remember { mutableStateOf(false) }
     var showBaseDatePicker by remember { mutableStateOf(false) }
+    var showBaseStartDatePicker by remember { mutableStateOf(false) }
+    var showBaseEndDatePicker by remember { mutableStateOf(false) }
     var showCompareDatePicker by remember { mutableStateOf(false) }
+    var showComparisonPresetPicker by remember { mutableStateOf(false) }
     var isDualDateFlow by remember { mutableStateOf(false) }
+    var isSpeedDialExpanded by remember { mutableStateOf(false) }
 
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -829,10 +836,10 @@ fun BudgetTrackingScreen(
                                                 .weight(1f)
                                                 .padding(horizontal = 2.dp)
                                                 .clip(RoundedCornerShape(4.dp))
-                                                .clickable { showBaseMonthPicker = true }
+                                                .clickable { showComparisonPresetPicker = true }
                                         ) {
                                             Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) "বেস মাস" else "Base Period",
+                                                text = if (languageMode == LanguageMode.BANGLA) "বেস সময়কাল" else "Base Period",
                                                 fontSize = 8.5.sp,
                                                 color = SlateText,
                                                 fontWeight = FontWeight.Medium,
@@ -1365,51 +1372,138 @@ fun BudgetTrackingScreen(
                 .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Row for action buttons directly above the toggle
-            Row(
+            // Expandable Speed Dial Action FAB above the toggle (Single button on tap shows two)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalAlignment = Alignment.End
             ) {
-                // Budget Maker shortcut FAB
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                    shadowElevation = 4.dp,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .clickable { onNavigateToBudgetMaker() }
-                        .testTag("budget_maker_fab")
+                AnimatedVisibility(
+                    visible = isSpeedDialExpanded,
+                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingBag,
-                            contentDescription = "Budget Maker",
-                            tint = BrandBlueLight,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(bottom = 10.dp, end = 4.dp)
+                    ) {
+                        // Option 1: Budget Maker
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.clickable {
+                                isSpeedDialExpanded = false
+                                onNavigateToBudgetMaker()
+                            }
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 4.dp,
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "বাজেট মেকার" else "Budget Maker",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandBlueLight,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                            FloatingActionButton(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    onNavigateToBudgetMaker()
+                                },
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = BrandBlueLight,
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .testTag("budget_maker_fab")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ShoppingBag,
+                                    contentDescription = "Budget Maker",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        // Option 2: Add Transaction
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.clickable {
+                                isSpeedDialExpanded = false
+                                val defaultCat = allCategories.firstOrNull { it.type == targetCatType && it.parentId != null }
+                                if (defaultCat != null) onAddTransactionWithCategory(defaultCat)
+                                else onNavigateToBudgetMaker()
+                            }
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 4.dp,
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেন" else "Add Transaction",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (activeTabMode == "EXPENSE") Color(0xFF2563EB) else SolidIncome,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                            FloatingActionButton(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    val defaultCat = allCategories.firstOrNull { it.type == targetCatType && it.parentId != null }
+                                    if (defaultCat != null) onAddTransactionWithCategory(defaultCat)
+                                    else onNavigateToBudgetMaker()
+                                },
+                                containerColor = if (activeTabMode == "EXPENSE") Color(0xFF2563EB) else SolidIncome,
+                                contentColor = Color.White,
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .testTag("budget_add_tx_fab")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Transaction",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
-                // Add Transaction FAB
+                // Main Unified Speed Dial FAB
+                val fabRotation by animateFloatAsState(
+                    targetValue = if (isSpeedDialExpanded) 45f else 0f,
+                    label = "FabRotation"
+                )
                 FloatingActionButton(
-                    onClick = {
-                        val defaultCat = allCategories.firstOrNull { it.type == targetCatType && it.parentId != null }
-                        if (defaultCat != null) onAddTransactionWithCategory(defaultCat)
-                        else onNavigateToBudgetMaker()
-                    },
+                    onClick = { isSpeedDialExpanded = !isSpeedDialExpanded },
                     containerColor = if (activeTabMode == "EXPENSE") Color(0xFF2563EB) else SolidIncome,
                     contentColor = Color.White,
                     shape = CircleShape,
                     modifier = Modifier
                         .size(52.dp)
-                        .testTag("budget_add_tx_fab")
+                        .testTag("budget_speed_dial_fab")
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(26.dp))
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = if (isSpeedDialExpanded) "Close Actions" else "Open Actions",
+                        modifier = Modifier
+                            .size(26.dp)
+                            .rotate(fabRotation)
+                    )
                 }
             }
 
@@ -1603,6 +1697,190 @@ fun BudgetTrackingScreen(
             }
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+
+    // BASE CUSTOM START DATE PICKER
+    if (showBaseStartDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = filterState.customCompareStartMs ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000L)
+        )
+        DatePickerDialog(
+            onDismissRequest = { showBaseStartDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val selected = datePickerState.selectedDateMillis
+                    if (selected != null) {
+                        filterState = filterState.copy(
+                            comparisonEnabled = true,
+                            comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                            customCompareStartMs = selected
+                        )
+                    }
+                    showBaseStartDatePicker = false
+                }) {
+                    Text("OK", color = BrandBlueLight)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBaseStartDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // BASE CUSTOM END DATE PICKER
+    if (showBaseEndDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = filterState.customCompareEndMs ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showBaseEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val selected = datePickerState.selectedDateMillis
+                    if (selected != null) {
+                        filterState = filterState.copy(
+                            comparisonEnabled = true,
+                            comparisonPreset = BudgetComparisonPreset.CUSTOM,
+                            customCompareEndMs = selected
+                        )
+                    }
+                    showBaseEndDatePicker = false
+                }) {
+                    Text("OK", color = BrandBlueLight)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBaseEndDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // COMPARISON PRESET SELECTION MODAL
+    if (showComparisonPresetPicker) {
+        Dialog(onDismissRequest = { showComparisonPresetPicker = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "তুলনার সময়কাল নির্বাচন করুন" else "Select Comparison Baseline",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandBlueLight,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(BudgetComparisonPreset.values()) { preset ->
+                            val isSelected = filterState.comparisonEnabled && filterState.comparisonPreset == preset
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) BrandBlueLight.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = if (isSelected) BorderStroke(1.dp, BrandBlueLight) else null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        filterState = filterState.copy(
+                                            comparisonEnabled = true,
+                                            comparisonPreset = preset
+                                        )
+                                        showComparisonPresetPicker = false
+                                        if (preset == BudgetComparisonPreset.CUSTOM) {
+                                            showBaseStartDatePicker = true
+                                        }
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) BrandBlueLight else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = BrandBlueLight,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Option to pick specific Month via Month Picker
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showComparisonPresetPicker = false
+                                        showBaseMonthPicker = true
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = null,
+                                        tint = BrandBlueLight,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার থেকে মাস বাছুন..." else "Pick Specific Month...",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = BrandBlueLight
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = { showComparisonPresetPicker = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Close")
+                    }
+                }
+            }
         }
     }
 
@@ -1895,133 +2173,102 @@ private fun CategoryGroupSection(
     onToggleExpand: () -> Unit,
     onCategoryClick: (CategoryBudgetTrackingItem) -> Unit
 ) {
-    val isStandaloneParent = group.parentCategory != null && 
-        group.items.size == 1 && 
-        group.items[0].category.id == group.parentCategory.id
-
-    if (isStandaloneParent) {
-        // Single standalone category: render cleanly without redundant collapsible container
-        CategoryRow(
-            item = group.items[0],
-            isSubcategory = false,
-            showComparison = showComparison,
-            todayPaceRatio = todayPaceRatio,
-            languageMode = languageMode,
-            onClick = { onCategoryClick(group.items[0]) }
-        )
-    } else {
-        Column(
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+    ) {
+        // Group Header Row
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 3.dp)
+                .clickable { onToggleExpand() }
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Group Header Row
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggleExpand() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Left: Blue Circle Chevron + Group Icon + Group Name
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.weight(1f, fill = false)
                     ) {
-                        // Left: Blue Circle Chevron + Arrow Symbol + Group Name
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f, fill = false)
+                        // Blue circular chevron toggle
+                        Surface(
+                            shape = CircleShape,
+                            color = BrandBlueLight,
+                            modifier = Modifier.size(20.dp)
                         ) {
-                            // Blue circular chevron toggle
-                            Surface(
-                                shape = CircleShape,
-                                color = BrandBlueLight,
-                                modifier = Modifier.size(20.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                    tint = Color.White,
-                                    modifier = Modifier.padding(2.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // Group Indicating Icon Badge
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(BrandBlueLight.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
-                                    contentDescription = null,
-                                    tint = BrandBlueLight,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            Text(
-                                text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandBlueLight,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                tint = Color.White,
+                                modifier = Modifier.padding(2.dp)
                             )
                         }
 
-                        // Right: Group Total Spent Amount in straight right-aligned columns
-                        if (showComparison) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.End
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Group Indicating Icon Badge
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(BrandBlueLight.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
+                                contentDescription = null,
+                                tint = BrandBlueLight,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Text(
+                            text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandBlueLight,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Right: Group Total Spent Amount in straight right-aligned columns
+                    if (showComparison) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Box(
+                                modifier = Modifier.widthIn(min = 75.dp),
+                                contentAlignment = Alignment.CenterEnd
                             ) {
-                                Box(
-                                    modifier = Modifier.widthIn(min = 75.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = SlateText,
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Box(
-                                    modifier = Modifier.widthIn(min = 85.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (group.totalSpent > 0) CrimsonPink else SlateText,
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+                                Text(
+                                    text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = SlateText,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
-                        } else {
+                            Spacer(modifier = Modifier.width(10.dp))
                             Box(
                                 modifier = Modifier.widthIn(min = 85.dp),
                                 contentAlignment = Alignment.CenterEnd
                             ) {
                                 Text(
                                     text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                    fontSize = 14.sp,
+                                    fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (group.totalSpent > 0) CrimsonPink else SlateText,
                                     textAlign = TextAlign.End,
@@ -2030,67 +2277,82 @@ private fun CategoryGroupSection(
                                 )
                             }
                         }
-                    }
-
-                    // If group has an overall budget, show group-level progress bar and stats
-                    if (group.hasBudget) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    } else {
+                        Box(
+                            modifier = Modifier.widthIn(min = 85.dp),
+                            contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = "${group.percentageInt}%",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            val diffText = if (group.isOverBudget) {
-                                "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                            } else {
-                                "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                            }
-
-                            Text(
-                                text = diffText,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (group.isOverBudget) CrimsonPink else SlateText
+                                text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (group.totalSpent > 0) CrimsonPink else SlateText,
+                                textAlign = TextAlign.End,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        BudgetProgressBarWithTodayMarker(
-                            progressRatio = group.progressRatio,
-                            todayPaceRatio = todayPaceRatio,
-                            isOverBudget = group.isOverBudget,
-                            barHeight = 5.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
                 }
-            }
 
-            // Collapsible Children Rows indented slightly right of group name
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    group.items.forEach { item ->
-                        CategoryRow(
-                            item = item,
-                            isSubcategory = true,
-                            showComparison = showComparison,
-                            todayPaceRatio = todayPaceRatio,
-                            languageMode = languageMode,
-                            onClick = { onCategoryClick(item) }
+                // If group has an overall budget, show group-level progress bar and stats
+                if (group.hasBudget) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${group.percentageInt}%",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        val diffText = if (group.isOverBudget) {
+                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                        } else {
+                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                        }
+
+                        Text(
+                            text = diffText,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (group.isOverBudget) CrimsonPink else SlateText
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    BudgetProgressBarWithTodayMarker(
+                        progressRatio = group.progressRatio,
+                        todayPaceRatio = todayPaceRatio,
+                        isOverBudget = group.isOverBudget,
+                        barHeight = 5.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        // Collapsible Children Rows indented under the group name
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                group.items.forEach { item ->
+                    CategoryRow(
+                        item = item,
+                        isSubcategory = true,
+                        showComparison = showComparison,
+                        todayPaceRatio = todayPaceRatio,
+                        languageMode = languageMode,
+                        onClick = { onCategoryClick(item) }
+                    )
                 }
             }
         }

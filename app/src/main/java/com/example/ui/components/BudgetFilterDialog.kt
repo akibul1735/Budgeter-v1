@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import java.util.Calendar
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkAdd
@@ -144,6 +145,8 @@ fun BudgetFilterDialog(
     // Date Pickers state for custom ranges
     var showCustomStartDatePicker by remember { mutableStateOf(false) }
     var showCustomEndDatePicker by remember { mutableStateOf(false) }
+    var showCustomCompareStartDatePicker by remember { mutableStateOf(false) }
+    var showCustomCompareEndDatePicker by remember { mutableStateOf(false) }
 
     val savedPresets = remember {
         mutableStateListOf<SavedBudgetFilterPreset>().apply {
@@ -811,7 +814,12 @@ fun BudgetFilterDialog(
                                 )
                                 Switch(
                                     checked = tempFilter.excludeZeroAmounts,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(excludeZeroAmounts = it) },
+                                    onCheckedChange = { isChecked ->
+                                        tempFilter = tempFilter.copy(
+                                            excludeZeroAmounts = isChecked,
+                                            hideEmptyGroups = if (isChecked) true else tempFilter.hideEmptyGroups
+                                        )
+                                    },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color.White,
                                         checkedTrackColor = BrandGreen
@@ -1021,6 +1029,72 @@ fun BudgetFilterDialog(
                                                     selectedLabelColor = Color.White
                                                 )
                                             )
+                                        }
+                                    }
+
+                                    // Custom Comparison Baseline Date Range Pickers
+                                    if (tempFilter.comparisonPreset == BudgetComparisonPreset.CUSTOM) {
+                                        val sdfShort = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                                        val cal = Calendar.getInstance()
+                                        val defaultStart = tempFilter.customCompareStartMs ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000L)
+                                        val defaultEnd = tempFilter.customCompareEndMs ?: System.currentTimeMillis()
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Comparison Start Date
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable { showCustomCompareStartDatePicker = true }
+                                            ) {
+                                                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                                                    Text(
+                                                        text = if (languageMode == LanguageMode.BANGLA) "শুরুর তারিখ" else "Compare From",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                    Text(
+                                                        text = sdfShort.format(Date(defaultStart)),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+
+                                            // Comparison End Date
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable { showCustomCompareEndDatePicker = true }
+                                            ) {
+                                                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                                                    Text(
+                                                        text = if (languageMode == LanguageMode.BANGLA) "শেষের তারিখ" else "Compare To",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                    Text(
+                                                        text = sdfShort.format(Date(defaultEnd)),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1906,6 +1980,58 @@ fun BudgetFilterDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showCustomEndDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showCustomCompareStartDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = tempFilter.customCompareStartMs ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000L)
+        )
+        DatePickerDialog(
+            onDismissRequest = { showCustomCompareStartDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        tempFilter = tempFilter.copy(customCompareStartMs = it)
+                    }
+                    showCustomCompareStartDatePicker = false
+                }) {
+                    Text("OK", color = BrandGreen)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomCompareStartDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showCustomCompareEndDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = tempFilter.customCompareEndMs ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showCustomCompareEndDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        tempFilter = tempFilter.copy(customCompareEndMs = it)
+                    }
+                    showCustomCompareEndDatePicker = false
+                }) {
+                    Text("OK", color = BrandGreen)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomCompareEndDatePicker = false }) {
                     Text("Cancel")
                 }
             }
