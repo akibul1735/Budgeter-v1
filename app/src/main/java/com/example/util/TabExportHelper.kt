@@ -56,7 +56,7 @@ object TabExportHelper {
                 PdfPrintHelper.printHtml(context, "Transactions_$timeStamp", html, isLandscape = true)
             }
             ExportFormat.CSV -> {
-                val csv = buildTransactionsCsv(transactions, languageMode)
+                val csv = buildTransactionsCsv(transactions, filterSummary, languageMode)
                 shareFile(context, "Transactions_$timeStamp.csv", format.mimeType, csv, title)
             }
             ExportFormat.HTML -> {
@@ -67,6 +67,7 @@ object TabExportHelper {
                 val json = JSONObject().apply {
                     put("reportType", "Transactions")
                     put("generatedAt", formatTimestamp(System.currentTimeMillis()))
+                    if (filterSummary.isNotBlank()) put("filter", filterSummary)
                     put("totalTransactions", transactions.size)
                     put("totalExpense", totalExpense)
                     put("totalIncome", totalIncome)
@@ -94,8 +95,15 @@ object TabExportHelper {
         }
     }
 
-    private fun buildTransactionsCsv(transactions: List<TransactionWithDetails>, languageMode: LanguageMode): String {
+    private fun buildTransactionsCsv(
+        transactions: List<TransactionWithDetails>,
+        filterSummary: String,
+        languageMode: LanguageMode
+    ): String {
         val sb = StringBuilder()
+        if (filterSummary.isNotBlank()) {
+            sb.append("# Filter: ${escapeCsv(filterSummary)}\n")
+        }
         sb.append("Date,Type,Category,Sub-Category,Debit Account,Credit Account,Amount (BDT),Payee/Payer,Note,Status\n")
         for (tx in transactions) {
             val dateStr = DateUtils.formatDate(tx.transaction.dateEpochMs, languageMode)
@@ -270,6 +278,9 @@ object TabExportHelper {
         languageMode: LanguageMode
     ): String {
         val sb = StringBuilder()
+        if (periodLabel.isNotBlank()) {
+            sb.append("# Filter / Period: ${escapeCsv(periodLabel)}\n")
+        }
         if (showComparison) {
             sb.append("Group,Category,Budget (BDT),Current Spent (BDT),Base Period Spent (BDT),Variance (BDT),% Spent\n")
         } else {
@@ -455,6 +466,9 @@ object TabExportHelper {
         languageMode: LanguageMode
     ): String {
         val sb = StringBuilder()
+        if (asOfDateLabel.isNotBlank()) {
+            sb.append("# Filter / Period: ${escapeCsv(asOfDateLabel)}\n")
+        }
         sb.append("Section,Group,Account,Balance (BDT)\n")
 
         for (grp in assetGroups) {
@@ -596,7 +610,7 @@ object TabExportHelper {
                 PdfPrintHelper.printHtml(context, "Labels_$timeStamp", html, isLandscape = false)
             }
             ExportFormat.CSV -> {
-                val csv = buildLabelsCsv(labels, languageMode)
+                val csv = buildLabelsCsv(labels, filterSubtitle, languageMode)
                 shareFile(context, "Labels_$timeStamp.csv", format.mimeType, csv, title)
             }
             ExportFormat.HTML -> {
@@ -607,6 +621,7 @@ object TabExportHelper {
                 val json = JSONObject().apply {
                     put("reportType", "LabelsSummary")
                     put("generatedAt", formatTimestamp(System.currentTimeMillis()))
+                    if (filterSubtitle.isNotBlank()) put("filter", filterSubtitle)
                     put("totalLabels", labels.size)
                     put("totalExpense", totalExp)
                     put("totalIncome", totalInc)
@@ -628,8 +643,15 @@ object TabExportHelper {
         }
     }
 
-    private fun buildLabelsCsv(labels: List<AggregatedLabel>, languageMode: LanguageMode): String {
+    private fun buildLabelsCsv(
+        labels: List<AggregatedLabel>,
+        filterSubtitle: String,
+        languageMode: LanguageMode
+    ): String {
         val sb = StringBuilder()
+        if (filterSubtitle.isNotBlank()) {
+            sb.append("# Filter: ${escapeCsv(filterSubtitle)}\n")
+        }
         sb.append("Label Name,Total Expense (BDT),Total Income (BDT),Total Net (BDT),Transaction Count,% Share\n")
         for (lbl in labels) {
             val exp = String.format(Locale.US, "%.2f", lbl.totalExpense)
@@ -717,7 +739,7 @@ object TabExportHelper {
                 PdfPrintHelper.printHtml(context, "Items_$timeStamp", html, isLandscape = false)
             }
             ExportFormat.CSV -> {
-                val csv = buildItemsCsv(items, languageMode)
+                val csv = buildItemsCsv(items, filterSubtitle, languageMode)
                 shareFile(context, "Items_$timeStamp.csv", format.mimeType, csv, title)
             }
             ExportFormat.HTML -> {
@@ -728,6 +750,7 @@ object TabExportHelper {
                 val json = JSONObject().apply {
                     put("reportType", "ItemsSummary")
                     put("generatedAt", formatTimestamp(System.currentTimeMillis()))
+                    if (filterSubtitle.isNotBlank()) put("filter", filterSubtitle)
                     put("totalItems", items.size)
                     put("totalExpense", totalExp)
                     put("totalIncome", totalInc)
@@ -749,8 +772,15 @@ object TabExportHelper {
         }
     }
 
-    private fun buildItemsCsv(items: List<AggregatedItem>, languageMode: LanguageMode): String {
+    private fun buildItemsCsv(
+        items: List<AggregatedItem>,
+        filterSubtitle: String,
+        languageMode: LanguageMode
+    ): String {
         val sb = StringBuilder()
+        if (filterSubtitle.isNotBlank()) {
+            sb.append("# Filter: ${escapeCsv(filterSubtitle)}\n")
+        }
         sb.append("Item Name,Total Expense (BDT),Total Income (BDT),Transaction Count,Latest Date,% Share\n")
         for (itm in items) {
             val exp = String.format(Locale.US, "%.2f", itm.totalExpense)

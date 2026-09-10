@@ -360,10 +360,15 @@ fun BalanceSheetScreen(
                     ExportMenuButton(
                         languageMode = languageMode,
                         onExport = { format ->
+                            val asOfDateLabel = if (!filterState.showOnlyCurrentBalance && balanceSheetData.baseDateLabel.isNotBlank()) {
+                                "${balanceSheetData.compareDateLabel} vs ${balanceSheetData.baseDateLabel}"
+                            } else {
+                                balanceSheetData.compareDateLabel
+                            }
                             TabExportHelper.exportBalanceSheet(
                                 context = context,
                                 format = format,
-                                asOfDateLabel = balanceSheetData.compareDateLabel,
+                                asOfDateLabel = asOfDateLabel,
                                 assetGroups = balanceSheetData.assetGroups,
                                 totalAssets = balanceSheetData.totalAssetsCurrent,
                                 liabilityGroups = balanceSheetData.liabilityGroups,

@@ -615,7 +615,28 @@ fun BudgetTrackingScreen(
                     ExportMenuButton(
                         languageMode = languageMode,
                         onExport = { format ->
-                            val periodLabel = "${DateUtils.getMonthName(selectedMonth, languageMode)} $selectedYear"
+                            val monthYear = "${DateUtils.getMonthName(selectedMonth, languageMode)} $selectedYear"
+                            val periodLabel = buildString {
+                                if (filterState.datePreset == BudgetDateRangePreset.CUSTOM && compareDateLabel.isNotBlank()) {
+                                    append(compareDateLabel)
+                                } else {
+                                    append(monthYear)
+                                }
+                                if (filterState.comparisonEnabled && baseDateLabel.isNotBlank()) {
+                                    append(" vs $baseDateLabel")
+                                }
+                                if (filterState.filterOnlyBudgeted) {
+                                    append(" • ")
+                                    append(if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বাজেটকৃত" else "Budgeted Only")
+                                }
+                                if (filterState.filterOnlyOverBudget) {
+                                    append(" • ")
+                                    append(if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Budget")
+                                }
+                                if (searchQuery.isNotBlank()) {
+                                    append(" • \"${searchQuery.trim()}\"")
+                                }
+                            }
                             TabExportHelper.exportBudget(
                                 context = context,
                                 format = format,
@@ -2650,12 +2671,13 @@ private fun CategoryTransactionsDetailDialog(
                     .padding(20.dp)
             ) {
                 // Header
+                val context = LocalContext.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
                             style = MaterialTheme.typography.titleMedium,
@@ -2669,8 +2691,22 @@ private fun CategoryTransactionsDetailDialog(
                             color = CrimsonPink
                         )
                     }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExportMenuButton(
+                            languageMode = languageMode,
+                            onExport = { format ->
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = item.transactions,
+                                    filterSummary = "Category: ${item.category.nameEn}",
+                                    languageMode = languageMode
+                                )
+                            }
+                        )
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
                     }
                 }
 

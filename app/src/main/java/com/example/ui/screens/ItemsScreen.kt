@@ -228,6 +228,45 @@ fun ItemsScreen(
     val totalExpenseOverall = remember(aggregatedItems) { aggregatedItems.sumOf { it.totalExpense } }
     val totalIncomeOverall = remember(aggregatedItems) { aggregatedItems.sumOf { it.totalIncome } }
 
+    val activeFilterSummary = remember(
+        selectedPreset, customStartDateMs, customEndDateMs,
+        selectedTypeFilter, minAmountFilter, searchQuery, languageMode
+    ) {
+        val parts = mutableListOf<String>()
+        when (selectedPreset) {
+            ItemDateFilterPreset.ALL_TIME -> {}
+            ItemDateFilterPreset.THIS_MONTH -> parts.add(if (languageMode == LanguageMode.BANGLA) "চলতি মাস" else "This Month")
+            ItemDateFilterPreset.LAST_MONTH -> parts.add(if (languageMode == LanguageMode.BANGLA) "গত মাস" else "Last Month")
+            ItemDateFilterPreset.THIS_YEAR -> parts.add(if (languageMode == LanguageMode.BANGLA) "চলতি বছর" else "This Year")
+            ItemDateFilterPreset.LAST_30_DAYS -> parts.add(if (languageMode == LanguageMode.BANGLA) "বিগত ৩০ দিন" else "Last 30 Days")
+            ItemDateFilterPreset.CUSTOM -> {
+                val s = DateUtils.formatDate(customStartDateMs, languageMode)
+                val e = DateUtils.formatDate(customEndDateMs, languageMode)
+                parts.add("$s - $e")
+            }
+        }
+
+        if (selectedTypeFilter != null) {
+            val typeName = when (selectedTypeFilter) {
+                TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
+                TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+                TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+                else -> ""
+            }
+            if (typeName.isNotEmpty()) parts.add(typeName)
+        }
+
+        if (minAmountFilter > 0.0) {
+            parts.add("≥ ৳$minAmountFilter")
+        }
+
+        if (searchQuery.isNotBlank()) {
+            parts.add("\"${searchQuery.trim()}\"")
+        }
+
+        parts.joinToString(" • ")
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         AppTabHeader(
             title = LanguageHelper.getString("items_summary", languageMode),
@@ -240,7 +279,7 @@ fun ItemsScreen(
                         TabExportHelper.exportItems(
                             context = context,
                             format = format,
-                            filterSubtitle = if (selectedPreset != ItemDateFilterPreset.ALL_TIME) selectedPreset.name else "",
+                            filterSubtitle = activeFilterSummary,
                             items = aggregatedItems,
                             languageMode = languageMode
                         )
@@ -381,7 +420,7 @@ fun ItemsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = item.name,
                             fontWeight = FontWeight.Bold,
@@ -395,8 +434,22 @@ fun ItemsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = { selectedDrilldownItem = null }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExportMenuButton(
+                            languageMode = languageMode,
+                            onExport = { format ->
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = item.transactions,
+                                    filterSummary = "Item / Payee: ${item.name}",
+                                    languageMode = languageMode
+                                )
+                            }
+                        )
+                        IconButton(onClick = { selectedDrilldownItem = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
                     }
                 }
             },

@@ -414,6 +414,70 @@ fun LedgerScreen(
             selectedStatusFilter != null ||
             searchQuery.isNotBlank()
 
+    val activeFilterSummary = remember(
+        selectedDatePreset, customStartDateMs, customEndDateMs,
+        selectedTypeFilter, selectedCategoryIdFilter, selectedAccountIdFilter,
+        selectedLabelFilter, selectedStatusFilter, minAmountFilter, maxAmountFilter,
+        searchQuery, allCategories, allAccounts, languageMode
+    ) {
+        val parts = mutableListOf<String>()
+        if (selectedDatePreset == LedgerDatePreset.CUSTOM) {
+            val s = DateUtils.formatDate(customStartDateMs, languageMode)
+            val e = DateUtils.formatDate(customEndDateMs, languageMode)
+            parts.add("$s - $e")
+        } else if (selectedDatePreset != LedgerDatePreset.ALL_TIME) {
+            parts.add(selectedDatePreset.displayName)
+        }
+
+        if (selectedTypeFilter != null) {
+            val typeName = when (selectedTypeFilter) {
+                TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
+                TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+                TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+                else -> ""
+            }
+            if (typeName.isNotEmpty()) parts.add(typeName)
+        }
+
+        if (selectedCategoryIdFilter != null) {
+            val cat = allCategories.find { it.id == selectedCategoryIdFilter }
+            if (cat != null) {
+                parts.add(LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode))
+            }
+        }
+
+        if (selectedAccountIdFilter != null) {
+            val acc = allAccounts.find { it.id == selectedAccountIdFilter }
+            if (acc != null) {
+                parts.add(LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode))
+            }
+        }
+
+        if (!selectedLabelFilter.isNullOrBlank()) {
+            parts.add(selectedLabelFilter!!)
+        }
+
+        if (selectedStatusFilter != null) {
+            parts.add(selectedStatusFilter!!.name)
+        }
+
+        if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) {
+            if (minAmountFilter > 0.0 && maxAmountFilter < Double.MAX_VALUE) {
+                parts.add("৳$minAmountFilter - ৳$maxAmountFilter")
+            } else if (minAmountFilter > 0.0) {
+                parts.add("≥ ৳$minAmountFilter")
+            } else {
+                parts.add("≤ ৳$maxAmountFilter")
+            }
+        }
+
+        if (searchQuery.isNotBlank()) {
+            parts.add("\"${searchQuery.trim()}\"")
+        }
+
+        parts.joinToString(" • ")
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // Selection Mode Top Bar (Bluecoins style) OR Standard Header
         if (isSelectionMode) {
@@ -459,6 +523,20 @@ fun LedgerScreen(
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Export selected transactions
+                        ExportMenuButton(
+                            languageMode = languageMode,
+                            onExport = { format ->
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = selectedTransactions,
+                                    filterSummary = "${selectedTransactions.size} ${if (languageMode == LanguageMode.BANGLA) "টি নির্বাচিত লেনদেন" else "Selected Transactions"}",
+                                    languageMode = languageMode
+                                )
+                            }
+                        )
+
                         // Toggle row style
                         IconButton(onClick = {
                             rowStyle = when (rowStyle) {
@@ -493,6 +571,19 @@ fun LedgerScreen(
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
+
+                        ExportMenuButton(
+                            languageMode = languageMode,
+                            onExport = { format ->
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = selectedTransactions,
+                                    filterSummary = "${selectedTransactions.size} Selected Transactions",
+                                    languageMode = languageMode
+                                )
+                            }
+                        )
 
                         // 3-Dots Overflow Menu for Batch Actions
                         Box {
@@ -609,7 +700,7 @@ fun LedgerScreen(
                                 context = context,
                                 format = format,
                                 transactions = filteredTransactions,
-                                filterSummary = if (selectedDatePreset != LedgerDatePreset.ALL_TIME) selectedDatePreset.displayName else "",
+                                filterSummary = activeFilterSummary,
                                 languageMode = languageMode
                             )
                         }

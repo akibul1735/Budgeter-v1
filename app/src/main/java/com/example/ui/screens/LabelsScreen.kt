@@ -241,6 +241,45 @@ fun LabelsScreen(
     val totalExpenseOverall = remember(aggregatedLabels) { aggregatedLabels.sumOf { it.totalExpense } }
     val totalIncomeOverall = remember(aggregatedLabels) { aggregatedLabels.sumOf { it.totalIncome } }
 
+    val activeFilterSummary = remember(
+        selectedPreset, customStartDateMs, customEndDateMs,
+        selectedTypeFilter, minAmountFilter, searchQuery, languageMode
+    ) {
+        val parts = mutableListOf<String>()
+        when (selectedPreset) {
+            LabelDateFilterPreset.ALL_TIME -> {}
+            LabelDateFilterPreset.THIS_MONTH -> parts.add(if (languageMode == LanguageMode.BANGLA) "চলতি মাস" else "This Month")
+            LabelDateFilterPreset.LAST_MONTH -> parts.add(if (languageMode == LanguageMode.BANGLA) "গত মাস" else "Last Month")
+            LabelDateFilterPreset.THIS_YEAR -> parts.add(if (languageMode == LanguageMode.BANGLA) "চলতি বছর" else "This Year")
+            LabelDateFilterPreset.LAST_30_DAYS -> parts.add(if (languageMode == LanguageMode.BANGLA) "বিগত ৩০ দিন" else "Last 30 Days")
+            LabelDateFilterPreset.CUSTOM -> {
+                val s = DateUtils.formatDate(customStartDateMs, languageMode)
+                val e = DateUtils.formatDate(customEndDateMs, languageMode)
+                parts.add("$s - $e")
+            }
+        }
+
+        if (selectedTypeFilter != null) {
+            val typeName = when (selectedTypeFilter) {
+                TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
+                TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+                TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+                else -> ""
+            }
+            if (typeName.isNotEmpty()) parts.add(typeName)
+        }
+
+        if (minAmountFilter > 0.0) {
+            parts.add("≥ ৳$minAmountFilter")
+        }
+
+        if (searchQuery.isNotBlank()) {
+            parts.add("\"${searchQuery.trim()}\"")
+        }
+
+        parts.joinToString(" • ")
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         AppTabHeader(
             title = LanguageHelper.getString("labels", languageMode),
@@ -253,7 +292,7 @@ fun LabelsScreen(
                         TabExportHelper.exportLabels(
                             context = context,
                             format = format,
-                            filterSubtitle = if (selectedPreset != LabelDateFilterPreset.ALL_TIME) selectedPreset.name else "",
+                            filterSubtitle = activeFilterSummary,
                             labels = aggregatedLabels,
                             languageMode = languageMode
                         )
@@ -395,7 +434,7 @@ fun LabelsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = label.labelName,
                             fontWeight = FontWeight.Bold,
@@ -410,8 +449,22 @@ fun LabelsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = { selectedDrilldownLabel = null }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExportMenuButton(
+                            languageMode = languageMode,
+                            onExport = { format ->
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = label.transactions,
+                                    filterSummary = "Label: ${label.labelName}",
+                                    languageMode = languageMode
+                                )
+                            }
+                        )
+                        IconButton(onClick = { selectedDrilldownLabel = null }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
                     }
                 }
             },
