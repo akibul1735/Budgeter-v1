@@ -17,6 +17,13 @@ enum class BalanceSheetComparisonPreset(val titleEn: String, val titleBn: String
     CUSTOM("Custom Date Range", "কাস্টম সময়কাল")
 }
 
+enum class BalanceSheetSortOrder(val titleEn: String, val titleBn: String) {
+    DEFAULT("Default Order", "ডিফল্ট ক্রম"),
+    AMOUNT_DESC("Amount: High to Low", "পরিমাণ: বেশি থেকে কম"),
+    AMOUNT_ASC("Amount: Low to High", "পরিমাণ: কম থেকে বেশি"),
+    NAME_ASC("Name: A to Z", "নাম: ক থেকে ঁ")
+}
+
 data class BalanceSheetAccountRow(
     val account: Account,
     val baseBalance: Double,
@@ -141,6 +148,8 @@ object BalanceSheetHelper {
         activeOnly: Boolean = true,
         showHiddenAccounts: Boolean = false,
         excludeZeroAmounts: Boolean = false,
+        filterNonZeroGroups: Boolean = false,
+        sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.DEFAULT,
         searchQuery: String = "",
         accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
         languageMode: LanguageMode = LanguageMode.ENGLISH
@@ -231,19 +240,23 @@ object BalanceSheetHelper {
                 val effectiveGroupCurr = if (!isParentInc) 0.0 else if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveCurrentBalance } + parentAdj else parentCurrBal + parentAdj
 
                 if (!excludeZeroAmounts || Math.abs(parentBaseBal) > 0.001 || Math.abs(parentCurrBal) > 0.001 || subRows.isNotEmpty()) {
-                    groups.add(
-                        BalanceSheetGroup(
-                            parentAccount = parent,
-                            baseBalance = parentBaseBal,
-                            currentBalance = parentCurrBal,
-                            percentageShare = 0.0, // computed below
-                            subAccounts = subRows,
-                            isIncludedInCalc = isParentInc,
-                            adjustmentAmount = parentAdj,
-                            effectiveBaseBalance = effectiveGroupBase,
-                            effectiveCurrentBalance = effectiveGroupCurr
+                    if (filterNonZeroGroups && Math.abs(effectiveGroupCurr) < 0.001 && Math.abs(effectiveGroupBase) < 0.001) {
+                        // Skip non-zero group when filterNonZeroGroups is enabled
+                    } else {
+                        groups.add(
+                            BalanceSheetGroup(
+                                parentAccount = parent,
+                                baseBalance = parentBaseBal,
+                                currentBalance = parentCurrBal,
+                                percentageShare = 0.0, // computed below
+                                subAccounts = subRows,
+                                isIncludedInCalc = isParentInc,
+                                adjustmentAmount = parentAdj,
+                                effectiveBaseBalance = effectiveGroupBase,
+                                effectiveCurrentBalance = effectiveGroupCurr
+                            )
                         )
-                    )
+                    }
                 }
             }
             return groups
@@ -263,7 +276,7 @@ object BalanceSheetHelper {
         val netWorthDelta = netWorthCurrent - netWorthBase
 
         // Compute percentage shares
-        val assetGroups = rawAssetGroups.map { group ->
+        val rawMappedAssets = rawAssetGroups.map { group ->
             val groupShare = if (totalAssetsCurrent > 0 && group.isIncludedInCalc) (group.effectiveCurrentBalance / totalAssetsCurrent) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->
                 val subShare = if (group.effectiveCurrentBalance > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / group.effectiveCurrentBalance) * 100.0 else 0.0
@@ -275,7 +288,7 @@ object BalanceSheetHelper {
             )
         }
 
-        val liabilityGroups = rawLiabilityGroups.map { group ->
+        val rawMappedLiabilities = rawLiabilityGroups.map { group ->
             val groupShare = if (totalLiabilitiesCurrent > 0 && group.isIncludedInCalc) (group.effectiveCurrentBalance / totalLiabilitiesCurrent) * 100.0 else 0.0
             val updatedSubs = group.subAccounts.map { sub ->
                 val subShare = if (group.effectiveCurrentBalance > 0 && sub.isIncludedInCalc) (sub.effectiveCurrentBalance / group.effectiveCurrentBalance) * 100.0 else 0.0
@@ -285,6 +298,37 @@ object BalanceSheetHelper {
                 percentageShare = groupShare.coerceAtLeast(0.0),
                 subAccounts = updatedSubs
             )
+        }
+
+        // Apply Sorting by Amount or Name
+        val assetGroups = when (sortOrder) {
+            BalanceSheetSortOrder.DEFAULT -> rawMappedAssets
+            BalanceSheetSortOrder.AMOUNT_DESC -> rawMappedAssets.sortedByDescending { it.effectiveCurrentBalance }
+            BalanceSheetSortOrder.AMOUNT_ASC -> rawMappedAssets.sortedBy { it.effectiveCurrentBalance }
+            BalanceSheetSortOrder.NAME_ASC -> rawMappedAssets.sortedBy { it.parentAccount.nameEn.lowercase() }
+        }.map { group ->
+            val sortedSubs = when (sortOrder) {
+                BalanceSheetSortOrder.DEFAULT -> group.subAccounts
+                BalanceSheetSortOrder.AMOUNT_DESC -> group.subAccounts.sortedByDescending { it.effectiveCurrentBalance }
+                BalanceSheetSortOrder.AMOUNT_ASC -> group.subAccounts.sortedBy { it.effectiveCurrentBalance }
+                BalanceSheetSortOrder.NAME_ASC -> group.subAccounts.sortedBy { it.account.nameEn.lowercase() }
+            }
+            group.copy(subAccounts = sortedSubs)
+        }
+
+        val liabilityGroups = when (sortOrder) {
+            BalanceSheetSortOrder.DEFAULT -> rawMappedLiabilities
+            BalanceSheetSortOrder.AMOUNT_DESC -> rawMappedLiabilities.sortedByDescending { it.effectiveCurrentBalance }
+            BalanceSheetSortOrder.AMOUNT_ASC -> rawMappedLiabilities.sortedBy { it.effectiveCurrentBalance }
+            BalanceSheetSortOrder.NAME_ASC -> rawMappedLiabilities.sortedBy { it.parentAccount.nameEn.lowercase() }
+        }.map { group ->
+            val sortedSubs = when (sortOrder) {
+                BalanceSheetSortOrder.DEFAULT -> group.subAccounts
+                BalanceSheetSortOrder.AMOUNT_DESC -> group.subAccounts.sortedByDescending { it.effectiveCurrentBalance }
+                BalanceSheetSortOrder.AMOUNT_ASC -> group.subAccounts.sortedBy { it.effectiveCurrentBalance }
+                BalanceSheetSortOrder.NAME_ASC -> group.subAccounts.sortedBy { it.account.nameEn.lowercase() }
+            }
+            group.copy(subAccounts = sortedSubs)
         }
 
         return BalanceSheetComparisonData(

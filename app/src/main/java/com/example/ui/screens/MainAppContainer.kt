@@ -128,6 +128,7 @@ import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
+import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.AutoHidingHeaderContainer
 import com.example.ui.components.LanguageSelector
 import com.example.ui.components.LocalHeaderScrollState
@@ -444,12 +445,14 @@ fun MainAppContainer(
                             bottomBar = {
                                 // BOTTOM NAVIGATION TAB ROW (When Position is BOTTOM)
                                 if (tabConfig.position == TabPosition.BOTTOM && !isSubView) {
-                                    BottomNavigationBarRow(
-                                        visibleTabs = tabConfig.visibleTabs,
-                                        currentView = currentView,
-                                        languageMode = languageMode,
-                                        onSelectTab = { tab -> selectView(tab.toAppView()) }
-                                    )
+                                    AutoHidingBottomContainer(headerScrollState = headerScrollState) {
+                                        BottomNavigationBarRow(
+                                            visibleTabs = tabConfig.visibleTabs,
+                                            currentView = currentView,
+                                            languageMode = languageMode,
+                                            onSelectTab = { tab -> selectView(tab.toAppView()) }
+                                        )
+                                    }
                                 }
                             },
                             floatingActionButton = {

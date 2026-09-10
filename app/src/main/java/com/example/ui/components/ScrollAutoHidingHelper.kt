@@ -7,6 +7,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -114,6 +116,29 @@ fun AutoHidingHeaderContainer(
             shrinkTowards = Alignment.Top,
             animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
         ) + fadeOut(animationSpec = tween(durationMillis = 150)),
+        modifier = modifier
+    ) {
+        content()
+    }
+}
+
+@Composable
+fun AutoHidingBottomContainer(
+    modifier: Modifier = Modifier,
+    headerScrollState: HeaderScrollState = LocalHeaderScrollState.current,
+    forceVisible: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = forceVisible || headerScrollState.isVisible,
+        enter = slideInVertically(
+            initialOffsetY = { it },
+            animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+        ) + fadeIn(animationSpec = tween(durationMillis = 200)),
+        exit = slideOutVertically(
+            targetOffsetY = { it },
+            animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)
+        ) + fadeOut(animationSpec = tween(durationMillis = 200)),
         modifier = modifier
     ) {
         content()

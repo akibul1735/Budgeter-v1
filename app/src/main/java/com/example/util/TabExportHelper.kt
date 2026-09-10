@@ -74,17 +74,41 @@ object TabExportHelper {
                     put("netBalance", netBalance)
                     put("transactions", JSONArray().apply {
                         transactions.forEach { tx ->
+                            val timeStr = SimpleDateFormat("hh:mm a", Locale.US).format(Date(tx.transaction.dateEpochMs))
+                            val catGroup = if (tx.subCategory != null) {
+                                tx.category?.nameEn ?: ""
+                            } else if (tx.category?.parentId != null) {
+                                "Sub-Category"
+                            } else {
+                                tx.category?.nameEn ?: ""
+                            }
+                            val categoryName = tx.subCategory?.nameEn ?: (tx.category?.nameEn ?: "")
+                            val accGroup = when (tx.transaction.type) {
+                                TransactionType.EXPENSE -> tx.creditAccount?.let { if (it.parentId != null) "Sub-Account" else it.type.name } ?: ""
+                                TransactionType.INCOME -> tx.debitAccount?.let { if (it.parentId != null) "Sub-Account" else it.type.name } ?: ""
+                                TransactionType.TRANSFER -> "Transfer"
+                            }
+                            val accName = when (tx.transaction.type) {
+                                TransactionType.EXPENSE -> tx.creditAccount?.nameEn ?: ""
+                                TransactionType.INCOME -> tx.debitAccount?.nameEn ?: ""
+                                TransactionType.TRANSFER -> "${tx.creditAccount?.nameEn ?: ""} → ${tx.debitAccount?.nameEn ?: ""}"
+                            }
+
                             put(JSONObject().apply {
                                 put("id", tx.transaction.id)
+                                put("name", tx.transaction.payeeOrPayer)
                                 put("date", DateUtils.formatDate(tx.transaction.dateEpochMs, languageMode))
-                                put("type", tx.transaction.type.name)
+                                put("time", timeStr)
                                 put("amount", tx.transaction.amount)
-                                put("category", tx.category?.nameEn ?: "")
-                                put("subCategory", tx.subCategory?.nameEn ?: "")
+                                put("type", tx.transaction.type.name)
+                                put("categoryGroup", catGroup)
+                                put("category", categoryName)
+                                put("accountGroup", accGroup)
+                                put("account", accName)
                                 put("debitAccount", tx.debitAccount?.nameEn ?: "")
                                 put("creditAccount", tx.creditAccount?.nameEn ?: "")
-                                put("payeeOrPayer", tx.transaction.payeeOrPayer)
-                                put("note", tx.transaction.note)
+                                put("labels", tx.transaction.referenceNo)
+                                put("notes", tx.transaction.note)
                                 put("status", tx.transaction.status.name)
                             })
                         }
@@ -104,20 +128,56 @@ object TabExportHelper {
         if (filterSummary.isNotBlank()) {
             sb.append("# Filter: ${escapeCsv(filterSummary)}\n")
         }
-        sb.append("Date,Type,Category,Sub-Category,Debit Account,Credit Account,Amount (BDT),Payee/Payer,Note,Status\n")
+        sb.append("Name,Date,Time,Amount (BDT),Type,Category Group,Category,Account Group,Account,Debit Account,Credit Account,Labels,Notes,Status\n")
         for (tx in transactions) {
+            val nameStr = tx.transaction.payeeOrPayer
             val dateStr = DateUtils.formatDate(tx.transaction.dateEpochMs, languageMode)
+            val timeStr = SimpleDateFormat("hh:mm a", Locale.US).format(Date(tx.transaction.dateEpochMs))
+            val amt = String.format(Locale.US, "%.2f", tx.transaction.amount)
             val typeStr = tx.transaction.type.name
-            val cat = LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "", tx.category?.nameBn ?: "", languageMode)
-            val subCat = LanguageHelper.getLocalizedName(tx.subCategory?.nameEn ?: "", tx.subCategory?.nameBn ?: "", languageMode)
+
+            val catGroup = if (tx.subCategory != null) {
+                LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "", tx.category?.nameBn ?: "", languageMode)
+            } else if (tx.category?.parentId != null) {
+                if (languageMode == LanguageMode.BANGLA) "সাব-ক্যাটাগরি" else "Sub-Category"
+            } else {
+                LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "", tx.category?.nameBn ?: "", languageMode)
+            }
+            val catName = if (tx.subCategory != null) {
+                LanguageHelper.getLocalizedName(tx.subCategory.nameEn, tx.subCategory.nameBn, languageMode)
+            } else {
+                LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "", tx.category?.nameBn ?: "", languageMode)
+            }
+
+            val accGroup = when (tx.transaction.type) {
+                TransactionType.EXPENSE -> tx.creditAccount?.let {
+                    if (it.parentId != null) (if (languageMode == LanguageMode.BANGLA) "সাব-অ্যাকাউন্ট" else "Sub-Account")
+                    else (if (languageMode == LanguageMode.BANGLA) "সম্পদ" else it.type.name)
+                } ?: ""
+                TransactionType.INCOME -> tx.debitAccount?.let {
+                    if (it.parentId != null) (if (languageMode == LanguageMode.BANGLA) "সাব-অ্যাকাউন্ট" else "Sub-Account")
+                    else (if (languageMode == LanguageMode.BANGLA) "সম্পদ" else it.type.name)
+                } ?: ""
+                TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+            }
+
+            val accName = when (tx.transaction.type) {
+                TransactionType.EXPENSE -> LanguageHelper.getLocalizedName(tx.creditAccount?.nameEn ?: "", tx.creditAccount?.nameBn ?: "", languageMode)
+                TransactionType.INCOME -> LanguageHelper.getLocalizedName(tx.debitAccount?.nameEn ?: "", tx.debitAccount?.nameBn ?: "", languageMode)
+                TransactionType.TRANSFER -> {
+                    val from = LanguageHelper.getLocalizedName(tx.creditAccount?.nameEn ?: "", tx.creditAccount?.nameBn ?: "", languageMode)
+                    val to = LanguageHelper.getLocalizedName(tx.debitAccount?.nameEn ?: "", tx.debitAccount?.nameBn ?: "", languageMode)
+                    "$from → $to"
+                }
+            }
+
             val debitAcc = LanguageHelper.getLocalizedName(tx.debitAccount?.nameEn ?: "", tx.debitAccount?.nameBn ?: "", languageMode)
             val creditAcc = LanguageHelper.getLocalizedName(tx.creditAccount?.nameEn ?: "", tx.creditAccount?.nameBn ?: "", languageMode)
-            val amt = String.format(Locale.US, "%.2f", tx.transaction.amount)
-            val payee = tx.transaction.payeeOrPayer
-            val note = tx.transaction.note
+            val labels = tx.transaction.referenceNo
+            val notes = tx.transaction.note
             val status = tx.transaction.status.name
 
-            sb.append("${escapeCsv(dateStr)},${escapeCsv(typeStr)},${escapeCsv(cat)},${escapeCsv(subCat)},${escapeCsv(debitAcc)},${escapeCsv(creditAcc)},$amt,${escapeCsv(payee)},${escapeCsv(note)},${escapeCsv(status)}\n")
+            sb.append("${escapeCsv(nameStr)},${escapeCsv(dateStr)},${escapeCsv(timeStr)},$amt,${escapeCsv(typeStr)},${escapeCsv(catGroup)},${escapeCsv(catName)},${escapeCsv(accGroup)},${escapeCsv(accName)},${escapeCsv(debitAcc)},${escapeCsv(creditAcc)},${escapeCsv(labels)},${escapeCsv(notes)},${escapeCsv(status)}\n")
         }
         return sb.toString()
     }
@@ -155,13 +215,15 @@ object TabExportHelper {
             <table>
                 <thead>
                     <tr>
-                        <th>${if (languageMode == LanguageMode.BANGLA) "তারিখ" else "Date"}</th>
+                        <th>${if (languageMode == LanguageMode.BANGLA) "নাম / পেয়ী" else "Name (Payee)"}</th>
+                        <th>${if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময়" else "Date & Time"}</th>
                         <th>${if (languageMode == LanguageMode.BANGLA) "ধরন" else "Type"}</th>
-                        <th>${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category"}</th>
-                        <th>${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account"}</th>
                         <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পরিমাণ" else "Amount"}</th>
-                        <th>${if (languageMode == LanguageMode.BANGLA) "পেয়ী / গ্রহীতা" else "Payee"}</th>
-                        <th>${if (languageMode == LanguageMode.BANGLA) "নোট" else "Note"}</th>
+                        <th>${if (languageMode == LanguageMode.BANGLA) "গ্রুপ ও ক্যাটাগরি" else "Category Group & Category"}</th>
+                        <th>${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট গ্রুপ ও অ্যাকাউন্ট" else "Account Group & Account"}</th>
+                        <th>${if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels"}</th>
+                        <th>${if (languageMode == LanguageMode.BANGLA) "নোট" else "Notes"}</th>
+                        <th>${if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status"}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -169,9 +231,35 @@ object TabExportHelper {
 
         for (tx in transactions) {
             val dateStr = DateUtils.formatDate(tx.transaction.dateEpochMs, languageMode)
+            val timeStr = SimpleDateFormat("hh:mm a", Locale.US).format(Date(tx.transaction.dateEpochMs))
             val cat = LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "-", tx.category?.nameBn ?: "-", languageMode)
             val subCat = tx.subCategory?.let { " (${LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode)})" } ?: ""
-            
+
+            val catGroup = if (tx.subCategory != null) {
+                LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "", tx.category?.nameBn ?: "", languageMode)
+            } else if (tx.category?.parentId != null) {
+                if (languageMode == LanguageMode.BANGLA) "সাব-ক্যাটাগরি" else "Sub-Category"
+            } else {
+                LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "", tx.category?.nameBn ?: "", languageMode)
+            }
+            val catDisplay = if (tx.subCategory != null) {
+                LanguageHelper.getLocalizedName(tx.subCategory.nameEn, tx.subCategory.nameBn, languageMode)
+            } else {
+                LanguageHelper.getLocalizedName(tx.category?.nameEn ?: "-", tx.category?.nameBn ?: "-", languageMode)
+            }
+
+            val accGroup = when (tx.transaction.type) {
+                TransactionType.EXPENSE -> tx.creditAccount?.let {
+                    if (it.parentId != null) (if (languageMode == LanguageMode.BANGLA) "সাব-অ্যাকাউন্ট" else "Sub-Account")
+                    else (if (languageMode == LanguageMode.BANGLA) "সম্পদ" else it.type.name)
+                } ?: ""
+                TransactionType.INCOME -> tx.debitAccount?.let {
+                    if (it.parentId != null) (if (languageMode == LanguageMode.BANGLA) "সাব-অ্যাকাউন্ট" else "Sub-Account")
+                    else (if (languageMode == LanguageMode.BANGLA) "সম্পদ" else it.type.name)
+                } ?: ""
+                TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+            }
+
             val accDisplay = when (tx.transaction.type) {
                 TransactionType.EXPENSE -> LanguageHelper.getLocalizedName(tx.creditAccount?.nameEn ?: "-", tx.creditAccount?.nameBn ?: "-", languageMode)
                 TransactionType.INCOME -> LanguageHelper.getLocalizedName(tx.debitAccount?.nameEn ?: "-", tx.debitAccount?.nameBn ?: "-", languageMode)
@@ -190,13 +278,15 @@ object TabExportHelper {
 
             sb.append("""
                 <tr>
-                    <td>$dateStr</td>
+                    <td><strong>${escapeHtml(tx.transaction.payeeOrPayer.ifBlank { "-" })}</strong></td>
+                    <td>$dateStr<br><span style="color:#64748b; font-size:10px;">$timeStr</span></td>
                     <td><span class="badge badge-${tx.transaction.type.name.lowercase()}">${tx.transaction.type.name}</span></td>
-                    <td><strong>$cat</strong><span style="color:#64748b; font-size:10px;">$subCat</span></td>
-                    <td>$accDisplay</td>
                     <td style="text-align: right;" class="$colorClass"><strong>৳ ${LanguageHelper.formatNumber(tx.transaction.amount, languageMode)}</strong></td>
-                    <td>${escapeHtml(tx.transaction.payeeOrPayer.ifBlank { "-" })}</td>
+                    <td><span style="color:#64748b; font-size:11px;">$catGroup</span><br><strong>$catDisplay</strong></td>
+                    <td><span style="color:#64748b; font-size:11px;">$accGroup</span><br>$accDisplay</td>
+                    <td>${escapeHtml(tx.transaction.referenceNo.ifBlank { "-" })}</td>
                     <td>${escapeHtml(tx.transaction.note.ifBlank { "-" })}</td>
+                    <td><span style="font-size:11px; color:#475569;">${tx.transaction.status.name}</span></td>
                 </tr>
             """.trimIndent())
         }
@@ -217,23 +307,41 @@ object TabExportHelper {
         totalBudget: Double,
         totalSpent: Double,
         showComparison: Boolean = false,
+        totalIncomeBudget: Double = 0.0,
+        totalIncomeActual: Double = 0.0,
+        totalExpenseBudget: Double = 0.0,
+        totalExpenseActual: Double = 0.0,
+        netWorth: Double = 0.0,
         languageMode: LanguageMode = LanguageMode.ENGLISH
     ) {
         val title = if (languageMode == LanguageMode.BANGLA) "বাজেট ট্র্যাকিং রিপোর্ট ($periodLabel)" else "Budget Tracking Report ($periodLabel)"
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val remaining = totalBudget - totalSpent
+        val netSavings = totalIncomeActual - totalExpenseActual
 
         when (format) {
             ExportFormat.PDF -> {
-                val html = buildBudgetHtml(title, periodLabel, activeTabMode, groups, totalBudget, totalSpent, remaining, showComparison, languageMode)
+                val html = buildBudgetHtml(
+                    title, periodLabel, activeTabMode, groups, totalBudget, totalSpent, remaining,
+                    showComparison, totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
+                    netSavings, netWorth, languageMode
+                )
                 PdfPrintHelper.printHtml(context, "Budget_$timeStamp", html, isLandscape = false)
             }
             ExportFormat.CSV -> {
-                val csv = buildBudgetCsv(periodLabel, activeTabMode, groups, showComparison, languageMode)
+                val csv = buildBudgetCsv(
+                    periodLabel, activeTabMode, groups, showComparison,
+                    totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
+                    netSavings, netWorth, languageMode
+                )
                 shareFile(context, "Budget_$timeStamp.csv", format.mimeType, csv, title)
             }
             ExportFormat.HTML -> {
-                val html = buildBudgetHtml(title, periodLabel, activeTabMode, groups, totalBudget, totalSpent, remaining, showComparison, languageMode)
+                val html = buildBudgetHtml(
+                    title, periodLabel, activeTabMode, groups, totalBudget, totalSpent, remaining,
+                    showComparison, totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
+                    netSavings, netWorth, languageMode
+                )
                 shareFile(context, "Budget_$timeStamp.html", format.mimeType, html, title)
             }
             ExportFormat.JSON -> {
@@ -244,6 +352,16 @@ object TabExportHelper {
                     put("totalBudget", totalBudget)
                     put("totalSpent", totalSpent)
                     put("remaining", remaining)
+                    put("income", JSONObject().apply {
+                        put("budget", totalIncomeBudget)
+                        put("actual", totalIncomeActual)
+                    })
+                    put("expense", JSONObject().apply {
+                        put("budget", totalExpenseBudget)
+                        put("actual", totalExpenseActual)
+                    })
+                    put("netSavings", netSavings)
+                    put("netWorth", netWorth)
                     put("groups", JSONArray().apply {
                         groups.forEach { grp ->
                             put(JSONObject().apply {
@@ -275,12 +393,23 @@ object TabExportHelper {
         activeTabMode: String,
         groups: List<CategoryGroupBudgetTracking>,
         showComparison: Boolean,
+        totalIncomeBudget: Double,
+        totalIncomeActual: Double,
+        totalExpenseBudget: Double,
+        totalExpenseActual: Double,
+        netSavings: Double,
+        netWorth: Double,
         languageMode: LanguageMode
     ): String {
         val sb = StringBuilder()
         if (periodLabel.isNotBlank()) {
             sb.append("# Filter / Period: ${escapeCsv(periodLabel)}\n")
         }
+        sb.append("# Net Worth: BDT ${String.format(Locale.US, "%.2f", netWorth)}\n")
+        sb.append("# Total Income: BDT ${String.format(Locale.US, "%.2f", totalIncomeActual)} (Budget: BDT ${String.format(Locale.US, "%.2f", totalIncomeBudget)})\n")
+        sb.append("# Total Expense: BDT ${String.format(Locale.US, "%.2f", totalExpenseActual)} (Budget: BDT ${String.format(Locale.US, "%.2f", totalExpenseBudget)})\n")
+        sb.append("# Net Savings / Flow: BDT ${String.format(Locale.US, "%.2f", netSavings)}\n")
+
         if (showComparison) {
             sb.append("Group,Category,Budget (BDT),Current Spent (BDT),Base Period Spent (BDT),Variance (BDT),% Spent\n")
         } else {
@@ -315,6 +444,12 @@ object TabExportHelper {
         totalSpent: Double,
         remaining: Double,
         showComparison: Boolean,
+        totalIncomeBudget: Double,
+        totalIncomeActual: Double,
+        totalExpenseBudget: Double,
+        totalExpenseActual: Double,
+        netSavings: Double,
+        netWorth: Double,
         languageMode: LanguageMode
     ): String {
         val sb = StringBuilder()
@@ -322,6 +457,26 @@ object TabExportHelper {
 
         sb.append("""
             <div class="summary-cards">
+                <div class="card">
+                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Total Income"}</div>
+                    <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalIncomeActual, languageMode)}</div>
+                    <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "বাজেট: " else "Budget: "}৳ ${LanguageHelper.formatNumber(totalIncomeBudget, languageMode)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expense"}</div>
+                    <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalExpenseActual, languageMode)}</div>
+                    <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "বাজেট: " else "Budget: "}৳ ${LanguageHelper.formatNumber(totalExpenseBudget, languageMode)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সঞ্চয় / ফ্লো" else "Net Savings / Flow"}</div>
+                    <div class="card-value ${if (netSavings >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netSavings, languageMode)}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ" else "Net Worth"}</div>
+                    <div class="card-value ${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
+                </div>
+            </div>
+            <div class="summary-cards" style="margin-top: 8px;">
                 <div class="card">
                     <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট বাজেট" else "Total Budget"}</div>
                     <div class="card-value text-primary">৳ ${LanguageHelper.formatNumber(totalBudget, languageMode)}</div>
@@ -331,7 +486,7 @@ object TabExportHelper {
                     <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalSpent, languageMode)}</div>
                 </div>
                 <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}</div>
+                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট বাজেট" else "Remaining Budget"}</div>
                     <div class="card-value ${if (remaining >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(remaining, languageMode)}</div>
                 </div>
                 <div class="card">
@@ -393,41 +548,89 @@ object TabExportHelper {
         liabilityGroups: List<BalanceSheetGroup>,
         totalLiabilities: Double,
         netWorth: Double,
+        comparisonEnabled: Boolean = false,
+        baseDateLabel: String = "",
+        compareDateLabel: String = asOfDateLabel,
+        totalAssetsBase: Double = 0.0,
+        totalLiabilitiesBase: Double = 0.0,
+        netWorthBase: Double = 0.0,
+        netWorthDelta: Double = 0.0,
         languageMode: LanguageMode = LanguageMode.ENGLISH
     ) {
-        val title = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স শীট রিপোর্ট ($asOfDateLabel)" else "Balance Sheet Report ($asOfDateLabel)"
+        val title = if (languageMode == LanguageMode.BANGLA) {
+            if (comparisonEnabled) "ব্যালেন্স শীট তুলনামূলক রিপোর্ট ($compareDateLabel বনাম $baseDateLabel)"
+            else "ব্যালেন্স শীট রিপোর্ট ($asOfDateLabel)"
+        } else {
+            if (comparisonEnabled) "Balance Sheet Comparison Report ($compareDateLabel vs $baseDateLabel)"
+            else "Balance Sheet Report ($asOfDateLabel)"
+        }
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
 
         when (format) {
             ExportFormat.PDF -> {
-                val html = buildBalanceSheetHtml(title, asOfDateLabel, assetGroups, totalAssets, liabilityGroups, totalLiabilities, netWorth, languageMode)
-                PdfPrintHelper.printHtml(context, "BalanceSheet_$timeStamp", html, isLandscape = false)
+                val html = buildBalanceSheetHtml(
+                    title, asOfDateLabel, assetGroups, totalAssets, liabilityGroups, totalLiabilities, netWorth,
+                    comparisonEnabled, baseDateLabel, compareDateLabel, totalAssetsBase, totalLiabilitiesBase,
+                    netWorthBase, netWorthDelta, languageMode
+                )
+                PdfPrintHelper.printHtml(context, "BalanceSheet_$timeStamp", html, isLandscape = comparisonEnabled)
             }
             ExportFormat.CSV -> {
-                val csv = buildBalanceSheetCsv(asOfDateLabel, assetGroups, totalAssets, liabilityGroups, totalLiabilities, netWorth, languageMode)
+                val csv = buildBalanceSheetCsv(
+                    asOfDateLabel, assetGroups, totalAssets, liabilityGroups, totalLiabilities, netWorth,
+                    comparisonEnabled, baseDateLabel, compareDateLabel, totalAssetsBase, totalLiabilitiesBase,
+                    netWorthBase, netWorthDelta, languageMode
+                )
                 shareFile(context, "BalanceSheet_$timeStamp.csv", format.mimeType, csv, title)
             }
             ExportFormat.HTML -> {
-                val html = buildBalanceSheetHtml(title, asOfDateLabel, assetGroups, totalAssets, liabilityGroups, totalLiabilities, netWorth, languageMode)
+                val html = buildBalanceSheetHtml(
+                    title, asOfDateLabel, assetGroups, totalAssets, liabilityGroups, totalLiabilities, netWorth,
+                    comparisonEnabled, baseDateLabel, compareDateLabel, totalAssetsBase, totalLiabilitiesBase,
+                    netWorthBase, netWorthDelta, languageMode
+                )
                 shareFile(context, "BalanceSheet_$timeStamp.html", format.mimeType, html, title)
             }
             ExportFormat.JSON -> {
                 val json = JSONObject().apply {
                     put("reportType", "BalanceSheet")
                     put("asOfDate", asOfDateLabel)
-                    put("totalAssets", totalAssets)
-                    put("totalLiabilities", totalLiabilities)
-                    put("netWorth", netWorth)
+                    put("comparisonEnabled", comparisonEnabled)
+                    if (comparisonEnabled) {
+                        put("basePeriod", baseDateLabel)
+                        put("comparePeriod", compareDateLabel)
+                        put("totalAssetsBase", totalAssetsBase)
+                        put("totalAssetsCurrent", totalAssets)
+                        put("assetsDelta", totalAssets - totalAssetsBase)
+                        put("totalLiabilitiesBase", totalLiabilitiesBase)
+                        put("totalLiabilitiesCurrent", totalLiabilities)
+                        put("liabilitiesDelta", totalLiabilities - totalLiabilitiesBase)
+                        put("netWorthBase", netWorthBase)
+                        put("netWorthCurrent", netWorth)
+                        put("netWorthDelta", netWorthDelta)
+                    } else {
+                        put("totalAssets", totalAssets)
+                        put("totalLiabilities", totalLiabilities)
+                        put("netWorth", netWorth)
+                    }
                     put("assets", JSONArray().apply {
                         assetGroups.forEach { grp ->
                             put(JSONObject().apply {
                                 put("groupName", grp.parentAccount.nameEn)
                                 put("balance", grp.effectiveCurrentBalance)
+                                if (comparisonEnabled) {
+                                    put("baseBalance", grp.effectiveBaseBalance)
+                                    put("delta", grp.effectiveCurrentBalance - grp.effectiveBaseBalance)
+                                }
                                 put("subAccounts", JSONArray().apply {
                                     grp.subAccounts.forEach { sub ->
                                         put(JSONObject().apply {
                                             put("accountName", sub.account.nameEn)
                                             put("balance", sub.effectiveCurrentBalance)
+                                            if (comparisonEnabled) {
+                                                put("baseBalance", sub.effectiveBaseBalance)
+                                                put("delta", sub.effectiveCurrentBalance - sub.effectiveBaseBalance)
+                                            }
                                         })
                                     }
                                 })
@@ -439,11 +642,19 @@ object TabExportHelper {
                             put(JSONObject().apply {
                                 put("groupName", grp.parentAccount.nameEn)
                                 put("balance", grp.effectiveCurrentBalance)
+                                if (comparisonEnabled) {
+                                    put("baseBalance", grp.effectiveBaseBalance)
+                                    put("delta", grp.effectiveCurrentBalance - grp.effectiveBaseBalance)
+                                }
                                 put("subAccounts", JSONArray().apply {
                                     grp.subAccounts.forEach { sub ->
                                         put(JSONObject().apply {
                                             put("accountName", sub.account.nameEn)
                                             put("balance", sub.effectiveCurrentBalance)
+                                            if (comparisonEnabled) {
+                                                put("baseBalance", sub.effectiveBaseBalance)
+                                                put("delta", sub.effectiveCurrentBalance - sub.effectiveBaseBalance)
+                                            }
                                         })
                                     }
                                 })
@@ -463,32 +674,77 @@ object TabExportHelper {
         liabilityGroups: List<BalanceSheetGroup>,
         totalLiabilities: Double,
         netWorth: Double,
+        comparisonEnabled: Boolean,
+        baseDateLabel: String,
+        compareDateLabel: String,
+        totalAssetsBase: Double,
+        totalLiabilitiesBase: Double,
+        netWorthBase: Double,
+        netWorthDelta: Double,
         languageMode: LanguageMode
     ): String {
         val sb = StringBuilder()
         if (asOfDateLabel.isNotBlank()) {
             sb.append("# Filter / Period: ${escapeCsv(asOfDateLabel)}\n")
         }
-        sb.append("Section,Group,Account,Balance (BDT)\n")
 
-        for (grp in assetGroups) {
-            val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
-            for (sub in grp.subAccounts) {
-                val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
-                sb.append("Assets,${escapeCsv(grpName)},${escapeCsv(subName)},${String.format(Locale.US, "%.2f", sub.effectiveCurrentBalance)}\n")
-            }
-        }
-        sb.append("Assets,TOTAL ASSETS,,${String.format(Locale.US, "%.2f", totalAssets)}\n")
+        if (comparisonEnabled) {
+            sb.append("Section,Group,Account,Base Balance ($baseDateLabel),Current Balance ($compareDateLabel),Variance (BDT),Change (%)\n")
 
-        for (grp in liabilityGroups) {
-            val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
-            for (sub in grp.subAccounts) {
-                val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
-                sb.append("Liabilities,${escapeCsv(grpName)},${escapeCsv(subName)},${String.format(Locale.US, "%.2f", sub.effectiveCurrentBalance)}\n")
+            for (grp in assetGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    val baseAmt = sub.effectiveBaseBalance
+                    val currAmt = sub.effectiveCurrentBalance
+                    val delta = currAmt - baseAmt
+                    val pct = if (Math.abs(baseAmt) > 0.001) String.format(Locale.US, "%.1f%%", (delta / Math.abs(baseAmt)) * 100.0) else "-"
+                    sb.append("Assets,${escapeCsv(grpName)},${escapeCsv(subName)},${String.format(Locale.US, "%.2f", baseAmt)},${String.format(Locale.US, "%.2f", currAmt)},${String.format(Locale.US, "%.2f", delta)},$pct\n")
+                }
             }
+            val assetsDelta = totalAssets - totalAssetsBase
+            val assetsPct = if (Math.abs(totalAssetsBase) > 0.001) String.format(Locale.US, "%.1f%%", (assetsDelta / Math.abs(totalAssetsBase)) * 100.0) else "-"
+            sb.append("Assets,TOTAL ASSETS,,${String.format(Locale.US, "%.2f", totalAssetsBase)},${String.format(Locale.US, "%.2f", totalAssets)},${String.format(Locale.US, "%.2f", assetsDelta)},$assetsPct\n")
+
+            for (grp in liabilityGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    val baseAmt = sub.effectiveBaseBalance
+                    val currAmt = sub.effectiveCurrentBalance
+                    val delta = currAmt - baseAmt
+                    val pct = if (Math.abs(baseAmt) > 0.001) String.format(Locale.US, "%.1f%%", (delta / Math.abs(baseAmt)) * 100.0) else "-"
+                    sb.append("Liabilities,${escapeCsv(grpName)},${escapeCsv(subName)},${String.format(Locale.US, "%.2f", baseAmt)},${String.format(Locale.US, "%.2f", currAmt)},${String.format(Locale.US, "%.2f", delta)},$pct\n")
+                }
+            }
+            val liabDelta = totalLiabilities - totalLiabilitiesBase
+            val liabPct = if (Math.abs(totalLiabilitiesBase) > 0.001) String.format(Locale.US, "%.1f%%", (liabDelta / Math.abs(totalLiabilitiesBase)) * 100.0) else "-"
+            sb.append("Liabilities,TOTAL LIABILITIES,,${String.format(Locale.US, "%.2f", totalLiabilitiesBase)},${String.format(Locale.US, "%.2f", totalLiabilities)},${String.format(Locale.US, "%.2f", liabDelta)},$liabPct\n")
+
+            val nwPct = if (Math.abs(netWorthBase) > 0.001) String.format(Locale.US, "%.1f%%", (netWorthDelta / Math.abs(netWorthBase)) * 100.0) else "-"
+            sb.append("Net Worth,NET WORTH,,${String.format(Locale.US, "%.2f", netWorthBase)},${String.format(Locale.US, "%.2f", netWorth)},${String.format(Locale.US, "%.2f", netWorthDelta)},$nwPct\n")
+        } else {
+            sb.append("Section,Group,Account,Balance (BDT)\n")
+
+            for (grp in assetGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    sb.append("Assets,${escapeCsv(grpName)},${escapeCsv(subName)},${String.format(Locale.US, "%.2f", sub.effectiveCurrentBalance)}\n")
+                }
+            }
+            sb.append("Assets,TOTAL ASSETS,,${String.format(Locale.US, "%.2f", totalAssets)}\n")
+
+            for (grp in liabilityGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    sb.append("Liabilities,${escapeCsv(grpName)},${escapeCsv(subName)},${String.format(Locale.US, "%.2f", sub.effectiveCurrentBalance)}\n")
+                }
+            }
+            sb.append("Liabilities,TOTAL LIABILITIES,,${String.format(Locale.US, "%.2f", totalLiabilities)}\n")
+            sb.append("Net Worth,NET WORTH,,${String.format(Locale.US, "%.2f", netWorth)}\n")
         }
-        sb.append("Liabilities,TOTAL LIABILITIES,,${String.format(Locale.US, "%.2f", totalLiabilities)}\n")
-        sb.append("Net Worth,NET WORTH,,${String.format(Locale.US, "%.2f", netWorth)}\n")
 
         return sb.toString()
     }
@@ -501,89 +757,211 @@ object TabExportHelper {
         liabilityGroups: List<BalanceSheetGroup>,
         totalLiabilities: Double,
         netWorth: Double,
+        comparisonEnabled: Boolean,
+        baseDateLabel: String,
+        compareDateLabel: String,
+        totalAssetsBase: Double,
+        totalLiabilitiesBase: Double,
+        netWorthBase: Double,
+        netWorthDelta: Double,
         languageMode: LanguageMode
     ): String {
         val sb = StringBuilder()
-        sb.append("""
-            <div class="summary-cards">
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets"}</div>
-                    <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities"}</div>
-                    <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ" else "Net Worth"}</div>
-                    <div class="card-value ${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট / গ্রুপ" else "Account / Group"}</th>
-                        <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স (BDT)" else "Balance (BDT)"}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="section-assets">
-                        <td colspan="2"><strong>${if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"} — ৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</strong></td>
-                    </tr>
-        """.trimIndent())
+        val assetsDelta = totalAssets - totalAssetsBase
+        val liabDelta = totalLiabilities - totalLiabilitiesBase
 
-        for (grp in assetGroups) {
-            val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+        if (comparisonEnabled) {
             sb.append("""
-                <tr class="group-row">
-                    <td><strong>&gt; $grpName</strong></td>
-                    <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
-                </tr>
+                <div class="summary-cards">
+                    <div class="card">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ ($compareDateLabel)" else "Total Assets ($compareDateLabel)"}</div>
+                        <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</div>
+                        <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(totalAssetsBase, languageMode)} (${if (assetsDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(assetsDelta, languageMode)})</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট দায় ($compareDateLabel)" else "Total Liabilities ($compareDateLabel)"}</div>
+                        <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</div>
+                        <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(totalLiabilitiesBase, languageMode)} (${if (liabDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(liabDelta, languageMode)})</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ ($compareDateLabel)" else "Net Worth ($compareDateLabel)"}</div>
+                        <div class="card-value ${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
+                        <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(netWorthBase, languageMode)} (${if (netWorthDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(netWorthDelta, languageMode)})</div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট / গ্রুপ" else "Account / Group"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ব্যালেন্স ($baseDateLabel)" else "Base Balance ($baseDateLabel)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স ($compareDateLabel)" else "Current Balance ($compareDateLabel)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পার্থক্য" else "Variance"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পরিবর্তন %" else "Change %"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="section-assets">
+                            <td colspan="5"><strong>${if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"} — ৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</strong></td>
+                        </tr>
             """.trimIndent())
-            for (sub in grp.subAccounts) {
-                val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+
+            for (grp in assetGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                val grpDelta = grp.effectiveCurrentBalance - grp.effectiveBaseBalance
+                val grpPct = if (Math.abs(grp.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0) else "-"
                 sb.append("""
-                    <tr>
-                        <td style="padding-left: 24px;">• $subName</td>
-                        <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                    <tr class="group-row">
+                        <td><strong>&gt; $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveBaseBalance, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;" class="${if (grpDelta >= 0) "text-success" else "text-danger"}">${if (grpDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;">$grpPct</td>
                     </tr>
                 """.trimIndent())
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
+                    val subPct = if (Math.abs(sub.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0) else "-"
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $subName</td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                            <td style="text-align: right;" class="${if (subDelta >= 0) "text-success" else "text-danger"}">${if (subDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
+                            <td style="text-align: right;">$subPct</td>
+                        </tr>
+                    """.trimIndent())
+                }
             }
-        }
 
-        sb.append("""
-                    <tr class="section-liabilities" style="margin-top: 10px;">
-                        <td colspan="2"><strong>${if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"} — ৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</strong></td>
-                    </tr>
-        """.trimIndent())
-
-        for (grp in liabilityGroups) {
-            val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
             sb.append("""
-                <tr class="group-row">
-                    <td><strong>&gt; $grpName</strong></td>
-                    <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
-                </tr>
+                        <tr class="section-liabilities" style="margin-top: 10px;">
+                            <td colspan="5"><strong>${if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"} — ৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</strong></td>
+                        </tr>
             """.trimIndent())
-            for (sub in grp.subAccounts) {
-                val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+
+            for (grp in liabilityGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                val grpDelta = grp.effectiveCurrentBalance - grp.effectiveBaseBalance
+                val grpPct = if (Math.abs(grp.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0) else "-"
                 sb.append("""
-                    <tr>
-                        <td style="padding-left: 24px;">• $subName</td>
-                        <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                    <tr class="group-row">
+                        <td><strong>&gt; $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveBaseBalance, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;" class="${if (grpDelta <= 0) "text-success" else "text-danger"}">${if (grpDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;">$grpPct</td>
                     </tr>
                 """.trimIndent())
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
+                    val subPct = if (Math.abs(sub.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0) else "-"
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $subName</td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                            <td style="text-align: right;" class="${if (subDelta <= 0) "text-success" else "text-danger"}">${if (subDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
+                            <td style="text-align: right;">$subPct</td>
+                        </tr>
+                    """.trimIndent())
+                }
             }
-        }
 
-        sb.append("""
-                    <tr class="net-worth-row">
-                        <td><strong>${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth"}</strong></td>
-                        <td style="text-align: right; font-size: 14px; font-weight: bold;" class="${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</td>
+            sb.append("""
+                        <tr class="net-worth-row">
+                            <td><strong>${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth"}</strong></td>
+                            <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(netWorthBase, languageMode)}</td>
+                            <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</td>
+                            <td style="text-align: right; font-weight: bold;" class="${if (netWorthDelta >= 0) "text-success" else "text-danger"}">${if (netWorthDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(netWorthDelta, languageMode)}</td>
+                            <td style="text-align: right; font-weight: bold;">${if (Math.abs(netWorthBase) > 0.001) String.format(Locale.US, "%.1f%%", (netWorthDelta / Math.abs(netWorthBase)) * 100.0) else "-"}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            """.trimIndent())
+        } else {
+            sb.append("""
+                <div class="summary-cards">
+                    <div class="card">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets"}</div>
+                        <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities"}</div>
+                        <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ" else "Net Worth"}</div>
+                        <div class="card-value ${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট / গ্রুপ" else "Account / Group"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স (BDT)" else "Balance (BDT)"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="section-assets">
+                            <td colspan="2"><strong>${if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"} — ৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</strong></td>
+                        </tr>
+            """.trimIndent())
+
+            for (grp in assetGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                sb.append("""
+                    <tr class="group-row">
+                        <td><strong>&gt; $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
                     </tr>
-                </tbody>
-            </table>
-        """.trimIndent())
+                """.trimIndent())
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $subName</td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+
+            sb.append("""
+                        <tr class="section-liabilities" style="margin-top: 10px;">
+                            <td colspan="2"><strong>${if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"} — ৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</strong></td>
+                        </tr>
+            """.trimIndent())
+
+            for (grp in liabilityGroups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
+                sb.append("""
+                    <tr class="group-row">
+                        <td><strong>&gt; $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
+                    </tr>
+                """.trimIndent())
+                for (sub in grp.subAccounts) {
+                    val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $subName</td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+
+            sb.append("""
+                        <tr class="net-worth-row">
+                            <td><strong>${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth"}</strong></td>
+                            <td style="text-align: right; font-size: 14px; font-weight: bold;" class="${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            """.trimIndent())
+        }
 
         return buildBaseHtml(title, "$asOfDateLabel • ${DateUtils.formatDate(System.currentTimeMillis(), languageMode)}", sb.toString())
     }

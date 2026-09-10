@@ -28,11 +28,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
@@ -77,6 +79,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -110,6 +113,10 @@ import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
+import com.example.ui.components.AutoHidingBottomContainer
+import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.dialogs.AccountCalculationDialog
@@ -122,6 +129,7 @@ import com.example.util.BalanceSheetComparisonData
 import com.example.util.BalanceSheetComparisonPreset
 import com.example.util.BalanceSheetGroup
 import com.example.util.BalanceSheetHelper
+import com.example.util.BalanceSheetSortOrder
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
@@ -137,7 +145,10 @@ data class BalanceSheetFilterState(
     val selectedAccountIds: Set<Long> = emptySet(),
     val selectedStatusSet: Set<TransactionStatus> = emptySet(),
     val excludeZeroAmounts: Boolean = false,
+    val filterNonZeroGroups: Boolean = false,
     val displayCurrency: Boolean = true,
+    val displayCurrencySymbol: Boolean = true,
+    val sortOrder: BalanceSheetSortOrder = BalanceSheetSortOrder.DEFAULT,
     val showHiddenAccounts: Boolean = false,
     val showOnlyCurrentBalance: Boolean = false
 ) {
@@ -146,7 +157,10 @@ data class BalanceSheetFilterState(
                 selectedAccountIds.isNotEmpty() ||
                 selectedStatusSet.isNotEmpty() ||
                 excludeZeroAmounts ||
+                filterNonZeroGroups ||
                 !displayCurrency ||
+                !displayCurrencySymbol ||
+                sortOrder != BalanceSheetSortOrder.DEFAULT ||
                 showHiddenAccounts ||
                 showOnlyCurrentBalance
 }
@@ -199,7 +213,15 @@ object BalanceSheetPresetsStorage {
                 }
 
                 val excludeZero = obj.optBoolean("excludeZero", false)
+                val filterNonZero = obj.optBoolean("filterNonZero", false)
                 val displayCurr = obj.optBoolean("displayCurr", true)
+                val displayCurrSym = obj.optBoolean("displayCurrSym", true)
+                val sortOrderName = obj.optString("sortOrder", BalanceSheetSortOrder.DEFAULT.name)
+                val sortOrder = try {
+                    BalanceSheetSortOrder.valueOf(sortOrderName)
+                } catch (e: Exception) {
+                    BalanceSheetSortOrder.DEFAULT
+                }
                 val showHidden = obj.optBoolean("showHidden", false)
                 val onlyCurrent = obj.optBoolean("onlyCurrent", false)
 
@@ -214,7 +236,10 @@ object BalanceSheetPresetsStorage {
                             selectedAccountIds = accIds,
                             selectedStatusSet = statusSet,
                             excludeZeroAmounts = excludeZero,
+                            filterNonZeroGroups = filterNonZero,
                             displayCurrency = displayCurr,
+                            displayCurrencySymbol = displayCurrSym,
+                            sortOrder = sortOrder,
                             showHiddenAccounts = showHidden,
                             showOnlyCurrentBalance = onlyCurrent
                         )
@@ -247,7 +272,10 @@ object BalanceSheetPresetsStorage {
             obj.put("statuses", statusArr)
 
             obj.put("excludeZero", item.filterState.excludeZeroAmounts)
+            obj.put("filterNonZero", item.filterState.filterNonZeroGroups)
             obj.put("displayCurr", item.filterState.displayCurrency)
+            obj.put("displayCurrSym", item.filterState.displayCurrencySymbol)
+            obj.put("sortOrder", item.filterState.sortOrder.name)
             obj.put("showHidden", item.filterState.showHiddenAccounts)
             obj.put("onlyCurrent", item.filterState.showOnlyCurrentBalance)
             jsonArr.put(obj)
@@ -332,6 +360,8 @@ fun BalanceSheetScreen(
             activeOnly = !filterState.showHiddenAccounts,
             showHiddenAccounts = filterState.showHiddenAccounts,
             excludeZeroAmounts = filterState.excludeZeroAmounts,
+            filterNonZeroGroups = filterState.filterNonZeroGroups,
+            sortOrder = filterState.sortOrder,
             searchQuery = "",
             accountCalcConfig = accountCalcConfig,
             languageMode = languageMode
@@ -360,7 +390,8 @@ fun BalanceSheetScreen(
                     ExportMenuButton(
                         languageMode = languageMode,
                         onExport = { format ->
-                            val asOfDateLabel = if (!filterState.showOnlyCurrentBalance && balanceSheetData.baseDateLabel.isNotBlank()) {
+                            val isComparison = !filterState.showOnlyCurrentBalance && balanceSheetData.baseDateLabel.isNotBlank()
+                            val asOfDateLabel = if (isComparison) {
                                 "${balanceSheetData.compareDateLabel} vs ${balanceSheetData.baseDateLabel}"
                             } else {
                                 balanceSheetData.compareDateLabel
@@ -374,6 +405,13 @@ fun BalanceSheetScreen(
                                 liabilityGroups = balanceSheetData.liabilityGroups,
                                 totalLiabilities = balanceSheetData.totalLiabilitiesCurrent,
                                 netWorth = balanceSheetData.netWorthCurrent,
+                                comparisonEnabled = isComparison,
+                                baseDateLabel = balanceSheetData.baseDateLabel,
+                                compareDateLabel = balanceSheetData.compareDateLabel,
+                                totalAssetsBase = balanceSheetData.totalAssetsBase,
+                                totalLiabilitiesBase = balanceSheetData.totalLiabilitiesBase,
+                                netWorthBase = balanceSheetData.netWorthBase,
+                                netWorthDelta = balanceSheetData.netWorthDelta,
                                 languageMode = languageMode
                             )
                         }
@@ -420,6 +458,7 @@ fun BalanceSheetScreen(
                 MiniNetWorthSummaryCard(
                     data = balanceSheetData,
                     displayCurrency = filterState.displayCurrency,
+                    displayCurrencySymbol = filterState.displayCurrencySymbol,
                     languageMode = languageMode
                 )
             }
@@ -436,6 +475,7 @@ fun BalanceSheetScreen(
                     NetWorthSummaryCard(
                         data = balanceSheetData,
                         displayCurrency = filterState.displayCurrency,
+                        displayCurrencySymbol = filterState.displayCurrencySymbol,
                         showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                         languageMode = languageMode
                     )
@@ -449,6 +489,7 @@ fun BalanceSheetScreen(
                         baseAmount = balanceSheetData.totalAssetsBase,
                         currentAmount = balanceSheetData.totalAssetsCurrent,
                         displayCurrency = filterState.displayCurrency,
+                        displayCurrencySymbol = filterState.displayCurrencySymbol,
                         showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                         headerColor = MaterialTheme.colorScheme.primary,
                         languageMode = languageMode
@@ -470,6 +511,7 @@ fun BalanceSheetScreen(
                             isCalcMode = isCalcMode,
                             accountCalcConfig = accountCalcConfig,
                             displayCurrency = filterState.displayCurrency,
+                            displayCurrencySymbol = filterState.displayCurrencySymbol,
                             showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onToggleExpand = {
@@ -496,6 +538,7 @@ fun BalanceSheetScreen(
                         baseAmount = balanceSheetData.totalLiabilitiesBase,
                         currentAmount = balanceSheetData.totalLiabilitiesCurrent,
                         displayCurrency = filterState.displayCurrency,
+                        displayCurrencySymbol = filterState.displayCurrencySymbol,
                         showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                         headerColor = SolidExpense,
                         languageMode = languageMode
@@ -517,6 +560,7 @@ fun BalanceSheetScreen(
                             isCalcMode = isCalcMode,
                             accountCalcConfig = accountCalcConfig,
                             displayCurrency = filterState.displayCurrency,
+                            displayCurrencySymbol = filterState.displayCurrencySymbol,
                             showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onToggleExpand = {
@@ -535,44 +579,49 @@ fun BalanceSheetScreen(
         }
 
         // Action Buttons: Quick Add Account and Add Transaction
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        val headerScrollState = LocalHeaderScrollState.current
+        AutoHidingBottomContainer(
+            headerScrollState = headerScrollState,
+            modifier = Modifier.align(Alignment.BottomEnd)
         ) {
-            Surface(
-                onClick = onAddAccountClick,
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                shadowElevation = 4.dp,
-                modifier = Modifier.size(44.dp)
+            Column(
+                modifier = Modifier
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.AccountBalance,
-                        contentDescription = "New Account",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(22.dp)
-                    )
+                Surface(
+                    onClick = onAddAccountClick,
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.AccountBalance,
+                            contentDescription = "New Account",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
-            }
 
-            Surface(
-                onClick = onAddTransactionClick,
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-                shadowElevation = 6.dp,
-                modifier = Modifier.size(54.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "New Transaction",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
+                Surface(
+                    onClick = onAddTransactionClick,
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier.size(54.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "New Transaction",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
             }
         }
@@ -727,9 +776,18 @@ fun BalanceSheetScreen(
 /**
  * Format balance with or without currency based on displayCurrency toggle
  */
-fun formatBalance(amount: Double, displayCurrency: Boolean, languageMode: LanguageMode): String {
+fun formatBalance(
+    amount: Double,
+    displayCurrency: Boolean,
+    languageMode: LanguageMode,
+    displayCurrencySymbol: Boolean = true
+): String {
     return if (displayCurrency) {
-        LanguageHelper.formatCurrency(amount, languageMode)
+        if (displayCurrencySymbol) {
+            LanguageHelper.formatCurrency(amount, languageMode)
+        } else {
+            LanguageHelper.formatNumber(amount, languageMode)
+        }
     } else {
         LanguageHelper.formatNumber(amount, languageMode)
     }
@@ -755,13 +813,17 @@ fun MaterialBalanceSheetFilterDialog(
     var tempAccountIds by remember { mutableStateOf(currentState.selectedAccountIds) }
     var tempStatuses by remember { mutableStateOf(currentState.selectedStatusSet) }
     var tempExcludeZero by remember { mutableStateOf(currentState.excludeZeroAmounts) }
+    var tempFilterNonZeroGroups by remember { mutableStateOf(currentState.filterNonZeroGroups) }
     var tempDisplayCurrency by remember { mutableStateOf(currentState.displayCurrency) }
+    var tempDisplayCurrencySymbol by remember { mutableStateOf(currentState.displayCurrencySymbol) }
+    var tempSortOrder by remember { mutableStateOf(currentState.sortOrder) }
     var tempShowHidden by remember { mutableStateOf(currentState.showHiddenAccounts) }
     var tempShowOnlyCurrent by remember { mutableStateOf(currentState.showOnlyCurrentBalance) }
 
     // Sub-dialog states
     var showAccountPickerDialog by remember { mutableStateOf(false) }
     var showStatusPickerDialog by remember { mutableStateOf(false) }
+    var showSortOrderPickerDialog by remember { mutableStateOf(false) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
     var showOpenPresetDialog by remember { mutableStateOf(false) }
     var presetNameInput by remember { mutableStateOf("") }
@@ -838,7 +900,10 @@ fun MaterialBalanceSheetFilterDialog(
                                     tempAccountIds = emptySet()
                                     tempStatuses = emptySet()
                                     tempExcludeZero = false
+                                    tempFilterNonZeroGroups = false
                                     tempDisplayCurrency = true
+                                    tempDisplayCurrencySymbol = true
+                                    tempSortOrder = BalanceSheetSortOrder.DEFAULT
                                     tempShowHidden = false
                                     tempShowOnlyCurrent = false
                                     Toast.makeText(context, if (languageMode == LanguageMode.BANGLA) "ফিল্টার রিসেট করা হয়েছে" else "Filters reset to default", Toast.LENGTH_SHORT).show()
@@ -1240,7 +1305,88 @@ fun MaterialBalanceSheetFilterDialog(
                         }
                     }
 
-                    // 4. Toggle Rows
+                    // 4. Sort Order Row
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সর্টিং ক্রম" else "Sort Order",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .clickable { showSortOrderPickerDialog = true }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Sort,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    val sortLabel = when (tempSortOrder) {
+                                        BalanceSheetSortOrder.DEFAULT -> if (languageMode == LanguageMode.BANGLA) "ডিফল্ট ক্রম" else "Default Order"
+                                        BalanceSheetSortOrder.AMOUNT_DESC -> if (languageMode == LanguageMode.BANGLA) "পরিমাণ: বেশি থেকে কম" else "Amount: High to Low"
+                                        BalanceSheetSortOrder.AMOUNT_ASC -> if (languageMode == LanguageMode.BANGLA) "পরিমাণ: কম থেকে বেশি" else "Amount: Low to High"
+                                        BalanceSheetSortOrder.NAME_ASC -> if (languageMode == LanguageMode.BANGLA) "নাম: ক থেকে হ / A to Z" else "Name: A to Z"
+                                    }
+                                    Text(
+                                        text = sortLabel,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "নির্বাচন" else "Select",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 5. Toggle Rows
                     Card(
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
@@ -1279,7 +1425,35 @@ fun MaterialBalanceSheetFilterDialog(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
 
-                            // Row 2: Display currency
+                            // Row 2: Filter non-zero groups
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র ব্যালেন্স থাকা গ্রুপ দেখান" else "Only show non-zero groups",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Switch(
+                                    checked = tempFilterNonZeroGroups,
+                                    onCheckedChange = { tempFilterNonZeroGroups = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32)
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 3: Display currency
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1307,7 +1481,35 @@ fun MaterialBalanceSheetFilterDialog(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
 
-                            // Row 3: Show hidden accounts
+                            // Row 4: Display currency symbol
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "কারেন্সি প্রতীক (৳) প্রদর্শন" else "Display currency symbol (৳)",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Switch(
+                                    checked = tempDisplayCurrencySymbol,
+                                    onCheckedChange = { tempDisplayCurrencySymbol = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32)
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 5: Show hidden accounts
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1335,7 +1537,7 @@ fun MaterialBalanceSheetFilterDialog(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
 
-                            // Row 4: Show only current balance
+                            // Row 6: Show only current balance
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1399,7 +1601,10 @@ fun MaterialBalanceSheetFilterDialog(
                                 selectedAccountIds = tempAccountIds,
                                 selectedStatusSet = tempStatuses,
                                 excludeZeroAmounts = tempExcludeZero,
+                                filterNonZeroGroups = tempFilterNonZeroGroups,
                                 displayCurrency = tempDisplayCurrency,
+                                displayCurrencySymbol = tempDisplayCurrencySymbol,
+                                sortOrder = tempSortOrder,
                                 showHiddenAccounts = tempShowHidden,
                                 showOnlyCurrentBalance = tempShowOnlyCurrent
                             )
@@ -1420,6 +1625,68 @@ fun MaterialBalanceSheetFilterDialog(
                 }
             }
         }
+    }
+
+    // Sort Order Selection Dialog
+    if (showSortOrderPickerDialog) {
+        AlertDialog(
+            onDismissRequest = { showSortOrderPickerDialog = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "সর্টিং ক্রম নির্বাচন করুন" else "Select Sort Order",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectableGroup()
+                ) {
+                    BalanceSheetSortOrder.values().forEach { order ->
+                        val isSelected = tempSortOrder == order
+                        val title = when (order) {
+                            BalanceSheetSortOrder.DEFAULT -> if (languageMode == LanguageMode.BANGLA) "ডিফল্ট ক্রম (তৈরি করার ক্রম)" else "Default Order"
+                            BalanceSheetSortOrder.AMOUNT_DESC -> if (languageMode == LanguageMode.BANGLA) "পরিমাণ: বেশি থেকে কম" else "Amount: High to Low"
+                            BalanceSheetSortOrder.AMOUNT_ASC -> if (languageMode == LanguageMode.BANGLA) "পরিমাণ: কম থেকে বেশি" else "Amount: Low to High"
+                            BalanceSheetSortOrder.NAME_ASC -> if (languageMode == LanguageMode.BANGLA) "নাম: ক থেকে হ / A to Z" else "Name: A to Z"
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    tempSortOrder = order
+                                    showSortOrderPickerDialog = false
+                                }
+                                .padding(vertical = 10.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = {
+                                    tempSortOrder = order
+                                    showSortOrderPickerDialog = false
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = title,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSortOrderPickerDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বন্ধ করুন" else "Close")
+                }
+            }
+        )
     }
 
     // Account Multi-Select Picker Dialog
@@ -1674,7 +1941,10 @@ fun MaterialBalanceSheetFilterDialog(
                                 selectedAccountIds = tempAccountIds,
                                 selectedStatusSet = tempStatuses,
                                 excludeZeroAmounts = tempExcludeZero,
+                                filterNonZeroGroups = tempFilterNonZeroGroups,
                                 displayCurrency = tempDisplayCurrency,
+                                displayCurrencySymbol = tempDisplayCurrencySymbol,
+                                sortOrder = tempSortOrder,
                                 showHiddenAccounts = tempShowHidden,
                                 showOnlyCurrentBalance = tempShowOnlyCurrent
                             )
@@ -1735,7 +2005,10 @@ fun MaterialBalanceSheetFilterDialog(
                                             tempAccountIds = fs.selectedAccountIds
                                             tempStatuses = fs.selectedStatusSet
                                             tempExcludeZero = fs.excludeZeroAmounts
+                                            tempFilterNonZeroGroups = fs.filterNonZeroGroups
                                             tempDisplayCurrency = fs.displayCurrency
+                                            tempDisplayCurrencySymbol = fs.displayCurrencySymbol
+                                            tempSortOrder = fs.sortOrder
                                             tempShowHidden = fs.showHiddenAccounts
                                             tempShowOnlyCurrent = fs.showOnlyCurrentBalance
                                             showOpenPresetDialog = false
@@ -1797,6 +2070,7 @@ fun MaterialBalanceSheetFilterDialog(
 private fun NetWorthSummaryCard(
     data: BalanceSheetComparisonData,
     displayCurrency: Boolean,
+    displayCurrencySymbol: Boolean = true,
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode
 ) {
@@ -1833,7 +2107,7 @@ private fun NetWorthSummaryCard(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode),
+                    text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -1844,7 +2118,7 @@ private fun NetWorthSummaryCard(
                 if (!showOnlyCurrentBalance) {
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = "Prev: ${formatBalance(data.totalAssetsBase, displayCurrency, languageMode)}",
+                        text = "Prev: ${formatBalance(data.totalAssetsBase, displayCurrency, languageMode, displayCurrencySymbol)}",
                         fontSize = 9.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center,
@@ -1876,7 +2150,7 @@ private fun NetWorthSummaryCard(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
+                    text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 15.5.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.primary else SolidExpense,
@@ -1936,7 +2210,7 @@ private fun NetWorthSummaryCard(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode),
+                    text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = SolidExpense,
@@ -1947,7 +2221,7 @@ private fun NetWorthSummaryCard(
                 if (!showOnlyCurrentBalance) {
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = "Prev: ${formatBalance(data.totalLiabilitiesBase, displayCurrency, languageMode)}",
+                        text = "Prev: ${formatBalance(data.totalLiabilitiesBase, displayCurrency, languageMode, displayCurrencySymbol)}",
                         fontSize = 9.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center,
@@ -1963,6 +2237,7 @@ private fun NetWorthSummaryCard(
 private fun MiniNetWorthSummaryCard(
     data: BalanceSheetComparisonData,
     displayCurrency: Boolean,
+    displayCurrencySymbol: Boolean = true,
     languageMode: LanguageMode
 ) {
     Card(
@@ -1993,7 +2268,7 @@ private fun MiniNetWorthSummaryCard(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode),
+                    text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -2021,7 +2296,7 @@ private fun MiniNetWorthSummaryCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode),
+                    text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.primary else SolidExpense,
@@ -2049,7 +2324,7 @@ private fun MiniNetWorthSummaryCard(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode),
+                    text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = SolidExpense,
@@ -2284,6 +2559,7 @@ private fun SectionHeader(
     baseAmount: Double,
     currentAmount: Double,
     displayCurrency: Boolean,
+    displayCurrencySymbol: Boolean = true,
     showOnlyCurrentBalance: Boolean,
     headerColor: Color,
     languageMode: LanguageMode = LanguageMode.ENGLISH
@@ -2311,7 +2587,7 @@ private fun SectionHeader(
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Text(
-                    text = formatBalance(currentAmount, displayCurrency, languageMode),
+                    text = formatBalance(currentAmount, displayCurrency, languageMode, displayCurrencySymbol),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -2325,7 +2601,7 @@ private fun SectionHeader(
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        text = formatBalance(baseAmount, displayCurrency, languageMode),
+                        text = formatBalance(baseAmount, displayCurrency, languageMode, displayCurrencySymbol),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
@@ -2342,7 +2618,7 @@ private fun SectionHeader(
                         horizontalArrangement = Arrangement.End
                     ) {
                         Text(
-                            text = formatBalance(currentAmount, displayCurrency, languageMode),
+                            text = formatBalance(currentAmount, displayCurrency, languageMode, displayCurrencySymbol),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -2364,6 +2640,7 @@ private fun BalanceSheetGroupItem(
     isCalcMode: Boolean,
     accountCalcConfig: AccountCalcConfig,
     displayCurrency: Boolean,
+    displayCurrencySymbol: Boolean = true,
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
     onToggleExpand: () -> Unit,
@@ -2484,7 +2761,7 @@ private fun BalanceSheetGroupItem(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = formatBalance(group.currentBalance, displayCurrency, languageMode),
+                                text = formatBalance(group.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
@@ -2528,7 +2805,7 @@ private fun BalanceSheetGroupItem(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = formatBalance(group.baseBalance, displayCurrency, languageMode),
+                                text = formatBalance(group.baseBalance, displayCurrency, languageMode, displayCurrencySymbol),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
@@ -2546,7 +2823,7 @@ private fun BalanceSheetGroupItem(
                                 horizontalArrangement = Arrangement.End
                             ) {
                                 Text(
-                                    text = formatBalance(group.currentBalance, displayCurrency, languageMode),
+                                    text = formatBalance(group.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isIncluded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
@@ -2616,6 +2893,7 @@ private fun BalanceSheetGroupItem(
                             isCalcMode = isCalcMode,
                             accountCalcConfig = accountCalcConfig,
                             displayCurrency = displayCurrency,
+                            displayCurrencySymbol = displayCurrencySymbol,
                             showOnlyCurrentBalance = showOnlyCurrentBalance,
                             languageMode = languageMode,
                             onToggleIncludeStatus = onToggleIncludeStatus,
@@ -2635,6 +2913,7 @@ private fun SubAccountRowItem(
     isCalcMode: Boolean,
     accountCalcConfig: AccountCalcConfig,
     displayCurrency: Boolean,
+    displayCurrencySymbol: Boolean = true,
     showOnlyCurrentBalance: Boolean,
     languageMode: LanguageMode,
     onToggleIncludeStatus: ((Account, Boolean) -> Unit)?,
@@ -2715,7 +2994,7 @@ private fun SubAccountRowItem(
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        text = formatBalance(row.currentBalance, displayCurrency, languageMode),
+                        text = formatBalance(row.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
@@ -2759,7 +3038,7 @@ private fun SubAccountRowItem(
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        text = formatBalance(row.baseBalance, displayCurrency, languageMode),
+                        text = formatBalance(row.baseBalance, displayCurrency, languageMode, displayCurrencySymbol),
                         fontSize = 11.sp,
                         color = if (isIncluded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outline,
                         textDecoration = if (!isIncluded) TextDecoration.LineThrough else TextDecoration.None,
@@ -2776,7 +3055,7 @@ private fun SubAccountRowItem(
                         horizontalArrangement = Arrangement.End
                     ) {
                         Text(
-                            text = formatBalance(row.currentBalance, displayCurrency, languageMode),
+                            text = formatBalance(row.currentBalance, displayCurrency, languageMode, displayCurrencySymbol),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium,
                             color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,

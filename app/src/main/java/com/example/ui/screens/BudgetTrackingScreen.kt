@@ -117,6 +117,8 @@ import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.ActiveBudgetFilterBar
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.AutoHidingBottomContainer
+import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.BudgetDateRangePreset
 import com.example.ui.components.BudgetComparisonPreset
 import com.example.ui.components.BudgetFilterDialog
@@ -1407,13 +1409,17 @@ fun BudgetTrackingScreen(
         }
 
         // 6. BOTTOM PINNED CONTAINER: EXPENSE / INCOME TOGGLE + FABs ABOVE NAVIGATION TABS
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        val headerScrollState = LocalHeaderScrollState.current
+        AutoHidingBottomContainer(
+            headerScrollState = headerScrollState,
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             // Expandable Speed Dial Action FAB above the toggle (Single button on tap shows two)
             Column(
                 modifier = Modifier
@@ -1634,6 +1640,7 @@ fun BudgetTrackingScreen(
             }
         }
     }
+}
 
     // DETAIL MODAL: Shows transactions in selected period for clicked category
     selectedCategoryForDetail?.let { detailItem ->
