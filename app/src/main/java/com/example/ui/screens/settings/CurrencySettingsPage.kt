@@ -2,6 +2,7 @@ package com.example.ui.screens.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -141,7 +142,7 @@ fun CurrencySettingsPage(
                 }
             }
 
-            // Compact Display Mode Placement Chips
+            // Compact Display Mode Placement Chips (Horizontal Swipeable Row)
             Text(
                 text = if (isBangla) "মুদ্রা প্রদর্শনের ধরন (প্লেসমেন্ট)" else "Display Mode & Placement",
                 fontSize = 12.sp,
@@ -150,16 +151,18 @@ fun CurrencySettingsPage(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 CurrencyDisplayMode.values().forEach { mode ->
                     val isSelected = currencyConfig.displayMode == mode
                     val title = when (mode) {
-                        CurrencyDisplayMode.SYMBOL_ONLY -> if (isBangla) "শুধু প্রতীক" else "Symbol"
-                        CurrencyDisplayMode.CODE_ONLY -> if (isBangla) "শুধু কোড" else "Code"
-                        CurrencyDisplayMode.CODE_AND_SYMBOL -> if (isBangla) "উভয়" else "Both"
-                        CurrencyDisplayMode.NONE -> if (isBangla) "কোনোটি না" else "None"
+                        CurrencyDisplayMode.SYMBOL_ONLY -> if (isBangla) "শুধু প্রতীক" else "Symbol Only"
+                        CurrencyDisplayMode.CODE_ONLY -> if (isBangla) "শুধু কোড" else "Code Only"
+                        CurrencyDisplayMode.CODE_AND_SYMBOL -> if (isBangla) "উভয়" else "Code & Symbol"
+                        CurrencyDisplayMode.NONE -> if (isBangla) "কোনোটি না" else "No Currency"
                     }
                     val sample = when (mode) {
                         CurrencyDisplayMode.SYMBOL_ONLY -> "${currencyConfig.activeSymbol}500"
@@ -174,14 +177,13 @@ fun CurrencySettingsPage(
                         label = {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.padding(vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp)
                             ) {
-                                Text(title, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                Text(sample, fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
+                                Text(title, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
+                                Text(sample, fontSize = 10.sp, color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
                             }
                         },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.primary
@@ -190,41 +192,88 @@ fun CurrencySettingsPage(
                 }
             }
 
-            // Compact Popular Currencies Grid/Chips
-            Text(
-                text = if (isBangla) "জনপ্রিয় মুদ্রাসমূহ" else "Popular Currencies",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            FlowRow(
+            // Compact Popular Currencies Horizontal Left-Right Swipe
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isBangla) "জনপ্রিয় মুদ্রাসমূহ" else "Popular Currencies",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (isBangla) "বামে-ডানে সোয়াইপ করুন ⇄" else "Swipe left-right ⇄",
+                    fontSize = 10.5.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 CurrencyPreferences.POPULAR_CURRENCIES.forEach { item ->
                     val isSelected = currencyConfig.selectedCode == item.code && currencyConfig.customSymbol.isBlank()
                     val itemName = if (isBangla) item.nameBn else item.nameEn
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setCurrency(item) },
-                        leadingIcon = if (isSelected) {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                        } else null,
-                        label = {
-                            Text(
-                                text = "${item.symbol} ${item.code} • $itemName",
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { viewModel.setCurrency(item) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = item.symbol,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = item.code,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = itemName,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

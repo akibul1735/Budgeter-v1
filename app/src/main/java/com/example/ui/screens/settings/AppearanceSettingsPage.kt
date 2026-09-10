@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -160,18 +161,31 @@ fun AppearanceSettingsPage(
                 }
             }
 
-            // Color Palette
-            Text(
-                text = if (isBangla) "কালার প্যালেট ও ব্র্যান্ডিং" else "Primary Color Palette",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            FlowRow(
+            // Color Palette (Horizontal Left-Right Swipe)
+            Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isBangla) "কালার প্যালেট ও ব্র্যান্ডিং" else "Primary Color Palette",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (isBangla) "সোয়াইপ করুন ⇄" else "Swipe ⇄",
+                    fontSize = 10.5.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 ThemePalette.values().forEach { palette ->
                     val isSelected = themeConfig.palette == palette
@@ -181,7 +195,7 @@ fun AppearanceSettingsPage(
                         leadingIcon = {
                             Box(
                                 modifier = Modifier
-                                    .size(14.dp)
+                                    .size(16.dp)
                                     .background(palette.primaryColor, CircleShape)
                             )
                         },
@@ -211,7 +225,9 @@ fun AppearanceSettingsPage(
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     DarkSurfaceTone.values().forEach { tone ->
@@ -226,8 +242,7 @@ fun AppearanceSettingsPage(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1f)
+                            shape = RoundedCornerShape(8.dp)
                         )
                     }
                 }
@@ -242,7 +257,9 @@ fun AppearanceSettingsPage(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ColorIntensity.values().forEach { intensity ->
@@ -257,63 +274,86 @@ fun AppearanceSettingsPage(
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
                         },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(8.dp)
                     )
                 }
             }
 
-            // Typography & Font Preset
-            Text(
-                text = if (isBangla) "টাইপোগ্রাফি ও ফন্ট" else "Typography & Font Preset",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            // Typography & Font Preset (Horizontal Left-Right Swipe Carousel)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isBangla) "টাইপোগ্রাফি ও ফন্ট" else "Typography & Font Preset",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = if (isBangla) "সোয়াইপ করুন ⇄" else "Swipe ⇄",
+                    fontSize = 10.5.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 FontPreset.values().forEach { preset ->
                     val isSelected = themeConfig.fontPreset == preset
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                         border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
+                            if (isSelected) 1.5.dp else 1.dp,
                             if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                         ),
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
+                            .width(200.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .clickable { viewModel.setFontPreset(preset) }
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
                                     text = if (isBangla) preset.titleBn else preset.titleEn,
-                                    fontSize = 13.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                 )
-                                Text(
-                                    text = "৳ 54,000.00 • Double-Entry Accounting",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                            Text(
+                                text = "৳ 54,000.00",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Accounting Ledger",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
                         }
                     }
                 }
@@ -328,7 +368,9 @@ fun AppearanceSettingsPage(
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AppCornerRadius.values().forEach { radius ->
@@ -343,8 +385,7 @@ fun AppearanceSettingsPage(
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
                         },
-                        shape = RoundedCornerShape(radius.cornerDp.dp),
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(radius.cornerDp.dp)
                     )
                 }
             }

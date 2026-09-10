@@ -29,6 +29,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -4054,10 +4055,12 @@ private fun LabelPickerModalDialog(
                         fontWeight = FontWeight.Bold,
                         color = SolidPrimary
                     )
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         selectedLabels.forEach { label ->
                             Surface(
@@ -4091,18 +4094,31 @@ private fun LabelPickerModalDialog(
                     )
                 }
 
-                // All Previous / Available Labels
+                // All Previous / Available Labels (Horizontal Swipeable Row)
                 val filteredPool = remember(labelPool, inputQuery) {
                     val q = inputQuery.trim().lowercase()
                     if (q.isEmpty()) labelPool else labelPool.filter { it.lowercase().contains(q) }
                 }
 
-                Text(
-                    text = "Previous Labels (${filteredPool.size}):",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Previous Labels (${filteredPool.size}):",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (filteredPool.size > 3) {
+                        Text(
+                            text = "Swipe ⇄",
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
 
                 if (filteredPool.isEmpty()) {
                     Text(
@@ -4112,10 +4128,12 @@ private fun LabelPickerModalDialog(
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 } else {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         filteredPool.forEach { label ->
                             val isSelected = label in selectedLabels
