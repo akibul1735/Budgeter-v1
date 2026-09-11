@@ -308,17 +308,17 @@ fun TransactionDetailViewDialog(
                         TransactionType.EXPENSE -> {
                             val name = item.creditAccount?.localizedName(languageMode) ?: "-"
                             val caret = if (tx.amount >= 0) "⩔" else "⩓"
-                            "$caret $name"
+                            "$name  $caret"
                         }
                         TransactionType.INCOME -> {
                             val name = item.debitAccount?.localizedName(languageMode) ?: "-"
                             val caret = if (tx.amount >= 0) "⩓" else "⩔"
-                            "$caret $name"
+                            "$name  $caret"
                         }
                         TransactionType.TRANSFER -> {
                             val from = item.creditAccount?.localizedName(languageMode) ?: "-"
                             val to = item.debitAccount?.localizedName(languageMode) ?: "-"
-                            "⩔ $from  ➔  ⩓ $to"
+                            "$from (⩔)  ➔  $to (⩓)"
                         }
                     }
 

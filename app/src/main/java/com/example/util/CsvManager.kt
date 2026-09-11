@@ -892,7 +892,17 @@ object CsvManager {
         try {
             val csvContent = generateCsvString(transactions, config, currencyCode)
             val dateStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val file = File(context.cacheDir, "Budgeter_Export_$dateStr.csv")
+            val fileName = "Budgeter_Export_$dateStr.csv"
+
+            // Save to selected local sync folder in "Exports" subfolder
+            BackupManager.saveExportToLocalFolder(
+                context = context,
+                fileName = fileName,
+                mimeType = "text/csv",
+                content = csvContent
+            )
+
+            val file = File(context.cacheDir, fileName)
             val fos = FileOutputStream(file)
             fos.write(csvContent.toByteArray(Charsets.UTF_8))
             fos.flush()

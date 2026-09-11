@@ -1444,6 +1444,15 @@ object TabExportHelper {
         chooserTitle: String
     ) {
         try {
+            // 1. Save directly into the selected local sync folder under "Exports" subfolder
+            val savedLocation = BackupManager.saveExportToLocalFolder(
+                context = context,
+                fileName = fileName,
+                mimeType = mimeType,
+                content = content
+            )
+
+            // 2. Prepare cached copy for Android Share Sheet
             val file = File(context.cacheDir, fileName)
             val fos = FileOutputStream(file)
             fos.write(content.toByteArray(Charsets.UTF_8))
@@ -1458,7 +1467,13 @@ object TabExportHelper {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, chooserTitle))
-            Toast.makeText(context, "Export ready: $fileName", Toast.LENGTH_SHORT).show()
+
+            val feedback = if (savedLocation != null) {
+                "Saved to $savedLocation"
+            } else {
+                "Export ready: $fileName"
+            }
+            Toast.makeText(context, feedback, Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(context, "Export error: ${e.localizedMessage}", Toast.LENGTH_LONG).show()

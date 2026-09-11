@@ -446,15 +446,6 @@ fun SettingsScreen(
 
                     item {
                         SettingsListItem(
-                            title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স ও অ্যাকাউন্ট লিঙ্কিং" else "Payment Sources & Linking",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স নির্ধারণ এবং অন্যান্য অ্যাকাউন্টের সাথে লিঙ্ক করুন" else "Designate payment sources and link other accounts",
-                            icon = Icons.Default.MonetizationOn,
-                            onClick = { currentSubPage = SettingsSubPage.PAYMENT_SOURCES }
-                        )
-                    }
-
-                    item {
-                        SettingsListItem(
                             title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management",
                             subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক, লোকাল ব্যাকআপ ও এক্সপোর্ট/ইমপোর্ট" else "Online Sync, Local Backup & Export or Import",
                             icon = Icons.Default.Storage,
@@ -466,20 +457,11 @@ fun SettingsScreen(
                         SettingsListItem(
                             title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
                             subtitle = if (displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES)
-                                "Double-Line Display • Smart Autofill Configured"
+                                if (languageMode == LanguageMode.BANGLA) "দ্বি-লাইন প্রদর্শন • কাস্টম কনফিগারেশন" else "Double-Line Display • Custom Settings"
                             else
-                                "Single-Line Display • Smart Autofill Configured",
+                                if (languageMode == LanguageMode.BANGLA) "একক-লাইন প্রদর্শন • কাস্টম কনফিগারেশন" else "Single-Line Display • Custom Settings",
                             icon = Icons.Default.AddCircleOutline,
                             onClick = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
-                        )
-                    }
-
-                    item {
-                        SettingsListItem(
-                            title = if (languageMode == LanguageMode.BANGLA) "স্মার্ট অটোফিল ও পরামর্শ" else "Smart Autofill",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "বিবরণ ও অ্যাকাউন্টের স্বয়ংক্রিয় পূরণ" else "Auto-categorize by note & suggest previous amounts",
-                            icon = Icons.Default.AutoAwesome,
-                            onClick = { currentSubPage = SettingsSubPage.SMART_AUTOFILL }
                         )
                     }
 

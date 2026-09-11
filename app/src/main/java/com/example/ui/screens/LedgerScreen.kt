@@ -1848,27 +1848,15 @@ private fun TransactionRowItem(
     }
     val accountCaret = if (isAccountIncrease) "⩓" else "⩔"
 
-    val accountDisplay = if (accountName != null) {
-        if (accountName.isNotBlank()) "$accountCaret $accountName" else ""
+    val rawAccountName = if (accountName != null) {
+        accountName
     } else when (tx.type) {
-        TransactionType.EXPENSE -> {
-            val name = item.creditAccount?.localizedName(languageMode) ?: ""
-            if (name.isNotBlank()) {
-                val c = if (tx.amount >= 0) "⩔" else "⩓"
-                "$c $name"
-            } else ""
-        }
-        TransactionType.INCOME -> {
-            val name = item.debitAccount?.localizedName(languageMode) ?: ""
-            if (name.isNotBlank()) {
-                val c = if (tx.amount >= 0) "⩓" else "⩔"
-                "$c $name"
-            } else ""
-        }
+        TransactionType.EXPENSE -> item.creditAccount?.localizedName(languageMode) ?: ""
+        TransactionType.INCOME -> item.debitAccount?.localizedName(languageMode) ?: ""
         TransactionType.TRANSFER -> {
             val from = item.creditAccount?.localizedName(languageMode) ?: "Source"
             val to = item.debitAccount?.localizedName(languageMode) ?: "Dest"
-            "⩔ $from ➔ ⩓ $to"
+            "$from ➔ $to"
         }
     }
 
@@ -2123,13 +2111,15 @@ private fun TransactionRowItem(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            val accountLine = if (accountDisplay.isNotBlank()) {
+            val accountLine = if (rawAccountName.isNotBlank()) {
+                val showCaret = tx.type != TransactionType.TRANSFER || overrideSign != null
+                val caretSuffix = if (showCaret) "  $accountCaret" else ""
                 if (accountBalance != null) {
                     val balSign = if (accountBalance >= 0) "+" else "−"
                     val balStr = "$balSign${LanguageHelper.formatCurrency(kotlin.math.abs(accountBalance), languageMode)}"
-                    "$accountDisplay  $balStr"
+                    "$rawAccountName  $balStr$caretSuffix"
                 } else {
-                    accountDisplay
+                    "$rawAccountName$caretSuffix"
                 }
             } else ""
 

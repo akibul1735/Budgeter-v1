@@ -385,6 +385,148 @@ object BackupManager {
     }
 
     /**
+     * Saves an export file (CSV, HTML, JSON, etc.) into the user's selected local sync folder
+     * inside the "Exports" subfolder.
+     */
+    fun saveExportToLocalFolder(
+        context: Context,
+        fileName: String,
+        mimeType: String,
+        content: String,
+        targetDirectory: String? = null
+    ): String? {
+        val selectedDir = targetDirectory ?: BackupPreferences.getInstance(context).getLocalBackupDirectory()
+        return try {
+            if (selectedDir.startsWith("content://")) {
+                try {
+                    val treeUri = Uri.parse(selectedDir)
+                    val pickedDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                    if (pickedDir != null && pickedDir.exists() && pickedDir.canWrite()) {
+                        val exportsDir = pickedDir.findFile("Exports") ?: pickedDir.createDirectory("Exports")
+                        if (exportsDir != null && exportsDir.exists() && exportsDir.canWrite()) {
+                            val existing = exportsDir.findFile(fileName)
+                            existing?.delete()
+                            val newDoc = exportsDir.createFile(mimeType, fileName)
+                            if (newDoc != null) {
+                                context.contentResolver.openOutputStream(newDoc.uri)?.use { out ->
+                                    out.write(content.toByteArray(Charsets.UTF_8))
+                                    out.flush()
+                                }
+                                val folderName = pickedDir.name ?: "SyncFolder"
+                                return "$folderName/Exports/$fileName"
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else if (selectedDir.equals("internal", ignoreCase = true) || selectedDir.contains("files/backups")) {
+                val exportsDir = File(context.filesDir, "Exports").apply { if (!exists()) mkdirs() }
+                val dest = File(exportsDir, fileName)
+                dest.writeText(content)
+                return "Internal/Exports/$fileName"
+            } else if (selectedDir.equals("Documents/Budgeter", ignoreCase = true) || selectedDir.startsWith("Documents")) {
+                var savedPath: String? = null
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        val cv = android.content.ContentValues().apply {
+                            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS + "/Budgeter/Exports")
+                            put(MediaStore.MediaColumns.IS_PENDING, 1)
+                        }
+                        val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                        val itemUri = context.contentResolver.insert(collection, cv)
+                        if (itemUri != null) {
+                            context.contentResolver.openOutputStream(itemUri)?.use { out ->
+                                out.write(content.toByteArray(Charsets.UTF_8))
+                                out.flush()
+                            }
+                            cv.clear()
+                            cv.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                            context.contentResolver.update(itemUri, cv, null, null)
+                            savedPath = "Documents/Budgeter/Exports/$fileName"
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                if (savedPath == null) {
+                    try {
+                        val publicDocs = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Budgeter/Exports")
+                        if (!publicDocs.exists()) publicDocs.mkdirs()
+                        if (publicDocs.exists() && publicDocs.canWrite()) {
+                            val f = File(publicDocs, fileName)
+                            f.writeText(content)
+                            savedPath = "Documents/Budgeter/Exports/$fileName"
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (savedPath != null) return savedPath
+            } else if (selectedDir.equals("Downloads/Budgeter", ignoreCase = true) || selectedDir.startsWith("Downloads")) {
+                var savedPath: String? = null
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        val cv = android.content.ContentValues().apply {
+                            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Budgeter/Exports")
+                            put(MediaStore.MediaColumns.IS_PENDING, 1)
+                        }
+                        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+                        val itemUri = context.contentResolver.insert(collection, cv)
+                        if (itemUri != null) {
+                            context.contentResolver.openOutputStream(itemUri)?.use { out ->
+                                out.write(content.toByteArray(Charsets.UTF_8))
+                                out.flush()
+                            }
+                            cv.clear()
+                            cv.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                            context.contentResolver.update(itemUri, cv, null, null)
+                            savedPath = "Downloads/Budgeter/Exports/$fileName"
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                if (savedPath == null) {
+                    try {
+                        val publicDownloads = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Budgeter/Exports")
+                        if (!publicDownloads.exists()) publicDownloads.mkdirs()
+                        if (publicDownloads.exists() && publicDownloads.canWrite()) {
+                            val f = File(publicDownloads, fileName)
+                            f.writeText(content)
+                            savedPath = "Downloads/Budgeter/Exports/$fileName"
+                        }
+                    } catch (_: Exception) {}
+                }
+                if (savedPath != null) return savedPath
+            } else {
+                try {
+                    val customDir = File(selectedDir, "Exports")
+                    if (!customDir.exists()) customDir.mkdirs()
+                    if (customDir.exists() && customDir.canWrite()) {
+                        val f = File(customDir, fileName)
+                        f.writeText(content)
+                        return "${customDir.name}/$fileName"
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            // Fallback to internal/Exports
+            val fallbackDir = File(context.filesDir, "Exports").apply { if (!exists()) mkdirs() }
+            val f = File(fallbackDir, fileName)
+            f.writeText(content)
+            "Internal/Exports/$fileName"
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
      * Exports backup data directly to a chosen user destination URI (SAF)
      */
     suspend fun exportBackupToUri(
