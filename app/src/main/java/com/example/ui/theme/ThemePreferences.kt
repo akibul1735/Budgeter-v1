@@ -9,18 +9,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 enum class ThemePalette(val displayNameEn: String, val displayNameBn: String, val primaryColor: Color) {
+    PREMIUM_GREEN("Emerald Wealth", "প্রিমিয়াম গ্রিন", Color(0xFF059669)),
     ELEGANT_BLUE("Royal Sapphire", "এলিগ্যান্ট ব্লু", Color(0xFF1D4ED8)),
-    PREMIUM_GREEN("Emerald Wealth", "প্রিমিয়াম গ্রিন", Color(0xFF15803D)),
-    SOFT_PASTEL("Lavender Mist", "সফট ল্যাভেন্ডার", Color(0xFF7E57C2)),
+    MODERN_INDIGO("Modern Indigo", "মডার্ন ইন্ডিগো", Color(0xFF4338CA)),
     WARM_NEUTRAL("Warm Amber Gold", "ওয়ার্ম গোল্ডেন", Color(0xFFB45309)),
-    MODERN_INDIGO("Modern Indigo", "মডার্ন ইন্ডিগো", Color(0xFF4F46E5)),
-    CALM_SAGE("Calm Sage", "কাম সেইজ", Color(0xFF3B7A57)),
     CRIMSON_ROYAL("Royal Crimson", "রয়্যাল ক্রিমসন", Color(0xFFBE123C)),
-    CYAN_BREEZE("Ocean Breeze", "ওশেন সায়ান", Color(0xFF0284C7)),
-    DEEP_PURPLE("Electric Violet", "ইলেক্ট্রিক ভায়োলেট", Color(0xFF9333EA)),
-    SUNSET_ORANGE("Sunset Flame", "সানসেট ফ্লেম", Color(0xFFEA580C)),
-    SOPHISTICATED_DARK("Slate Graphite", "সোফিস্টিকেটেড স্লেট", Color(0xFF27272A)),
-    MINIMAL_MONO("Minimal Monochrome", "মিনিমাল মনোক্রোম", Color(0xFF343A40))
+    CALM_SAGE("Nordic Sage", "কাম সেইজ", Color(0xFF2E6546)),
+    CYAN_BREEZE("Ocean Cyan", "ওশেন সায়ান", Color(0xFF0284C7)),
+    DEEP_PURPLE("Electric Violet", "ইলেক্ট্রিক ভায়োলেট", Color(0xFF7E22CE)),
+    SUNSET_ORANGE("Sunset Coral", "সানসেট কোরাল", Color(0xFFC2410C)),
+    SOFT_PASTEL("Lavender Velvet", "সফট ল্যাভেন্ডার", Color(0xFF6D28D9)),
+    SOPHISTICATED_DARK("Obsidian Luxe", "সোফিস্টিকেটেড অবসিডিয়ান", Color(0xFF18181B)),
+    MINIMAL_MONO("Titanium Monochrome", "মিনিমাল টাইটানিয়াম", Color(0xFF212529))
 }
 
 enum class ThemeMode(val titleEn: String, val titleBn: String) {
@@ -111,32 +111,32 @@ enum class DarkSurfaceTone(
     val darkSurfaceVariant: Color
 ) {
     SLATE_BLUE(
-        "Slate Dark",
-        "স্লেট ব্লু ডার্ক",
-        Color(0xFF0F172A),
-        Color(0xFF1E293B),
-        Color(0xFF334155)
+        "Obsidian Slate (Default)",
+        "অবসিডিয়ান স্লেট (ডিফল্ট)",
+        Color(0xFF0A0D14),
+        Color(0xFF131824),
+        Color(0xFF1C2333)
+    ),
+    MIDNIGHT_INDIGO(
+        "Midnight Cobalt Deep",
+        "মিডনাইট কোবাল্ট",
+        Color(0xFF07090F),
+        Color(0xFF0E1320),
+        Color(0xFF161E30)
+    ),
+    WARM_CHARCOAL(
+        "Titanium Charcoal Luxe",
+        "টাইটানিয়াম চারকোল",
+        Color(0xFF0D0D10),
+        Color(0xFF16161B),
+        Color(0xFF22222A)
     ),
     AMOLED_PITCH(
         "Pure OLED Pitch Black",
         "পিওর ওলেড ব্ল্যাক",
         Color(0xFF000000),
-        Color(0xFF0D0D0D),
-        Color(0xFF1A1A1A)
-    ),
-    WARM_CHARCOAL(
-        "Warm Espresso Charcoal",
-        "ওয়ার্ম চারকোল",
-        Color(0xFF18181B),
-        Color(0xFF27272A),
-        Color(0xFF3F3F46)
-    ),
-    MIDNIGHT_INDIGO(
-        "Midnight Indigo Deep",
-        "মিডনাইট ইন্ডিগো",
-        Color(0xFF090B14),
-        Color(0xFF121626),
-        Color(0xFF1E233D)
+        Color(0xFF0D0E12),
+        Color(0xFF161820)
     )
 }
 
@@ -156,7 +156,7 @@ data class CustomTheme(
 }
 
 data class AppThemeConfig(
-    val palette: ThemePalette = ThemePalette.ELEGANT_BLUE,
+    val palette: ThemePalette = ThemePalette.PREMIUM_GREEN,
     val customThemeId: String? = null,
     val customThemes: List<CustomTheme> = emptyList(),
     val mode: ThemeMode = ThemeMode.SYSTEM,
@@ -191,7 +191,7 @@ class ThemePreferences(context: Context) {
     val themeConfig: StateFlow<AppThemeConfig> = _themeConfig.asStateFlow()
 
     private fun loadConfig(): AppThemeConfig {
-        val paletteName = prefs.getString(KEY_PALETTE, ThemePalette.ELEGANT_BLUE.name) ?: ThemePalette.ELEGANT_BLUE.name
+        val paletteName = prefs.getString(KEY_PALETTE, ThemePalette.PREMIUM_GREEN.name) ?: ThemePalette.PREMIUM_GREEN.name
         val selectedCustomThemeId = prefs.getString(KEY_SELECTED_CUSTOM_THEME_ID, null)
         val customThemesJson = prefs.getString(KEY_CUSTOM_THEMES, null)
         val customThemes = deserializeCustomThemes(customThemesJson)
@@ -213,7 +213,7 @@ class ThemePreferences(context: Context) {
             "CRIMSON" -> ThemePalette.CRIMSON_ROYAL
             "TEAL" -> ThemePalette.CALM_SAGE
             "SUNSET" -> ThemePalette.SUNSET_ORANGE
-            else -> try { ThemePalette.valueOf(paletteName) } catch (_: Exception) { ThemePalette.ELEGANT_BLUE }
+            else -> try { ThemePalette.valueOf(paletteName) } catch (_: Exception) { ThemePalette.PREMIUM_GREEN }
         }
         val mode = try { ThemeMode.valueOf(modeName) } catch (_: Exception) { ThemeMode.SYSTEM }
         val intensity = try { ColorIntensity.valueOf(intensityName) } catch (_: Exception) { ColorIntensity.VIVID }

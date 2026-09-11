@@ -5,51 +5,51 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// Default Brand Constants
-val SolidPrimary = Color(0xFF2563EB)
-val SolidPrimaryDark = Color(0xFF1D4ED8)
-val SolidPrimaryContainer = Color(0xFFDBEAFE)
-val SolidOnPrimaryContainer = Color(0xFF1E40AF)
+// Default Brand Constants - Luxury Fintech Baseline
+val SolidPrimary = Color(0xFF059669)         // Rich Emerald Wealth
+val SolidPrimaryDark = Color(0xFF10B981)
+val SolidPrimaryContainer = Color(0xFFDCFCE7)
+val SolidOnPrimaryContainer = Color(0xFF064E3B)
 
 // Financial Semantic Indicators (Default)
-val SolidIncome = Color(0xFF10B981)         // Emerald Green
-val SolidIncomeDark = Color(0xFF047857)
-val SolidIncomeContainer = Color(0xFFD1FAE5)
-val SolidOnIncomeContainer = Color(0xFF065F46)
+val SolidIncome = Color(0xFF059669)          // Rich Emerald
+val SolidIncomeDark = Color(0xFF10B981)
+val SolidIncomeContainer = Color(0xFFDCFCE7)
+val SolidOnIncomeContainer = Color(0xFF064E3B)
 
-val SolidExpense = Color(0xFFEF4444)        // Crimson Red
-val SolidExpenseDark = Color(0xFFB91C1C)
-val SolidExpenseContainer = Color(0xFFFEE2E2)
-val SolidOnExpenseContainer = Color(0xFF991B1B)
+val SolidExpense = Color(0xFFE11D48)         // Luxury Rose Crimson
+val SolidExpenseDark = Color(0xFFFB7185)
+val SolidExpenseContainer = Color(0xFFFFE4E6)
+val SolidOnExpenseContainer = Color(0xFF881337)
 
-val SolidTransfer = Color(0xFF0284C7)       // Sky Blue
+val SolidTransfer = Color(0xFF0284C7)        // Pure Sky Azure
 val SolidTransferContainer = Color(0xFFE0F2FE)
 
-val SolidEquity = Color(0xFF8B5CF6)         // Violet
+val SolidEquity = Color(0xFF7C3AED)          // Imperial Royal Violet
 val SolidEquityContainer = Color(0xFFEDE9FE)
-val SolidAmber = Color(0xFFF59E0B)
+val SolidAmber = Color(0xFFD97706)           // Warm Amber Gold
 
-// Neutrals: Light
-val SolidLightBg = Color(0xFFF8FAFC)
+// Neutrals: Light (High-End Solid Canvas)
+val SolidLightBg = Color(0xFFF8F9FA)
 val SolidLightSurface = Color(0xFFFFFFFF)
-val SolidLightSurfaceVariant = Color(0xFFF1F5F9)
-val SolidLightTextPrimary = Color(0xFF0F172A)
-val SolidLightTextSecondary = Color(0xFF64748B)
+val SolidLightSurfaceVariant = Color(0xFFF1F3F6)
+val SolidLightTextPrimary = Color(0xFF0A0F1D)
+val SolidLightTextSecondary = Color(0xFF475569)
 val SolidLightBorder = Color(0xFFE2E8F0)
 
-// Neutrals: Dark
-val SolidDarkBg = Color(0xFF0F172A)
-val SolidDarkSurface = Color(0xFF1E293B)
-val SolidDarkSurfaceVariant = Color(0xFF334155)
+// Neutrals: Dark (Obsidian Luxury)
+val SolidDarkBg = Color(0xFF0A0D14)
+val SolidDarkSurface = Color(0xFF131824)
+val SolidDarkSurfaceVariant = Color(0xFF1C2333)
 val SolidDarkTextPrimary = Color(0xFFF8FAFC)
 val SolidDarkTextSecondary = Color(0xFF94A3B8)
-val SolidDarkBorder = Color(0xFF475569)
+val SolidDarkBorder = Color(0xFF252D3D)
 
-// Neutrals: AMOLED Night
+// Neutrals: AMOLED Night (Pure Pitch)
 val SolidAmoledBg = Color(0xFF000000)
-val SolidAmoledSurface = Color(0xFF0D0D0D)
-val SolidAmoledSurfaceVariant = Color(0xFF1A1A1A)
-val SolidAmoledBorder = Color(0xFF2B2B2B)
+val SolidAmoledSurface = Color(0xFF0D0E12)
+val SolidAmoledSurfaceVariant = Color(0xFF161820)
+val SolidAmoledBorder = Color(0xFF22242C)
 
 // Color scheme builders for all palettes and custom configurations
 fun buildThemeColorScheme(
@@ -64,7 +64,7 @@ fun buildThemeColorScheme(
     val expenseColor = semanticPalette.expenseColor
 
     return if (isDark) {
-        // Dark Mode Primary
+        // Dark Mode Primary - Luminous, punchy, and solid
         val darkPrimary = when (palette) {
             ThemePalette.ELEGANT_BLUE -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFF93C5FD)
@@ -74,13 +74,13 @@ fun buildThemeColorScheme(
             }
             ThemePalette.PREMIUM_GREEN -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFA7F3D0)
-                ColorIntensity.STANDARD -> Color(0xFF4ADE80)
-                ColorIntensity.VIVID -> Color(0xFF22C55E)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF4ADE80)
+                ColorIntensity.STANDARD -> Color(0xFF34D399)
+                ColorIntensity.VIVID -> Color(0xFF10B981)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF059669)
             }
             ThemePalette.SOFT_PASTEL -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFDDD6FE)
-                ColorIntensity.STANDARD -> Color(0xFFB39DDB)
+                ColorIntensity.STANDARD -> Color(0xFFC084FC)
                 ColorIntensity.VIVID -> Color(0xFFA855F7)
                 ColorIntensity.DEEP_CONTRAST -> Color(0xFFC084FC)
             }
@@ -98,21 +98,21 @@ fun buildThemeColorScheme(
             }
             ThemePalette.CALM_SAGE -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFA7F3D0)
-                ColorIntensity.STANDARD -> Color(0xFF68B88E)
+                ColorIntensity.STANDARD -> Color(0xFF6EE7B7)
                 ColorIntensity.VIVID -> Color(0xFF10B981)
                 ColorIntensity.DEEP_CONTRAST -> Color(0xFF34D399)
             }
             ThemePalette.CRIMSON_ROYAL -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFFECDD3)
-                ColorIntensity.STANDARD -> Color(0xFFFB7185)
-                ColorIntensity.VIVID -> Color(0xFFF43F5E)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFFFDA4AF)
+                ColorIntensity.STANDARD -> Color(0xFFFDA4AF)
+                ColorIntensity.VIVID -> Color(0xFFFB7185)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFF43F5E)
             }
             ThemePalette.CYAN_BREEZE -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFBAE6FD)
                 ColorIntensity.STANDARD -> Color(0xFF38BDF8)
                 ColorIntensity.VIVID -> Color(0xFF0EA5E9)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF7DD3FC)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF38BDF8)
             }
             ThemePalette.DEEP_PURPLE -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFE9D5FF)
@@ -124,7 +124,7 @@ fun buildThemeColorScheme(
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFFFEDD5)
                 ColorIntensity.STANDARD -> Color(0xFFFB923C)
                 ColorIntensity.VIVID -> Color(0xFFF97316)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFFFDBA74)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFFFB923C)
             }
             ThemePalette.SOPHISTICATED_DARK -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFE4E4E7)
@@ -134,7 +134,7 @@ fun buildThemeColorScheme(
             }
             ThemePalette.MINIMAL_MONO -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFFE9ECEF)
-                ColorIntensity.STANDARD -> Color(0xFFCED4DA)
+                ColorIntensity.STANDARD -> Color(0xFFDEE2E6)
                 ColorIntensity.VIVID -> Color(0xFFF8F9FA)
                 ColorIntensity.DEEP_CONTRAST -> Color(0xFFFFFFFF)
             }
@@ -142,8 +142,8 @@ fun buildThemeColorScheme(
 
         val darkPrimaryContainer = when (palette) {
             ThemePalette.ELEGANT_BLUE -> Color(0xFF1E3A8A)
-            ThemePalette.PREMIUM_GREEN -> Color(0xFF14532D)
-            ThemePalette.SOFT_PASTEL -> Color(0xFF3B1C6E)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF064E3B)
+            ThemePalette.SOFT_PASTEL -> Color(0xFF4C1D95)
             ThemePalette.WARM_NEUTRAL -> Color(0xFF78350F)
             ThemePalette.MODERN_INDIGO -> Color(0xFF312E81)
             ThemePalette.CALM_SAGE -> Color(0xFF143D28)
@@ -152,7 +152,7 @@ fun buildThemeColorScheme(
             ThemePalette.DEEP_PURPLE -> Color(0xFF581C87)
             ThemePalette.SUNSET_ORANGE -> Color(0xFF7C2D12)
             ThemePalette.SOPHISTICATED_DARK -> Color(0xFF27272A)
-            ThemePalette.MINIMAL_MONO -> Color(0xFF2B3035)
+            ThemePalette.MINIMAL_MONO -> Color(0xFF343A40)
         }
 
         val darkOnPrimaryContainer = when (palette) {
@@ -206,11 +206,11 @@ fun buildThemeColorScheme(
 
         darkColorScheme(
             primary = darkPrimary,
-            onPrimary = Color(0xFF09090B),
+            onPrimary = Color(0xFF000000),
             primaryContainer = darkPrimaryContainer,
             onPrimaryContainer = darkOnPrimaryContainer,
             secondary = darkSecondary,
-            onSecondary = Color(0xFF09090B),
+            onSecondary = Color(0xFF000000),
             secondaryContainer = darkSecondaryContainer,
             onSecondaryContainer = darkOnPrimaryContainer,
             tertiary = incomeColor,
@@ -220,88 +220,88 @@ fun buildThemeColorScheme(
             surface = darkSurface,
             onSurface = Color(0xFFF8FAFC),
             surfaceVariant = darkSurfaceVariant,
-            onSurfaceVariant = Color(0xFFCBD5E1),
-            outline = Color(0xFF8EA3C0),
-            outlineVariant = Color(0xFF334155),
+            onSurfaceVariant = Color(0xFF94A3B8),
+            outline = Color(0xFF4A5873),
+            outlineVariant = Color(0xFF212A3B),
             error = expenseColor,
-            onError = Color(0xFF450A0A),
+            onError = Color(0xFFFFFFFF),
             errorContainer = Color(0xFF7F1D1D),
-            onErrorContainer = Color(0xFFFEE2E2)
+            onErrorContainer = Color(0xFFFFE4E6)
         )
     } else {
-        // Light Mode Colors
+        // Light Mode Colors - Deep, rich, luxurious, non-faded
         val lightPrimary = when (palette) {
             ThemePalette.ELEGANT_BLUE -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFF3B82F6)
-                ColorIntensity.STANDARD -> Color(0xFF2563EB)
-                ColorIntensity.VIVID -> Color(0xFF1D4ED8)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF1E40AF)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF2563EB)
+                ColorIntensity.STANDARD -> Color(0xFF1D4ED8)
+                ColorIntensity.VIVID -> Color(0xFF1E40AF)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF172554)
             }
             ThemePalette.PREMIUM_GREEN -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFF22C55E)
-                ColorIntensity.STANDARD -> Color(0xFF16A34A)
-                ColorIntensity.VIVID -> Color(0xFF15803D)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF166534)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF16A34A)
+                ColorIntensity.STANDARD -> Color(0xFF059669)
+                ColorIntensity.VIVID -> Color(0xFF047857)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF064E3B)
             }
             ThemePalette.SOFT_PASTEL -> when (intensity) {
                 ColorIntensity.PASTEL_SOFT -> Color(0xFF8B5CF6)
                 ColorIntensity.STANDARD -> Color(0xFF7C3AED)
                 ColorIntensity.VIVID -> Color(0xFF6D28D9)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF5B21B6)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF4C1D95)
             }
             ThemePalette.WARM_NEUTRAL -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFFF59E0B)
-                ColorIntensity.STANDARD -> Color(0xFFD97706)
-                ColorIntensity.VIVID -> Color(0xFFB45309)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF92400E)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFFD97706)
+                ColorIntensity.STANDARD -> Color(0xFFB45309)
+                ColorIntensity.VIVID -> Color(0xFF92400E)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF78350F)
             }
             ThemePalette.MODERN_INDIGO -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFF6366F1)
-                ColorIntensity.STANDARD -> Color(0xFF4F46E5)
-                ColorIntensity.VIVID -> Color(0xFF4338CA)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF3730A3)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF4F46E5)
+                ColorIntensity.STANDARD -> Color(0xFF4338CA)
+                ColorIntensity.VIVID -> Color(0xFF3730A3)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF312E81)
             }
             ThemePalette.CALM_SAGE -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFF10B981)
-                ColorIntensity.STANDARD -> Color(0xFF3B7A57)
-                ColorIntensity.VIVID -> Color(0xFF2E6546)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF1E4B33)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF3B7A57)
+                ColorIntensity.STANDARD -> Color(0xFF2E6546)
+                ColorIntensity.VIVID -> Color(0xFF1E4B33)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF143D28)
             }
             ThemePalette.CRIMSON_ROYAL -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFFF43F5E)
-                ColorIntensity.STANDARD -> Color(0xFFE11D48)
-                ColorIntensity.VIVID -> Color(0xFFBE123C)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF9F1239)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFFE11D48)
+                ColorIntensity.STANDARD -> Color(0xFFBE123C)
+                ColorIntensity.VIVID -> Color(0xFF9F1239)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF881337)
             }
             ThemePalette.CYAN_BREEZE -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFF0EA5E9)
-                ColorIntensity.STANDARD -> Color(0xFF0284C7)
-                ColorIntensity.VIVID -> Color(0xFF0369A1)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF075985)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF0284C7)
+                ColorIntensity.STANDARD -> Color(0xFF0369A1)
+                ColorIntensity.VIVID -> Color(0xFF075985)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF0C4A6E)
             }
             ThemePalette.DEEP_PURPLE -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFFA855F7)
-                ColorIntensity.STANDARD -> Color(0xFF9333EA)
-                ColorIntensity.VIVID -> Color(0xFF7E22CE)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF6B21A8)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF9333EA)
+                ColorIntensity.STANDARD -> Color(0xFF7E22CE)
+                ColorIntensity.VIVID -> Color(0xFF6B21A8)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF581C87)
             }
             ThemePalette.SUNSET_ORANGE -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFFF97316)
-                ColorIntensity.STANDARD -> Color(0xFFEA580C)
-                ColorIntensity.VIVID -> Color(0xFFC2410C)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF9A3412)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFFEA580C)
+                ColorIntensity.STANDARD -> Color(0xFFC2410C)
+                ColorIntensity.VIVID -> Color(0xFF9A3412)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF7C2D12)
             }
             ThemePalette.SOPHISTICATED_DARK -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFF3F3F46)
-                ColorIntensity.STANDARD -> Color(0xFF27272A)
-                ColorIntensity.VIVID -> Color(0xFF18181B)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF09090B)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF27272A)
+                ColorIntensity.STANDARD -> Color(0xFF18181B)
+                ColorIntensity.VIVID -> Color(0xFF09090B)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF000000)
             }
             ThemePalette.MINIMAL_MONO -> when (intensity) {
-                ColorIntensity.PASTEL_SOFT -> Color(0xFF495057)
-                ColorIntensity.STANDARD -> Color(0xFF343A40)
-                ColorIntensity.VIVID -> Color(0xFF212529)
-                ColorIntensity.DEEP_CONTRAST -> Color(0xFF121416)
+                ColorIntensity.PASTEL_SOFT -> Color(0xFF343A40)
+                ColorIntensity.STANDARD -> Color(0xFF212529)
+                ColorIntensity.VIVID -> Color(0xFF121416)
+                ColorIntensity.DEEP_CONTRAST -> Color(0xFF000000)
             }
         }
 
@@ -321,14 +321,14 @@ fun buildThemeColorScheme(
         }
 
         val lightOnPrimaryContainer = when (palette) {
-            ThemePalette.ELEGANT_BLUE -> Color(0xFF1E40AF)
-            ThemePalette.PREMIUM_GREEN -> Color(0xFF14532D)
+            ThemePalette.ELEGANT_BLUE -> Color(0xFF1E3A8A)
+            ThemePalette.PREMIUM_GREEN -> Color(0xFF064E3B)
             ThemePalette.SOFT_PASTEL -> Color(0xFF4C1D95)
             ThemePalette.WARM_NEUTRAL -> Color(0xFF78350F)
             ThemePalette.MODERN_INDIGO -> Color(0xFF312E81)
             ThemePalette.CALM_SAGE -> Color(0xFF143D28)
             ThemePalette.CRIMSON_ROYAL -> Color(0xFF881337)
-            ThemePalette.CYAN_BREEZE -> Color(0xFF0369A1)
+            ThemePalette.CYAN_BREEZE -> Color(0xFF0C4A6E)
             ThemePalette.DEEP_PURPLE -> Color(0xFF581C87)
             ThemePalette.SUNSET_ORANGE -> Color(0xFF7C2D12)
             ThemePalette.SOPHISTICATED_DARK -> Color(0xFF09090B)
@@ -380,67 +380,12 @@ fun buildThemeColorScheme(
             ThemePalette.MINIMAL_MONO -> Color(0xFF212529)
         }
 
-        val lightBg = when (palette) {
-            ThemePalette.ELEGANT_BLUE -> Color(0xFFF6F9FD)
-            ThemePalette.PREMIUM_GREEN -> Color(0xFFF5FAF7)
-            ThemePalette.SOFT_PASTEL -> Color(0xFFFAF8FC)
-            ThemePalette.WARM_NEUTRAL -> Color(0xFFFAF7F2)
-            ThemePalette.MODERN_INDIGO -> Color(0xFFF7F8FC)
-            ThemePalette.CALM_SAGE -> Color(0xFFF5F8F6)
-            ThemePalette.CRIMSON_ROYAL -> Color(0xFFFFF7F8)
-            ThemePalette.CYAN_BREEZE -> Color(0xFFF0F9FF)
-            ThemePalette.DEEP_PURPLE -> Color(0xFFFAF5FF)
-            ThemePalette.SUNSET_ORANGE -> Color(0xFFFFF7ED)
-            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFF4F5F7)
-            ThemePalette.MINIMAL_MONO -> Color(0xFFF8F9FA)
-        }
-
+        // Clean, crisp solid background canvas
+        val lightBg = Color(0xFFF8F9FA)
         val lightSurface = Color(0xFFFFFFFF)
-
-        val lightSurfaceVariant = when (palette) {
-            ThemePalette.ELEGANT_BLUE -> Color(0xFFEDF3FA)
-            ThemePalette.PREMIUM_GREEN -> Color(0xFFEAF4EE)
-            ThemePalette.SOFT_PASTEL -> Color(0xFFF3EEF9)
-            ThemePalette.WARM_NEUTRAL -> Color(0xFFF3ECE2)
-            ThemePalette.MODERN_INDIGO -> Color(0xFFEFF1F9)
-            ThemePalette.CALM_SAGE -> Color(0xFFEAF2EE)
-            ThemePalette.CRIMSON_ROYAL -> Color(0xFFFFECEF)
-            ThemePalette.CYAN_BREEZE -> Color(0xFFE0F2FE)
-            ThemePalette.DEEP_PURPLE -> Color(0xFFF3E8FF)
-            ThemePalette.SUNSET_ORANGE -> Color(0xFFFFEDD5)
-            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFE9EBEF)
-            ThemePalette.MINIMAL_MONO -> Color(0xFFF1F3F5)
-        }
-
-        val lightOutline = when (palette) {
-            ThemePalette.ELEGANT_BLUE -> Color(0xFF64748B)
-            ThemePalette.PREMIUM_GREEN -> Color(0xFF52745E)
-            ThemePalette.SOFT_PASTEL -> Color(0xFF6D5E7A)
-            ThemePalette.WARM_NEUTRAL -> Color(0xFF786654)
-            ThemePalette.MODERN_INDIGO -> Color(0xFF6B7280)
-            ThemePalette.CALM_SAGE -> Color(0xFF5C7468)
-            ThemePalette.CRIMSON_ROYAL -> Color(0xFF9F1239)
-            ThemePalette.CYAN_BREEZE -> Color(0xFF0284C7)
-            ThemePalette.DEEP_PURPLE -> Color(0xFF7E22CE)
-            ThemePalette.SUNSET_ORANGE -> Color(0xFFC2410C)
-            ThemePalette.SOPHISTICATED_DARK -> Color(0xFF71717A)
-            ThemePalette.MINIMAL_MONO -> Color(0xFF6C757D)
-        }
-
-        val lightOutlineVariant = when (palette) {
-            ThemePalette.ELEGANT_BLUE -> Color(0xFFCBD5E1)
-            ThemePalette.PREMIUM_GREEN -> Color(0xFFC8E2D1)
-            ThemePalette.SOFT_PASTEL -> Color(0xFFE4D8F0)
-            ThemePalette.WARM_NEUTRAL -> Color(0xFFDFCFC0)
-            ThemePalette.MODERN_INDIGO -> Color(0xFFD1D5DB)
-            ThemePalette.CALM_SAGE -> Color(0xFFC8DDD2)
-            ThemePalette.CRIMSON_ROYAL -> Color(0xFFFECDD3)
-            ThemePalette.CYAN_BREEZE -> Color(0xFFBAE6FD)
-            ThemePalette.DEEP_PURPLE -> Color(0xFFE9D5FF)
-            ThemePalette.SUNSET_ORANGE -> Color(0xFFFED7AA)
-            ThemePalette.SOPHISTICATED_DARK -> Color(0xFFD4D4D8)
-            ThemePalette.MINIMAL_MONO -> Color(0xFFCED4DA)
-        }
+        val lightSurfaceVariant = Color(0xFFF1F3F6)
+        val lightOutline = Color(0xFF64748B)
+        val lightOutlineVariant = Color(0xFFE2E8F0)
 
         lightColorScheme(
             primary = lightPrimary,
@@ -454,11 +399,11 @@ fun buildThemeColorScheme(
             tertiary = incomeColor,
             onTertiary = Color.White,
             background = lightBg,
-            onBackground = Color(0xFF0F172A),
+            onBackground = Color(0xFF0A0F1D),
             surface = lightSurface,
-            onSurface = Color(0xFF0F172A),
+            onSurface = Color(0xFF0A0F1D),
             surfaceVariant = lightSurfaceVariant,
-            onSurfaceVariant = Color(0xFF334155),
+            onSurfaceVariant = Color(0xFF475569),
             outline = lightOutline,
             outlineVariant = lightOutlineVariant,
             error = expenseColor,
@@ -502,16 +447,16 @@ fun buildCustomThemeColorScheme(
 
     return if (isDark) {
         val darkPrimary = when (intensity) {
-            ColorIntensity.PASTEL_SOFT -> basePrimary.lighten(0.55f)
-            ColorIntensity.STANDARD -> basePrimary.lighten(0.35f)
-            ColorIntensity.VIVID -> basePrimary.lighten(0.48f)
-            ColorIntensity.DEEP_CONTRAST -> basePrimary.lighten(0.65f)
+            ColorIntensity.PASTEL_SOFT -> basePrimary.lighten(0.40f)
+            ColorIntensity.STANDARD -> basePrimary.lighten(0.25f)
+            ColorIntensity.VIVID -> basePrimary.lighten(0.35f)
+            ColorIntensity.DEEP_CONTRAST -> basePrimary.lighten(0.50f)
         }
-        val darkPrimaryContainer = basePrimary.darken(0.55f)
+        val darkPrimaryContainer = basePrimary.darken(0.60f)
         val darkOnPrimaryContainer = basePrimary.lighten(0.85f)
 
-        val darkSecondary = baseSecondary.lighten(0.45f)
-        val darkSecondaryContainer = baseSecondary.darken(0.55f)
+        val darkSecondary = baseSecondary.lighten(0.35f)
+        val darkSecondaryContainer = baseSecondary.darken(0.60f)
 
         val darkBg = if (isAmoled) SolidAmoledBg else darkSurfaceTone.darkBg
         val darkSurface = if (isAmoled) SolidAmoledSurface else darkSurfaceTone.darkSurface
@@ -519,11 +464,11 @@ fun buildCustomThemeColorScheme(
 
         darkColorScheme(
             primary = darkPrimary,
-            onPrimary = Color(0xFF09090B),
+            onPrimary = Color(0xFF000000),
             primaryContainer = darkPrimaryContainer,
             onPrimaryContainer = darkOnPrimaryContainer,
             secondary = darkSecondary,
-            onSecondary = Color(0xFF09090B),
+            onSecondary = Color(0xFF000000),
             secondaryContainer = darkSecondaryContainer,
             onSecondaryContainer = darkOnPrimaryContainer,
             tertiary = incomeColor,
@@ -533,31 +478,31 @@ fun buildCustomThemeColorScheme(
             surface = darkSurface,
             onSurface = Color(0xFFF8FAFC),
             surfaceVariant = darkSurfaceVariant,
-            onSurfaceVariant = Color(0xFFCBD5E1),
-            outline = Color(0xFF94A3B8),
-            outlineVariant = Color(0xFF334155),
+            onSurfaceVariant = Color(0xFF94A3B8),
+            outline = Color(0xFF4A5873),
+            outlineVariant = Color(0xFF212A3B),
             error = expenseColor,
-            onError = Color(0xFF450A0A),
+            onError = Color(0xFFFFFFFF),
             errorContainer = Color(0xFF7F1D1D),
-            onErrorContainer = Color(0xFFFEE2E2)
+            onErrorContainer = Color(0xFFFFE4E6)
         )
     } else {
         val lightPrimary = when (intensity) {
-            ColorIntensity.PASTEL_SOFT -> basePrimary.lighten(0.15f)
+            ColorIntensity.PASTEL_SOFT -> basePrimary.lighten(0.10f)
             ColorIntensity.STANDARD -> basePrimary
-            ColorIntensity.VIVID -> basePrimary.darken(0.08f)
-            ColorIntensity.DEEP_CONTRAST -> basePrimary.darken(0.22f)
+            ColorIntensity.VIVID -> basePrimary.darken(0.10f)
+            ColorIntensity.DEEP_CONTRAST -> basePrimary.darken(0.25f)
         }
         val lightPrimaryContainer = basePrimary.lighten(0.85f)
-        val lightOnPrimaryContainer = basePrimary.darken(0.60f)
+        val lightOnPrimaryContainer = basePrimary.darken(0.65f)
 
         val lightSecondary = baseSecondary
         val lightSecondaryContainer = baseSecondary.lighten(0.88f)
-        val lightOnSecondaryContainer = baseSecondary.darken(0.60f)
+        val lightOnSecondaryContainer = baseSecondary.darken(0.65f)
 
-        val lightBg = basePrimary.lighten(0.97f)
+        val lightBg = Color(0xFFF8F9FA)
         val lightSurface = Color.White
-        val lightSurfaceVariant = basePrimary.lighten(0.93f)
+        val lightSurfaceVariant = Color(0xFFF1F3F6)
 
         lightColorScheme(
             primary = lightPrimary,
@@ -571,13 +516,13 @@ fun buildCustomThemeColorScheme(
             tertiary = incomeColor,
             onTertiary = Color.White,
             background = lightBg,
-            onBackground = Color(0xFF0F172A),
+            onBackground = Color(0xFF0A0F1D),
             surface = lightSurface,
-            onSurface = Color(0xFF0F172A),
+            onSurface = Color(0xFF0A0F1D),
             surfaceVariant = lightSurfaceVariant,
-            onSurfaceVariant = Color(0xFF334155),
+            onSurfaceVariant = Color(0xFF475569),
             outline = Color(0xFF64748B),
-            outlineVariant = basePrimary.lighten(0.86f),
+            outlineVariant = Color(0xFFE2E8F0),
             error = expenseColor,
             onError = Color.White,
             errorContainer = SolidExpenseContainer,
