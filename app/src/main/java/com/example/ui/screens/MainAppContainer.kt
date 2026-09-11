@@ -1345,8 +1345,17 @@ private fun DrawerContent(
     val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
     val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
 
-    val lastSyncFormatted = remember(backupConfig.lastSyncTimestamp, languageMode) {
-        com.example.util.DateUtils.formatSyncTimestamp(backupConfig.lastSyncTimestamp, languageMode)
+    val isCloudSyncConfigured = backupConfig.primaryAccount.isLinked || backupConfig.secondaryAccount.isLinked
+    val effectiveLastSyncTime = if (isCloudSyncConfigured) {
+        maxOf(backupConfig.primaryAccount.lastSyncTimestamp, backupConfig.secondaryAccount.lastSyncTimestamp, backupConfig.lastSyncTimestamp)
+    } else 0L
+
+    val lastSyncFormatted = remember(effectiveLastSyncTime, languageMode, isCloudSyncConfigured) {
+        if (!isCloudSyncConfigured) {
+            if (languageMode == LanguageMode.BANGLA) "কনফিগার করা হয়নি" else "Not configured"
+        } else {
+            com.example.util.DateUtils.formatSyncTimestamp(effectiveLastSyncTime, languageMode)
+        }
     }
 
     Column(

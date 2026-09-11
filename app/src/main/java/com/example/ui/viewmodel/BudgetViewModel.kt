@@ -1287,9 +1287,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             if (!_isDemoMode.value) {
                 SyncManager.triggerInstantJsonSync(getApplication())
             }
-            val now = System.currentTimeMillis()
-            backupPrefs.recordSyncTimestamp(now)
-            _backupUiState.value = BackupUiState.Success("QuickSync completed successfully")
+            val config = backupSettingsConfig.value
+            val isAnyCloudLinked = config.primaryAccount.isLinked || config.secondaryAccount.isLinked
+            if (isAnyCloudLinked) {
+                val now = System.currentTimeMillis()
+                backupPrefs.recordSyncTimestamp(now)
+                _backupUiState.value = BackupUiState.Success("QuickSync completed successfully")
+            } else {
+                _backupUiState.value = BackupUiState.Success("Local data snapshot saved. Connect cloud account in Backup & Sync for cloud backup.")
+            }
         }
     }
 
