@@ -866,19 +866,17 @@ object PaymentSourceCalculator {
                 }
             }
 
-            if (effectiveBudget > 0 || totalActualSettled > 0 || accSplits.isNotEmpty()) {
-                otherAccountAllocationsList.add(
-                    com.example.data.model.OtherAccountAllocationAnalysis(
-                        account = otherAcc,
-                        totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) effectiveBudget else totalRemaining,
-                        totalBudgeted = effectiveBudget,
-                        totalActualSettled = totalActualSettled,
-                        totalRemaining = totalRemaining,
-                        accountSplits = accSplits.sortedByDescending { it.allocatedAmount },
-                        isExpense = isExpense
-                    )
+            otherAccountAllocationsList.add(
+                com.example.data.model.OtherAccountAllocationAnalysis(
+                    account = otherAcc,
+                    totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) effectiveBudget else totalRemaining,
+                    totalBudgeted = effectiveBudget,
+                    totalActualSettled = totalActualSettled,
+                    totalRemaining = totalRemaining,
+                    accountSplits = accSplits.sortedByDescending { it.allocatedAmount },
+                    isExpense = isExpense
                 )
-            }
+            )
         }
 
         // 4. Build AccountRequirementAnalysis for each valid account

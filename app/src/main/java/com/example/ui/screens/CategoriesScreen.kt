@@ -314,32 +314,7 @@ fun CategoriesScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             AppTabHeader(
                 title = LanguageHelper.getString("categories", languageMode),
-                onOpenDrawer = onOpenDrawer,
-                actions = {
-                    Button(
-                        onClick = { onAddCategoryClick(currentAddType) },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentAddType == CategoryType.EXPENSE) SolidExpense else SolidIncome
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.testTag("btn_add_category")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = LanguageHelper.getString("add_category", languageMode),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
+                onOpenDrawer = onOpenDrawer
             )
 
             LazyColumn(
@@ -946,25 +921,25 @@ fun CategoriesScreen(
             }
         }
 
-        // --- 3. Floating Bottom Navigation Bar (Expenses | All | Incomes) ---
+        // --- 3. Floating Bottom Filter Pills (Expenses | All | Incomes) ---
         AnimatedVisibility(
             visible = isBottomNavVisible,
             enter = slideInVertically(initialOffsetY = { it * 2 }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it * 2 }) + fadeOut(),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
+                .align(Alignment.BottomStart)
+                .padding(start = 12.dp, bottom = 6.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(26.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                tonalElevation = 6.dp,
-                shadowElevation = 8.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+                tonalElevation = 4.dp,
+                shadowElevation = 6.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Expenses Button (Left)
@@ -1031,27 +1006,27 @@ private fun CategoryBottomFilterPill(
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         color = if (selected) selectedColor else Color.Transparent,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
                 tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(15.dp)
+                modifier = Modifier.size(13.dp)
             )
             Text(
                 text = label,
-                fontSize = 12.sp,
-                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                fontSize = 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
