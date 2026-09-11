@@ -31,10 +31,10 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -93,6 +93,9 @@ private enum class DeleteTransactionAction {
     MOVE_TO_ANOTHER
 }
 
+// ----------------------------------------------------------------------------
+// ACCOUNT DELETE CONFIRM DIALOG
+// ----------------------------------------------------------------------------
 @Composable
 fun AccountDeleteConfirmDialog(
     account: Account,
@@ -128,15 +131,45 @@ fun AccountDeleteConfirmDialog(
     }
     val relatedTxCount = relatedTransactions.size
 
-    // Target accounts available for moving (exclude self and children)
-    val candidateTargetAccounts = remember(allAccounts, affectedAccountIds) {
-        allAccounts.filter { it.id !in affectedAccountIds && it.parentId != null }
-            .ifEmpty { allAccounts.filter { it.id !in affectedAccountIds } }
+    // Group-based candidate hierarchy: Group -> List<Child Accounts>
+    val candidateGroupHierarchy = remember(allAccounts, affectedAccountIds) {
+        val nonAffected = allAccounts.filter { it.id !in affectedAccountIds }
+        val nonAffectedGroups = nonAffected.filter { it.parentId == null }
+        val nonAffectedChildren = nonAffected.filter { it.parentId != null }
+
+        val list = mutableListOf<Pair<Account?, List<Account>>>()
+        nonAffectedGroups.forEach { group ->
+            val children = nonAffectedChildren.filter { it.parentId == group.id }
+            list.add(Pair(group, children))
+        }
+        val handledChildIds = list.flatMap { it.second.map { c -> c.id } }.toSet()
+        val orphanChildren = nonAffectedChildren.filter { it.id !in handledChildIds }
+        if (orphanChildren.isNotEmpty()) {
+            list.add(Pair(null, orphanChildren))
+        }
+        list
     }
 
+    // Flat list of selectable target accounts
+    val candidateTargetAccounts = remember(candidateGroupHierarchy) {
+        val result = mutableListOf<Account>()
+        candidateGroupHierarchy.forEach { (group, children) ->
+            if (children.isNotEmpty()) {
+                result.addAll(children)
+            }
+            if (group != null) {
+                result.add(group)
+            }
+        }
+        result.distinctBy { it.id }
+    }
+
+    // Default action: For groups with transactions, must MOVE_TO_ANOTHER. For single accounts, can choose.
     var selectedAction by remember {
         mutableStateOf(
-            if (candidateTargetAccounts.isNotEmpty() && relatedTxCount > 0) {
+            if (isGroup && relatedTxCount > 0) {
+                DeleteTransactionAction.MOVE_TO_ANOTHER
+            } else if (candidateTargetAccounts.isNotEmpty() && relatedTxCount > 0) {
                 DeleteTransactionAction.MOVE_TO_ANOTHER
             } else {
                 DeleteTransactionAction.DELETE_TRANSACTIONS
@@ -145,7 +178,10 @@ fun AccountDeleteConfirmDialog(
     }
 
     var selectedTargetAccountId by remember {
-        mutableStateOf<Long?>(candidateTargetAccounts.firstOrNull()?.id)
+        mutableStateOf<Long?>(
+            // Prefer first child account if available, otherwise first group
+            candidateTargetAccounts.firstOrNull { it.parentId != null }?.id ?: candidateTargetAccounts.firstOrNull()?.id
+        )
     }
 
     // Per-transaction target account overrides (transactionId -> targetAccountId)
@@ -190,6 +226,19 @@ fun AccountDeleteConfirmDialog(
         if (requiresAuth && securityConfig.isBiometricEnabled) {
             triggerBiometric()
         }
+    }
+
+    fun getAccountDisplayName(acc: Account?): String {
+        if (acc == null) return ""
+        if (acc.parentId != null) {
+            val parent = allAccounts.firstOrNull { it.id == acc.parentId }
+            return if (parent != null) {
+                "${parent.localizedName(languageMode)} > ${acc.localizedName(languageMode)}"
+            } else {
+                acc.localizedName(languageMode)
+            }
+        }
+        return acc.localizedName(languageMode)
     }
 
     val selectedTargetAccount = candidateTargetAccounts.firstOrNull { it.id == selectedTargetAccountId }
@@ -240,7 +289,7 @@ fun AccountDeleteConfirmDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                // Related Transactions Info Card & List
+                // Related Transactions Info Card
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -331,7 +380,7 @@ fun AccountDeleteConfirmDialog(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "প্রতিটি লেনদেনের জন্য আলাদা অ্যাকাউন্ট নির্বাচন করুন:" else "Assign target account per transaction:",
+                                            text = if (languageMode == LanguageMode.BANGLA) "প্রতিটি লেনদেনের জন্য আলাদা অ্যাকাউন্ট:" else "Assign target account per transaction:",
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -418,7 +467,7 @@ fun AccountDeleteConfirmDialog(
                                                             onClick = { itemMenuExpanded = true },
                                                             label = {
                                                                 Text(
-                                                                    text = "${if (languageMode == LanguageMode.BANGLA) "স্থানান্তর ➔ " else "Move ➔ "}${assignedAccount?.localizedName(languageMode) ?: ""}${if (isCustomized) " (কাস্টম)" else ""}",
+                                                                    text = "${if (languageMode == LanguageMode.BANGLA) "স্থানান্তর ➔ " else "Move ➔ "}${getAccountDisplayName(assignedAccount)}${if (isCustomized) " (কাস্টম)" else ""}",
                                                                     fontSize = 11.sp,
                                                                     fontWeight = if (isCustomized) FontWeight.Bold else FontWeight.Normal
                                                                 )
@@ -438,27 +487,59 @@ fun AccountDeleteConfirmDialog(
                                                             expanded = itemMenuExpanded,
                                                             onDismissRequest = { itemMenuExpanded = false }
                                                         ) {
-                                                            candidateTargetAccounts.forEach { candidate ->
-                                                                DropdownMenuItem(
-                                                                    text = {
-                                                                        Text(
-                                                                            text = candidate.localizedName(languageMode),
-                                                                            fontSize = 12.sp,
-                                                                            fontWeight = if (candidate.id == assignedTargetId) FontWeight.Bold else FontWeight.Normal
-                                                                        )
-                                                                    },
-                                                                    leadingIcon = {
-                                                                        Icon(
-                                                                            imageVector = IconHelper.getIconByName(candidate.iconName),
-                                                                            contentDescription = null,
-                                                                            modifier = Modifier.size(16.dp)
-                                                                        )
-                                                                    },
-                                                                    onClick = {
-                                                                        customTxAccountMap[tx.id] = candidate.id
-                                                                        itemMenuExpanded = false
-                                                                    }
-                                                                )
+                                                            candidateGroupHierarchy.forEach { (group, children) ->
+                                                                if (group != null) {
+                                                                    DropdownMenuItem(
+                                                                        text = {
+                                                                            Text(
+                                                                                text = group.localizedName(languageMode),
+                                                                                fontSize = 13.sp,
+                                                                                fontWeight = FontWeight.Bold,
+                                                                                color = MaterialTheme.colorScheme.primary
+                                                                            )
+                                                                        },
+                                                                        leadingIcon = {
+                                                                            Icon(
+                                                                                imageVector = IconHelper.getIconByName(group.iconName),
+                                                                                contentDescription = null,
+                                                                                tint = MaterialTheme.colorScheme.primary,
+                                                                                modifier = Modifier.size(18.dp)
+                                                                            )
+                                                                        },
+                                                                        onClick = {
+                                                                            customTxAccountMap[tx.id] = group.id
+                                                                            itemMenuExpanded = false
+                                                                        },
+                                                                        modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
+                                                                    )
+                                                                }
+                                                                children.forEach { child ->
+                                                                    DropdownMenuItem(
+                                                                        text = {
+                                                                            Text(
+                                                                                text = "  ${child.localizedName(languageMode)}",
+                                                                                fontSize = 12.5.sp,
+                                                                                fontWeight = if (child.id == assignedTargetId) FontWeight.Bold else FontWeight.Normal,
+                                                                                color = if (child.id == assignedTargetId) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                                            )
+                                                                        },
+                                                                        leadingIcon = {
+                                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                                Spacer(modifier = Modifier.width(14.dp))
+                                                                                Icon(
+                                                                                    imageVector = IconHelper.getIconByName(child.iconName),
+                                                                                    contentDescription = null,
+                                                                                    tint = if (child.id == assignedTargetId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                                    modifier = Modifier.size(15.dp)
+                                                                                )
+                                                                            }
+                                                                        },
+                                                                        onClick = {
+                                                                            customTxAccountMap[tx.id] = child.id
+                                                                            itemMenuExpanded = false
+                                                                        }
+                                                                    )
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -468,6 +549,38 @@ fun AccountDeleteConfirmDialog(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Group deletion rule reminder banner
+                if (isGroup && relatedTxCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) {
+                                    "* গ্রুপ ডিলিট করার আগে এর সকল লেনদেন অন্য অ্যাকাউন্টে স্থানান্তর করা বাধ্যতামূলক।"
+                                } else {
+                                    "* Groups cannot be deleted without moving transactions."
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
                         }
                     }
                 }
@@ -512,7 +625,7 @@ fun AccountDeleteConfirmDialog(
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট বা নির্দিষ্ট অ্যাকাউন্টে লেনদেন স্থানান্তর করুন" else "Reassign transactions to default or custom accounts",
+                                            text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ অনুযায়ী সাজানো অ্যাকাউন্ট থেকে নির্বাচন করুন" else "Select from group-organized account suggestions",
                                             fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -544,7 +657,10 @@ fun AccountDeleteConfirmDialog(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
                                                     Icon(
                                                         imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
                                                         contentDescription = null,
@@ -553,10 +669,15 @@ fun AccountDeleteConfirmDialog(
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
                                                     Text(
-                                                        text = selectedTargetAccount?.localizedName(languageMode)
-                                                            ?: if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Target Account",
+                                                        text = if (selectedTargetAccount != null) {
+                                                            getAccountDisplayName(selectedTargetAccount)
+                                                        } else {
+                                                            if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Target Account"
+                                                        },
                                                         fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Medium
+                                                        fontWeight = FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
                                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
@@ -567,71 +688,123 @@ fun AccountDeleteConfirmDialog(
                                             expanded = targetMenuExpanded,
                                             onDismissRequest = { targetMenuExpanded = false }
                                         ) {
-                                            candidateTargetAccounts.forEach { candidate ->
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(
-                                                            text = candidate.localizedName(languageMode),
-                                                            fontSize = 13.sp
-                                                        )
-                                                    },
-                                                    leadingIcon = {
-                                                        Icon(
-                                                            imageVector = IconHelper.getIconByName(candidate.iconName),
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
-                                                    },
-                                                    onClick = {
-                                                        selectedTargetAccountId = candidate.id
-                                                        targetMenuExpanded = false
-                                                    }
-                                                )
+                                            candidateGroupHierarchy.forEach { (group, children) ->
+                                                if (group != null) {
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = group.localizedName(languageMode),
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.primary
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = IconHelper.getIconByName(group.iconName),
+                                                                contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.primary,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            selectedTargetAccountId = group.id
+                                                            targetMenuExpanded = false
+                                                        },
+                                                        modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
+                                                    )
+                                                }
+                                                children.forEach { child ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = "  ${child.localizedName(languageMode)}",
+                                                                fontSize = 12.5.sp,
+                                                                fontWeight = if (child.id == selectedTargetAccountId) FontWeight.Bold else FontWeight.Normal,
+                                                                color = if (child.id == selectedTargetAccountId) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Spacer(modifier = Modifier.width(14.dp))
+                                                                Icon(
+                                                                    imageVector = IconHelper.getIconByName(child.iconName),
+                                                                    contentDescription = null,
+                                                                    tint = if (child.id == selectedTargetAccountId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    modifier = Modifier.size(15.dp)
+                                                                )
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            selectedTargetAccountId = child.id
+                                                            targetMenuExpanded = false
+                                                        }
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
+                    } else if (isGroup) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) {
+                                    "স্থানান্তর করার মতো অন্য কোনো অ্যাকাউন্ট নেই। গ্রুপ ডিলিট করার আগে অনুগ্রহ করে আরেকটি অ্যাকাউন্ট তৈরি করুন।"
+                                } else {
+                                    "No other accounts available to move transactions to. Please create another account before deleting this group."
+                                },
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
                     }
 
-                    // Option 2: Delete related transactions
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f) else Color.Transparent,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant,
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                    // Option 2: Delete related transactions (STRICTLY FORBIDDEN for groups with transactions)
+                    if (!isGroup) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f) else Color.Transparent,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(10.dp)
+                                .border(
+                                    1.dp,
+                                    if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS }
                         ) {
-                            RadioButton(
-                                selected = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS,
-                                onClick = { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS },
-                                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.error)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পর্কিত লেনদেনসহ ডিলিট করুন" else "Delete related transactions",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.error
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp)
+                            ) {
+                                RadioButton(
+                                    selected = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS,
+                                    onClick = { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS },
+                                    colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.error)
                                 )
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "সকল সম্পর্কিত লেনদেন স্থায়ীভাবে মুছে যাবে" else "All associated transactions will be permanently deleted",
-                                    fontSize = 11.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "সম্পর্কিত লেনদেনসহ ডিলিট করুন" else "Delete related transactions",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "সকল সম্পর্কিত লেনদেন স্থায়ীভাবে মুছে যাবে" else "All associated transactions will be permanently deleted",
+                                        fontSize = 11.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -688,7 +861,8 @@ fun AccountDeleteConfirmDialog(
             }
         },
         confirmButton = {
-            val isMoveDisabled = selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && selectedTargetAccountId == null
+            val isMoveBlockedForGroup = isGroup && relatedTxCount > 0 && (candidateTargetAccounts.isEmpty() || selectedTargetAccountId == null)
+            val isMoveDisabled = (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && selectedTargetAccountId == null) || isMoveBlockedForGroup
             Button(
                 onClick = {
                     if (requiresAuth) {
@@ -715,6 +889,9 @@ fun AccountDeleteConfirmDialog(
     )
 }
 
+// ----------------------------------------------------------------------------
+// CATEGORY DELETE CONFIRM DIALOG
+// ----------------------------------------------------------------------------
 @Composable
 fun CategoryDeleteConfirmDialog(
     category: Category,
@@ -750,15 +927,45 @@ fun CategoryDeleteConfirmDialog(
     }
     val relatedTxCount = relatedTransactions.size
 
-    // Target categories available for moving (same type EXPENSE/INCOME, exclude self and children)
-    val candidateTargetCategories = remember(allCategories, affectedCategoryIds, category.type) {
-        allCategories.filter { it.type == category.type && it.id !in affectedCategoryIds && it.parentId != null }
-            .ifEmpty { allCategories.filter { it.type == category.type && it.id !in affectedCategoryIds } }
+    // Group-based candidate hierarchy: Category Group -> List<Sub-categories> (matching type)
+    val candidateCategoryHierarchy = remember(allCategories, affectedCategoryIds, category.type) {
+        val nonAffected = allCategories.filter { it.type == category.type && it.id !in affectedCategoryIds }
+        val nonAffectedGroups = nonAffected.filter { it.parentId == null }
+        val nonAffectedChildren = nonAffected.filter { it.parentId != null }
+
+        val list = mutableListOf<Pair<Category?, List<Category>>>()
+        nonAffectedGroups.forEach { group ->
+            val children = nonAffectedChildren.filter { it.parentId == group.id }
+            list.add(Pair(group, children))
+        }
+        val handledChildIds = list.flatMap { it.second.map { c -> c.id } }.toSet()
+        val orphanChildren = nonAffectedChildren.filter { it.id !in handledChildIds }
+        if (orphanChildren.isNotEmpty()) {
+            list.add(Pair(null, orphanChildren))
+        }
+        list
     }
 
+    // Flat list of selectable target categories
+    val candidateTargetCategories = remember(candidateCategoryHierarchy) {
+        val result = mutableListOf<Category>()
+        candidateCategoryHierarchy.forEach { (group, children) ->
+            if (children.isNotEmpty()) {
+                result.addAll(children)
+            }
+            if (group != null) {
+                result.add(group)
+            }
+        }
+        result.distinctBy { it.id }
+    }
+
+    // Default action: For groups with transactions, must MOVE_TO_ANOTHER. For sub-categories, can choose.
     var selectedAction by remember {
         mutableStateOf(
-            if (candidateTargetCategories.isNotEmpty() && relatedTxCount > 0) {
+            if (isGroup && relatedTxCount > 0) {
+                DeleteTransactionAction.MOVE_TO_ANOTHER
+            } else if (candidateTargetCategories.isNotEmpty() && relatedTxCount > 0) {
                 DeleteTransactionAction.MOVE_TO_ANOTHER
             } else {
                 DeleteTransactionAction.DELETE_TRANSACTIONS
@@ -767,7 +974,10 @@ fun CategoryDeleteConfirmDialog(
     }
 
     var selectedTargetCategoryId by remember {
-        mutableStateOf<Long?>(candidateTargetCategories.firstOrNull()?.id)
+        mutableStateOf<Long?>(
+            // Prefer first child sub-category if available, otherwise first group
+            candidateTargetCategories.firstOrNull { it.parentId != null }?.id ?: candidateTargetCategories.firstOrNull()?.id
+        )
     }
 
     // Per-transaction target category overrides (transactionId -> targetCategoryId)
@@ -814,6 +1024,19 @@ fun CategoryDeleteConfirmDialog(
         }
     }
 
+    fun getCategoryDisplayName(cat: Category?): String {
+        if (cat == null) return ""
+        if (cat.parentId != null) {
+            val parent = allCategories.firstOrNull { it.id == cat.parentId }
+            return if (parent != null) {
+                "${parent.localizedName(languageMode)} > ${cat.localizedName(languageMode)}"
+            } else {
+                cat.localizedName(languageMode)
+            }
+        }
+        return cat.localizedName(languageMode)
+    }
+
     val selectedTargetCategory = candidateTargetCategories.firstOrNull { it.id == selectedTargetCategoryId }
 
     AlertDialog(
@@ -854,7 +1077,7 @@ fun CategoryDeleteConfirmDialog(
             ) {
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) {
-                        "আপনি কি নিশ্চিত যে '${category.localizedName(languageMode)}' ${if (isGroup) "গ্রুপটি ও এর সকল ক্যাটাগরি" else "ক্যাটাগরি"} ডিলিট করতে চান?"
+                        "আপনি কি নিশ্চিত যে '${category.localizedName(languageMode)}' ${if (isGroup) "গ্রুপটি ও এর সকল সাব-ক্যাটাগরি" else "ক্যাটাগরি"} ডিলিট করতে চান?"
                     } else {
                         "Are you sure you want to delete '${category.localizedName(languageMode)}'${if (isGroup) " and all its sub-categories" else ""}?"
                     },
@@ -862,7 +1085,7 @@ fun CategoryDeleteConfirmDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                // Related Transactions Info Card & List
+                // Related Transactions Info Card
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -932,7 +1155,7 @@ fun CategoryDeleteConfirmDialog(
                             }
                         }
 
-                        // Expandable list of related transactions with individual target category selectors
+                        // Expandable list of related transactions with individual target selectors
                         AnimatedVisibility(
                             visible = showTxListExpanded && relatedTxCount > 0,
                             enter = fadeIn() + expandVertically(),
@@ -953,7 +1176,7 @@ fun CategoryDeleteConfirmDialog(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "প্রতিটি লেনদেনের জন্য আলাদা ক্যাটাগরি বেছে নিন:" else "Assign target category per transaction:",
+                                            text = if (languageMode == LanguageMode.BANGLA) "প্রতিটি লেনদেনের জন্য আলাদা ক্যাটাগরি:" else "Assign target category per transaction:",
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1040,7 +1263,7 @@ fun CategoryDeleteConfirmDialog(
                                                             onClick = { itemMenuExpanded = true },
                                                             label = {
                                                                 Text(
-                                                                    text = "${if (languageMode == LanguageMode.BANGLA) "স্থানান্তর ➔ " else "Move ➔ "}${assignedCategory?.localizedName(languageMode) ?: ""}${if (isCustomized) " (কাস্টম)" else ""}",
+                                                                    text = "${if (languageMode == LanguageMode.BANGLA) "স্থানান্তর ➔ " else "Move ➔ "}${getCategoryDisplayName(assignedCategory)}${if (isCustomized) " (কাস্টম)" else ""}",
                                                                     fontSize = 11.sp,
                                                                     fontWeight = if (isCustomized) FontWeight.Bold else FontWeight.Normal
                                                                 )
@@ -1060,27 +1283,59 @@ fun CategoryDeleteConfirmDialog(
                                                             expanded = itemMenuExpanded,
                                                             onDismissRequest = { itemMenuExpanded = false }
                                                         ) {
-                                                            candidateTargetCategories.forEach { candidate ->
-                                                                DropdownMenuItem(
-                                                                    text = {
-                                                                        Text(
-                                                                            text = candidate.localizedName(languageMode),
-                                                                            fontSize = 12.sp,
-                                                                            fontWeight = if (candidate.id == assignedTargetId) FontWeight.Bold else FontWeight.Normal
-                                                                        )
-                                                                    },
-                                                                    leadingIcon = {
-                                                                        Icon(
-                                                                            imageVector = IconHelper.getIconByName(candidate.iconName),
-                                                                            contentDescription = null,
-                                                                            modifier = Modifier.size(16.dp)
-                                                                        )
-                                                                    },
-                                                                    onClick = {
-                                                                        customTxCategoryMap[tx.id] = candidate.id
-                                                                        itemMenuExpanded = false
-                                                                    }
-                                                                )
+                                                            candidateCategoryHierarchy.forEach { (group, children) ->
+                                                                if (group != null) {
+                                                                    DropdownMenuItem(
+                                                                        text = {
+                                                                            Text(
+                                                                                text = group.localizedName(languageMode),
+                                                                                fontSize = 13.sp,
+                                                                                fontWeight = FontWeight.Bold,
+                                                                                color = MaterialTheme.colorScheme.primary
+                                                                            )
+                                                                        },
+                                                                        leadingIcon = {
+                                                                            Icon(
+                                                                                imageVector = IconHelper.getIconByName(group.iconName),
+                                                                                contentDescription = null,
+                                                                                tint = MaterialTheme.colorScheme.primary,
+                                                                                modifier = Modifier.size(18.dp)
+                                                                            )
+                                                                        },
+                                                                        onClick = {
+                                                                            customTxCategoryMap[tx.id] = group.id
+                                                                            itemMenuExpanded = false
+                                                                        },
+                                                                        modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
+                                                                    )
+                                                                }
+                                                                children.forEach { child ->
+                                                                    DropdownMenuItem(
+                                                                        text = {
+                                                                            Text(
+                                                                                text = "  ${child.localizedName(languageMode)}",
+                                                                                fontSize = 12.5.sp,
+                                                                                fontWeight = if (child.id == assignedTargetId) FontWeight.Bold else FontWeight.Normal,
+                                                                                color = if (child.id == assignedTargetId) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                                            )
+                                                                        },
+                                                                        leadingIcon = {
+                                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                                Spacer(modifier = Modifier.width(14.dp))
+                                                                                Icon(
+                                                                                    imageVector = IconHelper.getIconByName(child.iconName),
+                                                                                    contentDescription = null,
+                                                                                    tint = if (child.id == assignedTargetId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                                    modifier = Modifier.size(15.dp)
+                                                                                )
+                                                                            }
+                                                                        },
+                                                                        onClick = {
+                                                                            customTxCategoryMap[tx.id] = child.id
+                                                                            itemMenuExpanded = false
+                                                                        }
+                                                                    )
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -1090,6 +1345,38 @@ fun CategoryDeleteConfirmDialog(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                // Group deletion rule reminder banner
+                if (isGroup && relatedTxCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) {
+                                    "* গ্রুপ ডিলিট করার আগে এর সকল লেনদেন অন্য ক্যাটাগরিতে স্থানান্তর করা বাধ্যতামূলক।"
+                                } else {
+                                    "* Groups cannot be deleted without moving transactions."
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
                         }
                     }
                 }
@@ -1134,7 +1421,7 @@ fun CategoryDeleteConfirmDialog(
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট বা নির্দিষ্ট ক্যাটাগরিতে লেনদেন স্থানান্তর করুন" else "Reassign transactions to default or custom categories",
+                                            text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ অনুযায়ী সাজানো ক্যাটাগরি থেকে নির্বাচন করুন" else "Select from group-organized category suggestions",
                                             fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1166,7 +1453,10 @@ fun CategoryDeleteConfirmDialog(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
                                                     Icon(
                                                         imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
                                                         contentDescription = null,
@@ -1175,10 +1465,15 @@ fun CategoryDeleteConfirmDialog(
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
                                                     Text(
-                                                        text = selectedTargetCategory?.localizedName(languageMode)
-                                                            ?: if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন করুন" else "Select Target Category",
+                                                        text = if (selectedTargetCategory != null) {
+                                                            getCategoryDisplayName(selectedTargetCategory)
+                                                        } else {
+                                                            if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন করুন" else "Select Target Category"
+                                                        },
                                                         fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Medium
+                                                        fontWeight = FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
                                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
@@ -1189,71 +1484,123 @@ fun CategoryDeleteConfirmDialog(
                                             expanded = targetMenuExpanded,
                                             onDismissRequest = { targetMenuExpanded = false }
                                         ) {
-                                            candidateTargetCategories.forEach { candidate ->
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(
-                                                            text = candidate.localizedName(languageMode),
-                                                            fontSize = 13.sp
-                                                        )
-                                                    },
-                                                    leadingIcon = {
-                                                        Icon(
-                                                            imageVector = IconHelper.getIconByName(candidate.iconName),
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(18.dp)
-                                                        )
-                                                    },
-                                                    onClick = {
-                                                        selectedTargetCategoryId = candidate.id
-                                                        targetMenuExpanded = false
-                                                    }
-                                                )
+                                            candidateCategoryHierarchy.forEach { (group, children) ->
+                                                if (group != null) {
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = group.localizedName(languageMode),
+                                                                fontSize = 13.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.primary
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = IconHelper.getIconByName(group.iconName),
+                                                                contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.primary,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            selectedTargetCategoryId = group.id
+                                                            targetMenuExpanded = false
+                                                        },
+                                                        modifier = Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
+                                                    )
+                                                }
+                                                children.forEach { child ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = "  ${child.localizedName(languageMode)}",
+                                                                fontSize = 12.5.sp,
+                                                                fontWeight = if (child.id == selectedTargetCategoryId) FontWeight.Bold else FontWeight.Normal,
+                                                                color = if (child.id == selectedTargetCategoryId) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Spacer(modifier = Modifier.width(14.dp))
+                                                                Icon(
+                                                                    imageVector = IconHelper.getIconByName(child.iconName),
+                                                                    contentDescription = null,
+                                                                    tint = if (child.id == selectedTargetCategoryId) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    modifier = Modifier.size(15.dp)
+                                                                )
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            selectedTargetCategoryId = child.id
+                                                            targetMenuExpanded = false
+                                                        }
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
+                    } else if (isGroup) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) {
+                                    "স্থানান্তর করার মতো অন্য কোনো ক্যাটাগরি নেই। গ্রুপ ডিলিট করার আগে অনুগ্রহ করে আরেকটি ক্যাটাগরি তৈরি করুন।"
+                                } else {
+                                    "No other categories available to move transactions to. Please create another category before deleting this group."
+                                },
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
                     }
 
-                    // Option 2: Delete related transactions
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f) else Color.Transparent,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant,
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                    // Option 2: Delete related transactions (STRICTLY FORBIDDEN for groups with transactions)
+                    if (!isGroup) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f) else Color.Transparent,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(10.dp)
+                                .border(
+                                    1.dp,
+                                    if (selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS }
                         ) {
-                            RadioButton(
-                                selected = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS,
-                                onClick = { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS },
-                                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.error)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পর্কিত লেনদেনসহ ডিলিট করুন" else "Delete related transactions",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.error
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp)
+                            ) {
+                                RadioButton(
+                                    selected = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS,
+                                    onClick = { selectedAction = DeleteTransactionAction.DELETE_TRANSACTIONS },
+                                    colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.error)
                                 )
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "সকল সম্পর্কিত লেনদেন স্থায়ীভাবে মুছে যাবে" else "All associated transactions will be permanently deleted",
-                                    fontSize = 11.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "সম্পর্কিত লেনদেনসহ ডিলিট করুন" else "Delete related transactions",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "সকল সম্পর্কিত লেনদেন স্থায়ীভাবে মুছে যাবে" else "All associated transactions will be permanently deleted",
+                                        fontSize = 11.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -1310,7 +1657,8 @@ fun CategoryDeleteConfirmDialog(
             }
         },
         confirmButton = {
-            val isMoveDisabled = selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && selectedTargetCategoryId == null
+            val isMoveBlockedForGroup = isGroup && relatedTxCount > 0 && (candidateTargetCategories.isEmpty() || selectedTargetCategoryId == null)
+            val isMoveDisabled = (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && selectedTargetCategoryId == null) || isMoveBlockedForGroup
             Button(
                 onClick = {
                     if (requiresAuth) {
