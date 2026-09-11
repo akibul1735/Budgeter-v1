@@ -2194,18 +2194,22 @@ private fun RecentTransactionsCard(
                                 }
 
                                 Column(horizontalAlignment = Alignment.End) {
+                                    val isRevert = tx.amount < 0
+                                    val isPositiveEffect = when (tx.type) {
+                                        TransactionType.EXPENSE -> isRevert
+                                        TransactionType.INCOME -> !isRevert
+                                        TransactionType.TRANSFER -> false
+                                    }
                                     val sign = when (tx.type) {
-                                        TransactionType.EXPENSE -> "−"
-                                        TransactionType.INCOME -> "+"
                                         TransactionType.TRANSFER -> ""
+                                        else -> if (isPositiveEffect) "+" else "−"
                                     }
                                     val amtColor = when (tx.type) {
-                                        TransactionType.EXPENSE -> SolidExpense
-                                        TransactionType.INCOME -> SolidIncome
                                         TransactionType.TRANSFER -> SolidTransfer
+                                        else -> if (isPositiveEffect) SolidIncome else SolidExpense
                                     }
                                     Text(
-                                        text = "$sign${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
+                                        text = "$sign${LanguageHelper.formatCurrency(Math.abs(tx.amount), languageMode)}",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = amtColor,

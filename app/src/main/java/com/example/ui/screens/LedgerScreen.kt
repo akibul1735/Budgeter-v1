@@ -1026,8 +1026,6 @@ fun LedgerScreen(
                                         isSelectionMode = isSelectionMode,
                                         accountName = accName,
                                         accountBalance = accBalance,
-                                        overrideSign = if (tx.type == TransactionType.EXPENSE) "−" else "+",
-                                        overrideAmtColor = if (tx.type == TransactionType.EXPENSE) SolidExpense else SolidIncome,
                                         onClick = {
                                             if (isSelectionMode) {
                                                 selectedTransactionIds = if (isSelected) {
