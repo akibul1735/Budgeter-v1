@@ -153,6 +153,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         paymentSourcePrefs.deleteAccountObligation(obligationId)
     }
 
+    fun saveAccountLink(link: com.example.util.AccountLink) {
+        paymentSourcePrefs.saveAccountLink(link)
+    }
+
+    fun deleteAccountLink(linkId: String) {
+        paymentSourcePrefs.deleteAccountLink(linkId)
+    }
+
+    fun saveLinksForOtherAccount(otherAccountId: Long, sourceAccountIds: List<Long>, note: String = "") {
+        paymentSourcePrefs.saveLinksForOtherAccount(otherAccountId, sourceAccountIds, note)
+    }
+
     fun updateAutofillConfig(config: AutofillConfig) {
         autofillPrefs.updateConfig(config)
     }
@@ -524,6 +536,28 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch {
             activeRepo.deleteCategoryAccountAllocation(year, month, categoryId, accountId)
+        }
+    }
+
+    fun saveOtherAccountAllocations(
+        otherAccountId: Long,
+        allocations: Map<Long, Double>,
+        year: Int = _selectedBudgetYear.value,
+        month: Int = _selectedBudgetMonth.value
+    ) {
+        viewModelScope.launch {
+            activeRepo.saveOtherAccountAllocations(year, month, otherAccountId, allocations)
+        }
+    }
+
+    fun deleteOtherAccountAllocation(
+        otherAccountId: Long,
+        accountId: Long,
+        year: Int = _selectedBudgetYear.value,
+        month: Int = _selectedBudgetMonth.value
+    ) {
+        viewModelScope.launch {
+            activeRepo.deleteOtherAccountAllocation(year, month, otherAccountId, accountId)
         }
     }
 

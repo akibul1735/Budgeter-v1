@@ -66,6 +66,17 @@ data class CategoryAllocationAnalysis(
     val isExpense: Boolean = true
 )
 
+data class OtherAccountAllocationAnalysis(
+    val account: Account,
+    val totalBudgetOrRequired: Double,
+    val totalBudgeted: Double = totalBudgetOrRequired,
+    val totalActualSettled: Double = 0.0,
+    val totalRemaining: Double = 0.0,
+    val accountSplits: List<CategoryAccountSplit> = emptyList(),
+    val isMultiAccount: Boolean = accountSplits.size > 1,
+    val isExpense: Boolean = true // true: Payable/Liability; false: Receivable/Due to collect
+)
+
 data class AccountObligationAnalysis(
     val id: String,
     val sourceAccount: Account,
@@ -146,6 +157,7 @@ data class PaymentSourceAnalysisOverview(
     val accountAnalyses: List<AccountRequirementAnalysis>,
     val categoryAllocations: List<CategoryAllocationAnalysis> = emptyList(), // Expense category allocations
     val incomeAllocations: List<CategoryAllocationAnalysis> = emptyList(),   // Income category allocations
+    val otherAccountAllocations: List<OtherAccountAllocationAnalysis> = emptyList(), // Other Account allocations
     val accountObligationAllocations: List<AccountObligationAnalysis> = emptyList(), // Account obligation allocations
     val transferSuggestions: List<FundAllocationSuggestion> = emptyList()
 ) {

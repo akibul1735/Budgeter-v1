@@ -45,7 +45,8 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -106,6 +107,7 @@ import com.example.data.model.CategoryType
 import com.example.data.model.FundAllocationSuggestion
 import com.example.data.model.LanguageMode
 import com.example.data.model.MonthlyBudget
+import com.example.data.model.OtherAccountAllocationAnalysis
 import com.example.data.model.PaymentSourceAnalysisOverview
 import com.example.data.model.RecurringBill
 import com.example.data.model.RequirementCalculationBasis
@@ -126,12 +128,18 @@ import com.example.util.PaymentSourceConfig
 import java.util.Calendar
 
 private enum class MainPaymentSourceTab {
-    ACCOUNTS,
+    PAYMENT_SOURCES,
+    ASSIGNED_ITEMS
+}
+
+private enum class AssignedItemSectionFilter {
+    ALL,
+    OTHER_ACCOUNTS,
     EXPENSES,
     INCOMES
 }
 
-private enum class CategoryFilterOption {
+private enum class AssignedItemStatusFilter {
     ALL,
     BUDGETED_ONLY,
     REMAINING_ONLY,
@@ -166,20 +174,25 @@ fun PaymentSourceScreen(
     onAddTransactionWithAccount: (Long, TransactionType) -> Unit = { _, _ -> },
     onEditAccount: (Account) -> Unit = {},
     onSaveCategoryAllocations: (categoryId: Long, allocations: Map<Long, Double>) -> Unit = { _, _ -> },
+    onSaveOtherAccountAllocations: (otherAccountId: Long, allocations: Map<Long, Double>) -> Unit = { _, _ -> },
     onSetPaymentSourceAccountIds: (Set<Long>) -> Unit = {},
     onSaveAccountObligation: (AccountObligation) -> Unit = {},
     onDeleteAccountObligation: (String) -> Unit = {},
     onAccountClick: (Long) -> Unit = {}
 ) {
-    var selectedTab by remember { mutableStateOf(MainPaymentSourceTab.ACCOUNTS) }
+    var selectedTab by remember { mutableStateOf(MainPaymentSourceTab.PAYMENT_SOURCES) }
     var calculationBasis by remember { mutableStateOf(RequirementCalculationBasis.BUDGET_AMOUNT) }
     var accountStatusFilter by remember { mutableStateOf(AccountStatusFilter.ALL) }
-    var categoryFilter by remember { mutableStateOf(CategoryFilterOption.ALL) }
-    var categorySearchQuery by remember { mutableStateOf("") }
+
+    // Assigned items tab filters
+    var assignedSectionFilter by remember { mutableStateOf(AssignedItemSectionFilter.ALL) }
+    var assignedStatusFilter by remember { mutableStateOf(AssignedItemStatusFilter.ALL) }
+    var assignedSearchQuery by remember { mutableStateOf("") }
 
     // Dialogs state
     var showSourceSelectorDialog by remember { mutableStateOf(false) }
     var showCategorySplitDialog by remember { mutableStateOf<CategoryAllocationAnalysis?>(null) }
+    var showOtherAccountSplitDialog by remember { mutableStateOf<OtherAccountAllocationAnalysis?>(null) }
     var showAddObligationDialog by remember { mutableStateOf(false) }
     var transferSuggestionToExecute by remember { mutableStateOf<FundAllocationSuggestion?>(null) }
 
@@ -197,12 +210,14 @@ fun PaymentSourceScreen(
         allAccounts.filter { it.isActive }
     }
 
-    // Frequency usage map for categories
+    // Frequency usage map for categories and accounts
     val categoryUsageFrequencyMap = remember(allTransactions) {
         val map = mutableMapOf<Long, Int>()
         allTransactions.forEach { tx ->
             tx.transaction.categoryId?.let { map[it] = (map[it] ?: 0) + 1 }
             tx.transaction.subCategoryId?.let { map[it] = (map[it] ?: 0) + 1 }
+            tx.transaction.creditAccountId?.let { map[it] = (map[it] ?: 0) + 1 }
+            tx.transaction.debitAccountId?.let { map[it] = (map[it] ?: 0) + 1 }
         }
         map
     }
@@ -377,7 +392,9 @@ fun PaymentSourceScreen(
                 }
             }
 
-            // Three Main Tabs (Accounts | Expense Categories | Income Categories)
+            // TWO MAIN TABS: 1. Payment Source, 2. Assigned Items
+            val totalAssignedCount = analysisOverview.otherAccountAllocations.size + analysisOverview.categoryAllocations.size + analysisOverview.incomeAllocations.size
+
             TabRow(
                 selectedTabIndex = selectedTab.ordinal,
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -391,43 +408,29 @@ fun PaymentSourceScreen(
                 }
             ) {
                 Tab(
-                    selected = selectedTab == MainPaymentSourceTab.ACCOUNTS,
-                    onClick = { selectedTab = MainPaymentSourceTab.ACCOUNTS },
+                    selected = selectedTab == MainPaymentSourceTab.PAYMENT_SOURCES,
+                    onClick = { selectedTab = MainPaymentSourceTab.PAYMENT_SOURCES },
                     text = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(16.dp))
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্টস (${analysisOverview.accountAnalyses.size})" else "Accounts (${analysisOverview.accountAnalyses.size})",
-                                fontWeight = if (selectedTab == MainPaymentSourceTab.ACCOUNTS) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp
+                                text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স (${analysisOverview.accountAnalyses.size})" else "Payment Source (${analysisOverview.accountAnalyses.size})",
+                                fontWeight = if (selectedTab == MainPaymentSourceTab.PAYMENT_SOURCES) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp
                             )
                         }
                     }
                 )
                 Tab(
-                    selected = selectedTab == MainPaymentSourceTab.EXPENSES,
-                    onClick = { selectedTab = MainPaymentSourceTab.EXPENSES },
+                    selected = selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS,
+                    onClick = { selectedTab = MainPaymentSourceTab.ASSIGNED_ITEMS },
                     text = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.Payments, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(15.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.CallSplit, contentDescription = null, tint = SolidTransfer, modifier = Modifier.size(16.dp))
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (${analysisOverview.categoryAllocations.size})" else "Expenses (${analysisOverview.categoryAllocations.size})",
-                                fontWeight = if (selectedTab == MainPaymentSourceTab.EXPENSES) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                )
-                Tab(
-                    selected = selectedTab == MainPaymentSourceTab.INCOMES,
-                    onClick = { selectedTab = MainPaymentSourceTab.INCOMES },
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.Category, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(15.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "আয় (${analysisOverview.incomeAllocations.size})" else "Income (${analysisOverview.incomeAllocations.size})",
-                                fontWeight = if (selectedTab == MainPaymentSourceTab.INCOMES) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp
+                                text = if (languageMode == LanguageMode.BANGLA) "বরাদ্দকৃত আইটেম ($totalAssignedCount)" else "Assigned Items ($totalAssignedCount)",
+                                fontWeight = if (selectedTab == MainPaymentSourceTab.ASSIGNED_ITEMS) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp
                             )
                         }
                     }
@@ -436,7 +439,7 @@ fun PaymentSourceScreen(
 
             // Tab Content
             when (selectedTab) {
-                MainPaymentSourceTab.ACCOUNTS -> {
+                MainPaymentSourceTab.PAYMENT_SOURCES -> {
                     AccountsPaymentSourceTabContent(
                         overview = analysisOverview,
                         languageMode = languageMode,
@@ -450,30 +453,20 @@ fun PaymentSourceScreen(
                         onDeleteObligation = onDeleteAccountObligation
                     )
                 }
-                MainPaymentSourceTab.EXPENSES -> {
-                    CategoryAllocationsTabContent(
-                        isExpense = true,
-                        categories = analysisOverview.categoryAllocations,
+                MainPaymentSourceTab.ASSIGNED_ITEMS -> {
+                    AssignedItemsTabContent(
+                        overview = analysisOverview,
                         languageMode = languageMode,
-                        searchQuery = categorySearchQuery,
-                        onSearchChange = { categorySearchQuery = it },
-                        filterOption = categoryFilter,
-                        onFilterChange = { categoryFilter = it },
+                        sectionFilter = assignedSectionFilter,
+                        onSectionFilterChange = { assignedSectionFilter = it },
+                        statusFilter = assignedStatusFilter,
+                        onStatusFilterChange = { assignedStatusFilter = it },
+                        searchQuery = assignedSearchQuery,
+                        onSearchChange = { assignedSearchQuery = it },
                         usageFrequencyMap = categoryUsageFrequencyMap,
-                        onOpenSplitDialog = { showCategorySplitDialog = it }
-                    )
-                }
-                MainPaymentSourceTab.INCOMES -> {
-                    CategoryAllocationsTabContent(
-                        isExpense = false,
-                        categories = analysisOverview.incomeAllocations,
-                        languageMode = languageMode,
-                        searchQuery = categorySearchQuery,
-                        onSearchChange = { categorySearchQuery = it },
-                        filterOption = categoryFilter,
-                        onFilterChange = { categoryFilter = it },
-                        usageFrequencyMap = categoryUsageFrequencyMap,
-                        onOpenSplitDialog = { showCategorySplitDialog = it }
+                        onOpenCategorySplitDialog = { showCategorySplitDialog = it },
+                        onOpenOtherAccountSplitDialog = { showOtherAccountSplitDialog = it },
+                        onAddTransactionWithAccount = onAddTransactionWithAccount
                     )
                 }
             }
@@ -510,7 +503,21 @@ fun PaymentSourceScreen(
             )
         }
 
-        // 3. Link Payable / Receivable Obligation Dialog
+        // 3. Other Account Multi-Source Split & Assignment Dialog
+        showOtherAccountSplitDialog?.let { otherAccAnalysis ->
+            OtherAccountSplitDialog(
+                otherAccountAllocation = otherAccAnalysis,
+                paymentSourceAccounts = analysisOverview.accountAnalyses.map { it.account },
+                languageMode = languageMode,
+                onDismiss = { showOtherAccountSplitDialog = null },
+                onSave = { allocMap ->
+                    onSaveOtherAccountAllocations(otherAccAnalysis.account.id, allocMap)
+                    showOtherAccountSplitDialog = null
+                }
+            )
+        }
+
+        // 4. Link Payable / Receivable Obligation Dialog
         if (showAddObligationDialog) {
             LinkAccountObligationDialog(
                 paymentSourceAccounts = analysisOverview.accountAnalyses.map { it.account },
@@ -524,7 +531,7 @@ fun PaymentSourceScreen(
             )
         }
 
-        // 4. Quick Transfer Execution Confirmation
+        // 5. Quick Transfer Execution Confirmation
         transferSuggestionToExecute?.let { suggestion ->
             TransferConfirmationDialog(
                 suggestion = suggestion,
@@ -540,7 +547,7 @@ fun PaymentSourceScreen(
 }
 
 // -----------------------------------------------------------------------------
-// TAB 1: ACCOUNTS VIEW
+// TAB 1: PAYMENT SOURCES VIEW
 // -----------------------------------------------------------------------------
 
 @Composable
@@ -807,43 +814,91 @@ private fun AccountsPaymentSourceTabContent(
 }
 
 // -----------------------------------------------------------------------------
-// TAB 2 & 3: CATEGORY ALLOCATIONS & MULTI-ACCOUNT SPLIT VIEW
+// TAB 2: ASSIGNED ITEMS (OTHER ACCOUNTS, EXPENSES, INCOME) WITH RICH FILTERS
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun CategoryAllocationsTabContent(
-    isExpense: Boolean,
-    categories: List<CategoryAllocationAnalysis>,
+private fun AssignedItemsTabContent(
+    overview: PaymentSourceAnalysisOverview,
     languageMode: LanguageMode,
+    sectionFilter: AssignedItemSectionFilter,
+    onSectionFilterChange: (AssignedItemSectionFilter) -> Unit,
+    statusFilter: AssignedItemStatusFilter,
+    onStatusFilterChange: (AssignedItemStatusFilter) -> Unit,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
-    filterOption: CategoryFilterOption,
-    onFilterChange: (CategoryFilterOption) -> Unit,
     usageFrequencyMap: Map<Long, Int>,
-    onOpenSplitDialog: (CategoryAllocationAnalysis) -> Unit
+    onOpenCategorySplitDialog: (CategoryAllocationAnalysis) -> Unit,
+    onOpenOtherAccountSplitDialog: (OtherAccountAllocationAnalysis) -> Unit,
+    onAddTransactionWithAccount: (Long, TransactionType) -> Unit
 ) {
-    val filteredCategories = remember(categories, searchQuery, filterOption, usageFrequencyMap) {
-        var list = categories
+    val q = searchQuery.trim().lowercase()
 
-        // Search query filter
-        if (searchQuery.isNotBlank()) {
-            val q = searchQuery.trim().lowercase()
+    // Filter Other Accounts
+    val filteredOtherAccounts = remember(overview.otherAccountAllocations, q, statusFilter, usageFrequencyMap) {
+        var list = overview.otherAccountAllocations
+        if (q.isNotEmpty()) {
+            list = list.filter {
+                it.account.nameEn.lowercase().contains(q) ||
+                it.account.nameBn.lowercase().contains(q) ||
+                it.accountSplits.any { s -> s.account.nameEn.lowercase().contains(q) || s.account.nameBn.lowercase().contains(q) }
+            }
+        }
+        when (statusFilter) {
+            AssignedItemStatusFilter.ALL -> list
+            AssignedItemStatusFilter.BUDGETED_ONLY -> list.filter { it.totalBudgeted > 0 }
+            AssignedItemStatusFilter.REMAINING_ONLY -> list.filter { it.totalRemaining > 0 }
+            AssignedItemStatusFilter.MOST_FREQUENT -> list.sortedByDescending { usageFrequencyMap[it.account.id] ?: 0 }
+            AssignedItemStatusFilter.SPLIT_ONLY -> list.filter { it.isMultiAccount }
+            AssignedItemStatusFilter.UNASSIGNED_ONLY -> list.filter { it.accountSplits.isEmpty() }
+        }
+    }
+
+    // Filter Expense Categories
+    val filteredExpenses = remember(overview.categoryAllocations, q, statusFilter, usageFrequencyMap) {
+        var list = overview.categoryAllocations
+        if (q.isNotEmpty()) {
             list = list.filter {
                 it.category.nameEn.lowercase().contains(q) ||
                 it.category.nameBn.lowercase().contains(q) ||
                 it.accountSplits.any { s -> s.account.nameEn.lowercase().contains(q) || s.account.nameBn.lowercase().contains(q) }
             }
         }
-
-        // Filter chips
-        when (filterOption) {
-            CategoryFilterOption.ALL -> list
-            CategoryFilterOption.BUDGETED_ONLY -> list.filter { it.totalBudgeted > 0 }
-            CategoryFilterOption.REMAINING_ONLY -> list.filter { it.totalRemaining > 0 }
-            CategoryFilterOption.MOST_FREQUENT -> list.sortedByDescending { usageFrequencyMap[it.category.id] ?: 0 }
-            CategoryFilterOption.SPLIT_ONLY -> list.filter { it.isMultiAccount }
-            CategoryFilterOption.UNASSIGNED_ONLY -> list.filter { it.accountSplits.isEmpty() }
+        when (statusFilter) {
+            AssignedItemStatusFilter.ALL -> list
+            AssignedItemStatusFilter.BUDGETED_ONLY -> list.filter { it.totalBudgeted > 0 }
+            AssignedItemStatusFilter.REMAINING_ONLY -> list.filter { it.totalRemaining > 0 }
+            AssignedItemStatusFilter.MOST_FREQUENT -> list.sortedByDescending { usageFrequencyMap[it.category.id] ?: 0 }
+            AssignedItemStatusFilter.SPLIT_ONLY -> list.filter { it.isMultiAccount }
+            AssignedItemStatusFilter.UNASSIGNED_ONLY -> list.filter { it.accountSplits.isEmpty() }
         }
+    }
+
+    // Filter Income Categories
+    val filteredIncomes = remember(overview.incomeAllocations, q, statusFilter, usageFrequencyMap) {
+        var list = overview.incomeAllocations
+        if (q.isNotEmpty()) {
+            list = list.filter {
+                it.category.nameEn.lowercase().contains(q) ||
+                it.category.nameBn.lowercase().contains(q) ||
+                it.accountSplits.any { s -> s.account.nameEn.lowercase().contains(q) || s.account.nameBn.lowercase().contains(q) }
+            }
+        }
+        when (statusFilter) {
+            AssignedItemStatusFilter.ALL -> list
+            AssignedItemStatusFilter.BUDGETED_ONLY -> list.filter { it.totalBudgeted > 0 }
+            AssignedItemStatusFilter.REMAINING_ONLY -> list.filter { it.totalRemaining > 0 }
+            AssignedItemStatusFilter.MOST_FREQUENT -> list.sortedByDescending { usageFrequencyMap[it.category.id] ?: 0 }
+            AssignedItemStatusFilter.SPLIT_ONLY -> list.filter { it.isMultiAccount }
+            AssignedItemStatusFilter.UNASSIGNED_ONLY -> list.filter { it.accountSplits.isEmpty() }
+        }
+    }
+
+    val totalItemsShown = when (sectionFilter) {
+        AssignedItemSectionFilter.ALL -> filteredOtherAccounts.size + filteredExpenses.size + filteredIncomes.size
+        AssignedItemSectionFilter.OTHER_ACCOUNTS -> filteredOtherAccounts.size
+        AssignedItemSectionFilter.EXPENSES -> filteredExpenses.size
+        AssignedItemSectionFilter.INCOMES -> filteredIncomes.size
     }
 
     LazyColumn(
@@ -851,17 +906,17 @@ private fun CategoryAllocationsTabContent(
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Search Bar
+        // 1. Search Box
         item {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("category_search_input"),
+                    .testTag("assigned_items_search_input"),
                 placeholder = {
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি বা একাউন্ট অনুসন্ধান..." else "Search category or assigned account...",
+                        text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট, ক্যাটাগরি বা সোর্স অনুসন্ধান..." else "Search account, category, or payment source...",
                         fontSize = 12.sp
                     )
                 },
@@ -882,7 +937,7 @@ private fun CategoryAllocationsTabContent(
             )
         }
 
-        // Filter Option Chips
+        // 2. Section Selector Pills (All | Other Accounts | Expense | Income)
         item {
             Row(
                 modifier = Modifier
@@ -891,49 +946,397 @@ private fun CategoryAllocationsTabContent(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterChip(
-                    selected = filterOption == CategoryFilterOption.ALL,
-                    onClick = { onFilterChange(CategoryFilterOption.ALL) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All", fontSize = 11.sp) }
+                    selected = sectionFilter == AssignedItemSectionFilter.ALL,
+                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.ALL) },
+                    label = {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Items",
+                            fontSize = 11.sp,
+                            fontWeight = if (sectionFilter == AssignedItemSectionFilter.ALL) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
                 )
                 FilterChip(
-                    selected = filterOption == CategoryFilterOption.BUDGETED_ONLY,
-                    onClick = { onFilterChange(CategoryFilterOption.BUDGETED_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত" else "Budgeted", fontSize = 11.sp) }
+                    selected = sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS,
+                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.OTHER_ACCOUNTS) },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.People, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "অন্যান্য একাউন্ট (${overview.otherAccountAllocations.size})" else "Other Accounts (${overview.otherAccountAllocations.size})",
+                                fontSize = 11.sp,
+                                fontWeight = if (sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
                 )
                 FilterChip(
-                    selected = filterOption == CategoryFilterOption.REMAINING_ONLY,
-                    onClick = { onFilterChange(CategoryFilterOption.REMAINING_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining", fontSize = 11.sp) }
+                    selected = sectionFilter == AssignedItemSectionFilter.EXPENSES,
+                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.EXPENSES) },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(13.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (${overview.categoryAllocations.size})" else "Expenses (${overview.categoryAllocations.size})",
+                                fontSize = 11.sp,
+                                fontWeight = if (sectionFilter == AssignedItemSectionFilter.EXPENSES) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
                 )
                 FilterChip(
-                    selected = filterOption == CategoryFilterOption.MOST_FREQUENT,
-                    onClick = { onFilterChange(CategoryFilterOption.MOST_FREQUENT) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সর্বাধিক ব্যবহৃত" else "Most Used", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = filterOption == CategoryFilterOption.SPLIT_ONLY,
-                    onClick = { onFilterChange(CategoryFilterOption.SPLIT_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "একাধিক একাউন্টে বিভক্ত" else "Split Across Accounts", fontSize = 11.sp) },
-                    leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                    selected = sectionFilter == AssignedItemSectionFilter.INCOMES,
+                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.INCOMES) },
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Category, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(13.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "আয় (${overview.incomeAllocations.size})" else "Income (${overview.incomeAllocations.size})",
+                                fontSize = 11.sp,
+                                fontWeight = if (sectionFilter == AssignedItemSectionFilter.INCOMES) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
                 )
             }
         }
 
-        // Category Cards List
-        if (filteredCategories.isEmpty()) {
-            item {
-                EmptyStateCard(
-                    message = if (languageMode == LanguageMode.BANGLA) "কোনো ক্যাটাগরি পাওয়া যায়নি।" else "No categories match this filter."
+        // 3. Status Filters Row (All | Budgeted | Remaining | Most Used | Split Across Sources | Unassigned)
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FilterChip(
+                    selected = statusFilter == AssignedItemStatusFilter.ALL,
+                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.ALL) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All", fontSize = 11.sp) }
+                )
+                FilterChip(
+                    selected = statusFilter == AssignedItemStatusFilter.BUDGETED_ONLY,
+                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.BUDGETED_ONLY) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত / দেনা" else "Budgeted / Due", fontSize = 11.sp) }
+                )
+                FilterChip(
+                    selected = statusFilter == AssignedItemStatusFilter.REMAINING_ONLY,
+                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.REMAINING_ONLY) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining", fontSize = 11.sp) }
+                )
+                FilterChip(
+                    selected = statusFilter == AssignedItemStatusFilter.MOST_FREQUENT,
+                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.MOST_FREQUENT) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সর্বাধিক ব্যবহৃত" else "Most Used", fontSize = 11.sp) }
+                )
+                FilterChip(
+                    selected = statusFilter == AssignedItemStatusFilter.SPLIT_ONLY,
+                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.SPLIT_ONLY) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "একাধিক সোর্সে বিভক্ত" else "Split Across Sources", fontSize = 11.sp) },
+                    leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                )
+                FilterChip(
+                    selected = statusFilter == AssignedItemStatusFilter.UNASSIGNED_ONLY,
+                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.UNASSIGNED_ONLY) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দহীন" else "Unassigned", fontSize = 11.sp) },
+                    leadingIcon = { Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(13.dp)) }
                 )
             }
-        } else {
-            items(filteredCategories, key = { it.category.id }) { catAlloc ->
+        }
+
+        // Empty state check
+        if (totalItemsShown == 0) {
+            item {
+                EmptyStateCard(
+                    message = if (languageMode == LanguageMode.BANGLA) "এই ফিল্টারে কোনো আইটেম পাওয়া যায়নি।" else "No items match this filter."
+                )
+            }
+        }
+
+        // 4. Section: Other Accounts
+        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) && filteredOtherAccounts.isNotEmpty()) {
+            if (sectionFilter == AssignedItemSectionFilter.ALL) {
+                item {
+                    SectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য অ্যাকাউন্ট (ব্যক্তি / ঋণ / দেনা)" else "Other Accounts (Persons, Loans, Liabilities)",
+                        count = filteredOtherAccounts.size,
+                        icon = Icons.Default.People,
+                        color = SolidTransfer
+                    )
+                }
+            }
+
+            items(filteredOtherAccounts, key = { "other_acc_${it.account.id}" }) { otherAccAlloc ->
+                OtherAccountAllocationCard(
+                    allocation = otherAccAlloc,
+                    languageMode = languageMode,
+                    onOpenSplit = { onOpenOtherAccountSplitDialog(otherAccAlloc) },
+                    onAddTransaction = {
+                        val txType = if (otherAccAlloc.isExpense) TransactionType.EXPENSE else TransactionType.INCOME
+                        onAddTransactionWithAccount(otherAccAlloc.account.id, txType)
+                    }
+                )
+            }
+        }
+
+        // 5. Section: Expense Categories
+        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.EXPENSES) && filteredExpenses.isNotEmpty()) {
+            if (sectionFilter == AssignedItemSectionFilter.ALL) {
+                item {
+                    SectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "ব্যয় ক্যাটাগরি" else "Expense Categories",
+                        count = filteredExpenses.size,
+                        icon = Icons.Default.MonetizationOn,
+                        color = SolidExpense
+                    )
+                }
+            }
+
+            items(filteredExpenses, key = { "expense_${it.category.id}" }) { catAlloc ->
                 CategoryAllocationCard(
                     allocation = catAlloc,
-                    isExpense = isExpense,
+                    isExpense = true,
                     languageMode = languageMode,
-                    onOpenSplit = { onOpenSplitDialog(catAlloc) }
+                    onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
                 )
+            }
+        }
+
+        // 6. Section: Income Categories
+        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.INCOMES) && filteredIncomes.isNotEmpty()) {
+            if (sectionFilter == AssignedItemSectionFilter.ALL) {
+                item {
+                    SectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "আয় ক্যাটাগরি" else "Income Categories",
+                        count = filteredIncomes.size,
+                        icon = Icons.Default.Category,
+                        color = SolidIncome
+                    )
+                }
+            }
+
+            items(filteredIncomes, key = { "income_${it.category.id}" }) { catAlloc ->
+                CategoryAllocationCard(
+                    allocation = catAlloc,
+                    isExpense = false,
+                    languageMode = languageMode,
+                    onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    count: Int,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(15.dp))
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = color.copy(alpha = 0.12f)
+        ) {
+            Text(
+                text = "$count",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// COMPONENT: OTHER ACCOUNT ALLOCATION CARD (TREATED SAME AS CATEGORIES)
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun OtherAccountAllocationCard(
+    allocation: OtherAccountAllocationAnalysis,
+    languageMode: LanguageMode,
+    onOpenSplit: () -> Unit,
+    onAddTransaction: () -> Unit
+) {
+    val acc = allocation.account
+    val accColor = remember(acc.colorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(acc.colorHex))
+        } catch (e: Exception) {
+            if (allocation.isExpense) SolidExpense else SolidIncome
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("other_acc_card_${acc.id}"),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Header Row: Account Icon, Name, Type Badge, Split Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(accColor.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = IconHelper.getIconByName(acc.iconName),
+                            contentDescription = null,
+                            tint = accColor,
+                            modifier = Modifier.size(17.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = acc.localizedName(languageMode),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            // Type / Liability badge
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (allocation.isExpense) SolidExpense.copy(alpha = 0.12f) else SolidIncome.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = if (allocation.isExpense) (if (languageMode == LanguageMode.BANGLA) "দেনা / দায়" else "Payable")
+                                    else (if (languageMode == LanguageMode.BANGLA) "পাওনা / আয়" else "Receivable"),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (allocation.isExpense) SolidExpense else SolidIncome,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "${if (allocation.isExpense) "Due/Target" else "Expected"}: ${LanguageHelper.formatCurrency(allocation.totalBudgeted, languageMode)}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = onOpenSplit,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (allocation.isMultiAccount) SolidTransfer else SolidPrimary
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (allocation.isMultiAccount) Icons.Default.CallSplit else Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (allocation.isMultiAccount) "Split (${allocation.accountSplits.size})"
+                        else if (allocation.accountSplits.isNotEmpty()) (if (languageMode == LanguageMode.BANGLA) "বরাদ্দকৃত" else "Assigned")
+                        else (if (languageMode == LanguageMode.BANGLA) "বরাদ্দ করুন" else "Assign"),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Assigned Payment Sources Breakdown
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    if (allocation.accountSplits.isEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নির্ধারিত নেই (ডিফল্ট হিসাব ব্যবহৃত হবে)" else "No payment source assigned (fallback used)",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        allocation.accountSplits.forEach { split ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = IconHelper.getIconByName(split.account.iconName),
+                                        contentDescription = null,
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = split.account.localizedName(languageMode),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (allocation.isMultiAccount && split.percentageOfCategory > 0) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "(${split.percentageOfCategory.toInt()}%)",
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = LanguageHelper.formatCurrency(split.allocatedAmount, languageMode),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (allocation.isExpense) SolidExpense else SolidIncome
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1098,117 +1501,123 @@ private fun AccountRequirementCard(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "নির্ধারিত ব্যয় ও পাওনা আইটেমসমূহ (${analysis.itemizedExpenses.size}):" else "Assigned Expenses & Obligations (${analysis.itemizedExpenses.size}):",
+                        text = if (languageMode == LanguageMode.BANGLA) "এই সোর্সের অন্তর্ভুক্ত বরাদ্দসমূহ" else "Assigned Items to this Source",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.primary
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    if (analysis.itemizedExpenses.isEmpty()) {
+                    if (analysis.itemizedExpenses.isEmpty() && analysis.itemizedIncomes.isEmpty()) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "কোনো সরাসরি ব্যয় নির্ধারিত নেই।" else "No direct expenses assigned to this account.",
-                            fontSize = 10.sp,
+                            text = if (languageMode == LanguageMode.BANGLA) "কোনো ব্যয় বা আয় বরাদ্দ করা হয়নি।" else "No items assigned to this source yet.",
+                            fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
                     } else {
+                        // Expenses breakdown
                         analysis.itemizedExpenses.forEach { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 3.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(
-                                        imageVector = if (item.isAccountObligation) Icons.Default.Link else IconHelper.getIconByName(item.iconName),
-                                        contentDescription = null,
-                                        tint = if (item.isAccountObligation) SolidTransfer else SolidExpense,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = item.title,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    if (item.isMultiAccountSplit) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(3.dp),
-                                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
-                                        ) {
-                                            Text(
-                                                text = "Split (${item.splitAccountCount})",
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                }
+                            ItemizedRequirementRow(item = item, languageMode = languageMode)
+                        }
 
-                                Text(
-                                    text = LanguageHelper.formatCurrency(item.amount, languageMode),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = SolidExpense
-                                )
-                            }
+                        // Incomes breakdown
+                        analysis.itemizedIncomes.forEach { item ->
+                            ItemizedRequirementRow(item = item, languageMode = languageMode)
                         }
                     }
 
-                    // Itemized Incomes if any
-                    if (analysis.itemizedIncomes.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "নির্ধারিত আয়সমূহ (${analysis.itemizedIncomes.size}):" else "Assigned Incomes (${analysis.itemizedIncomes.size}):",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        analysis.itemizedIncomes.forEach { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 3.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(item.iconName),
-                                        contentDescription = null,
-                                        tint = SolidIncome,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = item.title,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Text(
-                                    text = "+${LanguageHelper.formatCurrency(item.amount, languageMode)}",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = SolidIncome
-                                )
-                            }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Action buttons inside card
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = onAddIncome,
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("+ ${if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"}", fontSize = 11.sp, color = SolidIncome)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        OutlinedButton(
+                            onClick = onAddExpense,
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("+ ${if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"}", fontSize = 11.sp, color = SolidExpense)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ItemizedRequirementRow(
+    item: AccountRequirementItem,
+    languageMode: LanguageMode
+) {
+    val itemColor = remember(item.colorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(item.colorHex))
+        } catch (e: Exception) {
+            if (item.isExpense) SolidExpense else SolidIncome
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(itemColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = IconHelper.getIconByName(item.iconName),
+                    contentDescription = null,
+                    tint = itemColor,
+                    modifier = Modifier.size(11.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Column {
+                Text(
+                    text = item.title,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (item.isMultiAccountSplit) {
+                    Text(
+                        text = "Split (${item.splitAccountCount} sources)",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = (if (item.isExpense) "-" else "+") + LanguageHelper.formatCurrency(item.amount, languageMode),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (item.isExpense) SolidExpense else SolidIncome
+        )
     }
 }
 
@@ -1227,7 +1636,7 @@ private fun CategoryAllocationCard(
     val catColor = remember(cat.colorHex) {
         try {
             Color(android.graphics.Color.parseColor(cat.colorHex))
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             if (isExpense) SolidExpense else SolidIncome
         }
     }
@@ -1235,14 +1644,13 @@ private fun CategoryAllocationCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
             .testTag("cat_alloc_card_${cat.id}"),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Header Row: Category Icon, Name, Total Budget & Split Button
+            // Header Row: Category Icon, Name, Split Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1299,8 +1707,8 @@ private fun CategoryAllocationCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (allocation.isMultiAccount) "Split (${allocation.accountSplits.size})"
-                        else if (allocation.accountSplits.isNotEmpty()) "Assigned"
-                        else "Assign",
+                        else if (allocation.accountSplits.isNotEmpty()) (if (languageMode == LanguageMode.BANGLA) "বরাদ্দকৃত" else "Assigned")
+                        else (if (languageMode == LanguageMode.BANGLA) "বরাদ্দ করুন" else "Assign"),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -1375,162 +1783,106 @@ private fun CategoryAllocationCard(
 }
 
 // -----------------------------------------------------------------------------
-// DIALOG: PAYMENT SOURCE SELECTOR (MULTI-SELECT)
+// DIALOG: OTHER ACCOUNT MULTI-SOURCE SPLIT & ASSIGNMENT
 // -----------------------------------------------------------------------------
 
 @Composable
-private fun PaymentSourceSelectorDialog(
-    allAccounts: List<Account>,
-    accountsWithBalances: List<AccountWithBalance>,
-    initialSelectedIds: Set<Long>,
+private fun OtherAccountSplitDialog(
+    otherAccountAllocation: OtherAccountAllocationAnalysis,
+    paymentSourceAccounts: List<Account>,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onSave: (Set<Long>) -> Unit
+    onSave: (Map<Long, Double>) -> Unit
 ) {
-    var selectedIds by remember { mutableStateOf(initialSelectedIds) }
-    var searchQuery by remember { mutableStateOf("") }
-
-    val balanceMap = remember(accountsWithBalances) {
-        accountsWithBalances.associate { it.account.id to it.currentBalance }
-    }
-
-    val filteredAccounts = remember(allAccounts, searchQuery) {
-        if (searchQuery.isBlank()) allAccounts
-        else {
-            val q = searchQuery.trim().lowercase()
-            allAccounts.filter { it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q) }
+    val totalBudget = otherAccountAllocation.totalBudgeted
+    val allocMap = remember {
+        val map = mutableStateMapOf<Long, String>()
+        otherAccountAllocation.accountSplits.forEach { split ->
+            map[split.account.id] = split.allocatedAmount.toString()
         }
+        if (map.isEmpty() && paymentSourceAccounts.isNotEmpty()) {
+            map[paymentSourceAccounts.first().id] = totalBudget.toString()
+        }
+        map
     }
+
+    val isExpense = otherAccountAllocation.isExpense
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
-                .testTag("dialog_select_payment_sources"),
+                .testTag("dialog_other_account_split"),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স একাউন্ট নির্বাচন" else "Select Payment Source Accounts",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র নির্বাচিত একাউন্টগুলো পেমেন্ট সোর্সে প্রদর্শিত হবে।" else "Only selected accounts will appear as payment sources.",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
-                    }
-                }
+                Text(
+                    text = "${if (languageMode == LanguageMode.BANGLA) "সোর্স নির্ধারণ:" else "Assign Sources:"} ${otherAccountAllocation.account.localizedName(languageMode)}",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${if (isExpense) "Due / Required Amount" else "Expected Inflow"}: ${LanguageHelper.formatCurrency(totalBudget, languageMode)}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Search Box
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(if (languageMode == LanguageMode.BANGLA) "একাউন্ট খুঁজুন..." else "Search accounts...", fontSize = 12.sp) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp)
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // Select All / Clear All Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "সকল নির্বাচন" else "Select All",
-                        fontSize = 11.sp,
-                        color = SolidPrimary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { selectedIds = allAccounts.map { it.id }.toSet() }
-                    )
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "মুছুন" else "Clear All",
-                        fontSize = 11.sp,
-                        color = SolidExpense,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { selectedIds = emptySet() }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Accounts Checkbox List
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                        .height(260.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(filteredAccounts, key = { it.id }) { acc ->
-                        val isChecked = selectedIds.contains(acc.id)
-                        val bal = balanceMap[acc.id] ?: 0.0
+                    items(paymentSourceAccounts, key = { it.id }) { acc ->
+                        val currentAmtStr = allocMap[acc.id] ?: ""
+                        val isIncluded = allocMap.containsKey(acc.id)
 
                         Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    selectedIds = if (isChecked) selectedIds - acc.id else selectedIds + acc.id
-                                },
-                            color = if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isIncluded) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Checkbox(
-                                        checked = isChecked,
+                                        checked = isIncluded,
                                         onCheckedChange = { checked ->
-                                            selectedIds = if (checked) selectedIds + acc.id else selectedIds - acc.id
-                                        },
-                                        colors = CheckboxDefaults.colors(checkedColor = SolidPrimary)
+                                            if (checked) {
+                                                val existingCount = allocMap.size + 1
+                                                val share = if (totalBudget > 0) (totalBudget / existingCount) else 0.0
+                                                allocMap[acc.id] = if (share > 0) String.format("%.2f", share) else "0.00"
+                                            } else {
+                                                allocMap.remove(acc.id)
+                                            }
+                                        }
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Column {
-                                        Text(
-                                            text = acc.localizedName(languageMode),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Text(
-                                            text = "Bal: ${LanguageHelper.formatCurrency(bal, languageMode)}",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
-                                    }
+                                    Text(
+                                        text = acc.localizedName(languageMode),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                 }
 
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = if (acc.type == AccountType.ASSET) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
-                                ) {
-                                    Text(
-                                        text = acc.type.name,
-                                        fontSize = 9.sp,
-                                        color = if (acc.type == AccountType.ASSET) SolidIncome else SolidExpense,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                if (isIncluded) {
+                                    OutlinedTextField(
+                                        value = currentAmtStr,
+                                        onValueChange = { allocMap[acc.id] = it },
+                                        modifier = Modifier.width(100.dp),
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(6.dp),
+                                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, textAlign = TextAlign.End)
                                     )
                                 }
                             }
@@ -1538,24 +1890,29 @@ private fun PaymentSourceSelectorDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Dialog Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.End
                 ) {
                     OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
                         Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onSave(selectedIds) },
+                        onClick = {
+                            val resultMap = mutableMapOf<Long, Double>()
+                            allocMap.forEach { (accId, amtStr) ->
+                                val amt = amtStr.toDoubleOrNull() ?: 0.0
+                                if (amt > 0) resultMap[accId] = amt
+                            }
+                            onSave(resultMap)
+                        },
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
                     ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ করুন (${selectedIds.size})" else "Save (${selectedIds.size})")
+                        Text(if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save")
                     }
                 }
             }
@@ -1564,7 +1921,7 @@ private fun PaymentSourceSelectorDialog(
 }
 
 // -----------------------------------------------------------------------------
-// DIALOG: CATEGORY MULTI-ACCOUNT SPLIT & ALLOCATION
+// DIALOG: CATEGORY MULTI-ACCOUNT SPLIT
 // -----------------------------------------------------------------------------
 
 @Composable
@@ -1600,7 +1957,7 @@ private fun CategoryAccountSplitDialog(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Assign: ${categoryAllocation.category.localizedName(languageMode)}",
+                    text = "${if (languageMode == LanguageMode.BANGLA) "সোর্স নির্ধারণ:" else "Assign:"} ${categoryAllocation.category.localizedName(languageMode)}",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1694,6 +2051,177 @@ private fun CategoryAccountSplitDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
                     ) {
                         Text(if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// DIALOG: PAYMENT SOURCE SELECTOR (MULTI-SELECT)
+// -----------------------------------------------------------------------------
+
+@Composable
+private fun PaymentSourceSelectorDialog(
+    allAccounts: List<Account>,
+    accountsWithBalances: List<AccountWithBalance>,
+    initialSelectedIds: Set<Long>,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSave: (Set<Long>) -> Unit
+) {
+    var selectedIds by remember { mutableStateOf(initialSelectedIds) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val balanceMap = remember(accountsWithBalances) {
+        accountsWithBalances.associate { it.account.id to it.currentBalance }
+    }
+
+    val filteredAccounts = remember(allAccounts, searchQuery) {
+        if (searchQuery.isBlank()) allAccounts
+        else {
+            val q = searchQuery.trim().lowercase()
+            allAccounts.filter { it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q) }
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .testTag("dialog_select_payment_sources"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স একাউন্ট নির্বাচন" else "Select Payment Source Accounts",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র নির্বাচিত একাউন্টগুলো পেমেন্ট সোর্সে প্রদর্শিত হবে।" else "Only selected accounts will appear as payment sources.",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Search Box
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(if (languageMode == LanguageMode.BANGLA) "একাউন্ট খুঁজুন..." else "Search accounts...", fontSize = 12.sp) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(filteredAccounts, key = { it.id }) { acc ->
+                        val isChecked = selectedIds.contains(acc.id)
+                        val balance = balanceMap[acc.id] ?: 0.0
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    selectedIds = if (isChecked) selectedIds - acc.id else selectedIds + acc.id
+                                },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Checkbox(
+                                        checked = isChecked,
+                                        onCheckedChange = { checked ->
+                                            selectedIds = if (checked) selectedIds + acc.id else selectedIds - acc.id
+                                        }
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(SolidPrimary.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = IconHelper.getIconByName(acc.iconName),
+                                            contentDescription = null,
+                                            tint = SolidPrimary,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(text = acc.localizedName(languageMode), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            text = LanguageHelper.formatCurrency(balance, languageMode),
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${selectedIds.size} ${if (languageMode == LanguageMode.BANGLA) "টি নির্বাচিত" else "Selected"}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Row {
+                        OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(8.dp)) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { onSave(selectedIds) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                        ) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save")
+                        }
                     }
                 }
             }

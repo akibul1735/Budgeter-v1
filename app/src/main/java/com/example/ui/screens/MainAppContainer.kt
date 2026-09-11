@@ -1950,6 +1950,9 @@ private fun ScreenRouter(
                 onSaveCategoryAllocations = { categoryId, allocMap ->
                     viewModel.saveCategoryAccountAllocations(categoryId, allocMap)
                 },
+                onSaveOtherAccountAllocations = { otherAccId, allocMap ->
+                    viewModel.saveOtherAccountAllocations(otherAccId, allocMap)
+                },
                 onSetPaymentSourceAccountIds = { ids ->
                     viewModel.setPaymentSourceAccountIds(ids)
                 },

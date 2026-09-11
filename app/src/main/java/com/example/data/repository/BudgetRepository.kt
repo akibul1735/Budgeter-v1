@@ -197,6 +197,49 @@ class BudgetRepository(
         monthlyBudgetDao.deleteBudget(year, month, "ALLOC_$categoryId", accountId)
     }
 
+    suspend fun saveOtherAccountAllocations(
+        year: Int,
+        month: Int,
+        otherAccountId: Long,
+        allocations: Map<Long, Double>
+    ) {
+        val itemType = "ALLOC_ACC_$otherAccountId"
+        val existing = monthlyBudgetDao.getBudgetsForMonthSnapshot(year, month)
+            .filter { it.itemType == itemType }
+
+        for (item in existing) {
+            if (!allocations.containsKey(item.itemId) || (allocations[item.itemId] ?: 0.0) <= 0.0) {
+                monthlyBudgetDao.deleteBudget(year, month, itemType, item.itemId)
+            }
+        }
+
+        for ((accountId, amount) in allocations) {
+            if (amount > 0.0) {
+                val match = existing.find { it.itemId == accountId }
+                val budget = MonthlyBudget(
+                    id = match?.id ?: 0,
+                    year = year,
+                    month = month,
+                    itemType = itemType,
+                    itemId = accountId,
+                    budgetedAmount = amount,
+                    isEnabled = true,
+                    updatedAt = System.currentTimeMillis()
+                )
+                monthlyBudgetDao.upsertBudget(budget)
+            }
+        }
+    }
+
+    suspend fun deleteOtherAccountAllocation(
+        year: Int,
+        month: Int,
+        otherAccountId: Long,
+        accountId: Long
+    ) {
+        monthlyBudgetDao.deleteBudget(year, month, "ALLOC_ACC_$otherAccountId", accountId)
+    }
+
     suspend fun copyBudgets(fromYear: Int, fromMonth: Int, toYear: Int, toMonth: Int) {
         val previous = monthlyBudgetDao.getBudgetsForMonthSnapshot(fromYear, fromMonth)
         if (previous.isNotEmpty()) {

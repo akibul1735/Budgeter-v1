@@ -17,10 +17,18 @@ data class AccountObligation(
     val note: String = ""
 )
 
+data class AccountLink(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val otherAccountId: Long,
+    val paymentSourceAccountId: Long,
+    val relationNote: String = ""
+)
+
 data class PaymentSourceConfig(
     val selectedSourceAccountIds: Set<Long> = emptySet(),
     val hasCustomizedSelection: Boolean = false,
-    val accountObligations: List<AccountObligation> = emptyList()
+    val accountObligations: List<AccountObligation> = emptyList(),
+    val accountLinks: List<AccountLink> = emptyList()
 ) {
     fun isPaymentSource(accountId: Long, fallbackIsLeafAsset: Boolean): Boolean {
         return if (hasCustomizedSelection) {
@@ -60,10 +68,28 @@ class PaymentSourcePreferences private constructor(context: Context) {
             }
         } catch (_: Exception) {}
 
+        val linksJson = prefs.getString(KEY_ACCOUNT_LINKS, "[]") ?: "[]"
+        val linksList = mutableListOf<AccountLink>()
+        try {
+            val jsonArr = JSONArray(linksJson)
+            for (i in 0 until jsonArr.length()) {
+                val obj = jsonArr.getJSONObject(i)
+                linksList.add(
+                    AccountLink(
+                        id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                        otherAccountId = obj.getLong("otherAccountId"),
+                        paymentSourceAccountId = obj.getLong("paymentSourceAccountId"),
+                        relationNote = obj.optString("relationNote", "")
+                    )
+                )
+            }
+        } catch (_: Exception) {}
+
         return PaymentSourceConfig(
             selectedSourceAccountIds = idsSet,
             hasCustomizedSelection = hasCustom,
-            accountObligations = obligationsList
+            accountObligations = obligationsList,
+            accountLinks = linksList
         )
     }
 
@@ -120,10 +146,57 @@ class PaymentSourcePreferences private constructor(context: Context) {
         _config.value = _config.value.copy(accountObligations = list)
     }
 
+    fun saveAccountLink(link: AccountLink) {
+        val currentList = _config.value.accountLinks.toMutableList()
+        val existingIndex = currentList.indexOfFirst { 
+            it.id == link.id || (it.otherAccountId == link.otherAccountId && it.paymentSourceAccountId == link.paymentSourceAccountId)
+        }
+        if (existingIndex >= 0) {
+            currentList[existingIndex] = link
+        } else {
+            currentList.add(link)
+        }
+        persistLinks(currentList)
+    }
+
+    fun deleteAccountLink(linkId: String) {
+        val currentList = _config.value.accountLinks.filter { it.id != linkId }
+        persistLinks(currentList)
+    }
+
+    fun saveLinksForOtherAccount(otherAccountId: Long, sourceAccountIds: List<Long>, note: String = "") {
+        val existingOthers = _config.value.accountLinks.filter { it.otherAccountId != otherAccountId }.toMutableList()
+        sourceAccountIds.forEach { srcId ->
+            existingOthers.add(
+                AccountLink(
+                    otherAccountId = otherAccountId,
+                    paymentSourceAccountId = srcId,
+                    relationNote = note
+                )
+            )
+        }
+        persistLinks(existingOthers)
+    }
+
+    private fun persistLinks(list: List<AccountLink>) {
+        val jsonArr = JSONArray()
+        for (lk in list) {
+            val obj = JSONObject()
+            obj.put("id", lk.id)
+            obj.put("otherAccountId", lk.otherAccountId)
+            obj.put("paymentSourceAccountId", lk.paymentSourceAccountId)
+            obj.put("relationNote", lk.relationNote)
+            jsonArr.put(obj)
+        }
+        prefs.edit().putString(KEY_ACCOUNT_LINKS, jsonArr.toString()).apply()
+        _config.value = _config.value.copy(accountLinks = list)
+    }
+
     companion object {
         private const val KEY_HAS_CUSTOM = "has_custom_source_selection"
         private const val KEY_SELECTED_ACCOUNT_IDS = "selected_source_account_ids"
         private const val KEY_OBLIGATIONS = "account_obligations"
+        private const val KEY_ACCOUNT_LINKS = "account_links"
 
         @Volatile
         private var INSTANCE: PaymentSourcePreferences? = null

@@ -86,6 +86,7 @@ private val SectionHeaderColor = Color(0xFF4C7B5D)
 
 enum class SettingsSubPage {
     ROOT,
+    PAYMENT_SOURCES,
     LANGUAGE,
     CURRENCY,
     DATE_TIME,
@@ -152,6 +153,13 @@ fun SettingsScreen(
     }
 
     when (currentSubPage) {
+        SettingsSubPage.PAYMENT_SOURCES -> {
+            com.example.ui.screens.settings.PaymentSourcesSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
         SettingsSubPage.LANGUAGE -> {
             LanguageSettingsPage(
                 viewModel = viewModel,
@@ -433,6 +441,15 @@ fun SettingsScreen(
                             subtitle = if (languageMode == LanguageMode.BANGLA) "ট্যাব বারের অবস্থান, প্রদর্শন ও ক্রম পরিবর্তন" else "Tab position, visibility & custom ordering",
                             icon = Icons.Default.ViewCarousel,
                             onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                        )
+                    }
+
+                    item {
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স ও অ্যাকাউন্ট লিঙ্কিং" else "Payment Sources & Linking",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স নির্ধারণ এবং অন্যান্য অ্যাকাউন্টের সাথে লিঙ্ক করুন" else "Designate payment sources and link other accounts",
+                            icon = Icons.Default.MonetizationOn,
+                            onClick = { currentSubPage = SettingsSubPage.PAYMENT_SOURCES }
                         )
                     }
 
