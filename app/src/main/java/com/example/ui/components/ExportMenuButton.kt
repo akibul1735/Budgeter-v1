@@ -49,26 +49,24 @@ fun ExportMenuButton(
     onExport: (ExportFormat) -> Unit,
     languageMode: LanguageMode = LanguageMode.ENGLISH,
     modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Default.PictureAsPdf,
     testTag: String = "header_export_btn"
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
-        Box(
+        IconButton(
+            onClick = { expanded = true },
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .combinedClickable(
-                    onClick = { onExport(ExportFormat.PDF) },
-                    onLongClick = { expanded = true }
-                )
-                .testTag(testTag),
-            contentAlignment = Alignment.Center
+                .testTag(testTag)
         ) {
             Icon(
-                imageVector = Icons.Default.Print,
-                contentDescription = if (languageMode == LanguageMode.BANGLA) "প্রিন্ট করুন" else "Print",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                imageVector = icon,
+                contentDescription = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট ও রিপোর্ট (PDF, CSV, HTML, JSON)" else "Export & Reports (PDF, CSV, HTML, JSON)",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
         }
 
@@ -86,7 +84,7 @@ fun ExportMenuButton(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "প্রিন্ট ও এক্সপোর্ট" else "Print & Export",
+                    text = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট ফরম্যাট নির্বাচন করুন" else "Select Export Format",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -95,12 +93,12 @@ fun ExportMenuButton(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // 1. Print / PDF Document
+            // 1. PDF Document
             DropdownMenuItem(
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "প্রিন্ট করুন (PDF ডকুমেন্ট)" else "Print Document (PDF)",
+                            text = if (languageMode == LanguageMode.BANGLA) "PDF ডকুমেন্ট (প্রিন্ট ও শেয়ার)" else "PDF Document (Print / View)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -114,7 +112,7 @@ fun ExportMenuButton(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.Print,
+                                imageVector = Icons.Default.PictureAsPdf,
                                 contentDescription = null,
                                 tint = Color(0xFFDC2626),
                                 modifier = Modifier.size(16.dp)
@@ -134,7 +132,7 @@ fun ExportMenuButton(
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "CSV স্প্রেডশীট (এক্সেল/শীট)" else "CSV Spreadsheet (Excel/Sheets)",
+                            text = if (languageMode == LanguageMode.BANGLA) "CSV স্প্রেডশীট (Excel / Sheets)" else "CSV Spreadsheet (Excel / Sheets)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -163,7 +161,7 @@ fun ExportMenuButton(
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "HTML ওয়েব রিপোর্ট" else "HTML Web Report",
+                            text = if (languageMode == LanguageMode.BANGLA) "HTML ওয়েব রিপোর্ট (ব্রাউজার ভিউ)" else "HTML Web Report (Browser View)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -192,7 +190,7 @@ fun ExportMenuButton(
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "JSON ডেটা (র ডেটা)" else "JSON Raw Data",
+                            text = if (languageMode == LanguageMode.BANGLA) "JSON ডেটা (র ডাটা এক্সপোর্ট)" else "JSON Raw Data (Full Structure)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium
                         )
