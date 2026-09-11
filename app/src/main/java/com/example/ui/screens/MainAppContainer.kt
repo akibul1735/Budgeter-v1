@@ -1996,6 +1996,7 @@ private fun ScreenRouter(
             accountsWithBalances = accountsWithBalances,
             accountCalcConfig = accountCalcConfig,
             languageMode = languageMode,
+            allTransactions = transactionsWithDetails,
             onOpenDrawer = onOpenDrawer,
             onAddAccountClick = { onAddAccount(null) },
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
