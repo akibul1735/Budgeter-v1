@@ -33,7 +33,11 @@ data class GoogleDriveBackupFile(
     val name: String,
     val modifiedTime: String,
     val size: Long,
-    val location: DriveBackupLocation
+    val location: DriveBackupLocation,
+    val installationId: String? = null,
+    val deviceName: String? = null,
+    val accountsCount: Int? = null,
+    val transactionsCount: Int? = null
 )
 
 enum class DriveBackupLocation {
@@ -245,7 +249,10 @@ object GoogleDriveService {
         folderType: String = "Visible 'Budgeter' Folder",
         includeSettings: Boolean = true
     ): Result<DriveBackupResult> {
+        val bPrefs = BackupPreferences.getInstance(context)
         val backupData = BudgetBackupData(
+            installationId = bPrefs.getInstallationId(),
+            deviceName = bPrefs.getDeviceName(),
             accounts = accountDao.getAllAccountsSnapshot(),
             categories = categoryDao.getAllCategoriesSnapshot(),
             transactions = transactionDao.getAllTransactionsSnapshot(),
@@ -256,7 +263,8 @@ object GoogleDriveService {
         )
         val jsonContent = adapter.indent("  ").toJson(backupData)
 
-        val syncFileName = "budgeter_sync_data.json"
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val syncFileName = "Budgeter_Backup_$timestamp.json"
 
         var visibleFileId: String? = null
         var appDataFileId: String? = null
@@ -264,26 +272,28 @@ object GoogleDriveService {
         val uploadToVisible = folderType.contains("Visible", ignoreCase = true) || folderType.contains("Both", ignoreCase = true)
         val uploadToHidden = folderType.contains("Hidden", ignoreCase = true) || folderType.contains("Both", ignoreCase = true)
 
-        // 1. Sync to Visible "Budgeter" Folder if configured (single file: budgeter_sync_data.json)
+        // 1. Upload to Visible "Budgeter" Folder & retain last 5
         if (uploadToVisible) {
             val folderId = getOrCreateVisibleBudgeterFolder(accessToken)
-            visibleFileId = syncSingleFileToDrive(
-                accessToken = accessToken,
-                fileName = syncFileName,
-                jsonContent = jsonContent,
-                parentFolderId = folderId,
-                isAppData = false
-            )
+            if (folderId != null) {
+                visibleFileId = uploadFile(accessToken, syncFileName, jsonContent, listOf(folderId))
+                pruneRollingBackups(
+                    accessToken = accessToken,
+                    parentFolderId = folderId,
+                    isAppData = false,
+                    maxBackups = 5
+                )
+            }
         }
 
-        // 2. Sync to Hidden "appDataFolder" if configured (single file: budgeter_sync_data.json)
+        // 2. Upload to Hidden "appDataFolder" & retain last 5
         if (uploadToHidden || (!uploadToVisible && !uploadToHidden)) {
-            appDataFileId = syncSingleFileToDrive(
+            appDataFileId = uploadFile(accessToken, syncFileName, jsonContent, listOf("appDataFolder"))
+            pruneRollingBackups(
                 accessToken = accessToken,
-                fileName = syncFileName,
-                jsonContent = jsonContent,
                 parentFolderId = null,
-                isAppData = true
+                isAppData = true,
+                maxBackups = 5
             )
         }
 
@@ -297,25 +307,21 @@ object GoogleDriveService {
     }
 
     /**
-     * Synchronizes a single file into Google Drive by updating in-place if it exists,
-     * or creating it if it does not exist, and cleaning up any older legacy duplicates.
+     * Prunes rolling backups in Google Drive to keep only the latest [maxBackups] (5).
      */
-    private fun syncSingleFileToDrive(
+    private fun pruneRollingBackups(
         accessToken: String,
-        fileName: String,
-        jsonContent: String,
         parentFolderId: String?,
-        isAppData: Boolean
-    ): String? {
+        isAppData: Boolean,
+        maxBackups: Int = 5
+    ) {
         try {
-            // 1. Query for existing file(s)
             val query = if (isAppData) {
-                "trashed = false and (name = '$fileName' or name contains 'Budgeter' or name contains 'budgeter')"
+                "trashed = false and (mimeType = 'application/json' or name contains 'Budgeter' or name contains 'budgeter')"
             } else {
                 val folder = parentFolderId ?: "root"
-                "'$folder' in parents and trashed = false and (name = '$fileName' or name contains 'Budgeter' or name contains 'budgeter')"
+                "'$folder' in parents and trashed = false and (mimeType = 'application/json' or name contains 'Budgeter' or name contains 'budgeter')"
             }
-
             val spaceParam = if (isAppData) "appDataFolder" else "drive"
             val queryUrl = "https://www.googleapis.com/drive/v3/files?q=${java.net.URLEncoder.encode(query, "UTF-8")}&spaces=$spaceParam&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc"
 
@@ -325,70 +331,30 @@ object GoogleDriveService {
                 .get()
                 .build()
 
-            var existingFileId: String? = null
-            val extraFileIdsToDelete = mutableListOf<String>()
-
             httpClient.newCall(searchReq).execute().use { response ->
                 if (response.isSuccessful) {
                     val body = response.body?.string() ?: ""
                     val json = JSONObject(body)
                     val files = json.optJSONArray("files") ?: JSONArray()
-                    if (files.length() > 0) {
-                        existingFileId = files.getJSONObject(0).optString("id")
-                        // Collect any older duplicates to clean up so only ONE single sync file remains
-                        for (i in 1 until files.length()) {
+                    if (files.length() > maxBackups) {
+                        for (i in maxBackups until files.length()) {
                             val oldId = files.getJSONObject(i).optString("id")
-                            if (oldId.isNotBlank()) extraFileIdsToDelete.add(oldId)
+                            if (oldId.isNotBlank()) {
+                                try {
+                                    val delReq = Request.Builder()
+                                        .url("https://www.googleapis.com/drive/v3/files/$oldId")
+                                        .addHeader("Authorization", "Bearer $accessToken")
+                                        .delete()
+                                        .build()
+                                    httpClient.newCall(delReq).execute().close()
+                                } catch (_: Exception) {}
+                            }
                         }
                     }
                 }
             }
-
-            // Clean up older legacy duplicates in background
-            for (oldId in extraFileIdsToDelete) {
-                try {
-                    val delReq = Request.Builder()
-                        .url("https://www.googleapis.com/drive/v3/files/$oldId")
-                        .addHeader("Authorization", "Bearer $accessToken")
-                        .delete()
-                        .build()
-                    httpClient.newCall(delReq).execute().close()
-                } catch (e: Exception) {
-                    // Ignore deletion error for old files
-                }
-            }
-
-            // 2. If existing file found, update it in-place
-            if (!existingFileId.isNullOrBlank()) {
-                val updateUrl = "https://www.googleapis.com/upload/drive/v3/files/$existingFileId?uploadType=media"
-                val updateReq = Request.Builder()
-                    .url(updateUrl)
-                    .addHeader("Authorization", "Bearer $accessToken")
-                    .addHeader("Content-Type", "application/json; charset=UTF-8")
-                    .patch(jsonContent.toRequestBody("application/json; charset=UTF-8".toMediaType()))
-                    .build()
-
-                httpClient.newCall(updateReq).execute().use { response ->
-                    if (response.isSuccessful) {
-                        // Ensure filename is canonical
-                        val renameReq = Request.Builder()
-                            .url("https://www.googleapis.com/drive/v3/files/$existingFileId")
-                            .addHeader("Authorization", "Bearer $accessToken")
-                            .addHeader("Content-Type", "application/json")
-                            .patch("{\"name\":\"$fileName\"}".toRequestBody("application/json; charset=UTF-8".toMediaType()))
-                            .build()
-                        httpClient.newCall(renameReq).execute().close()
-                        return existingFileId
-                    }
-                }
-            }
-
-            // 3. If not found or update failed, create new single file
-            val parents = if (isAppData) listOf("appDataFolder") else if (parentFolderId != null) listOf(parentFolderId) else listOf("root")
-            return uploadFile(accessToken, fileName, jsonContent, parents)
         } catch (e: Exception) {
             e.printStackTrace()
-            return null
         }
     }
 
@@ -673,6 +639,89 @@ object GoogleDriveService {
             monthlyBudgetDao = monthlyBudgetDao,
             budgetAdjustmentDao = budgetAdjustmentDao,
             restoreData = restoreData,
+            restoreSettings = restoreSettings
+        )
+    }
+
+    suspend fun mergeFromDriveFile(
+        context: Context,
+        account: GoogleSignInAccount,
+        fileId: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null,
+        budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        restoreSettings: Boolean = false
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val accessToken = getAccessToken(context, account)
+                ?: return@withContext Result.failure(Exception("Failed to obtain access token"))
+            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, restoreSettings)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun mergeFromDriveFileForEmail(
+        context: Context,
+        email: String,
+        fileId: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null,
+        budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        restoreSettings: Boolean = false
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val accessToken = getAccessTokenForEmail(context, email)
+                ?: return@withContext Result.failure(Exception("Failed to obtain access token for $email"))
+            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, restoreSettings)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun executeMergeFromDriveFile(
+        context: Context,
+        accessToken: String,
+        fileId: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null,
+        budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        restoreSettings: Boolean = false
+    ): Result<Int> {
+        val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
+        val request = Request.Builder()
+            .url(downloadUrl)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        val json = httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                return Result.failure(Exception("Failed to download file from Google Drive: HTTP ${response.code}"))
+            }
+            response.body?.string() ?: return Result.failure(Exception("Empty file content"))
+        }
+
+        return BackupManager.mergeFromJson(
+            context = context,
+            json = json,
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao,
+            recurringBillDao = recurringBillDao,
+            monthlyBudgetDao = monthlyBudgetDao,
+            budgetAdjustmentDao = budgetAdjustmentDao,
             restoreSettings = restoreSettings
         )
     }

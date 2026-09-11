@@ -453,6 +453,9 @@ class BackupPreferences(context: Context) {
         private const val KEY_AUTO_SYNC_ON_CLOSE = "auto_sync_on_close"
         private const val KEY_WIFI_ONLY = "wifi_only"
         private const val KEY_LAST_SYNC = "last_sync_timestamp"
+        private const val KEY_INSTALLATION_ID = "installation_id"
+        private const val KEY_DISMISSED_BACKUP_IDS = "dismissed_cloud_backup_ids"
+        private const val KEY_FIRST_LAUNCH_SHOWN = "first_launch_cloud_check_done"
 
         @Volatile
         private var instance: BackupPreferences? = null
@@ -463,4 +466,59 @@ class BackupPreferences(context: Context) {
             }
         }
     }
+
+    /**
+     * Unique ID generated once per app installation.
+     */
+    fun getInstallationId(): String {
+        val existing = prefs.getString(KEY_INSTALLATION_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+        val newId = "inst_" + java.util.UUID.randomUUID().toString().replace("-", "").take(8)
+        prefs.edit().putString(KEY_INSTALLATION_ID, newId).apply()
+        return newId
+    }
+
+    /**
+     * Formatted human-readable device model name (e.g. "Google Pixel 8", "Samsung SM-S911B")
+     */
+    fun getDeviceName(): String {
+        val manufacturer = android.os.Build.MANUFACTURER.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+        val model = android.os.Build.MODEL
+        return if (model.startsWith(manufacturer, ignoreCase = true)) {
+            model
+        } else {
+            "$manufacturer $model"
+        }.trim()
+    }
+
+    fun isBackupBannerDismissed(backupId: String): Boolean {
+        val dismissedSet = prefs.getStringSet(KEY_DISMISSED_BACKUP_IDS, emptySet()) ?: emptySet()
+        return dismissedSet.contains(backupId)
+    }
+
+    fun dismissBackupBanner(backupId: String) {
+        val dismissedSet = (prefs.getStringSet(KEY_DISMISSED_BACKUP_IDS, emptySet()) ?: emptySet()).toMutableSet()
+        dismissedSet.add(backupId)
+        prefs.edit().putStringSet(KEY_DISMISSED_BACKUP_IDS, dismissedSet).apply()
+    }
+
+    fun resetDismissedBanners() {
+        prefs.edit().remove(KEY_DISMISSED_BACKUP_IDS).apply()
+    }
+
+    fun isFirstLaunchCheckDone(): Boolean {
+        return prefs.getBoolean(KEY_FIRST_LAUNCH_SHOWN, false)
+    }
+
+    fun setFirstLaunchCheckDone(done: Boolean = true) {
+        prefs.edit().putBoolean(KEY_FIRST_LAUNCH_SHOWN, done).apply()
+    }
+
+    fun getLocalBackupDirectory(): String = config.value.localBackupDirectory
+    fun getPrimaryEmail(): String = config.value.primaryAccount.email
+    fun getSecondaryEmail(): String = config.value.secondaryAccount.email
+    fun getPrimaryProvider(): String = config.value.primaryAccount.provider
+    fun isBackupDismissed(backupId: String): Boolean = isBackupBannerDismissed(backupId)
+    fun dismissBackup(backupId: String) = dismissBackupBanner(backupId)
 }
+

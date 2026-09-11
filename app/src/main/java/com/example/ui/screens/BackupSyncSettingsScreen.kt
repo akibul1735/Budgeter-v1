@@ -62,6 +62,7 @@ import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SdStorage
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.SwapVert
@@ -132,6 +133,9 @@ import com.example.util.DriveBackupLocation
 import com.example.util.DropboxService
 import com.example.util.GoogleDriveBackupFile
 import com.example.util.GoogleDriveService
+import com.example.ui.dialogs.DetectedBackupsListDialog
+import com.example.ui.dialogs.RestoreOrMergeOptionsDialog
+import com.example.ui.viewmodel.DetectedBackupInfo
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import java.io.File
@@ -194,6 +198,9 @@ fun BackupSyncSettingsScreen(
     var deleteConfirmDriveFile by remember { mutableStateOf<GoogleDriveBackupFile?>(null) }
     var restoreConfirmLocalFile by remember { mutableStateOf<File?>(null) }
     var deleteConfirmLocalFile by remember { mutableStateOf<File?>(null) }
+    val detectedBackups by viewModel.detectedBackups.collectAsStateWithLifecycle()
+    var showScanBackupsDialog by remember { mutableStateOf(false) }
+    var selectedBackupForOptionsDialog by remember { mutableStateOf<DetectedBackupInfo?>(null) }
 
     fun refreshLocalBackups() {
         localBackups = BackupManager.listLocalBackups(context, config.localBackupDirectory)
@@ -416,6 +423,79 @@ fun BackupSyncSettingsScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Quick Action: Scan for All Previous Backups across all drives and storage
+            item {
+                OutlinedCard(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.outlinedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ব্যাকআপ খুঁজুন ও স্ক্যান করুন" else "Scan & Find Previous Backups",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA)
+                                        "ড্রাইভ ১, ড্রাইভ ২ এবং ডিভাইস স্টোরেজের সকল ব্যাকআপ খুঁজুন ও রিস্টোর/মার্জ করুন"
+                                    else
+                                        "Detect snapshots from Cloud Drives & Local Storage to Merge/Restore",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                viewModel.scanForPreviousBackups()
+                                showScanBackupsDialog = true
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "স্ক্যান" else "Scan",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
             // Status Feedback Card
             when (val state = backupUiState) {
                 is BackupUiState.Success -> {
@@ -661,8 +741,20 @@ fun BackupSyncSettingsScreen(
                             DriveSnapshotItem(
                                 backupFile = backupFile,
                                 onRestore = {
-                                    activeDriveAccountTab = 0
-                                    restoreConfirmDriveFile = backupFile
+                                    val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
+                                    val info = DetectedBackupInfo(
+                                        fileId = backupFile.id,
+                                        fileName = backupFile.name,
+                                        sourceProvider = "Google Drive (Primary)",
+                                        timestamp = parsedTime,
+                                        deviceName = backupFile.deviceName,
+                                        installationId = backupFile.installationId,
+                                        accountsCount = backupFile.accountsCount,
+                                        transactionsCount = backupFile.transactionsCount,
+                                        driveIndex = 1,
+                                        rawBackupFile = backupFile
+                                    )
+                                    selectedBackupForOptionsDialog = info
                                 },
                                 onDelete = {
                                     activeDriveAccountTab = 0
@@ -797,8 +889,20 @@ fun BackupSyncSettingsScreen(
                             DriveSnapshotItem(
                                 backupFile = backupFile,
                                 onRestore = {
-                                    activeDriveAccountTab = 1
-                                    restoreConfirmDriveFile = backupFile
+                                    val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
+                                    val info = DetectedBackupInfo(
+                                        fileId = backupFile.id,
+                                        fileName = backupFile.name,
+                                        sourceProvider = "Secondary (${config.secondaryAccount.provider})",
+                                        timestamp = parsedTime,
+                                        deviceName = backupFile.deviceName,
+                                        installationId = backupFile.installationId,
+                                        accountsCount = backupFile.accountsCount,
+                                        transactionsCount = backupFile.transactionsCount,
+                                        driveIndex = 2,
+                                        rawBackupFile = backupFile
+                                    )
+                                    selectedBackupForOptionsDialog = info
                                 },
                                 onDelete = {
                                     activeDriveAccountTab = 1
@@ -1191,7 +1295,16 @@ fun BackupSyncSettingsScreen(
                                     }
 
                                     Button(
-                                        onClick = { restoreConfirmLocalFile = file },
+                                        onClick = {
+                                            val info = DetectedBackupInfo(
+                                                fileId = file.name,
+                                                fileName = file.name,
+                                                sourceProvider = "Local Storage",
+                                                timestamp = file.lastModified(),
+                                                localFile = file
+                                            )
+                                            selectedBackupForOptionsDialog = info
+                                        },
                                         shape = RoundedCornerShape(6.dp),
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                         modifier = Modifier.height(30.dp)
@@ -1938,6 +2051,39 @@ fun BackupSyncSettingsScreen(
                 deleteConfirmLocalFile = null
             },
             onDismiss = { deleteConfirmLocalFile = null }
+        )
+    }
+
+    // Restore or Merge Selection Dialog
+    selectedBackupForOptionsDialog?.let { backupInfo ->
+        RestoreOrMergeOptionsDialog(
+            backupTitle = backupInfo.fileName,
+            backupInfo = backupInfo,
+            languageMode = languageMode,
+            onMerge = {
+                viewModel.restoreDetectedBackup(backupInfo, merge = true)
+                selectedBackupForOptionsDialog = null
+            },
+            onRestoreReplace = {
+                viewModel.restoreDetectedBackup(backupInfo, merge = false)
+                selectedBackupForOptionsDialog = null
+            },
+            onDismiss = { selectedBackupForOptionsDialog = null }
+        )
+    }
+
+    // Detected Backups List & Scan Dialog
+    if (showScanBackupsDialog) {
+        DetectedBackupsListDialog(
+            detectedBackups = detectedBackups,
+            isFirstLaunchPrompt = false,
+            languageMode = languageMode,
+            onScanAgain = { viewModel.scanForPreviousBackups() },
+            onSelectBackupToRestore = { backup, isMerge ->
+                viewModel.restoreDetectedBackup(backup, isMerge)
+                showScanBackupsDialog = false
+            },
+            onDismiss = { showScanBackupsDialog = false }
         )
     }
 

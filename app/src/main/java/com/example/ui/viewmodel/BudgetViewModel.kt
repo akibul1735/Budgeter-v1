@@ -97,6 +97,20 @@ sealed interface BackupUiState {
     data class Error(val message: String) : BackupUiState
 }
 
+data class DetectedBackupInfo(
+    val fileId: String,
+    val fileName: String,
+    val sourceProvider: String, // "Google Drive", "Dropbox", "Local Storage"
+    val timestamp: Long,
+    val deviceName: String? = null,
+    val installationId: String? = null,
+    val accountsCount: Int? = null,
+    val transactionsCount: Int? = null,
+    val driveIndex: Int = 1,
+    val rawBackupFile: GoogleDriveBackupFile? = null,
+    val localFile: java.io.File? = null
+)
+
 class BudgetViewModel(application: Application) : AndroidViewModel(application) {
 
     private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
@@ -335,9 +349,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setDarkSurfaceTone(tone: DarkSurfaceTone) = themePrefs.setDarkSurfaceTone(tone)
     fun resetThemePreferences() = themePrefs.resetToDefaults()
 
+    private val _detectedBackups = MutableStateFlow<List<DetectedBackupInfo>>(emptyList())
+    val detectedBackups: StateFlow<List<DetectedBackupInfo>> = _detectedBackups.asStateFlow()
+
+    private val _showRestoreBanner = MutableStateFlow(false)
+    val showRestoreBanner: StateFlow<Boolean> = _showRestoreBanner.asStateFlow()
+
+    private val _firstLaunchCheckDialogVisible = MutableStateFlow(false)
+    val firstLaunchCheckDialogVisible: StateFlow<Boolean> = _firstLaunchCheckDialogVisible.asStateFlow()
+
     init {
         viewModelScope.launch {
             activeRepo.ensureOthersGroupIntegrity()
+            checkForPreviousBackupsOnLaunch()
         }
     }
 
@@ -858,6 +882,94 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun mergeBackupFromUri(uri: Uri, restoreSettings: Boolean = false) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.use {
+                        it.bufferedReader().readText()
+                    }
+                } ?: return@launch run {
+                    _backupUiState.value = BackupUiState.Error("Cannot open backup file")
+                }
+                val result = BackupManager.mergeFromJson(
+                    context = getApplication(),
+                    json = json,
+                    accountDao = activeRepo.accountDao,
+                    categoryDao = activeRepo.categoryDao,
+                    transactionDao = activeRepo.transactionDao,
+                    recurringBillDao = activeRepo.recurringBillDao,
+                    monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                    budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    restoreSettings = restoreSettings
+                )
+                result.onSuccess { count ->
+                    _backupUiState.value = BackupUiState.Success("Merged $count records successfully!")
+                }.onFailure { err ->
+                    _backupUiState.value = BackupUiState.Error("Merge failed: ${err.localizedMessage}")
+                }
+            } catch (e: Exception) {
+                _backupUiState.value = BackupUiState.Error("Merge failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun restoreLocalBackup(file: java.io.File, restoreData: Boolean = true, restoreSettings: Boolean = true) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            try {
+                val json = withContext(Dispatchers.IO) { file.readText() }
+                val result = BackupManager.restoreFromJson(
+                    context = getApplication(),
+                    json = json,
+                    accountDao = activeRepo.accountDao,
+                    categoryDao = activeRepo.categoryDao,
+                    transactionDao = activeRepo.transactionDao,
+                    recurringBillDao = activeRepo.recurringBillDao,
+                    monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                    budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    restoreData = restoreData,
+                    restoreSettings = restoreSettings
+                )
+                result.onSuccess { count ->
+                    _backupUiState.value = BackupUiState.Success("Restored $count records from ${file.name}!")
+                }.onFailure { err ->
+                    _backupUiState.value = BackupUiState.Error("Restore failed: ${err.localizedMessage}")
+                }
+            } catch (e: Exception) {
+                _backupUiState.value = BackupUiState.Error("Restore failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun mergeLocalBackup(file: java.io.File, restoreSettings: Boolean = false) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            try {
+                val json = withContext(Dispatchers.IO) { file.readText() }
+                val result = BackupManager.mergeFromJson(
+                    context = getApplication(),
+                    json = json,
+                    accountDao = activeRepo.accountDao,
+                    categoryDao = activeRepo.categoryDao,
+                    transactionDao = activeRepo.transactionDao,
+                    recurringBillDao = activeRepo.recurringBillDao,
+                    monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                    budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    restoreSettings = restoreSettings
+                )
+                result.onSuccess { count ->
+                    _backupUiState.value = BackupUiState.Success("Merged $count records from ${file.name}!")
+                }.onFailure { err ->
+                    _backupUiState.value = BackupUiState.Error("Merge failed: ${err.localizedMessage}")
+                }
+            } catch (e: Exception) {
+                _backupUiState.value = BackupUiState.Error("Merge failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
     suspend fun getBackupPreviewFromUri(uri: Uri): BudgetBackupData? = withContext(Dispatchers.IO) {
         BackupManager.parseBackupData(getApplication(), uri)
     }
@@ -1304,6 +1416,401 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         _backupUiState.value = BackupUiState.Error("Dropbox download failed: ${err.localizedMessage}")
                     }
                 }
+            }
+        }
+    }
+
+    fun mergeFromCloudProvider(driveIndex: Int, backupFile: GoogleDriveBackupFile, restoreSettings: Boolean = false) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val accountInfo = if (driveIndex == 1) backupSettingsConfig.value.primaryAccount else backupSettingsConfig.value.secondaryAccount
+            when {
+                accountInfo.provider.contains("Google", ignoreCase = true) -> {
+                    val googleAcc = if (driveIndex == 1) _signedInGoogleAccount.value else _secondarySignedInGoogleAccount.value
+                    val email = accountInfo.email
+                    if (googleAcc != null) {
+                        if (driveIndex == 1) {
+                            mergeFromGoogleDrive(googleAcc, backupFile, restoreSettings)
+                        } else {
+                            mergeFromSecondaryGoogleDrive(googleAcc, backupFile, restoreSettings)
+                        }
+                    } else if (email.isNotBlank()) {
+                        val result = GoogleDriveService.mergeFromDriveFileForEmail(
+                            context = getApplication(),
+                            email = email,
+                            fileId = backupFile.id,
+                            accountDao = activeRepo.accountDao,
+                            categoryDao = activeRepo.categoryDao,
+                            transactionDao = activeRepo.transactionDao,
+                            recurringBillDao = activeRepo.recurringBillDao,
+                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            restoreSettings = restoreSettings
+                        )
+                        result.onSuccess { count ->
+                            _backupUiState.value = BackupUiState.Success("Successfully merged $count records from Google Drive!")
+                        }.onFailure { err ->
+                            _backupUiState.value = BackupUiState.Error("Merge failed: ${err.localizedMessage}")
+                        }
+                    }
+                }
+                accountInfo.provider.contains("Dropbox", ignoreCase = true) -> {
+                    val validToken = DropboxService.getValidAccessToken(getApplication(), driveIndex)
+                    if (validToken.isBlank()) {
+                        _backupUiState.value = BackupUiState.Error("Please connect your Dropbox account first")
+                        return@launch
+                    }
+                    val result = DropboxService.mergeFromDropbox(
+                        context = getApplication(),
+                        accessToken = validToken,
+                        pathOrId = backupFile.id,
+                        accountDao = activeRepo.accountDao,
+                        categoryDao = activeRepo.categoryDao,
+                        transactionDao = activeRepo.transactionDao,
+                        recurringBillDao = activeRepo.recurringBillDao,
+                        monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                        budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                        restoreSettings = restoreSettings
+                    )
+                    result.onSuccess { count ->
+                        _backupUiState.value = BackupUiState.Success("Successfully merged $count records from Dropbox!")
+                    }.onFailure { err ->
+                        _backupUiState.value = BackupUiState.Error("Failed to merge Dropbox backup: ${err.localizedMessage}")
+                    }
+                }
+            }
+        }
+    }
+
+    fun mergeFromGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile, restoreSettings: Boolean = false) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = GoogleDriveService.mergeFromDriveFile(
+                context = getApplication(),
+                account = account,
+                fileId = backupFile.id,
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                restoreSettings = restoreSettings
+            )
+            result.onSuccess { count ->
+                _backupUiState.value = BackupUiState.Success("Successfully merged $count records from Google Drive!")
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Merge from Drive failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun mergeFromSecondaryGoogleDrive(account: GoogleSignInAccount, backupFile: GoogleDriveBackupFile, restoreSettings: Boolean = false) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            val result = GoogleDriveService.mergeFromDriveFile(
+                context = getApplication(),
+                account = account,
+                fileId = backupFile.id,
+                accountDao = activeRepo.accountDao,
+                categoryDao = activeRepo.categoryDao,
+                transactionDao = activeRepo.transactionDao,
+                recurringBillDao = activeRepo.recurringBillDao,
+                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                restoreSettings = restoreSettings
+            )
+            result.onSuccess { count ->
+                _backupUiState.value = BackupUiState.Success("Successfully merged $count records from Secondary Google Drive!")
+            }.onFailure { err ->
+                _backupUiState.value = BackupUiState.Error("Merge from Secondary Drive failed: ${err.localizedMessage}")
+            }
+        }
+    }
+
+    fun checkForPreviousBackupsOnLaunch(forcePrompt: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = mutableListOf<DetectedBackupInfo>()
+            val context = getApplication<Application>()
+            val bPrefs = backupPrefs
+
+            // 1. Scan Local Storage backups
+            try {
+                val localFiles = BackupManager.listLocalBackups(context, bPrefs.getLocalBackupDirectory())
+                for (file in localFiles.take(5)) {
+                    if (bPrefs.isBackupDismissed(file.name)) continue
+                    try {
+                        val json = file.readText()
+                        val parsed = BackupManager.parseBackupDataFromJson(json)
+                        list.add(
+                            DetectedBackupInfo(
+                                fileId = file.name,
+                                fileName = file.name,
+                                sourceProvider = "Local Storage",
+                                timestamp = parsed?.exportedAt ?: file.lastModified(),
+                                deviceName = parsed?.deviceName,
+                                installationId = parsed?.installationId,
+                                accountsCount = parsed?.accounts?.size,
+                                transactionsCount = parsed?.transactions?.size,
+                                localFile = file
+                            )
+                        )
+                    } catch (_: Exception) {}
+                }
+            } catch (_: Exception) {}
+
+            // 2. Scan Google Drive if logged in or configured
+            try {
+                val googleAcc = _signedInGoogleAccount.value
+                val email = bPrefs.getPrimaryEmail()
+                if (googleAcc != null) {
+                    val driveRes = GoogleDriveService.listDriveBackups(context, googleAcc)
+                    driveRes.getOrNull()?.take(5)?.forEach { f ->
+                        if (!bPrefs.isBackupDismissed(f.id)) {
+                            list.add(
+                                DetectedBackupInfo(
+                                    fileId = f.id,
+                                    fileName = f.name,
+                                    sourceProvider = "Google Drive (Primary)",
+                                    timestamp = try { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).parse(f.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L },
+                                    deviceName = f.deviceName,
+                                    installationId = f.installationId,
+                                    accountsCount = f.accountsCount,
+                                    transactionsCount = f.transactionsCount,
+                                    driveIndex = 1,
+                                    rawBackupFile = f
+                                )
+                            )
+                        }
+                    }
+                } else if (email.isNotBlank() && bPrefs.getPrimaryProvider().contains("Google", ignoreCase = true)) {
+                    val driveRes = GoogleDriveService.listDriveBackupsForEmail(context, email)
+                    driveRes.getOrNull()?.take(5)?.forEach { f ->
+                        if (!bPrefs.isBackupDismissed(f.id)) {
+                            list.add(
+                                DetectedBackupInfo(
+                                    fileId = f.id,
+                                    fileName = f.name,
+                                    sourceProvider = "Google Drive (Primary)",
+                                    timestamp = try { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).parse(f.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L },
+                                    deviceName = f.deviceName,
+                                    installationId = f.installationId,
+                                    accountsCount = f.accountsCount,
+                                    transactionsCount = f.transactionsCount,
+                                    driveIndex = 1,
+                                    rawBackupFile = f
+                                )
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 3. Scan Dropbox if token available
+            try {
+                val validToken = DropboxService.getValidAccessToken(context, 1)
+                if (validToken.isNotBlank()) {
+                    val dRes = DropboxService.listBackups(validToken, "/Budgeter")
+                    dRes.getOrNull()?.take(5)?.forEach { f ->
+                        if (!bPrefs.isBackupDismissed(f.id)) {
+                            list.add(
+                                DetectedBackupInfo(
+                                    fileId = f.id,
+                                    fileName = f.name,
+                                    sourceProvider = "Dropbox (Primary)",
+                                    timestamp = try { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).parse(f.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L },
+                                    deviceName = f.deviceName,
+                                    installationId = f.installationId,
+                                    driveIndex = 1,
+                                    rawBackupFile = f
+                                )
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            val sorted = list.sortedByDescending { it.timestamp }
+            _detectedBackups.value = sorted
+            if (sorted.isNotEmpty()) {
+                _showRestoreBanner.value = true
+                if (!bPrefs.isFirstLaunchCheckDone() || forcePrompt) {
+                    _firstLaunchCheckDialogVisible.value = true
+                }
+            }
+        }
+    }
+
+    fun scanForPreviousBackups(forcePrompt: Boolean = false) {
+        checkForPreviousBackupsOnLaunch(forcePrompt)
+    }
+
+    fun dismissRestoreBanner(fileId: String? = null) {
+        if (!fileId.isNullOrBlank()) {
+            backupPrefs.dismissBackup(fileId)
+        }
+        _showRestoreBanner.value = false
+    }
+
+    fun dismissFirstLaunchDialog() {
+        backupPrefs.setFirstLaunchCheckDone(true)
+        _firstLaunchCheckDialogVisible.value = false
+    }
+
+    fun restoreDetectedBackup(backupInfo: DetectedBackupInfo, merge: Boolean, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            _backupUiState.value = BackupUiState.Loading
+            var success = false
+            var msg = ""
+
+            val localFile = backupInfo.localFile
+            val rawCloud = backupInfo.rawBackupFile
+            val context = getApplication<Application>()
+
+            if (localFile != null) {
+                try {
+                    val json = withContext(Dispatchers.IO) { localFile.readText() }
+                    val result = if (merge) {
+                        BackupManager.mergeFromJson(
+                            context = context,
+                            json = json,
+                            accountDao = activeRepo.accountDao,
+                            categoryDao = activeRepo.categoryDao,
+                            transactionDao = activeRepo.transactionDao,
+                            recurringBillDao = activeRepo.recurringBillDao,
+                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                        )
+                    } else {
+                        BackupManager.restoreFromJson(
+                            context = context,
+                            json = json,
+                            accountDao = activeRepo.accountDao,
+                            categoryDao = activeRepo.categoryDao,
+                            transactionDao = activeRepo.transactionDao,
+                            recurringBillDao = activeRepo.recurringBillDao,
+                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                        )
+                    }
+                    result.onSuccess { count ->
+                        success = true
+                        msg = if (merge) "Merged $count records from backup successfully!" else "Restored $count records successfully!"
+                    }.onFailure { err ->
+                        msg = "Restore failed: ${err.localizedMessage}"
+                    }
+                } catch (e: Exception) {
+                    msg = "Error reading backup: ${e.localizedMessage}"
+                }
+            } else if (rawCloud != null) {
+                if (backupInfo.sourceProvider.contains("Google", ignoreCase = true)) {
+                    val googleAcc = if (backupInfo.driveIndex == 1) _signedInGoogleAccount.value else _secondarySignedInGoogleAccount.value
+                    val email = if (backupInfo.driveIndex == 1) backupPrefs.getPrimaryEmail() else backupPrefs.getSecondaryEmail()
+                    val result = if (googleAcc != null) {
+                        if (merge) {
+                            GoogleDriveService.mergeFromDriveFile(
+                                context = context,
+                                account = googleAcc,
+                                fileId = rawCloud.id,
+                                accountDao = activeRepo.accountDao,
+                                categoryDao = activeRepo.categoryDao,
+                                transactionDao = activeRepo.transactionDao,
+                                recurringBillDao = activeRepo.recurringBillDao,
+                                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            )
+                        } else {
+                            GoogleDriveService.restoreFromDriveFile(
+                                context = context,
+                                account = googleAcc,
+                                fileId = rawCloud.id,
+                                accountDao = activeRepo.accountDao,
+                                categoryDao = activeRepo.categoryDao,
+                                transactionDao = activeRepo.transactionDao,
+                                recurringBillDao = activeRepo.recurringBillDao,
+                                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            )
+                        }
+                    } else {
+                        if (merge) {
+                            GoogleDriveService.mergeFromDriveFileForEmail(
+                                context = context,
+                                email = email,
+                                fileId = rawCloud.id,
+                                accountDao = activeRepo.accountDao,
+                                categoryDao = activeRepo.categoryDao,
+                                transactionDao = activeRepo.transactionDao,
+                                recurringBillDao = activeRepo.recurringBillDao,
+                                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            )
+                        } else {
+                            GoogleDriveService.restoreFromDriveFileForEmail(
+                                context = context,
+                                email = email,
+                                fileId = rawCloud.id,
+                                accountDao = activeRepo.accountDao,
+                                categoryDao = activeRepo.categoryDao,
+                                transactionDao = activeRepo.transactionDao,
+                                recurringBillDao = activeRepo.recurringBillDao,
+                                monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            )
+                        }
+                    }
+                    result.onSuccess { count ->
+                        success = true
+                        msg = if (merge) "Merged $count records from Google Drive!" else "Restored $count records from Google Drive!"
+                    }.onFailure { err ->
+                        msg = "Restore failed: ${err.localizedMessage}"
+                    }
+                } else if (backupInfo.sourceProvider.contains("Dropbox", ignoreCase = true)) {
+                    val validToken = DropboxService.getValidAccessToken(context, backupInfo.driveIndex)
+                    val result = if (merge) {
+                        DropboxService.mergeFromDropbox(
+                            context = context,
+                            accessToken = validToken,
+                            pathOrId = rawCloud.id,
+                            accountDao = activeRepo.accountDao,
+                            categoryDao = activeRepo.categoryDao,
+                            transactionDao = activeRepo.transactionDao,
+                            recurringBillDao = activeRepo.recurringBillDao,
+                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                        )
+                    } else {
+                        DropboxService.restoreFromDropbox(
+                            context = context,
+                            accessToken = validToken,
+                            pathOrId = rawCloud.id,
+                            accountDao = activeRepo.accountDao,
+                            categoryDao = activeRepo.categoryDao,
+                            transactionDao = activeRepo.transactionDao,
+                            recurringBillDao = activeRepo.recurringBillDao,
+                            monthlyBudgetDao = activeRepo.monthlyBudgetDao,
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                        )
+                    }
+                    result.onSuccess { count ->
+                        success = true
+                        msg = if (merge) "Merged $count records from Dropbox!" else "Restored $count records from Dropbox!"
+                    }.onFailure { err ->
+                        msg = "Restore failed: ${err.localizedMessage}"
+                    }
+                }
+            }
+
+            if (success) {
+                backupPrefs.setFirstLaunchCheckDone(true)
+                backupPrefs.dismissBackup(backupInfo.fileId)
+                _showRestoreBanner.value = false
+                _firstLaunchCheckDialogVisible.value = false
+                _backupUiState.value = BackupUiState.Success(msg)
+                onComplete(true)
+            } else {
+                _backupUiState.value = BackupUiState.Error(msg)
+                onComplete(false)
             }
         }
     }

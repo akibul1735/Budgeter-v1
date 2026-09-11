@@ -113,6 +113,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import com.example.ui.dialogs.DetectedBackupsListDialog
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -229,6 +230,9 @@ fun MainAppContainer(
     val accountCalcConfig by viewModel.accountCalcConfig.collectAsStateWithLifecycle()
     val isAppLocked by viewModel.isAppLocked.collectAsStateWithLifecycle()
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
+    val detectedBackups by viewModel.detectedBackups.collectAsStateWithLifecycle()
+    val showRestoreBanner by viewModel.showRestoreBanner.collectAsStateWithLifecycle()
+    val firstLaunchCheckDialogVisible by viewModel.firstLaunchCheckDialogVisible.collectAsStateWithLifecycle()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -1160,6 +1164,22 @@ fun MainAppContainer(
             }
         )
     }
+
+    if (firstLaunchCheckDialogVisible && detectedBackups.isNotEmpty()) {
+        DetectedBackupsListDialog(
+            detectedBackups = detectedBackups,
+            isFirstLaunchPrompt = true,
+            languageMode = languageMode,
+            onScanAgain = { viewModel.scanForPreviousBackups() },
+            onSelectBackupToRestore = { backup, isMerge ->
+                viewModel.restoreDetectedBackup(backup, isMerge)
+                viewModel.dismissFirstLaunchDialog()
+            },
+            onDismiss = {
+                viewModel.dismissFirstLaunchDialog()
+            }
+        )
+    }
 }
 
 @Composable
@@ -1839,7 +1859,12 @@ private fun ScreenRouter(
             onUpdateBudgetSummarySettings = { s, t, mc, sp, tp -> viewModel.setBudgetSummarySettings(s, t, mc, sp, tp) },
             onUpdateCalendarSettings = { dm, si, se -> viewModel.setCalendarSettings(dm, si, se) },
             onUpdateFavoriteAccounts = { favs -> viewModel.setFavoriteAccounts(favs) },
-            onResetDashboardDefaults = { viewModel.resetDashboardDefaults() }
+            onResetDashboardDefaults = { viewModel.resetDashboardDefaults() },
+            detectedBackups = viewModel.detectedBackups.collectAsStateWithLifecycle().value,
+            showRestoreBanner = viewModel.showRestoreBanner.collectAsStateWithLifecycle().value,
+            onRestoreDetectedBackup = { backup, isMerge -> viewModel.restoreDetectedBackup(backup, isMerge) },
+            onDismissRestoreBanner = { backupId -> viewModel.dismissRestoreBanner(backupId) },
+            onScanBackups = { viewModel.scanForPreviousBackups() }
         )
         AppView.LEDGER -> {
             val securityConfig = viewModel.securityConfig.collectAsStateWithLifecycle().value

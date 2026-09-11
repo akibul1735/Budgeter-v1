@@ -272,7 +272,7 @@ object DropboxService {
     }
 
     /**
-     * Uploads a complete snapshot of the database to Dropbox /Budgeter folder
+     * Uploads a complete snapshot of the database to Dropbox /Budgeter folder, retaining last 5 backups.
      */
     suspend fun uploadBackup(
         context: Context,
@@ -291,7 +291,10 @@ object DropboxService {
         }
         try {
             val settingsBackup = if (includeSettings) BackupManager.captureSettings(context) else null
+            val bPrefs = BackupPreferences.getInstance(context)
             val backupData = BudgetBackupData(
+                installationId = bPrefs.getInstallationId(),
+                deviceName = bPrefs.getDeviceName(),
                 accounts = accountDao.getAllAccountsSnapshot(),
                 categories = categoryDao.getAllCategoriesSnapshot(),
                 transactions = transactionDao.getAllTransactionsSnapshot(),
@@ -302,14 +305,15 @@ object DropboxService {
             )
             val jsonContent = adapter.indent("  ").toJson(backupData)
 
-            val fileName = "budgeter_sync_data.json"
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val fileName = "Budgeter_Backup_$timestamp.json"
             val cleanFolder = if (folderPath.startsWith("/")) folderPath else "/$folderPath"
             val targetPath = if (cleanFolder == "/" || cleanFolder.isEmpty()) "/$fileName" else "$cleanFolder/$fileName"
 
             val argJson = JSONObject().apply {
                 put("path", targetPath)
-                put("mode", "overwrite")
-                put("autorename", false)
+                put("mode", "add")
+                put("autorename", true)
                 put("mute", false)
                 put("strict_conflict", false)
             }.toString()
@@ -335,7 +339,7 @@ object DropboxService {
                 val modified = resObj.optString("client_modified", SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date()))
                 val size = resObj.optLong("size", jsonContent.length.toLong())
 
-                // Clean up any legacy older backup files in the folder so ONLY the single sync file remains
+                // Rolling retention: keep latest 5 backups in Dropbox folder
                 try {
                     val listBody = JSONObject().apply {
                         put("path", if (cleanFolder == "/" || cleanFolder.isEmpty()) "" else cleanFolder)
@@ -351,12 +355,22 @@ object DropboxService {
                         if (lResp.isSuccessful) {
                             val lJson = JSONObject(lResp.body?.string() ?: "")
                             val entries = lJson.optJSONArray("entries") ?: JSONArray()
+                            val jsonFiles = mutableListOf<Pair<String, String>>() // path, modified
                             for (i in 0 until entries.length()) {
                                 val item = entries.optJSONObject(i) ?: continue
                                 val itemName = item.optString("name")
                                 val itemPath = item.optString("path_lower")
-                                if (item.optString(".tag") == "file" && itemName != fileName && itemName.endsWith(".json", ignoreCase = true)) {
-                                    val delBody = JSONObject().apply { put("path", itemPath) }.toString()
+                                val itemMod = item.optString("client_modified", item.optString("server_modified", ""))
+                                if (item.optString(".tag") == "file" && itemName.endsWith(".json", ignoreCase = true)) {
+                                    jsonFiles.add(itemPath to itemMod)
+                                }
+                            }
+                            // Sort newest first
+                            jsonFiles.sortByDescending { it.second }
+                            if (jsonFiles.size > 5) {
+                                for (i in 5 until jsonFiles.size) {
+                                    val oldPath = jsonFiles[i].first
+                                    val delBody = JSONObject().apply { put("path", oldPath) }.toString()
                                     val delReq = Request.Builder()
                                         .url("https://api.dropboxapi.com/2/files/delete_v2")
                                         .addHeader("Authorization", "Bearer ${accessToken.trim()}")
@@ -378,7 +392,9 @@ object DropboxService {
                         name = name,
                         modifiedTime = modified,
                         size = size,
-                        location = DriveBackupLocation.VISIBLE_APP_FOLDER
+                        location = DriveBackupLocation.VISIBLE_APP_FOLDER,
+                        installationId = bPrefs.getInstallationId(),
+                        deviceName = bPrefs.getDeviceName()
                     )
                 )
             }
@@ -485,6 +501,70 @@ object DropboxService {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Downloads and restores a backup file from Dropbox with full replace support.
+     */
+    suspend fun restoreFromDropbox(
+        context: Context,
+        accessToken: String,
+        pathOrId: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null,
+        budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        restoreData: Boolean = true,
+        restoreSettings: Boolean = true
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        val downloadRes = downloadBackup(accessToken, pathOrId)
+        val json = downloadRes.getOrElse { return@withContext Result.failure(it) }
+
+        BackupManager.restoreFromJson(
+            context = context,
+            json = json,
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao,
+            recurringBillDao = recurringBillDao,
+            monthlyBudgetDao = monthlyBudgetDao,
+            budgetAdjustmentDao = budgetAdjustmentDao,
+            restoreData = restoreData,
+            restoreSettings = restoreSettings
+        )
+    }
+
+    /**
+     * Downloads and merges a backup file from Dropbox without wiping existing records.
+     */
+    suspend fun mergeFromDropbox(
+        context: Context,
+        accessToken: String,
+        pathOrId: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null,
+        budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        restoreSettings: Boolean = false
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        val downloadRes = downloadBackup(accessToken, pathOrId)
+        val json = downloadRes.getOrElse { return@withContext Result.failure(it) }
+
+        BackupManager.mergeFromJson(
+            context = context,
+            json = json,
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao,
+            recurringBillDao = recurringBillDao,
+            monthlyBudgetDao = monthlyBudgetDao,
+            budgetAdjustmentDao = budgetAdjustmentDao,
+            restoreSettings = restoreSettings
+        )
     }
 
     /**

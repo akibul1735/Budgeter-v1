@@ -81,6 +81,7 @@ import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.FinancialOverview
 import com.example.ui.components.AutoHidingHeaderContainer
 import com.example.ui.components.ClickableAmountText
+import com.example.ui.components.DashboardBackupRestoreBanner
 import com.example.ui.components.DoubleEntryFlowBadge
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.AmountBreakdownDialog
@@ -88,7 +89,9 @@ import com.example.ui.dialogs.AmountDetailInfo
 import com.example.ui.dialogs.BreakdownItem
 import com.example.ui.dialogs.BudgetSummaryPreviewDialog
 import com.example.ui.dialogs.DailySummaryDetailDialog
+import com.example.ui.dialogs.DetectedBackupsListDialog
 import com.example.ui.dialogs.FormulaStep
+import com.example.ui.viewmodel.DetectedBackupInfo
 import com.example.ui.screens.dashboard.BudgetSummaryCard
 import com.example.ui.screens.dashboard.BudgetSummarySettingsDialog
 import com.example.ui.screens.dashboard.CalendarSettingsDialog
@@ -142,7 +145,12 @@ fun DashboardScreen(
     onUpdateBudgetSummarySettings: (BudgetChartShape, BudgetSummaryType, Int, Boolean, Boolean) -> Unit,
     onUpdateCalendarSettings: (CalendarDisplayMode, Boolean, Boolean) -> Unit,
     onUpdateFavoriteAccounts: (Set<Long>) -> Unit,
-    onResetDashboardDefaults: () -> Unit
+    onResetDashboardDefaults: () -> Unit,
+    detectedBackups: List<DetectedBackupInfo> = emptyList(),
+    showRestoreBanner: Boolean = false,
+    onRestoreDetectedBackup: (DetectedBackupInfo, Boolean) -> Unit = { _, _ -> },
+    onDismissRestoreBanner: (String?) -> Unit = {},
+    onScanBackups: () -> Unit = {}
 ) {
     var showStandAloneCalculator by remember { mutableStateOf(false) }
     var showCustomizeCardsDialog by remember { mutableStateOf(false) }
@@ -153,6 +161,7 @@ fun DashboardScreen(
     var showDailySummaryDetail by remember { mutableStateOf(false) }
     var dailySummarySelectedDayEpoch by remember { mutableStateOf<Long?>(null) }
     var showBudgetSummaryPreview by remember { mutableStateOf(false) }
+    var showRestoreListDialog by remember { mutableStateOf(false) }
 
     // State for clicking any amount anywhere on the dashboard to view formula and transactions breakdown
     var activeAmountDetail by remember { mutableStateOf<AmountDetailInfo?>(null) }
@@ -868,6 +877,19 @@ fun DashboardScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Restore Banner if previous backups detected
+            if (showRestoreBanner && detectedBackups.isNotEmpty()) {
+                item(key = "card_backup_restore_banner") {
+                    DashboardBackupRestoreBanner(
+                        visible = showRestoreBanner,
+                        detectedBackups = detectedBackups,
+                        languageMode = languageMode,
+                        onOpenRestoreDialog = { showRestoreListDialog = true },
+                        onDismiss = { onDismissRestoreBanner(detectedBackups.firstOrNull()?.fileId) }
+                    )
+                }
+            }
+
             // Render Cards dynamically based on user configuration order and visibility
             dashboardConfig.cardOrder.forEach { cardType ->
                 if (cardType in dashboardConfig.visibleCards) {
@@ -1162,6 +1184,20 @@ fun DashboardScreen(
                 onUpdateFavoriteAccounts(selectedIds)
                 showFavoriteAccountsPicker = false
             }
+        )
+    }
+
+    if (showRestoreListDialog) {
+        DetectedBackupsListDialog(
+            detectedBackups = detectedBackups,
+            isFirstLaunchPrompt = false,
+            languageMode = languageMode,
+            onScanAgain = onScanBackups,
+            onSelectBackupToRestore = { backup, isMerge ->
+                onRestoreDetectedBackup(backup, isMerge)
+                showRestoreListDialog = false
+            },
+            onDismiss = { showRestoreListDialog = false }
         )
     }
 

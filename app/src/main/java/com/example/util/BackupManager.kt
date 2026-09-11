@@ -55,6 +55,9 @@ data class BudgetBackupData(
     val version: Int = 4,
     val exportedAt: Long = System.currentTimeMillis(),
     val app: String = "Budgeter",
+    val installationId: String? = null,
+    val deviceName: String? = null,
+    val appVersion: String = "3.6",
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
     val transactions: List<Transaction> = emptyList(),
@@ -70,6 +73,14 @@ object BackupManager {
         .addLast(KotlinJsonAdapterFactory())
         .build()
     private val adapter = moshi.adapter(BudgetBackupData::class.java)
+
+    fun parseBackupData(json: String): BudgetBackupData? {
+        return try {
+            adapter.fromJson(json)
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     /**
      * Captures current user settings and preferences across the entire application.
@@ -215,7 +226,10 @@ object BackupManager {
         includeSettings: Boolean = true
     ): File = withContext(Dispatchers.IO) {
         val settingsBackup = if (includeSettings) captureSettings(context) else null
+        val bPrefs = BackupPreferences.getInstance(context)
         val backupData = BudgetBackupData(
+            installationId = bPrefs.getInstallationId(),
+            deviceName = bPrefs.getDeviceName(),
             accounts = accountDao.getAllAccountsSnapshot(),
             categories = categoryDao.getAllCategoriesSnapshot(),
             transactions = transactionDao.getAllTransactionsSnapshot(),
@@ -313,7 +327,30 @@ object BackupManager {
             }
         }
 
+        // Prune old local backups to keep latest 5
+        try {
+            pruneLocalBackups(context, 5, targetDirectory)
+        } catch (_: Exception) {}
+
         savedFile
+    }
+
+    /**
+     * Retains only the most recent [maxKeep] local backups, deleting older ones.
+     */
+    fun pruneLocalBackups(context: Context, maxKeep: Int = 5, customDirectoryPath: String? = null) {
+        try {
+            val allLocal = listLocalBackups(context, customDirectoryPath)
+            if (allLocal.size > maxKeep) {
+                // listLocalBackups returns files sorted descending by modification time
+                val toDelete = allLocal.drop(maxKeep)
+                for (oldFile in toDelete) {
+                    deleteLocalBackup(context, oldFile, customDirectoryPath)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     /**
@@ -363,7 +400,10 @@ object BackupManager {
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val settingsBackup = if (includeSettings) captureSettings(context) else null
+            val bPrefs = BackupPreferences.getInstance(context)
             val backupData = BudgetBackupData(
+                installationId = bPrefs.getInstallationId(),
+                deviceName = bPrefs.getDeviceName(),
                 accounts = accountDao.getAllAccountsSnapshot(),
                 categories = categoryDao.getAllCategoriesSnapshot(),
                 transactions = transactionDao.getAllTransactionsSnapshot(),
@@ -484,6 +524,175 @@ object BackupManager {
             }
 
             Result.success(recordsCount)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Smartly merges backup data into existing database records without wiping existing data.
+     * Prevents duplicate accounts, categories, transactions, bills, and budgets.
+     */
+    suspend fun mergeFromJson(
+        context: Context,
+        json: String,
+        accountDao: AccountDao,
+        categoryDao: CategoryDao,
+        transactionDao: TransactionDao,
+        recurringBillDao: RecurringBillDao,
+        monthlyBudgetDao: MonthlyBudgetDao? = null,
+        budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        restoreSettings: Boolean = false
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val backupData = adapter.fromJson(json)
+                ?: return@withContext Result.failure(Exception("Invalid backup file format"))
+
+            var mergedCount = 0
+
+            // 1. Existing Data Snapshot
+            val existingAccounts = accountDao.getAllAccountsSnapshot()
+            val existingCategories = categoryDao.getAllCategoriesSnapshot()
+            val existingTransactions = transactionDao.getAllTransactionsSnapshot()
+            val existingBills = recurringBillDao.getAllBillsSnapshot()
+            val existingBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList()
+            val existingAdjustments = budgetAdjustmentDao?.getAllAdjustmentsSnapshot() ?: emptyList()
+
+            // 2. Map or insert Accounts
+            val accountIdMap = mutableMapOf<Long, Long>()
+            val currentAccountNames = existingAccounts.associateBy { "${it.type}_${it.nameEn.trim().lowercase()}" }
+            val currentAccountIds = existingAccounts.associateBy { it.id }
+
+            for (acc in backupData.accounts) {
+                val matchByName = currentAccountNames["${acc.type}_${acc.nameEn.trim().lowercase()}"]
+                val matchById = currentAccountIds[acc.id]
+                val existingTarget = matchByName ?: matchById
+                if (existingTarget != null) {
+                    accountIdMap[acc.id] = existingTarget.id
+                } else {
+                    val newId = accountDao.insertAccount(acc.copy(id = 0))
+                    accountIdMap[acc.id] = newId
+                    mergedCount++
+                }
+            }
+
+            // 3. Map or insert Categories
+            val categoryIdMap = mutableMapOf<Long, Long>()
+            val currentCategoryNames = existingCategories.associateBy { "${it.type}_${it.nameEn.trim().lowercase()}" }
+            val currentCategoryIds = existingCategories.associateBy { it.id }
+
+            for (cat in backupData.categories) {
+                val matchByName = currentCategoryNames["${cat.type}_${cat.nameEn.trim().lowercase()}"]
+                val matchById = currentCategoryIds[cat.id]
+                val existingTarget = matchByName ?: matchById
+                if (existingTarget != null) {
+                    categoryIdMap[cat.id] = existingTarget.id
+                } else {
+                    val mappedParentId = cat.parentId?.let { categoryIdMap[it] ?: it }
+                    val newId = categoryDao.insertCategory(cat.copy(id = 0, parentId = mappedParentId))
+                    categoryIdMap[cat.id] = newId
+                    mergedCount++
+                }
+            }
+
+            // 4. Merge Transactions
+            val existingTxSignatures = existingTransactions.map {
+                "${it.dateEpochMs}_${it.amount}_${it.type}_${it.note.trim()}_${it.debitAccountId}_${it.creditAccountId}"
+            }.toMutableSet()
+
+            val txToInsert = mutableListOf<Transaction>()
+            for (tx in backupData.transactions) {
+                val mappedDebit = tx.debitAccountId?.let { accountIdMap[it] ?: it }
+                val mappedCredit = tx.creditAccountId?.let { accountIdMap[it] ?: it }
+                val mappedCat = tx.categoryId?.let { categoryIdMap[it] ?: it }
+                val mappedSubCat = tx.subCategoryId?.let { categoryIdMap[it] ?: it }
+                val sig = "${tx.dateEpochMs}_${tx.amount}_${tx.type}_${tx.note.trim()}_${mappedDebit}_${mappedCredit}"
+                if (!existingTxSignatures.contains(sig)) {
+                    txToInsert.add(
+                        tx.copy(
+                            id = 0,
+                            debitAccountId = mappedDebit,
+                            creditAccountId = mappedCredit,
+                            categoryId = mappedCat,
+                            subCategoryId = mappedSubCat
+                        )
+                    )
+                    existingTxSignatures.add(sig)
+                }
+            }
+            if (txToInsert.isNotEmpty()) {
+                transactionDao.insertTransactions(txToInsert)
+                mergedCount += txToInsert.size
+            }
+
+            // 5. Merge Recurring Bills
+            val existingBillTitles = existingBills.map { "${it.title.trim().lowercase()}_${it.amount}" }.toSet()
+            val billsToInsert = mutableListOf<RecurringBill>()
+            for (bill in backupData.recurringBills) {
+                val key = "${bill.title.trim().lowercase()}_${bill.amount}"
+                if (!existingBillTitles.contains(key)) {
+                    val mappedDebit = bill.debitAccountId?.let { accountIdMap[it] ?: it }
+                    val mappedCredit = bill.creditAccountId?.let { accountIdMap[it] ?: it }
+                    val mappedCat = bill.categoryId?.let { categoryIdMap[it] ?: it }
+                    val mappedSubCat = bill.subCategoryId?.let { categoryIdMap[it] ?: it }
+                    billsToInsert.add(
+                        bill.copy(
+                            id = 0,
+                            debitAccountId = mappedDebit,
+                            creditAccountId = mappedCredit,
+                            categoryId = mappedCat,
+                            subCategoryId = mappedSubCat
+                        )
+                    )
+                }
+            }
+            if (billsToInsert.isNotEmpty()) {
+                recurringBillDao.insertAll(billsToInsert)
+                mergedCount += billsToInsert.size
+            }
+
+            // 6. Merge Monthly Budgets & Adjustments
+            if (monthlyBudgetDao != null && backupData.monthlyBudgets.isNotEmpty()) {
+                val budgetsToUpsert = backupData.monthlyBudgets.map { b ->
+                    val mappedItemId = when (b.itemType.uppercase()) {
+                        "EXPENSE", "INCOME" -> categoryIdMap[b.itemId] ?: b.itemId
+                        "ASSET", "LIABILITY" -> accountIdMap[b.itemId] ?: b.itemId
+                        else -> b.itemId
+                    }
+                    b.copy(id = 0, itemId = mappedItemId)
+                }
+                monthlyBudgetDao.upsertBudgets(budgetsToUpsert)
+                mergedCount += budgetsToUpsert.size
+            }
+
+            if (budgetAdjustmentDao != null && backupData.budgetAdjustments.isNotEmpty()) {
+                val existingAdjKeys = existingAdjustments.map { "${it.year}_${it.month}_${it.itemType}_${it.itemId}_${it.note.trim()}" }.toSet()
+                val adjToInsert = mutableListOf<BudgetAdjustment>()
+                for (adj in backupData.budgetAdjustments) {
+                    val mappedItemId = when (adj.itemType.uppercase()) {
+                        "EXPENSE", "INCOME" -> categoryIdMap[adj.itemId] ?: adj.itemId
+                        "ASSET", "LIABILITY" -> accountIdMap[adj.itemId] ?: adj.itemId
+                        else -> adj.itemId
+                    }
+                    val key = "${adj.year}_${adj.month}_${adj.itemType}_${mappedItemId}_${adj.note.trim()}"
+                    if (!existingAdjKeys.contains(key)) {
+                        adjToInsert.add(adj.copy(id = 0, itemId = mappedItemId))
+                    }
+                }
+                if (adjToInsert.isNotEmpty()) {
+                    budgetAdjustmentDao.insertAdjustments(adjToInsert)
+                    mergedCount += adjToInsert.size
+                }
+            }
+
+            // 7. Settings (if requested)
+            if (restoreSettings && backupData.settings != null) {
+                applySettings(context, backupData.settings)
+                mergedCount += 1
+            }
+
+            Result.success(mergedCount)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
