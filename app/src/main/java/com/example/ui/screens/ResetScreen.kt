@@ -124,9 +124,10 @@ fun ResetScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
+    val isSecurityConfigured = securityConfig.hasPin || (securityConfig.isBiometricEnabled && BiometricHelper.canAuthenticate(context))
 
-    // Every time the user enters this tab/screen, require authentication afresh
-    var isAuthenticated by remember { mutableStateOf(false) }
+    // Only require authentication if security is configured by user
+    var isAuthenticated by remember(isSecurityConfigured) { mutableStateOf(!isSecurityConfigured) }
     var activeDialogAction by remember { mutableStateOf<ResetActionType?>(null) }
     var enteredPin by remember { mutableStateOf("") }
     var isPinError by remember { mutableStateOf(false) }
@@ -156,6 +157,7 @@ fun ResetScreen(
     }
 
     fun promptBiometricAuth() {
+        if (!securityConfig.isBiometricEnabled) return
         val activity = context as? FragmentActivity ?: return
         if (BiometricHelper.canAuthenticate(activity)) {
             val title = if (languageMode == LanguageMode.BANGLA) "রিসেট ট্যাব আনলক করুন" else "Unlock Reset Tab"
@@ -175,17 +177,19 @@ fun ResetScreen(
         }
     }
 
-    // Trigger biometric prompt on entry if biometric is available
-    LaunchedEffect(Unit) {
-        if (!isAuthenticated) {
+    // Trigger biometric prompt on entry only if security is configured and biometric is explicitly enabled
+    LaunchedEffect(isSecurityConfigured, securityConfig.isBiometricEnabled) {
+        if (isSecurityConfigured && securityConfig.isBiometricEnabled && !isAuthenticated) {
             promptBiometricAuth()
         }
     }
 
-    // Re-lock when leaving
-    DisposableEffect(Unit) {
+    // Re-lock when leaving only if security is configured
+    DisposableEffect(isSecurityConfigured) {
         onDispose {
-            isAuthenticated = false
+            if (isSecurityConfigured) {
+                isAuthenticated = false
+            }
         }
     }
 
@@ -242,7 +246,7 @@ fun ResetScreen(
                     }
                 },
                 actions = {
-                    if (isAuthenticated) {
+                    if (isSecurityConfigured && isAuthenticated) {
                         IconButton(
                             onClick = {
                                 isAuthenticated = false
@@ -270,7 +274,7 @@ fun ResetScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (!isAuthenticated) {
+            if (isSecurityConfigured && !isAuthenticated) {
                 // SECURITY AUTHENTICATION GATE SCREEN
                 Column(
                     modifier = Modifier
