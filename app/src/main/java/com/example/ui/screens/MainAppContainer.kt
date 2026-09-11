@@ -467,17 +467,6 @@ fun MainAppContainer(
                                         editingTransaction = null
                                         presetTxType = TransactionType.EXPENSE
                                         showAddTransactionSheet = true
-                                    },
-                                    onAddAccount = {
-                                        editingAccount = null
-                                        presetAccountParentId = null
-                                        showAddAccountDialog = true
-                                    },
-                                    onAddCategory = { type ->
-                                        editingCategory = null
-                                        presetCategoryType = type
-                                        presetCategoryParentId = null
-                                        showAddCategoryDialog = true
                                     }
                                 )
                             }
@@ -770,17 +759,6 @@ fun MainAppContainer(
                                     editingTransaction = null
                                     presetTxType = TransactionType.EXPENSE
                                     showAddTransactionSheet = true
-                                },
-                                onAddAccount = {
-                                    editingAccount = null
-                                    presetAccountParentId = null
-                                    showAddAccountDialog = true
-                                },
-                                onAddCategory = { type ->
-                                    editingCategory = null
-                                    presetCategoryType = type
-                                    presetCategoryParentId = null
-                                    showAddCategoryDialog = true
                                 }
                             )
                         }
@@ -894,17 +872,6 @@ fun MainAppContainer(
                                     editingTransaction = null
                                     presetTxType = TransactionType.EXPENSE
                                     showAddTransactionSheet = true
-                                },
-                                onAddAccount = {
-                                    editingAccount = null
-                                    presetAccountParentId = null
-                                    showAddAccountDialog = true
-                                },
-                                onAddCategory = { type ->
-                                    editingCategory = null
-                                    presetCategoryType = type
-                                    presetCategoryParentId = null
-                                    showAddCategoryDialog = true
                                 }
                             )
                         }
@@ -1345,9 +1312,7 @@ private fun BottomNavigationBarRow(
 @Composable
 private fun AppFab(
     currentView: AppView,
-    onAddTransaction: () -> Unit,
-    onAddAccount: () -> Unit,
-    onAddCategory: (CategoryType) -> Unit
+    onAddTransaction: () -> Unit
 ) {
     if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER, AppView.LABELS, AppView.ITEMS_SUMMARY, AppView.BALANCE_SHEET, AppView.REPORTS)) {
         FloatingActionButton(
@@ -1358,27 +1323,6 @@ private fun AppFab(
             modifier = Modifier.testTag("main_fab_add_tx")
         ) {
             Icon(Icons.Default.Add, contentDescription = "Add Transaction")
-        }
-    } else if (currentView == AppView.ACCOUNTS) {
-        FloatingActionButton(
-            onClick = onAddAccount,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier.testTag("accounts_fab_add")
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Account")
-        }
-    } else if (currentView in listOf(AppView.CATEGORIES, AppView.EXPENSES, AppView.INCOME)) {
-        val catType = if (currentView == AppView.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
-        FloatingActionButton(
-            onClick = { onAddCategory(catType) },
-            containerColor = if (catType == CategoryType.EXPENSE) SolidExpense else SolidIncome,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier.testTag("categories_fab_add")
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Category")
         }
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,6 +45,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -79,11 +81,15 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.AutoHidingBottomContainer
+import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+
+private val SlateText = Color(0xFF64748B)
 
 enum class CategoryViewHierarchyFilter {
     ALL,
@@ -322,7 +328,7 @@ fun CategoriesScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 80.dp),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 125.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // --- 1. Compact Net Earnings Top Card ---
@@ -921,53 +927,158 @@ fun CategoriesScreen(
             }
         }
 
-        // --- 3. Floating Bottom Filter Pills (Expenses | All | Incomes) ---
-        AnimatedVisibility(
-            visible = isBottomNavVisible,
-            enter = slideInVertically(initialOffsetY = { it * 2 }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it * 2 }) + fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 12.dp, bottom = 6.dp)
+        // --- 3. BOTTOM PINNED CONTAINER: EXPENSE / ALL / INCOME TOGGLE + FAB ABOVE NAVIGATION TABS ---
+        val headerScrollState = LocalHeaderScrollState.current
+        AutoHidingBottomContainer(
+            headerScrollState = headerScrollState,
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
-                tonalElevation = 4.dp,
-                shadowElevation = 6.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // FAB button on the right above the toggle
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalAlignment = Alignment.End
                 ) {
-                    // Expenses Button (Left)
-                    CategoryBottomFilterPill(
-                        selected = selectedTypeFilter == CategoryType.EXPENSE,
-                        label = LanguageHelper.getString("expenses", languageMode),
-                        icon = Icons.Default.TrendingDown,
-                        selectedColor = SolidExpense,
-                        onClick = { selectedTypeFilter = CategoryType.EXPENSE }
-                    )
+                    val addType = selectedTypeFilter ?: CategoryType.EXPENSE
+                    FloatingActionButton(
+                        onClick = { onAddCategoryClick(addType) },
+                        containerColor = if (addType == CategoryType.EXPENSE) SolidExpense else SolidIncome,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .testTag("categories_fab_add")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Category",
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
 
-                    // All Button (Middle)
-                    CategoryBottomFilterPill(
-                        selected = selectedTypeFilter == null,
-                        label = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
-                        icon = Icons.Default.Layers,
-                        selectedColor = SolidPrimary,
-                        onClick = { selectedTypeFilter = null }
-                    )
+                // Segmented Toggle: [ Expenses (ব্যয়) | All (সব) | Incomes (আয়) ]
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Expenses Button
+                        val isExpense = selectedTypeFilter == CategoryType.EXPENSE
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isExpense) SolidExpense.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { selectedTypeFilter = CategoryType.EXPENSE }
+                                .testTag("cat_filter_expenses")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TrendingDown,
+                                    contentDescription = null,
+                                    tint = if (isExpense) SolidExpense else SlateText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = LanguageHelper.getString("expenses", languageMode),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isExpense) SolidExpense else SlateText
+                                )
+                            }
+                        }
 
-                    // Incomes Button (Right)
-                    CategoryBottomFilterPill(
-                        selected = selectedTypeFilter == CategoryType.INCOME,
-                        label = LanguageHelper.getString("incomes", languageMode),
-                        icon = Icons.Default.TrendingUp,
-                        selectedColor = SolidIncome,
-                        onClick = { selectedTypeFilter = CategoryType.INCOME }
-                    )
+                        // All Button
+                        val isAll = selectedTypeFilter == null
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isAll) SolidPrimary.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(0.85f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { selectedTypeFilter = null }
+                                .testTag("cat_filter_all")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Layers,
+                                    contentDescription = null,
+                                    tint = if (isAll) SolidPrimary else SlateText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isAll) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isAll) SolidPrimary else SlateText
+                                )
+                            }
+                        }
+
+                        // Incomes Button
+                        val isIncome = selectedTypeFilter == CategoryType.INCOME
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isIncome) SolidIncome.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { selectedTypeFilter = CategoryType.INCOME }
+                                .testTag("cat_filter_incomes")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TrendingUp,
+                                    contentDescription = null,
+                                    tint = if (isIncome) SolidIncome else SlateText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = LanguageHelper.getString("incomes", languageMode),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isIncome) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isIncome) SolidIncome else SlateText
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
