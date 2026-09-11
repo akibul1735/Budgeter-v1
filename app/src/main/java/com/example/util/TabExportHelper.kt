@@ -307,6 +307,9 @@ object TabExportHelper {
         totalBudget: Double,
         totalSpent: Double,
         showComparison: Boolean = false,
+        baseDateLabel: String = "",
+        compareDateLabel: String = "",
+        totalSpentBase: Double = 0.0,
         totalIncomeBudget: Double = 0.0,
         totalIncomeActual: Double = 0.0,
         totalExpenseBudget: Double = 0.0,
@@ -314,23 +317,33 @@ object TabExportHelper {
         netWorth: Double = 0.0,
         languageMode: LanguageMode = LanguageMode.ENGLISH
     ) {
-        val title = if (languageMode == LanguageMode.BANGLA) "বাজেট ট্র্যাকিং রিপোর্ট ($periodLabel)" else "Budget Tracking Report ($periodLabel)"
+        val title = if (languageMode == LanguageMode.BANGLA) {
+            if (showComparison && baseDateLabel.isNotBlank()) "বাজেট তুলনামূলক রিপোর্ট ($compareDateLabel বনাম $baseDateLabel)"
+            else "বাজেট ট্র্যাকিং রিপোর্ট ($periodLabel)"
+        } else {
+            if (showComparison && baseDateLabel.isNotBlank()) "Budget Comparison Report ($compareDateLabel vs $baseDateLabel)"
+            else "Budget Tracking Report ($periodLabel)"
+        }
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val remaining = totalBudget - totalSpent
         val netSavings = totalIncomeActual - totalExpenseActual
+        val deltaSpent = totalSpent - totalSpentBase
+        val deltaPercent = if (totalSpentBase > 0.001) (deltaSpent / totalSpentBase) * 100.0 else 0.0
 
         when (format) {
             ExportFormat.PDF -> {
                 val html = buildBudgetHtml(
                     title, periodLabel, activeTabMode, groups, totalBudget, totalSpent, remaining,
-                    showComparison, totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
+                    showComparison, baseDateLabel, compareDateLabel, totalSpentBase, deltaSpent, deltaPercent,
+                    totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
                     netSavings, netWorth, languageMode
                 )
-                PdfPrintHelper.printHtml(context, "Budget_$timeStamp", html, isLandscape = false)
+                PdfPrintHelper.printHtml(context, "Budget_$timeStamp", html, isLandscape = showComparison)
             }
             ExportFormat.CSV -> {
                 val csv = buildBudgetCsv(
                     periodLabel, activeTabMode, groups, showComparison,
+                    baseDateLabel, compareDateLabel, totalSpentBase, deltaSpent, deltaPercent,
                     totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
                     netSavings, netWorth, languageMode
                 )
@@ -339,7 +352,8 @@ object TabExportHelper {
             ExportFormat.HTML -> {
                 val html = buildBudgetHtml(
                     title, periodLabel, activeTabMode, groups, totalBudget, totalSpent, remaining,
-                    showComparison, totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
+                    showComparison, baseDateLabel, compareDateLabel, totalSpentBase, deltaSpent, deltaPercent,
+                    totalIncomeBudget, totalIncomeActual, totalExpenseBudget, totalExpenseActual,
                     netSavings, netWorth, languageMode
                 )
                 shareFile(context, "Budget_$timeStamp.html", format.mimeType, html, title)
@@ -352,6 +366,14 @@ object TabExportHelper {
                     put("totalBudget", totalBudget)
                     put("totalSpent", totalSpent)
                     put("remaining", remaining)
+                    put("comparisonEnabled", showComparison)
+                    if (showComparison) {
+                        put("basePeriod", baseDateLabel)
+                        put("comparePeriod", compareDateLabel)
+                        put("totalSpentBase", totalSpentBase)
+                        put("deltaSpent", deltaSpent)
+                        put("deltaPercent", deltaPercent)
+                    }
                     put("income", JSONObject().apply {
                         put("budget", totalIncomeBudget)
                         put("actual", totalIncomeActual)
@@ -367,15 +389,25 @@ object TabExportHelper {
                             put(JSONObject().apply {
                                 put("groupName", grp.groupNameEn)
                                 put("totalBudget", grp.totalBudget)
-                                put("totalSpent", grp.totalSpent)
+                                put("totalSpentCurrent", grp.totalSpent)
+                                if (showComparison) {
+                                    put("totalSpentBase", grp.totalSpentBase)
+                                    put("deltaSpent", grp.deltaSpent)
+                                    put("deltaPercent", grp.deltaPercent)
+                                }
                                 put("categories", JSONArray().apply {
                                     grp.items.forEach { item ->
                                         put(JSONObject().apply {
                                             put("categoryName", item.category.nameEn)
                                             put("budget", item.budgetLimit)
-                                            put("spent", item.spentAmount)
+                                            put("spentCurrent", item.spentAmount)
                                             put("remaining", item.budgetLimit - item.spentAmount)
-                                            put("percentage", item.percentageInt)
+                                            put("budgetUsagePercent", item.percentageInt)
+                                            if (showComparison) {
+                                                put("spentBase", item.spentBaseAmount)
+                                                put("deltaSpent", item.deltaSpent)
+                                                put("deltaPercent", item.deltaPercent)
+                                            }
                                         })
                                     }
                                 })
@@ -393,6 +425,11 @@ object TabExportHelper {
         activeTabMode: String,
         groups: List<CategoryGroupBudgetTracking>,
         showComparison: Boolean,
+        baseDateLabel: String,
+        compareDateLabel: String,
+        totalSpentBase: Double,
+        deltaSpent: Double,
+        deltaPercent: Double,
         totalIncomeBudget: Double,
         totalIncomeActual: Double,
         totalExpenseBudget: Double,
@@ -411,9 +448,11 @@ object TabExportHelper {
         sb.append("# Net Savings / Flow: BDT ${String.format(Locale.US, "%.2f", netSavings)}\n")
 
         if (showComparison) {
-            sb.append("Group,Category,Budget (BDT),Current Spent (BDT),Base Period Spent (BDT),Variance (BDT),% Spent\n")
+            val baseLbl = baseDateLabel.ifBlank { "Base Period" }
+            val currLbl = compareDateLabel.ifBlank { "Current Period" }
+            sb.append("Group,Category,Budget Limit (BDT),Current Spent - $currLbl (BDT),Base Spent - $baseLbl (BDT),Variance (BDT),Change (%),Budget Usage (%)\n")
         } else {
-            sb.append("Group,Category,Budget (BDT),Actual Spent (BDT),Remaining (BDT),% Spent\n")
+            sb.append("Group,Category,Budget Limit (BDT),Actual Spent (BDT),Remaining (BDT),Budget Usage (%)\n")
         }
 
         for (group in groups) {
@@ -425,7 +464,8 @@ object TabExportHelper {
                 if (showComparison) {
                     val baseSpent = String.format(Locale.US, "%.2f", item.spentBaseAmount)
                     val variance = String.format(Locale.US, "%.2f", item.deltaSpent)
-                    sb.append("${escapeCsv(groupName)},${escapeCsv(catName)},$budget,$spent,$baseSpent,$variance,${item.percentageInt}%\n")
+                    val pctChange = if (Math.abs(item.spentBaseAmount) > 0.001) String.format(Locale.US, "%.1f%%", item.deltaPercent) else "-"
+                    sb.append("${escapeCsv(groupName)},${escapeCsv(catName)},$budget,$spent,$baseSpent,$variance,$pctChange,${item.percentageInt}%\n")
                 } else {
                     val remaining = String.format(Locale.US, "%.2f", item.budgetLimit - item.spentAmount)
                     sb.append("${escapeCsv(groupName)},${escapeCsv(catName)},$budget,$spent,$remaining,${item.percentageInt}%\n")
@@ -444,6 +484,11 @@ object TabExportHelper {
         totalSpent: Double,
         remaining: Double,
         showComparison: Boolean,
+        baseDateLabel: String,
+        compareDateLabel: String,
+        totalSpentBase: Double,
+        deltaSpent: Double,
+        deltaPercent: Double,
         totalIncomeBudget: Double,
         totalIncomeActual: Double,
         totalExpenseBudget: Double,
@@ -455,80 +500,179 @@ object TabExportHelper {
         val sb = StringBuilder()
         val percentOverall = if (totalBudget > 0) ((totalSpent / totalBudget) * 100).toInt() else 0
 
-        sb.append("""
-            <div class="summary-cards">
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Total Income"}</div>
-                    <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalIncomeActual, languageMode)}</div>
-                    <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "বাজেট: " else "Budget: "}৳ ${LanguageHelper.formatNumber(totalIncomeBudget, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expense"}</div>
-                    <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalExpenseActual, languageMode)}</div>
-                    <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "বাজেট: " else "Budget: "}৳ ${LanguageHelper.formatNumber(totalExpenseBudget, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সঞ্চয় / ফ্লো" else "Net Savings / Flow"}</div>
-                    <div class="card-value ${if (netSavings >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netSavings, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ" else "Net Worth"}</div>
-                    <div class="card-value ${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
-                </div>
-            </div>
-            <div class="summary-cards" style="margin-top: 8px;">
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট বাজেট" else "Total Budget"}</div>
-                    <div class="card-value text-primary">৳ ${LanguageHelper.formatNumber(totalBudget, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়িত" else "Total Spent"}</div>
-                    <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalSpent, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট বাজেট" else "Remaining Budget"}</div>
-                    <div class="card-value ${if (remaining >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(remaining, languageMode)}</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "ব্যয়িত হার" else "Spent %"}</div>
-                    <div class="card-value ${if (percentOverall > 100) "text-danger" else "text-primary"}">$percentOverall%</div>
-                </div>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি / গ্রুপ" else "Category / Group"}</th>
-                        <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}</th>
-                        <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "ব্যয়িত" else "Spent"}</th>
-                        <th style="text-align: right;">${if (showComparison) "পূর্ববর্তী" else "অবশিষ্ট"}</th>
-                        <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "হার" else "%"}</th>
-                    </tr>
-                </thead>
-                <tbody>
-        """.trimIndent())
+        if (showComparison) {
+            val currLbl = compareDateLabel.ifBlank { "Current" }
+            val baseLbl = baseDateLabel.ifBlank { "Base" }
+            val deltaClass = if (deltaSpent <= 0) "badge-positive" else "badge-negative"
+            val deltaArrow = if (deltaSpent > 0) "▲" else if (deltaSpent < 0) "▼" else "—"
+            val deltaSign = if (deltaSpent > 0) "+" else ""
 
-        for (grp in groups) {
-            val grpName = LanguageHelper.getLocalizedName(grp.groupNameEn, grp.groupNameBn, languageMode)
             sb.append("""
-                <tr class="group-row">
-                    <td colspan="5"><strong>📁 $grpName</strong> <span style="float: right; color: #1e293b; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.totalSpent, languageMode)}</span></td>
-                </tr>
+                <div class="summary-cards">
+                    <div class="card card-primary">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট বাজেট" else "Total Budget"}</div>
+                        <div class="card-value text-primary">৳ ${LanguageHelper.formatNumber(totalBudget, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "সর্বমোট বরাদ্দ" else "Allocated Limit"}</div>
+                    </div>
+                    <div class="card card-danger">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যয় ($currLbl)" else "Current Spent ($currLbl)"}</div>
+                        <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalSpent, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "ব্যবহার: " else "Usage: "}<strong>$percentOverall%</strong></div>
+                    </div>
+                    <div class="card card-neutral">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ব্যয় ($baseLbl)" else "Base Period ($baseLbl)"}</div>
+                        <div class="card-value text-neutral">৳ ${LanguageHelper.formatNumber(totalSpentBase, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "ভিত্তি সময়কাল" else "Baseline Spending"}</div>
+                    </div>
+                    <div class="card ${if (deltaSpent <= 0) "card-success" else "card-danger"}">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "পার্থক্য ও পরিবর্তন" else "Variance & Growth"}</div>
+                        <div class="card-value ${if (deltaSpent <= 0) "text-success" else "text-danger"}">$deltaSign৳ ${LanguageHelper.formatNumber(deltaSpent, languageMode)}</div>
+                        <div style="margin-top: 4px;"><span class="badge $deltaClass">$deltaSign${String.format(Locale.US, "%.1f", deltaPercent)}% $deltaArrow</span></div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি গ্রুপ ও আইটেম" else "Category Group & Item"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ($baseLbl)" else "Base ($baseLbl)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বর্তমান ($currLbl)" else "Current ($currLbl)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পার্থক্য" else "Variance"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পরিবর্তন %" else "Change %"}</th>
+                            <th style="width: 18%;">${if (languageMode == LanguageMode.BANGLA) "বাজেট ব্যবহার" else "Budget Utilization"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
             """.trimIndent())
 
-            for (item in grp.items) {
-                val catName = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode)
-                val isOver = item.isOverBudget
-                val diffVal = if (showComparison) item.spentBaseAmount else (item.budgetLimit - item.spentAmount)
+            for (grp in groups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.groupNameEn, grp.groupNameBn, languageMode)
+                val grpDelta = grp.deltaSpent
+                val grpDeltaSign = if (grpDelta > 0) "+" else ""
+                val grpDeltaClass = if (grpDelta <= 0) "text-success" else "text-danger"
+                val grpPctClass = if (grpDelta <= 0) "badge-positive" else "badge-negative"
+                val grpArrow = if (grpDelta > 0) "▲" else if (grpDelta < 0) "▼" else "—"
 
                 sb.append("""
-                    <tr>
-                        <td style="padding-left: 24px;">• $catName</td>
-                        <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(item.budgetLimit, languageMode)}</td>
-                        <td style="text-align: right; font-weight: 600;" class="${if (item.spentAmount > 0) "text-danger" else ""}">৳ ${LanguageHelper.formatNumber(item.spentAmount, languageMode)}</td>
-                        <td style="text-align: right;" class="${if (!showComparison && diffVal < 0) "text-danger" else "text-success"}">৳ ${LanguageHelper.formatNumber(diffVal, languageMode)}</td>
-                        <td style="text-align: right; font-weight: bold;" class="${if (isOver) "text-danger" else ""}">${item.percentageInt}%</td>
+                    <tr class="group-row">
+                        <td><strong>📁 $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.totalBudget, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.totalSpentBase, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold; color: #dc2626;">৳ ${LanguageHelper.formatNumber(grp.totalSpent, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;" class="$grpDeltaClass">$grpDeltaSign৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
+                        <td style="text-align: right;"><span class="badge $grpPctClass">$grpDeltaSign${String.format(Locale.US, "%.1f", grp.deltaPercent)}% $grpArrow</span></td>
+                        <td>
+                            <div class="progress-container">
+                                <div class="progress-bar"><div class="progress-fill ${if (grp.percentageInt > 100) "fill-red" else if (grp.percentageInt > 85) "fill-amber" else "fill-green"}" style="width: ${grp.percentageInt.coerceAtMost(100)}%;"></div></div>
+                                <span class="progress-text">${grp.percentageInt}%</span>
+                            </div>
+                        </td>
                     </tr>
                 """.trimIndent())
+
+                for (item in grp.items) {
+                    val catName = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode)
+                    val itmDelta = item.deltaSpent
+                    val itmDeltaSign = if (itmDelta > 0) "+" else ""
+                    val itmDeltaClass = if (itmDelta <= 0) "text-success" else "text-danger"
+                    val itmPctClass = if (itmDelta <= 0) "badge-positive" else "badge-negative"
+                    val itmArrow = if (itmDelta > 0) "▲" else if (itmDelta < 0) "▼" else "—"
+
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• <strong>$catName</strong></td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(item.budgetLimit, languageMode)}</td>
+                            <td style="text-align: right; color: #64748b;">৳ ${LanguageHelper.formatNumber(item.spentBaseAmount, languageMode)}</td>
+                            <td style="text-align: right; font-weight: 600;" class="${if (item.spentAmount > 0) "text-danger" else ""}">৳ ${LanguageHelper.formatNumber(item.spentAmount, languageMode)}</td>
+                            <td style="text-align: right; font-weight: 600;" class="$itmDeltaClass">$itmDeltaSign৳ ${LanguageHelper.formatNumber(itmDelta, languageMode)}</td>
+                            <td style="text-align: right;"><span class="badge $itmPctClass">$itmDeltaSign${String.format(Locale.US, "%.1f", item.deltaPercent)}% $itmArrow</span></td>
+                            <td>
+                                <div class="progress-container">
+                                    <div class="progress-bar"><div class="progress-fill ${if (item.percentageInt > 100) "fill-red" else if (item.percentageInt > 85) "fill-amber" else "fill-green"}" style="width: ${item.percentageInt.coerceAtMost(100)}%;"></div></div>
+                                    <span class="progress-text">${item.percentageInt}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+        } else {
+            sb.append("""
+                <div class="summary-cards">
+                    <div class="card card-primary">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট বাজেট" else "Total Budget"}</div>
+                        <div class="card-value text-primary">৳ ${LanguageHelper.formatNumber(totalBudget, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "বরাদ্দকৃত তহবিল" else "Total Allocated"}</div>
+                    </div>
+                    <div class="card card-danger">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়িত" else "Total Spent"}</div>
+                        <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalSpent, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "ব্যয় হার: " else "Usage: "}<strong>$percentOverall%</strong></div>
+                    </div>
+                    <div class="card ${if (remaining >= 0) "card-success" else "card-danger"}">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট বাজেট" else "Remaining"}</div>
+                        <div class="card-value ${if (remaining >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(remaining, languageMode)}</div>
+                        <div class="card-sub">${if (remaining >= 0) (if (languageMode == LanguageMode.BANGLA) "বাজেটের মধ্যে আছে" else "Within Limit") else (if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Limit")}</div>
+                    </div>
+                    <div class="card card-neutral">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "ব্যয়িত অনুপাত" else "Spent Ratio"}</div>
+                        <div class="card-value text-neutral">$percentOverall%</div>
+                        <div style="margin-top:4px;">
+                            <div class="progress-bar"><div class="progress-fill ${if (percentOverall > 100) "fill-red" else if (percentOverall > 85) "fill-amber" else "fill-green"}" style="width: ${percentOverall.coerceAtMost(100)}%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি / গ্রুপ" else "Category / Group"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বাজেট" else "Budget"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "ব্যয়িত" else "Spent"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"}</th>
+                            <th style="width: 25%;">${if (languageMode == LanguageMode.BANGLA) "ব্যয়িত অগ্রগতি" else "Progress & %"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            for (grp in groups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.groupNameEn, grp.groupNameBn, languageMode)
+                val grpRem = grp.totalBudget - grp.totalSpent
+                sb.append("""
+                    <tr class="group-row">
+                        <td><strong>📁 $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.totalBudget, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold; color: #dc2626;">৳ ${LanguageHelper.formatNumber(grp.totalSpent, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;" class="${if (grpRem >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(grpRem, languageMode)}</td>
+                        <td>
+                            <div class="progress-container">
+                                <div class="progress-bar"><div class="progress-fill ${if (grp.percentageInt > 100) "fill-red" else if (grp.percentageInt > 85) "fill-amber" else "fill-green"}" style="width: ${grp.percentageInt.coerceAtMost(100)}%;"></div></div>
+                                <span class="progress-text">${grp.percentageInt}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                """.trimIndent())
+
+                for (item in grp.items) {
+                    val catName = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode)
+                    val itmRem = item.budgetLimit - item.spentAmount
+
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• <strong>$catName</strong></td>
+                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(item.budgetLimit, languageMode)}</td>
+                            <td style="text-align: right; font-weight: 600;" class="${if (item.spentAmount > 0) "text-danger" else ""}">৳ ${LanguageHelper.formatNumber(item.spentAmount, languageMode)}</td>
+                            <td style="text-align: right;" class="${if (itmRem >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(itmRem, languageMode)}</td>
+                            <td>
+                                <div class="progress-container">
+                                    <div class="progress-bar"><div class="progress-fill ${if (item.percentageInt > 100) "fill-red" else if (item.percentageInt > 85) "fill-amber" else "fill-green"}" style="width: ${item.percentageInt.coerceAtMost(100)}%;"></div></div>
+                                    <span class="progress-text">${item.percentageInt}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                    """.trimIndent())
+                }
             }
         }
 
@@ -619,8 +763,11 @@ object TabExportHelper {
                                 put("groupName", grp.parentAccount.nameEn)
                                 put("balance", grp.effectiveCurrentBalance)
                                 if (comparisonEnabled) {
+                                    val grpDelta = grp.effectiveCurrentBalance - grp.effectiveBaseBalance
+                                    val grpPct = if (Math.abs(grp.effectiveBaseBalance) > 0.001) (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0 else 0.0
                                     put("baseBalance", grp.effectiveBaseBalance)
-                                    put("delta", grp.effectiveCurrentBalance - grp.effectiveBaseBalance)
+                                    put("delta", grpDelta)
+                                    put("deltaPercent", grpPct)
                                 }
                                 put("subAccounts", JSONArray().apply {
                                     grp.subAccounts.forEach { sub ->
@@ -628,8 +775,11 @@ object TabExportHelper {
                                             put("accountName", sub.account.nameEn)
                                             put("balance", sub.effectiveCurrentBalance)
                                             if (comparisonEnabled) {
+                                                val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
+                                                val subPct = if (Math.abs(sub.effectiveBaseBalance) > 0.001) (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0 else 0.0
                                                 put("baseBalance", sub.effectiveBaseBalance)
-                                                put("delta", sub.effectiveCurrentBalance - sub.effectiveBaseBalance)
+                                                put("delta", subDelta)
+                                                put("deltaPercent", subPct)
                                             }
                                         })
                                     }
@@ -643,8 +793,11 @@ object TabExportHelper {
                                 put("groupName", grp.parentAccount.nameEn)
                                 put("balance", grp.effectiveCurrentBalance)
                                 if (comparisonEnabled) {
+                                    val grpDelta = grp.effectiveCurrentBalance - grp.effectiveBaseBalance
+                                    val grpPct = if (Math.abs(grp.effectiveBaseBalance) > 0.001) (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0 else 0.0
                                     put("baseBalance", grp.effectiveBaseBalance)
-                                    put("delta", grp.effectiveCurrentBalance - grp.effectiveBaseBalance)
+                                    put("delta", grpDelta)
+                                    put("deltaPercent", grpPct)
                                 }
                                 put("subAccounts", JSONArray().apply {
                                     grp.subAccounts.forEach { sub ->
@@ -652,8 +805,11 @@ object TabExportHelper {
                                             put("accountName", sub.account.nameEn)
                                             put("balance", sub.effectiveCurrentBalance)
                                             if (comparisonEnabled) {
+                                                val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
+                                                val subPct = if (Math.abs(sub.effectiveBaseBalance) > 0.001) (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0 else 0.0
                                                 put("baseBalance", sub.effectiveBaseBalance)
-                                                put("delta", sub.effectiveCurrentBalance - sub.effectiveBaseBalance)
+                                                put("delta", subDelta)
+                                                put("deltaPercent", subPct)
                                             }
                                         })
                                     }
@@ -689,7 +845,9 @@ object TabExportHelper {
         }
 
         if (comparisonEnabled) {
-            sb.append("Section,Group,Account,Base Balance ($baseDateLabel),Current Balance ($compareDateLabel),Variance (BDT),Change (%)\n")
+            val baseLbl = baseDateLabel.ifBlank { "Base Period" }
+            val currLbl = compareDateLabel.ifBlank { "Current Period" }
+            sb.append("Section,Account Group,Sub-Account,Base Balance - $baseLbl (BDT),Current Balance - $currLbl (BDT),Variance (BDT),Change (%)\n")
 
             for (grp in assetGroups) {
                 val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
@@ -724,7 +882,7 @@ object TabExportHelper {
             val nwPct = if (Math.abs(netWorthBase) > 0.001) String.format(Locale.US, "%.1f%%", (netWorthDelta / Math.abs(netWorthBase)) * 100.0) else "-"
             sb.append("Net Worth,NET WORTH,,${String.format(Locale.US, "%.2f", netWorthBase)},${String.format(Locale.US, "%.2f", netWorth)},${String.format(Locale.US, "%.2f", netWorthDelta)},$nwPct\n")
         } else {
-            sb.append("Section,Group,Account,Balance (BDT)\n")
+            sb.append("Section,Account Group,Sub-Account,Balance (BDT)\n")
 
             for (grp in assetGroups) {
                 val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
@@ -769,66 +927,96 @@ object TabExportHelper {
         val sb = StringBuilder()
         val assetsDelta = totalAssets - totalAssetsBase
         val liabDelta = totalLiabilities - totalLiabilitiesBase
+        val assetsPct = if (Math.abs(totalAssetsBase) > 0.001) (assetsDelta / Math.abs(totalAssetsBase)) * 100.0 else 0.0
+        val liabPct = if (Math.abs(totalLiabilitiesBase) > 0.001) (liabDelta / Math.abs(totalLiabilitiesBase)) * 100.0 else 0.0
+        val nwPct = if (Math.abs(netWorthBase) > 0.001) (netWorthDelta / Math.abs(netWorthBase)) * 100.0 else 0.0
 
         if (comparisonEnabled) {
+            val currLbl = compareDateLabel.ifBlank { "Current" }
+            val baseLbl = baseDateLabel.ifBlank { "Base" }
+            val assetsDeltaSign = if (assetsDelta > 0) "+" else ""
+            val liabDeltaSign = if (liabDelta > 0) "+" else ""
+            val nwDeltaSign = if (netWorthDelta > 0) "+" else ""
+
+            val assetsBadgeClass = if (assetsDelta >= 0) "badge-positive" else "badge-negative"
+            val assetsArrow = if (assetsDelta > 0) "▲" else if (assetsDelta < 0) "▼" else "—"
+            val liabBadgeClass = if (liabDelta <= 0) "badge-positive" else "badge-negative"
+            val liabArrow = if (liabDelta > 0) "▲" else if (liabDelta < 0) "▼" else "—"
+            val nwBadgeClass = if (netWorthDelta >= 0) "badge-positive" else "badge-negative"
+            val nwArrow = if (netWorthDelta > 0) "▲" else if (netWorthDelta < 0) "▼" else "—"
+
             sb.append("""
                 <div class="summary-cards">
-                    <div class="card">
-                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ ($compareDateLabel)" else "Total Assets ($compareDateLabel)"}</div>
+                    <div class="card card-success">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ ($currLbl)" else "Total Assets ($currLbl)"}</div>
                         <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</div>
-                        <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(totalAssetsBase, languageMode)} (${if (assetsDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(assetsDelta, languageMode)})</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(totalAssetsBase, languageMode)}</div>
+                        <div style="margin-top: 4px;"><span class="badge $assetsBadgeClass">$assetsDeltaSign${String.format(Locale.US, "%.1f", assetsPct)}% $assetsArrow ($assetsDeltaSign৳ ${LanguageHelper.formatNumber(assetsDelta, languageMode)})</span></div>
                     </div>
-                    <div class="card">
-                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট দায় ($compareDateLabel)" else "Total Liabilities ($compareDateLabel)"}</div>
+                    <div class="card card-danger">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট দায় ($currLbl)" else "Total Liabilities ($currLbl)"}</div>
                         <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</div>
-                        <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(totalLiabilitiesBase, languageMode)} (${if (liabDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(liabDelta, languageMode)})</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(totalLiabilitiesBase, languageMode)}</div>
+                        <div style="margin-top: 4px;"><span class="badge $liabBadgeClass">$liabDeltaSign${String.format(Locale.US, "%.1f", liabPct)}% $liabArrow ($liabDeltaSign৳ ${LanguageHelper.formatNumber(liabDelta, languageMode)})</span></div>
                     </div>
-                    <div class="card">
-                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ ($compareDateLabel)" else "Net Worth ($compareDateLabel)"}</div>
-                        <div class="card-value ${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
-                        <div style="font-size:10px; color:#64748b;">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(netWorthBase, languageMode)} (${if (netWorthDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(netWorthDelta, languageMode)})</div>
+                    <div class="card ${if (netWorth >= 0) "card-primary" else "card-danger"}">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ ($currLbl)" else "Net Worth ($currLbl)"}</div>
+                        <div class="card-value ${if (netWorth >= 0) "text-primary" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "পূর্বে: " else "Base: "}৳ ${LanguageHelper.formatNumber(netWorthBase, languageMode)}</div>
+                        <div style="margin-top: 4px;"><span class="badge $nwBadgeClass">$nwDeltaSign${String.format(Locale.US, "%.1f", nwPct)}% $nwArrow ($nwDeltaSign৳ ${LanguageHelper.formatNumber(netWorthDelta, languageMode)})</span></div>
                     </div>
                 </div>
+
                 <table>
                     <thead>
                         <tr>
-                            <th>${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট / গ্রুপ" else "Account / Group"}</th>
-                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ব্যালেন্স ($baseDateLabel)" else "Base Balance ($baseDateLabel)"}</th>
-                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স ($compareDateLabel)" else "Current Balance ($compareDateLabel)"}</th>
+                            <th style="width: 32%;">${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট গ্রুপ ও সাব-অ্যাকাউন্ট" else "Account Group & Sub-Account"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ব্যালেন্স ($baseLbl)" else "Base Balance ($baseLbl)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স ($currLbl)" else "Current Balance ($currLbl)"}</th>
                             <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পার্থক্য" else "Variance"}</th>
-                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পরিবর্তন %" else "Change %"}</th>
+                            <th style="text-align: right; width: 14%;">${if (languageMode == LanguageMode.BANGLA) "পরিবর্তন %" else "Change %"}</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr class="section-assets">
-                            <td colspan="5"><strong>${if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"} — ৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</strong></td>
+                            <td colspan="5"><strong>💎 ${if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"} — ৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</strong></td>
                         </tr>
             """.trimIndent())
 
             for (grp in assetGroups) {
                 val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
                 val grpDelta = grp.effectiveCurrentBalance - grp.effectiveBaseBalance
-                val grpPct = if (Math.abs(grp.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0) else "-"
+                val grpDeltaSign = if (grpDelta > 0) "+" else ""
+                val grpDeltaClass = if (grpDelta >= 0) "text-success" else "text-danger"
+                val grpBadgeClass = if (grpDelta >= 0) "badge-positive" else "badge-negative"
+                val grpArrow = if (grpDelta > 0) "▲" else if (grpDelta < 0) "▼" else "—"
+                val grpPctStr = if (Math.abs(grp.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0) else "-"
+
                 sb.append("""
                     <tr class="group-row">
-                        <td><strong>&gt; $grpName</strong></td>
+                        <td><strong>📁 $grpName</strong></td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveBaseBalance, languageMode)}</td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
-                        <td style="text-align: right; font-weight: bold;" class="${if (grpDelta >= 0) "text-success" else "text-danger"}">${if (grpDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
-                        <td style="text-align: right; font-weight: bold;">$grpPct</td>
+                        <td style="text-align: right; font-weight: bold;" class="$grpDeltaClass">$grpDeltaSign৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
+                        <td style="text-align: right;"><span class="badge $grpBadgeClass">$grpDeltaSign$grpPctStr $grpArrow</span></td>
                     </tr>
                 """.trimIndent())
                 for (sub in grp.subAccounts) {
                     val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
                     val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
-                    val subPct = if (Math.abs(sub.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0) else "-"
+                    val subDeltaSign = if (subDelta > 0) "+" else ""
+                    val subDeltaClass = if (subDelta >= 0) "text-success" else "text-danger"
+                    val subBadgeClass = if (subDelta >= 0) "badge-positive" else "badge-negative"
+                    val subArrow = if (subDelta > 0) "▲" else if (subDelta < 0) "▼" else "—"
+                    val subPctStr = if (Math.abs(sub.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0) else "-"
+
                     sb.append("""
                         <tr>
-                            <td style="padding-left: 24px;">• $subName</td>
-                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
-                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
-                            <td style="text-align: right;" class="${if (subDelta >= 0) "text-success" else "text-danger"}">${if (subDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
-                            <td style="text-align: right;">$subPct</td>
+                            <td style="padding-left: 24px;">↳ $subName</td>
+                            <td style="text-align: right; color: #64748b;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
+                            <td style="text-align: right; font-weight: 600;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                            <td style="text-align: right;" class="$subDeltaClass">$subDeltaSign৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
+                            <td style="text-align: right;"><span class="badge $subBadgeClass">$subDeltaSign$subPctStr $subArrow</span></td>
                         </tr>
                     """.trimIndent())
                 }
@@ -836,46 +1024,61 @@ object TabExportHelper {
 
             sb.append("""
                         <tr class="section-liabilities" style="margin-top: 10px;">
-                            <td colspan="5"><strong>${if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"} — ৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</strong></td>
+                            <td colspan="5"><strong>💳 ${if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"} — ৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</strong></td>
                         </tr>
             """.trimIndent())
 
             for (grp in liabilityGroups) {
                 val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
                 val grpDelta = grp.effectiveCurrentBalance - grp.effectiveBaseBalance
-                val grpPct = if (Math.abs(grp.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0) else "-"
+                val grpDeltaSign = if (grpDelta > 0) "+" else ""
+                val grpDeltaClass = if (grpDelta <= 0) "text-success" else "text-danger"
+                val grpBadgeClass = if (grpDelta <= 0) "badge-positive" else "badge-negative"
+                val grpArrow = if (grpDelta > 0) "▲" else if (grpDelta < 0) "▼" else "—"
+                val grpPctStr = if (Math.abs(grp.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (grpDelta / Math.abs(grp.effectiveBaseBalance)) * 100.0) else "-"
+
                 sb.append("""
                     <tr class="group-row">
-                        <td><strong>&gt; $grpName</strong></td>
+                        <td><strong>📁 $grpName</strong></td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveBaseBalance, languageMode)}</td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
-                        <td style="text-align: right; font-weight: bold;" class="${if (grpDelta <= 0) "text-success" else "text-danger"}">${if (grpDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
-                        <td style="text-align: right; font-weight: bold;">$grpPct</td>
+                        <td style="text-align: right; font-weight: bold;" class="$grpDeltaClass">$grpDeltaSign৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
+                        <td style="text-align: right;"><span class="badge $grpBadgeClass">$grpDeltaSign$grpPctStr $grpArrow</span></td>
                     </tr>
                 """.trimIndent())
                 for (sub in grp.subAccounts) {
                     val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
                     val subDelta = sub.effectiveCurrentBalance - sub.effectiveBaseBalance
-                    val subPct = if (Math.abs(sub.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0) else "-"
+                    val subDeltaSign = if (subDelta > 0) "+" else ""
+                    val subDeltaClass = if (subDelta <= 0) "text-success" else "text-danger"
+                    val subBadgeClass = if (subDelta <= 0) "badge-positive" else "badge-negative"
+                    val subArrow = if (subDelta > 0) "▲" else if (subDelta < 0) "▼" else "—"
+                    val subPctStr = if (Math.abs(sub.effectiveBaseBalance) > 0.001) String.format(Locale.US, "%.1f%%", (subDelta / Math.abs(sub.effectiveBaseBalance)) * 100.0) else "-"
+
                     sb.append("""
                         <tr>
-                            <td style="padding-left: 24px;">• $subName</td>
-                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
-                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
-                            <td style="text-align: right;" class="${if (subDelta <= 0) "text-success" else "text-danger"}">${if (subDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
-                            <td style="text-align: right;">$subPct</td>
+                            <td style="padding-left: 24px;">↳ $subName</td>
+                            <td style="text-align: right; color: #64748b;">৳ ${LanguageHelper.formatNumber(sub.effectiveBaseBalance, languageMode)}</td>
+                            <td style="text-align: right; font-weight: 600;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                            <td style="text-align: right;" class="$subDeltaClass">$subDeltaSign৳ ${LanguageHelper.formatNumber(subDelta, languageMode)}</td>
+                            <td style="text-align: right;"><span class="badge $subBadgeClass">$subDeltaSign$subPctStr $subArrow</span></td>
                         </tr>
                     """.trimIndent())
                 }
             }
 
+            val nwDeltaSignStr = if (netWorthDelta > 0) "+" else ""
+            val nwDeltaClassStr = if (netWorthDelta >= 0) "text-success" else "text-danger"
+            val nwBadgeClassStr = if (netWorthDelta >= 0) "badge-positive" else "badge-negative"
+            val nwArrowStr = if (netWorthDelta > 0) "▲" else if (netWorthDelta < 0) "▼" else "—"
+
             sb.append("""
                         <tr class="net-worth-row">
-                            <td><strong>${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth"}</strong></td>
+                            <td><strong>👑 ${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth"}</strong></td>
                             <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(netWorthBase, languageMode)}</td>
                             <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</td>
-                            <td style="text-align: right; font-weight: bold;" class="${if (netWorthDelta >= 0) "text-success" else "text-danger"}">${if (netWorthDelta >= 0) "+" else ""}৳ ${LanguageHelper.formatNumber(netWorthDelta, languageMode)}</td>
-                            <td style="text-align: right; font-weight: bold;">${if (Math.abs(netWorthBase) > 0.001) String.format(Locale.US, "%.1f%%", (netWorthDelta / Math.abs(netWorthBase)) * 100.0) else "-"}</td>
+                            <td style="text-align: right; font-weight: bold;" class="$nwDeltaClassStr">$nwDeltaSignStr৳ ${LanguageHelper.formatNumber(netWorthDelta, languageMode)}</td>
+                            <td style="text-align: right;"><span class="badge $nwBadgeClassStr">$nwDeltaSignStr${String.format(Locale.US, "%.1f", nwPct)}% $nwArrowStr</span></td>
                         </tr>
                     </tbody>
                 </table>
@@ -883,29 +1086,32 @@ object TabExportHelper {
         } else {
             sb.append("""
                 <div class="summary-cards">
-                    <div class="card">
+                    <div class="card card-success">
                         <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets"}</div>
                         <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "সর্বমোট সম্পত্তি" else "Total Holdings"}</div>
                     </div>
-                    <div class="card">
+                    <div class="card card-danger">
                         <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities"}</div>
                         <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "সর্বমোট দেনা" else "Total Obligations"}</div>
                     </div>
-                    <div class="card">
+                    <div class="card ${if (netWorth >= 0) "card-primary" else "card-danger"}">
                         <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ" else "Net Worth"}</div>
-                        <div class="card-value ${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
+                        <div class="card-value ${if (netWorth >= 0) "text-primary" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</div>
+                        <div class="card-sub">${if (netWorth >= 0) (if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত স্থিতি" else "Positive Net Worth") else (if (languageMode == LanguageMode.BANGLA) "ঘাটতি স্থিতি" else "Deficit")}</div>
                     </div>
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট / গ্রুপ" else "Account / Group"}</th>
+                            <th style="width: 65%;">${if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট গ্রুপ ও সাব-অ্যাকাউন্ট" else "Account Group & Sub-Account"}</th>
                             <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স (BDT)" else "Balance (BDT)"}</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr class="section-assets">
-                            <td colspan="2"><strong>${if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"} — ৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</strong></td>
+                            <td colspan="2"><strong>💎 ${if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets"} — ৳ ${LanguageHelper.formatNumber(totalAssets, languageMode)}</strong></td>
                         </tr>
             """.trimIndent())
 
@@ -913,7 +1119,7 @@ object TabExportHelper {
                 val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
                 sb.append("""
                     <tr class="group-row">
-                        <td><strong>&gt; $grpName</strong></td>
+                        <td><strong>📁 $grpName</strong></td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
                     </tr>
                 """.trimIndent())
@@ -921,8 +1127,8 @@ object TabExportHelper {
                     val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
                     sb.append("""
                         <tr>
-                            <td style="padding-left: 24px;">• $subName</td>
-                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                            <td style="padding-left: 24px;">↳ $subName</td>
+                            <td style="text-align: right; font-weight: 600;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
                         </tr>
                     """.trimIndent())
                 }
@@ -930,7 +1136,7 @@ object TabExportHelper {
 
             sb.append("""
                         <tr class="section-liabilities" style="margin-top: 10px;">
-                            <td colspan="2"><strong>${if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"} — ৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</strong></td>
+                            <td colspan="2"><strong>💳 ${if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities"} — ৳ ${LanguageHelper.formatNumber(totalLiabilities, languageMode)}</strong></td>
                         </tr>
             """.trimIndent())
 
@@ -938,7 +1144,7 @@ object TabExportHelper {
                 val grpName = LanguageHelper.getLocalizedName(grp.parentAccount.nameEn, grp.parentAccount.nameBn, languageMode)
                 sb.append("""
                     <tr class="group-row">
-                        <td><strong>&gt; $grpName</strong></td>
+                        <td><strong>📁 $grpName</strong></td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.effectiveCurrentBalance, languageMode)}</td>
                     </tr>
                 """.trimIndent())
@@ -946,8 +1152,8 @@ object TabExportHelper {
                     val subName = LanguageHelper.getLocalizedName(sub.account.nameEn, sub.account.nameBn, languageMode)
                     sb.append("""
                         <tr>
-                            <td style="padding-left: 24px;">• $subName</td>
-                            <td style="text-align: right;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
+                            <td style="padding-left: 24px;">↳ $subName</td>
+                            <td style="text-align: right; font-weight: 600;">৳ ${LanguageHelper.formatNumber(sub.effectiveCurrentBalance, languageMode)}</td>
                         </tr>
                     """.trimIndent())
                 }
@@ -955,8 +1161,8 @@ object TabExportHelper {
 
             sb.append("""
                         <tr class="net-worth-row">
-                            <td><strong>${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth"}</strong></td>
-                            <td style="text-align: right; font-size: 14px; font-weight: bold;" class="${if (netWorth >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</td>
+                            <td><strong>👑 ${if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth"}</strong></td>
+                            <td style="text-align: right; font-weight: bold; ${if (netWorth >= 0) "color: #16a34a;" else "color: #dc2626;"}">৳ ${LanguageHelper.formatNumber(netWorth, languageMode)}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -1269,142 +1475,198 @@ object TabExportHelper {
                 <style>
                     * { box-sizing: border-box; }
                     body {
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                        margin: 24px;
-                        color: #1e293b;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        margin: 28px;
+                        color: #0f172a;
                         background: #ffffff;
                         line-height: 1.5;
                         font-size: 12px;
                     }
                     .header {
-                        margin-bottom: 20px;
+                        margin-bottom: 24px;
                         border-bottom: 2px solid #e2e8f0;
-                        padding-bottom: 12px;
+                        padding-bottom: 16px;
                     }
                     .app-badge {
                         display: inline-block;
-                        background: #2563eb;
+                        background: linear-gradient(135deg, #1e3a8a, #2563eb);
                         color: #ffffff;
-                        font-weight: 700;
+                        font-weight: 800;
                         font-size: 11px;
-                        padding: 3px 8px;
-                        border-radius: 4px;
-                        margin-bottom: 6px;
-                        letter-spacing: 0.5px;
+                        padding: 4px 10px;
+                        border-radius: 6px;
+                        margin-bottom: 8px;
+                        letter-spacing: 1px;
                     }
                     h1 {
-                        font-size: 20px;
-                        margin: 4px 0;
+                        font-size: 22px;
+                        margin: 4px 0 6px 0;
                         color: #0f172a;
                         font-weight: 800;
+                        letter-spacing: -0.3px;
                     }
                     .subtitle {
-                        font-size: 11px;
+                        font-size: 12px;
                         color: #64748b;
+                        font-weight: 500;
                     }
                     .summary-cards {
                         display: flex;
-                        gap: 12px;
-                        margin-bottom: 20px;
+                        gap: 14px;
+                        margin-bottom: 24px;
                         flex-wrap: wrap;
                     }
                     .card {
                         flex: 1;
-                        min-width: 120px;
+                        min-width: 140px;
                         background: #f8fafc;
                         border: 1px solid #e2e8f0;
-                        border-radius: 8px;
-                        padding: 10px 14px;
+                        border-radius: 10px;
+                        padding: 12px 16px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+                    }
+                    .card-primary {
+                        background: #eff6ff;
+                        border-color: #bfdbfe;
+                    }
+                    .card-success {
+                        background: #f0fdf4;
+                        border-color: #bbf7d0;
+                    }
+                    .card-danger {
+                        background: #fef2f2;
+                        border-color: #fecaca;
+                    }
+                    .card-warning {
+                        background: #fffbeb;
+                        border-color: #fde68a;
                     }
                     .card-label {
                         font-size: 10px;
-                        color: #64748b;
-                        font-weight: 600;
+                        color: #475569;
+                        font-weight: 700;
                         text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                        margin-bottom: 2px;
+                        letter-spacing: 0.6px;
+                        margin-bottom: 4px;
                     }
                     .card-value {
-                        font-size: 15px;
-                        font-weight: 700;
+                        font-size: 17px;
+                        font-weight: 800;
                         color: #0f172a;
+                        letter-spacing: -0.2px;
+                    }
+                    .card-sub {
+                        font-size: 10.5px;
+                        color: #64748b;
+                        margin-top: 3px;
                     }
                     table {
                         width: 100%;
                         border-collapse: collapse;
-                        font-size: 11px;
-                        margin-top: 8px;
+                        font-size: 11.5px;
+                        margin-top: 10px;
+                        background: #ffffff;
                     }
                     th, td {
-                        padding: 7px 10px;
+                        padding: 8px 12px;
                         border-bottom: 1px solid #e2e8f0;
                         text-align: left;
                     }
                     th {
                         background-color: #f1f5f9;
                         font-weight: 700;
-                        color: #334155;
+                        color: #1e293b;
                         border-top: 1px solid #cbd5e1;
                         border-bottom: 2px solid #cbd5e1;
                         font-size: 10.5px;
                         text-transform: uppercase;
+                        letter-spacing: 0.5px;
                     }
-                    tr:nth-child(even):not(.group-row):not(.section-assets):not(.section-liabilities):not(.net-worth-row) {
+                    tr:nth-child(even):not(.group-row):not(.section-assets):not(.section-liabilities):not(.net-worth-row):not(.budget-over-row) {
                         background-color: #fafbfc;
                     }
                     .group-row {
                         background-color: #f8fafc;
                         font-weight: 700;
-                        color: #1e40af;
-                        border-top: 1px solid #e2e8f0;
+                        color: #1e3a8a;
+                        border-top: 1.5px solid #cbd5e1;
                     }
                     .section-assets {
                         background-color: #dcfce7;
                         color: #15803d;
                         font-weight: 700;
+                        font-size: 12px;
                     }
                     .section-liabilities {
                         background-color: #fee2e2;
                         color: #b91c1c;
                         font-weight: 700;
+                        font-size: 12px;
                     }
                     .net-worth-row {
                         background-color: #f1f5f9;
                         font-weight: 800;
-                        font-size: 12px;
-                        border-top: 2px solid #94a3b8;
-                        border-bottom: 2px solid #94a3b8;
+                        font-size: 13px;
+                        border-top: 2px solid #64748b;
+                        border-bottom: 2px solid #64748b;
                     }
-                    .text-success { color: #16a34a; }
+                    .budget-over-row {
+                        background-color: #fef2f2;
+                    }
+                    .text-success { color: #15803d; }
                     .text-danger { color: #dc2626; }
                     .text-primary { color: #2563eb; }
+                    .text-warning { color: #d97706; }
+                    .text-muted { color: #64748b; }
                     .badge {
                         display: inline-block;
-                        padding: 2px 6px;
-                        border-radius: 4px;
-                        font-size: 9px;
+                        padding: 3px 8px;
+                        border-radius: 12px;
+                        font-size: 10px;
                         font-weight: 700;
-                        text-transform: uppercase;
+                        white-space: nowrap;
                     }
+                    .badge-positive { background: #dcfce7; color: #15803d; }
+                    .badge-negative { background: #fee2e2; color: #b91c1c; }
+                    .badge-neutral { background: #f1f5f9; color: #475569; }
                     .badge-expense { background: #fee2e2; color: #dc2626; }
                     .badge-income { background: #dcfce7; color: #16a34a; }
                     .badge-transfer { background: #dbeafe; color: #2563eb; }
+                    .badge-over { background: #fee2e2; color: #dc2626; font-weight: 800; }
+                    .badge-safe { background: #dcfce7; color: #15803d; }
+                    .badge-warning { background: #fef3c7; color: #b45309; }
+                    .progress-container {
+                        width: 100%;
+                        background-color: #e2e8f0;
+                        border-radius: 4px;
+                        height: 7px;
+                        overflow: hidden;
+                        margin-top: 4px;
+                    }
+                    .progress-fill {
+                        height: 100%;
+                        border-radius: 4px;
+                    }
+                    .fill-green { background-color: #22c55e; }
+                    .fill-amber { background-color: #f59e0b; }
+                    .fill-red { background-color: #ef4444; }
                     .footer {
-                        margin-top: 24px;
-                        padding-top: 12px;
+                        margin-top: 28px;
+                        padding-top: 14px;
                         border-top: 1px solid #e2e8f0;
-                        font-size: 10px;
+                        font-size: 10.5px;
                         color: #94a3b8;
                         display: flex;
                         justify-content: space-between;
                     }
                     @media print {
-                        body { margin: 10px; }
-                        .header { margin-bottom: 12px; }
-                        th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
-                        .section-assets { background-color: #dcfce7 !important; -webkit-print-color-adjust: exact; }
-                        .section-liabilities { background-color: #fee2e2 !important; -webkit-print-color-adjust: exact; }
-                        .net-worth-row { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
+                        body { margin: 12px; }
+                        .header { margin-bottom: 14px; }
+                        th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        .section-assets { background-color: #dcfce7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        .section-liabilities { background-color: #fee2e2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        .net-worth-row { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        .card { border: 1px solid #cbd5e1 !important; }
                     }
                 </style>
             </head>
@@ -1417,7 +1679,7 @@ object TabExportHelper {
                 $contentHtml
                 <div class="footer">
                     <span>Budgeter • Personal Finance Management</span>
-                    <span>Printed/Exported on ${formatTimestamp(System.currentTimeMillis())}</span>
+                    <span>Generated on ${formatTimestamp(System.currentTimeMillis())}</span>
                 </div>
             </body>
             </html>
