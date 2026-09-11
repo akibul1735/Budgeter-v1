@@ -983,7 +983,7 @@ private fun CategoriesBudgetEntryView(
             val pastBudgetCount = monthlyBudgets.count {
                 it.itemId == item.id && it.itemType == item.itemType && it.budgetedAmount > 0.0
             }
-            val isFreqBudgeted = pastBudgetCount > 0 || item.defaultLimit > 0.0 || (saved?.budgetedAmount ?: 0.0) > 0.0
+            val isFreqBudgeted = pastBudgetCount > 0 || (saved?.budgetedAmount ?: 0.0) > 0.0
             val isFreqExpensed = txCount > 0 || (isAssetOrLiability && actualAmt != 0.0)
 
             val suggestions = calculateSuggestionsForItem(
@@ -2014,7 +2014,7 @@ private fun calculateSuggestionsForItem(
     }
 
     val prevSaved = monthlyBudgets.find { it.year == prevYear && it.month == prevMonth && it.itemType == itemType && it.itemId == itemId }
-    val prevBudgetAmt = prevSaved?.budgetedAmount ?: (if (defaultLimit > 0.0) defaultLimit else 0.0)
+    val prevBudgetAmt = prevSaved?.budgetedAmount ?: 0.0
 
     val prevMonthStart = DateUtils.getStartOfMonth(prevYear, prevMonth)
     val prevMonthEnd = DateUtils.getEndOfMonth(prevYear, prevMonth)
@@ -2031,51 +2031,54 @@ private fun calculateSuggestionsForItem(
                 it.transaction.debitAccountId == itemId || it.transaction.creditAccountId == itemId
     }
 
-    val cal = Calendar.getInstance()
-    val monthlyTotals = if (allItemTxs.isNotEmpty()) {
-        allItemTxs.groupBy {
-            cal.timeInMillis = it.transaction.dateEpochMs
-            "${cal.get(Calendar.YEAR)}_${cal.get(Calendar.MONTH)}"
-        }.values.map { txList -> txList.sumOf { it.transaction.amount } }
-    } else emptyList()
-
-    val freqCounts = monthlyTotals.groupingBy { it }.eachCount().toList().sortedByDescending { it.second }.map { it.first }
-
-    val baseFreq = if (freqCounts.isNotEmpty()) {
-        freqCounts[0]
-    } else if (prevBudgetAmt > 0.0) {
-        prevBudgetAmt
-    } else if (prevExpensedAmt > 0.0) {
-        prevExpensedAmt
-    } else if (defaultLimit > 0.0) {
-        defaultLimit
-    } else {
-        1000.0
-    }
-
-    val freq1 = if (freqCounts.isNotEmpty()) freqCounts[0] else baseFreq
-    val freq2 = if (freqCounts.size > 1) freqCounts[1] else (baseFreq * 1.25).roundToInt().toDouble()
-    val freq3 = if (freqCounts.size > 2) freqCounts[2] else (baseFreq * 0.75).roundToInt().coerceAtLeast(100).toDouble()
-
     val list = mutableListOf<BudgetSuggestionOption>()
+    var nextIndex = 0
 
     if (itemType == "ASSET" || itemType == "LIABILITY") {
-        // ASSETS & LIABILITIES: Balance Sheet Balance (Act), Previous Target (PB), Previous Activity (PE), 3 Frequent (F1, F2, F3)
-        list.add(BudgetSuggestionOption(0, balanceSheetBalance, "Actual Balance", "Act"))
-        list.add(BudgetSuggestionOption(1, prevBudgetAmt, "Previous Target", "PB"))
-        if (prevExpensedAmt > 0.0) {
-            list.add(BudgetSuggestionOption(2, prevExpensedAmt, "Previous Activity", "PE"))
+        // ASSETS & LIABILITIES: Balance Sheet Balance (Act), Previous Target (PB), Previous Activity (PE)
+        if (balanceSheetBalance != 0.0) {
+            list.add(BudgetSuggestionOption(nextIndex++, balanceSheetBalance, "Actual Balance", "Act"))
         }
-        list.add(BudgetSuggestionOption(3, freq1, "Frequent 1", "F1"))
-        list.add(BudgetSuggestionOption(4, freq2, "Frequent 2", "F2"))
-        list.add(BudgetSuggestionOption(5, freq3, "Frequent 3", "F3"))
+        if (prevBudgetAmt > 0.0) {
+            list.add(BudgetSuggestionOption(nextIndex++, prevBudgetAmt, "Previous Target", "PB"))
+        }
+        if (prevExpensedAmt > 0.0) {
+            list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Activity", "PE"))
+        }
     } else {
-        // EXPENSES & INCOMES: Previous Month Budget (PB), Previous Month Expensed (PE), 3 Frequent Suggestions (F1, F2, F3)
-        list.add(BudgetSuggestionOption(0, prevBudgetAmt, "Previous Budget", "PB"))
-        list.add(BudgetSuggestionOption(1, prevExpensedAmt, "Previous Expensed", "PE"))
-        list.add(BudgetSuggestionOption(2, freq1, "Frequent 1", "F1"))
-        list.add(BudgetSuggestionOption(3, freq2, "Frequent 2", "F2"))
-        list.add(BudgetSuggestionOption(4, freq3, "Frequent 3", "F3"))
+        // EXPENSES & INCOMES: Previous Month Budget (PB), Previous Month Expensed (PE), Category Default Limit (Limit)
+        if (prevBudgetAmt > 0.0) {
+            list.add(BudgetSuggestionOption(nextIndex++, prevBudgetAmt, "Previous Budget", "PB"))
+        }
+        if (prevExpensedAmt > 0.0) {
+            list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Expensed", "PE"))
+        }
+        if (defaultLimit > 0.0 && defaultLimit != prevBudgetAmt) {
+            list.add(BudgetSuggestionOption(nextIndex++, defaultLimit, "Default Limit", "Limit"))
+        }
+    }
+
+    // Only compute frequent amounts if REAL transactions exist!
+    if (allItemTxs.isNotEmpty()) {
+        val cal = Calendar.getInstance()
+        val monthlyTotals = allItemTxs.groupBy {
+            cal.timeInMillis = it.transaction.dateEpochMs
+            "${cal.get(Calendar.YEAR)}_${cal.get(Calendar.MONTH)}"
+        }.values.map { txList -> txList.sumOf { it.transaction.amount } }.filter { it > 0.0 }
+
+        val freqMonthlyTotals = monthlyTotals.groupingBy { it }.eachCount().toList().sortedByDescending { it.second }.map { it.first }
+
+        // Also check distinct individual transaction amounts if monthly totals are limited
+        val individualAmounts = allItemTxs.map { it.transaction.amount }.filter { it > 0.0 }
+        val freqIndividualAmounts = individualAmounts.groupingBy { it }.eachCount().toList().sortedByDescending { it.second }.map { it.first }
+
+        val existingAmounts = list.map { it.amountMonthly }.toMutableSet()
+        val topFreqs = (freqMonthlyTotals + freqIndividualAmounts).distinct().filter { it > 0.0 && it !in existingAmounts }.take(3)
+
+        topFreqs.forEachIndexed { fIdx, amt ->
+            list.add(BudgetSuggestionOption(nextIndex++, amt, "Frequent ${fIdx + 1}", "F${fIdx + 1}"))
+            existingAmounts.add(amt)
+        }
     }
 
     return list
