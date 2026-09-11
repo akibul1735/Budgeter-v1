@@ -161,33 +161,84 @@ enum class BudgetFrequency(val labelKey: String, val defaultLabel: String, val m
 }
 
 /**
- * Filter options for Budget Maker.
+ * Type-specific filter options for Budget Maker.
  */
-enum class BudgetFilterOption(val labelKey: String, val defaultLabel: String) {
-    ALL("all", "All"),
-    FREQ_BUDGETED("frequently_budgeted", "Frequently Budgeted"),
-    FREQ_EXPENSED("frequently_expensed", "Frequently Expensed"),
-    BUDGETED_ONLY("budgeted_only", "Budgeted Only"),
-    EXPENSED_ONLY("expensed_only", "Expensed Only"),
-    UNBUDGETED("unbudgeted", "Unbudgeted");
+enum class BudgetFilterOption {
+    ALL,
+    FREQ_BUDGETED,
+    FREQ_ACTIVE,
+    BUDGETED_ONLY,
+    ACTIVE_ONLY,
+    UNBUDGETED;
 
-    fun getTitle(languageMode: LanguageMode): String =
-        LanguageHelper.getString(labelKey, languageMode).ifEmpty { defaultLabel }
+    fun getTitle(itemType: String, languageMode: LanguageMode): String {
+        val isBn = languageMode == LanguageMode.BANGLA
+        return when (this) {
+            ALL -> if (isBn) "সব" else "All"
+            FREQ_BUDGETED -> when (itemType) {
+                "ASSET", "LIABILITY" -> if (isBn) "নিয়মিত লক্ষ্য" else "Frequently Targeted"
+                else -> if (isBn) "নিয়মিত বাজেট" else "Frequently Budgeted"
+            }
+            FREQ_ACTIVE -> when (itemType) {
+                "EXPENSE" -> if (isBn) "নিয়মিত খরচ" else "Frequently Expensed"
+                "INCOME" -> if (isBn) "নিয়মিত প্রাপ্ত আয়" else "Frequently Received"
+                "ASSET" -> if (isBn) "নিয়মিত লেনদেন" else "Frequently Active"
+                "LIABILITY" -> if (isBn) "নিয়মিত দেনা/লেনদেন" else "Frequently Active"
+                else -> if (isBn) "নিয়মিত ব্যবহৃত" else "Frequently Active"
+            }
+            BUDGETED_ONLY -> when (itemType) {
+                "ASSET", "LIABILITY" -> if (isBn) "শুধু লক্ষ্য" else "Targeted Only"
+                else -> if (isBn) "শুধু বাজেট" else "Budgeted Only"
+            }
+            ACTIVE_ONLY -> when (itemType) {
+                "EXPENSE" -> if (isBn) "শুধু খরচ হওয়া" else "Expensed Only"
+                "INCOME" -> if (isBn) "শুধু অর্জিত আয়" else "Earned Only"
+                "ASSET" -> if (isBn) "ব্যালেন্স আছে" else "Has Balance"
+                "LIABILITY" -> if (isBn) "দেনা বা ঋণ আছে" else "Has Debt"
+                else -> if (isBn) "লেনদেন আছে" else "Active Only"
+            }
+            UNBUDGETED -> when (itemType) {
+                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য ছাড়া" else "No Target"
+                else -> if (isBn) "বাজেট ছাড়া" else "Unbudgeted"
+            }
+        }
+    }
 }
 
 /**
- * Sort options for Budget Maker.
+ * Type-specific sort options for Budget Maker.
  */
-enum class BudgetSortOption(val labelKey: String, val defaultLabel: String) {
-    DEFAULT("sort_default", "Default Order"),
-    BUDGET_DESC("sort_budget_desc", "Budget: High → Low"),
-    BUDGET_ASC("sort_budget_asc", "Budget: Low → High"),
-    ACTUAL_DESC("sort_actual_desc", "Actual: High → Low"),
-    FREQUENCY_DESC("sort_frequency", "Frequency: Most Used"),
-    NAME_ASC("sort_name", "Alphabetical: A → Z");
+enum class BudgetSortOption {
+    DEFAULT,
+    BUDGET_DESC,
+    BUDGET_ASC,
+    ACTUAL_DESC,
+    FREQUENCY_DESC,
+    NAME_ASC;
 
-    fun getTitle(languageMode: LanguageMode): String =
-        LanguageHelper.getString(labelKey, languageMode).ifEmpty { defaultLabel }
+    fun getTitle(itemType: String, languageMode: LanguageMode): String {
+        val isBn = languageMode == LanguageMode.BANGLA
+        return when (this) {
+            DEFAULT -> if (isBn) "ডিফল্ট ক্রম" else "Default Order"
+            BUDGET_DESC -> when (itemType) {
+                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য: বেশি → কম" else "Target: High → Low"
+                else -> if (isBn) "বাজেট: বেশি → কম" else "Budget: High → Low"
+            }
+            BUDGET_ASC -> when (itemType) {
+                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য: কম → বেশি" else "Target: Low → High"
+                else -> if (isBn) "বাজেট: কম → বেশি" else "Budget: Low → High"
+            }
+            ACTUAL_DESC -> when (itemType) {
+                "EXPENSE" -> if (isBn) "খরচ: বেশি → কম" else "Spent: High → Low"
+                "INCOME" -> if (isBn) "আয়: বেশি → কম" else "Earned: High → Low"
+                "ASSET" -> if (isBn) "ব্যালেন্স: বেশি → কম" else "Balance: High → Low"
+                "LIABILITY" -> if (isBn) "দেনা: বেশি → কম" else "Debt: High → Low"
+                else -> if (isBn) "প্রকৃত: বেশি → কম" else "Actual: High → Low"
+            }
+            FREQUENCY_DESC -> if (isBn) "লেনদেন: সর্বোচ্চ" else "Most Active"
+            NAME_ASC -> if (isBn) "নাম: A → Z" else "Alphabetical: A → Z"
+        }
+    }
 }
 
 data class BudgetTargetItem(
@@ -216,7 +267,7 @@ data class EnhancedBudgetItem(
     val manualBaseline: Double,
     val txCount: Int,
     val isFrequentlyBudgeted: Boolean,
-    val isFrequentlyExpensed: Boolean,
+    val isFrequentlyActive: Boolean,
     val suggestions: List<BudgetSuggestionOption>,
     val savedBudget: MonthlyBudget?
 )
@@ -984,7 +1035,7 @@ private fun CategoriesBudgetEntryView(
                 it.itemId == item.id && it.itemType == item.itemType && it.budgetedAmount > 0.0
             }
             val isFreqBudgeted = pastBudgetCount > 0 || (saved?.budgetedAmount ?: 0.0) > 0.0
-            val isFreqExpensed = txCount > 0 || (isAssetOrLiability && actualAmt != 0.0)
+            val isFreqActive = txCount > 0 || (isAssetOrLiability && actualAmt != 0.0)
 
             val suggestions = calculateSuggestionsForItem(
                 itemId = item.id,
@@ -1005,15 +1056,17 @@ private fun CategoriesBudgetEntryView(
                 manualBaseline = item.defaultLimit,
                 txCount = txCount,
                 isFrequentlyBudgeted = isFreqBudgeted,
-                isFrequentlyExpensed = isFreqExpensed,
+                isFrequentlyActive = isFreqActive,
                 suggestions = suggestions,
                 savedBudget = saved
             )
         }
     }
 
+    val sectionItemType = items.firstOrNull()?.itemType ?: "EXPENSE"
+
     // Apply Filter & Search
-    val filteredItems = remember(enhancedItems, searchQuery, selectedFilter, selectedSort) {
+    val filteredItems = remember(enhancedItems, searchQuery, selectedFilter, selectedSort, sectionItemType) {
         var list = enhancedItems
 
         // 1. Search Query
@@ -1030,9 +1083,13 @@ private fun CategoriesBudgetEntryView(
         list = when (selectedFilter) {
             BudgetFilterOption.ALL -> list
             BudgetFilterOption.FREQ_BUDGETED -> list.filter { it.isFrequentlyBudgeted }
-            BudgetFilterOption.FREQ_EXPENSED -> list.filter { it.isFrequentlyExpensed }
+            BudgetFilterOption.FREQ_ACTIVE -> list.filter { it.isFrequentlyActive }
             BudgetFilterOption.BUDGETED_ONLY -> list.filter { it.currentBudget > 0.0 }
-            BudgetFilterOption.EXPENSED_ONLY -> list.filter { it.actualSpent > 0.0 }
+            BudgetFilterOption.ACTIVE_ONLY -> when (sectionItemType) {
+                "EXPENSE", "INCOME" -> list.filter { it.actualSpent > 0.0 }
+                "ASSET", "LIABILITY" -> list.filter { it.actualSpent != 0.0 || it.txCount > 0 }
+                else -> list.filter { it.actualSpent > 0.0 }
+            }
             BudgetFilterOption.UNBUDGETED -> list.filter { it.currentBudget <= 0.0 }
         }
 
@@ -1291,7 +1348,7 @@ private fun CategoriesBudgetEntryView(
                                 onClick = { onFilterChange(opt) },
                                 label = {
                                     Text(
-                                        text = opt.getTitle(languageMode),
+                                        text = opt.getTitle(sectionItemType, languageMode),
                                         fontSize = 11.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                     )
@@ -1335,7 +1392,11 @@ private fun CategoriesBudgetEntryView(
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = if (selectedSort == BudgetSortOption.DEFAULT) "Sort" else selectedSort.getTitle(languageMode).take(8),
+                                    text = if (selectedSort == BudgetSortOption.DEFAULT) {
+                                        if (languageMode == LanguageMode.BANGLA) "সাজান" else "Sort"
+                                    } else {
+                                        selectedSort.getTitle(sectionItemType, languageMode).take(12)
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -1351,7 +1412,7 @@ private fun CategoriesBudgetEntryView(
                                 DropdownMenuItem(
                                     text = {
                                         Text(
-                                            text = sortOpt.getTitle(languageMode),
+                                            text = sortOpt.getTitle(sectionItemType, languageMode),
                                             fontWeight = if (sortOpt == selectedSort) FontWeight.Bold else FontWeight.Normal,
                                             fontSize = 12.5.sp,
                                             color = if (sortOpt == selectedSort) sectionColor else MaterialTheme.colorScheme.onSurface
@@ -1705,24 +1766,43 @@ private fun BudgetItemRow(
                 }
             }
 
-            // TIER 2: Insights Subtitle
-            val isAssetOrLiability = item.itemType == "ASSET" || item.itemType == "LIABILITY"
-            val sublineText = if (isAssetOrLiability) {
-                buildString {
-                    append("Actual (Balance Sheet)= ${formatCompactCurrency(actualSpent, languageMode)}")
+            // TIER 2: Insights Subtitle (Type-specific contextual naming)
+            val sublineText = when (item.itemType) {
+                "INCOME" -> buildString {
+                    if (currentMonthlyAmt > 0) {
+                        append("Target= ${formatCompactCurrency(currentMonthlyAmt, languageMode)} • ")
+                    }
+                    append("Earned= ${formatCompactCurrency(actualSpent, languageMode)}")
+                    if (manualBaseline > 0 && manualBaseline != currentMonthlyAmt) {
+                        append(" • Default= ${formatCompactCurrency(manualBaseline, languageMode)}")
+                    }
+                }
+                "EXPENSE" -> buildString {
+                    if (currentMonthlyAmt > 0) {
+                        append("Budget= ${formatCompactCurrency(currentMonthlyAmt, languageMode)} • ")
+                    }
+                    append("Spent= ${formatCompactCurrency(actualSpent, languageMode)}")
+                    if (manualBaseline > 0 && manualBaseline != currentMonthlyAmt) {
+                        append(" • Limit= ${formatCompactCurrency(manualBaseline, languageMode)}")
+                    }
+                }
+                "ASSET" -> buildString {
+                    append("Balance (BS)= ${formatCompactCurrency(actualSpent, languageMode)}")
                     if (currentMonthlyAmt > 0) {
                         append(" • Target= ${formatCompactCurrency(currentMonthlyAmt, languageMode)}")
                     }
                 }
-            } else {
-                buildString {
+                "LIABILITY" -> buildString {
+                    append("Debt (BS)= ${formatCompactCurrency(actualSpent, languageMode)}")
                     if (currentMonthlyAmt > 0) {
-                        append("Budget= ${(currentMonthlyAmt).toInt()} • ")
+                        append(" • Target= ${formatCompactCurrency(currentMonthlyAmt, languageMode)}")
                     }
-                    append("Actual= ${(actualSpent).toInt()}")
-                    if (manualBaseline > 0) {
-                        append(" • Manual= ${(manualBaseline).toInt()}")
+                }
+                else -> buildString {
+                    if (currentMonthlyAmt > 0) {
+                        append("Budget= ${formatCompactCurrency(currentMonthlyAmt, languageMode)} • ")
                     }
+                    append("Actual= ${formatCompactCurrency(actualSpent, languageMode)}")
                 }
             }
 
