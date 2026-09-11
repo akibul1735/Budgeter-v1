@@ -305,11 +305,12 @@ fun MainAppContainer(
         pageCount = { visibleTabs.size }
     )
 
-    // Sync currentView when user swipes left/right between tabs
-    LaunchedEffect(pagerState, visibleTabs) {
+    // Sync currentView when user swipes left/right between tabs (only when actively viewing visible tabs)
+    LaunchedEffect(pagerState, isTabInVisibleTabs) {
+        if (!isTabInVisibleTabs) return@LaunchedEffect
         snapshotFlow { pagerState.settledPage }.collect { page ->
-            if (page in visibleTabs.indices) {
-                val swipedTab = visibleTabs[page]
+            if (isTabInVisibleTabs && page in visibleTabs.indices) {
+                val swipedTab = visibleTabs.getOrNull(page) ?: return@collect
                 val swipedView = swipedTab.toAppView()
                 if (currentView != swipedView) {
                     headerScrollState.show()
@@ -325,12 +326,12 @@ fun MainAppContainer(
         }
     }
 
-    // Sync pager when currentView changes programmatically from drawer, back, etc.
+    // Sync pager when currentView changes programmatically from drawer, back, or tab config change
     LaunchedEffect(currentView, visibleTabs) {
         val targetIndex = visibleTabs.indexOfFirst { it.toAppView() == currentView }
         if (targetIndex >= 0 && pagerState.currentPage != targetIndex && !pagerState.isScrollInProgress) {
             headerScrollState.show()
-            pagerState.animateScrollToPage(targetIndex)
+            pagerState.scrollToPage(targetIndex)
         }
     }
 
