@@ -299,8 +299,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         tabPrefs.resetToDefaults()
     }
 
-    // Demo Mode: Default is true so every feature gets rich demo data from now on!
-    private val _isDemoMode = MutableStateFlow(appPrefs.getBoolean("app_is_demo_mode", true))
+    // Demo Mode: Default is false for fresh installs
+    private val _isDemoMode = MutableStateFlow(appPrefs.getBoolean("app_is_demo_mode", false))
     val isDemoMode: StateFlow<Boolean> = _isDemoMode.asStateFlow()
 
     private fun createRepository(isDemo: Boolean): BudgetRepository {

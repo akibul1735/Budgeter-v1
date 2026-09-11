@@ -21,7 +21,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val action = intent?.action ?: return
         val notifPrefs = NotificationPreferences.getInstance(context)
         val notifConfig = notifPrefs.config.value
-        val appPrefs = context.getSharedPreferences("budget_app_prefs", Context.MODE_PRIVATE)
+        val appPrefs = context.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
         val langSaved = appPrefs.getString("app_language_mode", LanguageMode.ENGLISH.name) ?: LanguageMode.ENGLISH.name
         val languageMode = try { LanguageMode.valueOf(langSaved) } catch (_: Exception) { LanguageMode.ENGLISH }
 
@@ -70,11 +70,12 @@ class ReminderReceiver : BroadcastReceiver() {
         daysInAdvance: Int,
         languageMode: LanguageMode
     ) {
+        val pendingResult = goAsync()
         val scope = CoroutineScope(Dispatchers.IO)
         scope.launch {
             try {
-                val appPrefs = context.getSharedPreferences("budget_app_prefs", Context.MODE_PRIVATE)
-                val isDemoMode = appPrefs.getBoolean("app_demo_mode", true)
+                val appPrefs = context.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
+                val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", false)
                 val db = AppDatabase.getDatabase(context, scope, isDemoMode)
                 val allBills = db.recurringBillDao().getAllBillsSnapshot()
                 val activeBills = allBills.filter { it.isActive }
@@ -107,6 +108,10 @@ class ReminderReceiver : BroadcastReceiver() {
                 }
             } catch (e: Exception) {
                 // Database query error handling
+            } finally {
+                try {
+                    pendingResult.finish()
+                } catch (_: Exception) {}
             }
         }
     }

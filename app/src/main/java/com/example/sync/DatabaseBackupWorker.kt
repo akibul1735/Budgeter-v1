@@ -30,7 +30,7 @@ class DatabaseBackupWorker(
         try {
             Log.d(TAG, "Starting SQLite DB 24h Backup Worker...")
             val appPrefs = applicationContext.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
-            val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", true)
+            val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", false)
             val db = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO), isDemoMode = isDemoMode)
 
             // Touch the database to guarantee it is opened and created on disk

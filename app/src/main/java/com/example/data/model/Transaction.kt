@@ -46,6 +46,7 @@ import androidx.room.PrimaryKey
         Index("debitAccountId"),
         Index("creditAccountId"),
         Index("categoryId"),
+        Index("subCategoryId"),
         Index("dateEpochMs")
     ]
 )

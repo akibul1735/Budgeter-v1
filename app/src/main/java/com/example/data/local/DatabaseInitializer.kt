@@ -85,7 +85,7 @@ object DatabaseInitializer {
                 nameBn = "মানিব্যাগ নগদ",
                 type = AccountType.ASSET,
                 parentId = cashParentId,
-                initialBalance = 3500.0,
+                initialBalance = 0.0,
                 iconName = "Wallet",
                 colorHex = "#10B981"
             )
@@ -96,7 +96,7 @@ object DatabaseInitializer {
                 nameBn = "ঘরের জরুরি নগদ",
                 type = AccountType.ASSET,
                 parentId = cashParentId,
-                initialBalance = 10000.0,
+                initialBalance = 0.0,
                 iconName = "Savings",
                 colorHex = "#059669"
             )
@@ -107,7 +107,7 @@ object DatabaseInitializer {
                 nameBn = "মূল চলতি / সঞ্চয়ী ব্যাংক হিসাব",
                 type = AccountType.ASSET,
                 parentId = bankParentId,
-                initialBalance = 45000.0,
+                initialBalance = 0.0,
                 iconName = "AccountBalance",
                 colorHex = "#1E56A0"
             )
@@ -118,7 +118,7 @@ object DatabaseInitializer {
                 nameBn = "বিকাশ ওয়ালেট",
                 type = AccountType.ASSET,
                 parentId = mfsParentId,
-                initialBalance = 4200.0,
+                initialBalance = 0.0,
                 iconName = "PhoneIphone",
                 colorHex = "#E2136E"
             )
@@ -129,7 +129,7 @@ object DatabaseInitializer {
                 nameBn = "নগদ ওয়ালেট",
                 type = AccountType.ASSET,
                 parentId = mfsParentId,
-                initialBalance = 2500.0,
+                initialBalance = 0.0,
                 iconName = "PhoneIphone",
                 colorHex = "#F37023"
             )
@@ -438,67 +438,6 @@ object DatabaseInitializer {
                 iconName = "MoreHoriz",
                 colorHex = "#9E9E9E",
                 isSystem = true
-            )
-        )
-
-        // 5. Seed Initial Double-Entry Journal Transactions
-        val now = System.currentTimeMillis()
-        val oneDay = 86400000L
-
-        // Transaction 1: Income (Salary credited to Bank Account)
-        transactionDao.insertTransaction(
-            Transaction(
-                type = TransactionType.INCOME,
-                amount = 55000.0,
-                dateEpochMs = now - (oneDay * 2),
-                debitAccountId = bankPrimaryId,
-                creditAccountId = null,
-                categoryId = catSalaryId,
-                subCategoryId = subSalaryBaseId,
-                note = "Monthly salary deposit / মাসিক বেতন জমা",
-                payeeOrPayer = "Employer / কোম্পানি"
-            )
-        )
-
-        // Transaction 2: Transfer (Transfer from Bank to bKash)
-        transactionDao.insertTransaction(
-            Transaction(
-                type = TransactionType.TRANSFER,
-                amount = 3000.0,
-                dateEpochMs = now - (oneDay * 2) + 3600000L,
-                debitAccountId = bkashId,
-                creditAccountId = bankPrimaryId,
-                note = "Add money to bKash / বিকাশ এ ব্যাংক থেকে ট্রান্সফার"
-            )
-        )
-
-        // Transaction 3: Expense (Bazar / Groceries paid via Cash)
-        transactionDao.insertTransaction(
-            Transaction(
-                type = TransactionType.EXPENSE,
-                amount = 1450.0,
-                dateEpochMs = now - oneDay,
-                debitAccountId = null,
-                creditAccountId = cashWalletId,
-                categoryId = catFoodId,
-                subCategoryId = subGroceriesId,
-                note = "Fresh vegetables, fish & eggs / কাঁচাবাজার ও মাছ",
-                payeeOrPayer = "Local Market / বাজার"
-            )
-        )
-
-        // Transaction 4: Expense (Internet bill paid via bKash)
-        transactionDao.insertTransaction(
-            Transaction(
-                type = TransactionType.EXPENSE,
-                amount = 1000.0,
-                dateEpochMs = now - (oneDay / 2),
-                debitAccountId = null,
-                creditAccountId = bkashId,
-                categoryId = catHousingId,
-                subCategoryId = subInternetId,
-                note = "Monthly broadband fee / মাসিক ইন্টারনেট ফি",
-                payeeOrPayer = "ISP Broadband"
             )
         )
     }

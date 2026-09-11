@@ -33,7 +33,7 @@ class JsonSyncWorker(
         try {
             Log.d(TAG, "Starting JSON sync worker...")
             val appPrefs = applicationContext.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
-            val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", true)
+            val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", false)
             val db = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO), isDemoMode = isDemoMode)
 
             val accountDao = db.accountDao()

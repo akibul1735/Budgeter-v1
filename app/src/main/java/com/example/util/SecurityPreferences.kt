@@ -2,10 +2,14 @@ package com.example.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.security.MessageDigest
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
 data class SecurityConfig(
     val isAppLockEnabled: Boolean = false,
@@ -49,10 +53,46 @@ class SecurityPreferences(context: Context) {
         )
     }
 
-    private fun hashString(input: String): String {
+    private fun hashSecure(input: String, saltBase64: String? = null): String {
+        if (input.isEmpty()) return ""
+        return try {
+            val salt = if (saltBase64 != null) {
+                Base64.decode(saltBase64, Base64.NO_WRAP)
+            } else {
+                val random = SecureRandom()
+                val newSalt = ByteArray(16)
+                random.nextBytes(newSalt)
+                newSalt
+            }
+            val spec = PBEKeySpec(input.toCharArray(), salt, 5000, 256)
+            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            val hash = factory.generateSecret(spec).encoded
+            val saltEncoded = Base64.encodeToString(salt, Base64.NO_WRAP)
+            val hashEncoded = Base64.encodeToString(hash, Base64.NO_WRAP)
+            "v2\$$saltEncoded\$$hashEncoded"
+        } catch (_: Exception) {
+            // Fallback to SHA-256 in rare legacy environment
+            legacyHash(input)
+        }
+    }
+
+    private fun legacyHash(input: String): String {
         if (input.isEmpty()) return ""
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
         return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun verifyHash(input: String, storedHash: String): Boolean {
+        if (storedHash.isBlank()) return true
+        if (storedHash.startsWith("v2$")) {
+            val parts = storedHash.split("$")
+            if (parts.size == 3) {
+                val salt = parts[1]
+                val computed = hashSecure(input, salt)
+                return computed == storedHash
+            }
+        }
+        return legacyHash(input) == storedHash
     }
 
     fun setAppLockEnabled(enabled: Boolean) {
@@ -61,7 +101,7 @@ class SecurityPreferences(context: Context) {
     }
 
     fun setPin(rawPin: String) {
-        val hash = if (rawPin.isBlank()) "" else hashString(rawPin)
+        val hash = if (rawPin.isBlank()) "" else hashSecure(rawPin)
         prefs.edit().putString(KEY_PIN_HASH, hash).apply()
         _config.value = _config.value.copy(pinHash = hash)
     }
@@ -69,7 +109,12 @@ class SecurityPreferences(context: Context) {
     fun verifyPin(rawInput: String): Boolean {
         val currentHash = _config.value.pinHash
         if (currentHash.isBlank()) return true
-        return hashString(rawInput) == currentHash
+        val isMatch = verifyHash(rawInput, currentHash)
+        // Opportunistic upgrade from legacy SHA-256 to salted PBKDF2
+        if (isMatch && !currentHash.startsWith("v2$") && rawInput.isNotBlank()) {
+            setPin(rawInput)
+        }
+        return isMatch
     }
 
     fun setBiometricEnabled(enabled: Boolean) {
@@ -108,7 +153,7 @@ class SecurityPreferences(context: Context) {
     }
 
     fun setSecurityRecovery(question: String, rawAnswer: String) {
-        val answerHash = if (rawAnswer.isBlank()) "" else hashString(rawAnswer.trim().lowercase())
+        val answerHash = if (rawAnswer.isBlank()) "" else hashSecure(rawAnswer.trim().lowercase())
         prefs.edit()
             .putString(KEY_SECURITY_QUESTION, question)
             .putString(KEY_SECURITY_ANSWER_HASH, answerHash)
@@ -122,7 +167,11 @@ class SecurityPreferences(context: Context) {
     fun verifySecurityAnswer(rawAnswer: String): Boolean {
         val currentHash = _config.value.securityAnswerHash
         if (currentHash.isBlank()) return false
-        return hashString(rawAnswer.trim().lowercase()) == currentHash
+        val isMatch = verifyHash(rawAnswer.trim().lowercase(), currentHash)
+        if (isMatch && !currentHash.startsWith("v2$") && rawAnswer.isNotBlank()) {
+            setSecurityRecovery(_config.value.securityQuestion, rawAnswer)
+        }
+        return isMatch
     }
 
     fun resetToDefaults() {
