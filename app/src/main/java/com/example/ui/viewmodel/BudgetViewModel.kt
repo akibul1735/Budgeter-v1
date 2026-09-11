@@ -125,6 +125,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val securityPrefs: SecurityPreferences = SecurityPreferences(application)
     private val autofillPrefs: com.example.util.AutofillPreferences = com.example.util.AutofillPreferences.getInstance(application)
     private val transferFeePrefs: com.example.util.TransferFeePreferences = com.example.util.TransferFeePreferences.getInstance(application)
+    private val paymentSourcePrefs: com.example.util.PaymentSourcePreferences = com.example.util.PaymentSourcePreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
@@ -134,6 +135,23 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val trashedItems: StateFlow<List<com.example.util.TrashedItem>> = trashManager.trashedItems
     val securityConfig: StateFlow<SecurityConfig> = securityPrefs.config
     val autofillConfig: StateFlow<AutofillConfig> = autofillPrefs.config
+    val paymentSourceConfig: StateFlow<com.example.util.PaymentSourceConfig> = paymentSourcePrefs.config
+
+    fun setPaymentSourceAccountIds(ids: Set<Long>) {
+        paymentSourcePrefs.setSelectedSourceAccountIds(ids)
+    }
+
+    fun togglePaymentSourceAccount(accountId: Long, isSource: Boolean, allCurrent: Set<Long>) {
+        paymentSourcePrefs.toggleSourceAccount(accountId, isSource, allCurrent)
+    }
+
+    fun saveAccountObligation(obligation: com.example.util.AccountObligation) {
+        paymentSourcePrefs.saveAccountObligation(obligation)
+    }
+
+    fun deleteAccountObligation(obligationId: String) {
+        paymentSourcePrefs.deleteAccountObligation(obligationId)
+    }
 
     fun updateAutofillConfig(config: AutofillConfig) {
         autofillPrefs.updateConfig(config)

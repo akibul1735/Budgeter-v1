@@ -228,6 +228,7 @@ fun MainAppContainer(
     val selectedBudgetMonth by viewModel.selectedBudgetMonth.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
     val accountCalcConfig by viewModel.accountCalcConfig.collectAsStateWithLifecycle()
+    val paymentSourceConfig by viewModel.paymentSourceConfig.collectAsStateWithLifecycle()
     val isAppLocked by viewModel.isAppLocked.collectAsStateWithLifecycle()
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
     val detectedBackups by viewModel.detectedBackups.collectAsStateWithLifecycle()
@@ -592,7 +593,8 @@ fun MainAppContainer(
                                         onOpenThemeFontSettings = { showThemeFontSettings = true },
                                         onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                         onAccountClick = { acc -> selectedAccountForDetail = acc },
-                                        dashboardConfig = dashboardConfig
+                                        dashboardConfig = dashboardConfig,
+                                        paymentSourceConfig = paymentSourceConfig
                                     )
                                 }
                             } else {
@@ -692,7 +694,8 @@ fun MainAppContainer(
                                     onOpenThemeFontSettings = { showThemeFontSettings = true },
                                     onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                     onAccountClick = { acc -> selectedAccountForDetail = acc },
-                                    dashboardConfig = dashboardConfig
+                                    dashboardConfig = dashboardConfig,
+                                    paymentSourceConfig = paymentSourceConfig
                                 )
                             }
                         }
@@ -853,7 +856,8 @@ fun MainAppContainer(
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 onAccountClick = { acc -> selectedAccountForDetail = acc },
-                                dashboardConfig = dashboardConfig
+                                dashboardConfig = dashboardConfig,
+                                paymentSourceConfig = paymentSourceConfig
                             )
                         }
                     }
@@ -1007,7 +1011,8 @@ fun MainAppContainer(
                                 onOpenThemeFontSettings = { showThemeFontSettings = true },
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 onAccountClick = { acc -> selectedAccountForDetail = acc },
-                                dashboardConfig = dashboardConfig
+                                dashboardConfig = dashboardConfig,
+                                paymentSourceConfig = paymentSourceConfig
                             )
                         }
                     }
@@ -1833,7 +1838,8 @@ private fun ScreenRouter(
     onOpenThemeFontSettings: () -> Unit = {},
     onOpenAutofillSettings: () -> Unit = {},
     onAccountClick: ((Account) -> Unit)? = null,
-    dashboardConfig: com.example.util.DashboardConfig = com.example.util.DashboardConfig()
+    dashboardConfig: com.example.util.DashboardConfig = com.example.util.DashboardConfig(),
+    paymentSourceConfig: com.example.util.PaymentSourceConfig = com.example.util.PaymentSourceConfig()
 ) {
     when (currentView) {
         AppView.DASHBOARD -> DashboardScreen(
@@ -1919,22 +1925,48 @@ private fun ScreenRouter(
                 selectedYear = selectedBudgetYear,
                 selectedMonth = selectedBudgetMonth,
                 languageMode = languageMode,
+                paymentSourceConfig = paymentSourceConfig,
                 onOpenDrawer = onOpenDrawer,
                 onPrevMonth = { viewModel.prevBudgetMonth() },
                 onNextMonth = { viewModel.nextBudgetMonth() },
-            onSetCurrentMonth = {
-                val cal = java.util.Calendar.getInstance()
-                viewModel.setBudgetYearMonth(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
-            },
-            onExecuteTransfer = onExecuteTransfer,
-            onAddTransactionWithAccount = onAddTransactionWithAccountAndType,
-            onEditAccount = onEditAccount,
-            onSaveCategoryAllocations = { categoryId, allocMap ->
-                viewModel.saveCategoryAccountAllocations(categoryId, allocMap)
-            },
-            onAccountClick = onAccountClick
-        )
-    }
+                onSetCurrentMonth = {
+                    val cal = java.util.Calendar.getInstance()
+                    viewModel.setBudgetYearMonth(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
+                },
+                onExecuteTransfer = { fromId, toId, amt, note ->
+                    val fromAcc = allAccounts.firstOrNull { it.id == fromId }
+                    val toAcc = allAccounts.firstOrNull { it.id == toId }
+                    if (fromAcc != null && toAcc != null) {
+                        onExecuteTransfer(fromAcc, toAcc, amt)
+                    }
+                },
+                onAddTransactionWithAccount = { accId, txType ->
+                    val acc = allAccounts.firstOrNull { it.id == accId }
+                    if (acc != null) {
+                        onAddTransactionWithAccountAndType(acc, txType)
+                    }
+                },
+                onEditAccount = onEditAccount,
+                onSaveCategoryAllocations = { categoryId, allocMap ->
+                    viewModel.saveCategoryAccountAllocations(categoryId, allocMap)
+                },
+                onSetPaymentSourceAccountIds = { ids ->
+                    viewModel.setPaymentSourceAccountIds(ids)
+                },
+                onSaveAccountObligation = { ob ->
+                    viewModel.saveAccountObligation(ob)
+                },
+                onDeleteAccountObligation = { id ->
+                    viewModel.deleteAccountObligation(id)
+                },
+                onAccountClick = { accId ->
+                    val acc = allAccounts.firstOrNull { it.id == accId }
+                    if (acc != null) {
+                        if (onAccountClick != null) onAccountClick(acc) else onEditAccount(acc)
+                    }
+                }
+            )
+        }
         AppView.BUDGET -> BudgetTrackingScreen(
             viewModel = viewModel,
             allCategories = allCategories,
@@ -2028,10 +2060,15 @@ private fun ScreenRouter(
             categories = allCategories,
             languageMode = languageMode,
             initialTab = 0,
+            allTransactions = transactionsWithDetails,
+            monthlyBudgets = monthlyBudgets,
             onOpenDrawer = onOpenDrawer,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory,
+            onToggleActiveStatus = { cat, active ->
+                viewModel.saveCategory(cat.copy(isActive = active))
+            },
             onUpdateCategories = { updatedList ->
                 viewModel.updateCategories(updatedList)
             },
@@ -2043,10 +2080,15 @@ private fun ScreenRouter(
             categories = allCategories,
             languageMode = languageMode,
             initialTab = 0,
+            allTransactions = transactionsWithDetails,
+            monthlyBudgets = monthlyBudgets,
             onOpenDrawer = onOpenDrawer,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory,
+            onToggleActiveStatus = { cat, active ->
+                viewModel.saveCategory(cat.copy(isActive = active))
+            },
             onUpdateCategories = { updatedList ->
                 viewModel.updateCategories(updatedList)
             },
@@ -2058,10 +2100,15 @@ private fun ScreenRouter(
             categories = allCategories,
             languageMode = languageMode,
             initialTab = 1,
+            allTransactions = transactionsWithDetails,
+            monthlyBudgets = monthlyBudgets,
             onOpenDrawer = onOpenDrawer,
             onAddCategoryClick = { type -> onAddCategory(type, null) },
             onAddSubCategoryClick = { parent -> onAddCategory(parent.type, parent.id) },
             onEditCategoryClick = onEditCategory,
+            onToggleActiveStatus = { cat, active ->
+                viewModel.saveCategory(cat.copy(isActive = active))
+            },
             onUpdateCategories = { updatedList ->
                 viewModel.updateCategories(updatedList)
             },

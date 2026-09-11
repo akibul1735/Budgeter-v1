@@ -1,6 +1,11 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,37 +23,51 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +76,8 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
+import com.example.data.model.MonthlyBudget
+import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -64,365 +85,1150 @@ import com.example.ui.theme.SolidPrimary
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 
+enum class CategoryViewHierarchyFilter {
+    ALL,
+    ONLY_GROUPS,
+    ONLY_CATEGORIES
+}
+
+enum class CategorySortFilter {
+    DEFAULT,
+    BUDGET_HIGH_TO_LOW,
+    BUDGET_LOW_TO_HIGH,
+    MOST_USED,
+    LEAST_USED,
+    NAME_AZ,
+    NAME_ZA
+}
+
+data class FlattenedCategoryItem(
+    val category: Category,
+    val parentGroup: Category?,
+    val budgetAmount: Double,
+    val usageCount: Int
+)
+
 @Composable
 fun CategoriesScreen(
     categories: List<Category>,
     languageMode: LanguageMode,
     initialTab: Int = 0,
+    allTransactions: List<TransactionWithDetails> = emptyList(),
+    monthlyBudgets: List<MonthlyBudget> = emptyList(),
     onOpenDrawer: () -> Unit = {},
     onAddCategoryClick: (CategoryType) -> Unit,
     onAddSubCategoryClick: (Category) -> Unit,
     onEditCategoryClick: (Category) -> Unit,
+    onToggleActiveStatus: ((Category, Boolean) -> Unit)? = null,
     onUpdateCategories: ((List<Category>) -> Unit)? = null,
     onDeleteCategories: ((List<Category>) -> Unit)? = null
 ) {
-    var selectedTab by remember { mutableIntStateOf(initialTab) }
-
-    LaunchedEffect(initialTab) {
-        selectedTab = initialTab
+    var isEditMode by remember { mutableStateOf(false) }
+    var selectedTypeFilter by remember {
+        mutableStateOf<CategoryType?>(
+            if (initialTab == 1) CategoryType.INCOME else CategoryType.EXPENSE
+        )
     }
+    var hierarchyFilter by remember { mutableStateOf(CategoryViewHierarchyFilter.ALL) }
+    var sortFilter by remember { mutableStateOf(CategorySortFilter.DEFAULT) }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
-    val currentType = if (selectedTab == 0) CategoryType.EXPENSE else CategoryType.INCOME
-
-    val parentCategories = remember(categories, currentType) {
-        categories.filter { it.type == currentType && it.parentId == null }
+    LaunchedEffect(initialTab) {
+        selectedTypeFilter = if (initialTab == 1) CategoryType.INCOME else CategoryType.EXPENSE
     }
 
-    val subCategoriesMap = remember(categories, currentType) {
-        categories.filter { it.type == currentType && it.parentId != null }.groupBy { it.parentId!! }
+    // Usage Frequency Map from transactions
+    val categoryUsageMap = remember(allTransactions) {
+        val map = mutableMapOf<Long, Int>()
+        allTransactions.forEach { txDetail ->
+            val tx = txDetail.transaction
+            tx.categoryId?.let { id -> map[id] = (map[id] ?: 0) + 1 }
+            tx.subCategoryId?.let { id -> map[id] = (map[id] ?: 0) + 1 }
+        }
+        map
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("categories_screen")
-    ) {
-        AppTabHeader(
-            title = LanguageHelper.getString("categories", languageMode),
-            onOpenDrawer = onOpenDrawer,
-            actions = {
-                Button(
-                    onClick = { onAddCategoryClick(currentType) },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedTab == 0) SolidExpense else SolidIncome
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.testTag("btn_add_category")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
+    val categoryUsageCount: (Long) -> Int = { categoryId ->
+        categoryUsageMap[categoryId] ?: 0
+    }
+
+    val activeCategories = remember(categories) {
+        categories.filter { it.isActive }
+    }
+
+    val inactiveCategories = remember(categories) {
+        categories.filter { !it.isActive }
+    }
+
+    // Calculations for Totals & Net Earnings
+    val totalExpenseBudget = remember(activeCategories, monthlyBudgets) {
+        val expenseLeafs = activeCategories.filter { it.type == CategoryType.EXPENSE && it.parentId != null }
+            .ifEmpty { activeCategories.filter { it.type == CategoryType.EXPENSE } }
+        expenseLeafs.sumOf { it.budgetLimit }
+    }
+
+    val totalIncomeBudget = remember(activeCategories, monthlyBudgets) {
+        val incomeLeafs = activeCategories.filter { it.type == CategoryType.INCOME && it.parentId != null }
+            .ifEmpty { activeCategories.filter { it.type == CategoryType.INCOME } }
+        incomeLeafs.sumOf { it.budgetLimit }
+    }
+
+    val netEarnings = totalIncomeBudget - totalExpenseBudget
+
+    // Group calculation helpers
+    val subCategoriesMap = remember(categories) {
+        categories.filter { it.parentId != null }.groupBy { it.parentId!! }
+    }
+
+    fun computeEffectiveCategoryBudget(cat: Category): Double {
+        val subs = subCategoriesMap[cat.id] ?: emptyList()
+        return if (subs.isNotEmpty()) {
+            subs.filter { it.isActive }.sumOf { it.budgetLimit }
+        } else {
+            cat.budgetLimit
+        }
+    }
+
+    fun groupUsageCount(groupCat: Category): Int {
+        val subs = subCategoriesMap[groupCat.id] ?: emptyList()
+        return (categoryUsageMap[groupCat.id] ?: 0) + subs.sumOf { categoryUsageMap[it.id] ?: 0 }
+    }
+
+    // Sorting logic
+    fun sortGroups(list: List<Category>): List<Category> {
+        return when (sortFilter) {
+            CategorySortFilter.DEFAULT -> list
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> list.sortedByDescending { computeEffectiveCategoryBudget(it) }
+            CategorySortFilter.BUDGET_LOW_TO_HIGH -> list.sortedBy { computeEffectiveCategoryBudget(it) }
+            CategorySortFilter.MOST_USED -> list.sortedByDescending { groupUsageCount(it) }
+            CategorySortFilter.LEAST_USED -> list.sortedBy { groupUsageCount(it) }
+            CategorySortFilter.NAME_AZ -> list.sortedBy { it.localizedName(languageMode).lowercase() }
+            CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    fun sortSubCategories(list: List<Category>): List<Category> {
+        return when (sortFilter) {
+            CategorySortFilter.DEFAULT -> list
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> list.sortedByDescending { it.budgetLimit }
+            CategorySortFilter.BUDGET_LOW_TO_HIGH -> list.sortedBy { it.budgetLimit }
+            CategorySortFilter.MOST_USED -> list.sortedByDescending { categoryUsageCount(it.id) }
+            CategorySortFilter.LEAST_USED -> list.sortedBy { categoryUsageCount(it.id) }
+            CategorySortFilter.NAME_AZ -> list.sortedBy { it.localizedName(languageMode).lowercase() }
+            CategorySortFilter.NAME_ZA -> list.sortedByDescending { it.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    val parentActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions) {
+        val base = activeCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
+        sortGroups(base)
+    }
+
+    val parentInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions) {
+        val base = inactiveCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
+        sortGroups(base)
+    }
+
+    // Flattened Categories for ONLY_CATEGORIES mode
+    val flattenedActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions) {
+        val items = mutableListOf<FlattenedCategoryItem>()
+        val filteredParents = activeCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
+        for (parent in filteredParents) {
+            val subs = (subCategoriesMap[parent.id] ?: emptyList()).filter { it.isActive }
+            if (subs.isEmpty()) {
+                items.add(
+                    FlattenedCategoryItem(
+                        category = parent,
+                        parentGroup = null,
+                        budgetAmount = parent.budgetLimit,
+                        usageCount = categoryUsageCount(parent.id)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = LanguageHelper.getString("add_category", languageMode),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                )
+            } else {
+                subs.forEach { sub ->
+                    items.add(
+                        FlattenedCategoryItem(
+                            category = sub,
+                            parentGroup = parent,
+                            budgetAmount = sub.budgetLimit,
+                            usageCount = categoryUsageCount(sub.id)
+                        )
                     )
                 }
-            }
-        )
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Tabs (Expenses / Incomes)
-        item {
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                contentColor = MaterialTheme.colorScheme.primary,
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = if (selectedTab == 0) SolidExpense else SolidIncome
-                    )
-                },
-                modifier = Modifier.clip(RoundedCornerShape(10.dp))
-            ) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = {
-                        Text(
-                            text = LanguageHelper.getString("expenses", languageMode),
-                            fontSize = 13.sp,
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 0) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = {
-                        Text(
-                            text = LanguageHelper.getString("incomes", languageMode),
-                            fontSize = 13.sp,
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selectedTab == 1) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
             }
         }
 
-        if (parentCategories.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                ) {
-                    Box(
+        when (sortFilter) {
+            CategorySortFilter.DEFAULT -> items
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> items.sortedByDescending { it.budgetAmount }
+            CategorySortFilter.BUDGET_LOW_TO_HIGH -> items.sortedBy { it.budgetAmount }
+            CategorySortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
+            CategorySortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
+            CategorySortFilter.NAME_AZ -> items.sortedBy { it.category.localizedName(languageMode).lowercase() }
+            CategorySortFilter.NAME_ZA -> items.sortedByDescending { it.category.localizedName(languageMode).lowercase() }
+        }
+    }
+
+    val flattenedInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions) {
+        val items = mutableListOf<FlattenedCategoryItem>()
+        val filteredInactive = inactiveCategories.filter { selectedTypeFilter == null || it.type == selectedTypeFilter }
+        for (cat in filteredInactive) {
+            val parent = cat.parentId?.let { pId -> categories.firstOrNull { it.id == pId } }
+            items.add(
+                FlattenedCategoryItem(
+                    category = cat,
+                    parentGroup = parent,
+                    budgetAmount = cat.budgetLimit,
+                    usageCount = categoryUsageCount(cat.id)
+                )
+            )
+        }
+        items
+    }
+
+    // Scroll state & Bottom Nav visibility
+    val listState = rememberLazyListState()
+    var isBottomNavVisible by remember { mutableStateOf(true) }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -15f) {
+                    isBottomNavVisible = false
+                } else if (available.y > 15f) {
+                    isBottomNavVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    val currentAddType = selectedTypeFilter ?: CategoryType.EXPENSE
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(nestedScrollConnection)
+            .testTag("categories_screen")
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTabHeader(
+                title = LanguageHelper.getString("categories", languageMode),
+                onOpenDrawer = onOpenDrawer,
+                actions = {
+                    Button(
+                        onClick = { onAddCategoryClick(currentAddType) },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (currentAddType == CategoryType.EXPENSE) SolidExpense else SolidIncome
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.testTag("btn_add_category")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = LanguageHelper.getString("add_category", languageMode),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            )
+
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 80.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // --- 1. Compact Net Earnings Top Card ---
+                item {
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(28.dp),
-                        contentAlignment = Alignment.Center
+                            .testTag("categories_summary_card"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SolidPrimary)
                     ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp)
+                        ) {
+                            // Top Row: Net Earnings & Edit Mode Toggle
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = LanguageHelper.getString("net_earnings", languageMode),
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(netEarnings, languageMode),
+                                        color = Color.White,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
+
+                                // Edit Mode Button on Top Card (activates/deactivates edit mode)
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isEditMode) Color.White else Color.White.copy(alpha = 0.18f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = if (isEditMode) 0.9f else 0.4f)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { isEditMode = !isEditMode }
+                                        .testTag("categories_edit_mode_btn")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Edit,
+                                            contentDescription = "Edit Mode",
+                                            tint = if (isEditMode) SolidPrimary else Color.White,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = if (isEditMode) (if (languageMode == LanguageMode.BANGLA) "সম্পন্ন" else "Done")
+                                            else (if (languageMode == LanguageMode.BANGLA) "সম্পাদন" else "Edit"),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isEditMode) SolidPrimary else Color.White
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Middle Compact Row: Total Incomes vs Total Expenses
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color.Black.copy(alpha = 0.2f))
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Total Incomes
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(SolidIncome)
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = LanguageHelper.getString("incomes", languageMode),
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(1.dp))
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(totalIncomeBudget, languageMode),
+                                        color = SolidIncome,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // Divider
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .height(26.dp)
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                )
+
+                                // Total Expenses
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = LanguageHelper.getString("expenses", languageMode),
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(SolidExpense)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(1.dp))
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(totalExpenseBudget, languageMode),
+                                        color = SolidExpense,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Bottom Controls: Hierarchy Scope Pill & Mini Sort Filter
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // View Scope Selector (All | Only Groups | Only Categories)
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.Black.copy(alpha = 0.22f))
+                                        .padding(2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    ScopePill(
+                                        selected = hierarchyFilter == CategoryViewHierarchyFilter.ALL,
+                                        label = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
+                                        onClick = { hierarchyFilter = CategoryViewHierarchyFilter.ALL }
+                                    )
+                                    ScopePill(
+                                        selected = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_GROUPS,
+                                        label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র গ্রুপ" else "Only Groups",
+                                        onClick = { hierarchyFilter = CategoryViewHierarchyFilter.ONLY_GROUPS }
+                                    )
+                                    ScopePill(
+                                        selected = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_CATEGORIES,
+                                        label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories",
+                                        onClick = { hierarchyFilter = CategoryViewHierarchyFilter.ONLY_CATEGORIES }
+                                    )
+                                }
+
+                                // Mini Sort Filter
+                                Box {
+                                    var showFilterMenu by remember { mutableStateOf(false) }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (sortFilter != CategorySortFilter.DEFAULT) Color.White else Color.Black.copy(alpha = 0.22f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { showFilterMenu = true }
+                                            .testTag("categories_sort_btn")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Sort,
+                                                contentDescription = "Sort",
+                                                tint = if (sortFilter != CategorySortFilter.DEFAULT) SolidPrimary else Color.White,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = getCategorySortLabel(sortFilter, languageMode),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (sortFilter != CategorySortFilter.DEFAULT) SolidPrimary else Color.White
+                                            )
+                                        }
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = showFilterMenu,
+                                        onDismissRequest = { showFilterMenu = false }
+                                    ) {
+                                        CategorySortFilter.values().forEach { filter ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = getCategorySortMenuLabel(filter, languageMode),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = if (sortFilter == filter) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    if (sortFilter == filter) {
+                                                        Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                                    }
+                                                },
+                                                onClick = {
+                                                    sortFilter = filter
+                                                    showFilterMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- 2. Categories List Based on Hierarchy Scope ---
+                if (hierarchyFilter == CategoryViewHierarchyFilter.ONLY_CATEGORIES) {
+                    // Flattened Single Categories Mode
+                    if (flattenedActiveCategories.isEmpty() && flattenedInactiveCategories.isEmpty()) {
+                        item {
+                            EmptyCategoriesCard(languageMode)
+                        }
+                    } else {
+                        items(flattenedActiveCategories, key = { "flat_${it.category.id}" }) { flatItem ->
+                            SingleCategoryCard(
+                                item = flatItem,
+                                isEditMode = isEditMode,
+                                languageMode = languageMode,
+                                onEditCategory = onEditCategoryClick,
+                                onToggleActiveStatus = onToggleActiveStatus
+                            )
+                        }
+
+                        if (flattenedInactiveCategories.isNotEmpty()) {
+                            item {
+                                InactiveCategoryHeader(count = flattenedInactiveCategories.size)
+                            }
+                            items(flattenedInactiveCategories, key = { "flat_inactive_${it.category.id}" }) { flatItem ->
+                                SingleCategoryCard(
+                                    item = flatItem,
+                                    isEditMode = isEditMode,
+                                    isInactive = true,
+                                    languageMode = languageMode,
+                                    onEditCategory = onEditCategoryClick,
+                                    onToggleActiveStatus = onToggleActiveStatus
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // ALL (Group + Sub-categories) or ONLY_GROUPS
+                    val isOnlyGroups = hierarchyFilter == CategoryViewHierarchyFilter.ONLY_GROUPS
+                    if (parentActiveCategories.isEmpty() && parentInactiveCategories.isEmpty()) {
+                        item {
+                            EmptyCategoriesCard(languageMode)
+                        }
+                    } else {
+                        items(parentActiveCategories, key = { it.id }) { parent ->
+                            val subs = (subCategoriesMap[parent.id] ?: emptyList()).filter { it.isActive }
+                            val sortedSubs = sortSubCategories(subs)
+                            val isExpanded = expandedMap[parent.id] ?: true
+
+                            val parentColor = remember(parent.colorHex) {
+                                try {
+                                    Color(android.graphics.Color.parseColor(parent.colorHex))
+                                } catch (_: Exception) {
+                                    if (parent.type == CategoryType.EXPENSE) SolidExpense else SolidIncome
+                                }
+                            }
+
+                            val groupBudget = if (subs.isNotEmpty()) subs.sumOf { it.budgetLimit } else parent.budgetLimit
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        if (subs.isNotEmpty() && !isOnlyGroups) {
+                                            expandedMap[parent.id] = !isExpanded
+                                        } else {
+                                            onEditCategoryClick(parent)
+                                        }
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    // Parent Group Header
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(CircleShape)
+                                                    .background(parentColor.copy(alpha = 0.16f))
+                                                    .border(1.dp, parentColor.copy(alpha = 0.35f), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = IconHelper.getIconByName(parent.iconName),
+                                                    contentDescription = null,
+                                                    tint = parentColor,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(10.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text(
+                                                        text = parent.localizedName(languageMode),
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f, fill = false)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = parentColor.copy(alpha = 0.12f)
+                                                    ) {
+                                                        Text(
+                                                            text = if (parent.type == CategoryType.EXPENSE) "Expense Group" else "Income Group",
+                                                            fontSize = 8.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = parentColor,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                if (subs.isNotEmpty()) {
+                                                    Text(
+                                                        text = "${subs.size} ${LanguageHelper.getString("sub_categories", languageMode)}",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.outline
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (groupBudget > 0) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                                ) {
+                                                    Text(
+                                                        text = "Limit: ${LanguageHelper.formatCurrency(groupBudget, languageMode)}",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            if (subs.isNotEmpty() && !isOnlyGroups) {
+                                                IconButton(
+                                                    onClick = { expandedMap[parent.id] = !isExpanded },
+                                                    modifier = Modifier.size(30.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                        contentDescription = "Expand",
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // Edit Button: HIDDEN BY DEFAULT, VISIBLE ONLY IN EDIT MODE
+                                            if (isEditMode) {
+                                                IconButton(
+                                                    onClick = { onEditCategoryClick(parent) },
+                                                    modifier = Modifier.size(30.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Edit,
+                                                        contentDescription = "Edit",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Sub-categories list (hidden if isOnlyGroups)
+                                    if (!isOnlyGroups) {
+                                        AnimatedVisibility(visible = isExpanded && sortedSubs.isNotEmpty()) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 8.dp, start = 8.dp)
+                                            ) {
+                                                sortedSubs.forEach { subCat ->
+                                                    val subColor = remember(subCat.colorHex) {
+                                                        try {
+                                                            Color(android.graphics.Color.parseColor(subCat.colorHex))
+                                                        } catch (_: Exception) {
+                                                            parentColor
+                                                        }
+                                                    }
+
+                                                    Surface(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 2.dp)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .clickable { onEditCategoryClick(subCat) },
+                                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(horizontal = 8.dp, vertical = 7.dp),
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.SpaceBetween
+                                                        ) {
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                modifier = Modifier.weight(1f)
+                                                            ) {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(24.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(subColor.copy(alpha = 0.18f)),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Icon(
+                                                                        imageVector = IconHelper.getIconByName(subCat.iconName),
+                                                                        contentDescription = null,
+                                                                        tint = subColor,
+                                                                        modifier = Modifier.size(14.dp)
+                                                                    )
+                                                                }
+                                                                Spacer(modifier = Modifier.width(8.dp))
+                                                                Text(
+                                                                    text = subCat.localizedName(languageMode),
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.Medium,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis,
+                                                                    modifier = Modifier.weight(1f, fill = false)
+                                                                )
+                                                            }
+
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                if (subCat.budgetLimit > 0) {
+                                                                    Text(
+                                                                        text = LanguageHelper.formatCurrency(subCat.budgetLimit, languageMode),
+                                                                        fontSize = 11.sp,
+                                                                        fontWeight = FontWeight.SemiBold,
+                                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                    )
+                                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                                }
+
+                                                                // Edit button: HIDDEN BY DEFAULT, VISIBLE ONLY IN EDIT MODE
+                                                                if (isEditMode) {
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Edit,
+                                                                        contentDescription = "Edit",
+                                                                        tint = MaterialTheme.colorScheme.primary,
+                                                                        modifier = Modifier
+                                                                            .size(15.dp)
+                                                                            .clickable { onEditCategoryClick(subCat) }
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // Quick Add Sub-Category button
+                                                Text(
+                                                    text = "+ ${LanguageHelper.getString("add_sub_category", languageMode)}",
+                                                    fontSize = 11.sp,
+                                                    color = SolidPrimary,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier
+                                                        .clickable { onAddSubCategoryClick(parent) }
+                                                        .padding(vertical = 6.dp, horizontal = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Inactive Categories Section
+                        if (parentInactiveCategories.isNotEmpty()) {
+                            item {
+                                InactiveCategoryHeader(count = parentInactiveCategories.size)
+                            }
+                            items(parentInactiveCategories, key = { "inactive_${it.id}" }) { parent ->
+                                val subs = (subCategoriesMap[parent.id] ?: emptyList())
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { onEditCategoryClick(parent) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            Icon(
+                                                imageVector = IconHelper.getIconByName(parent.iconName),
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = parent.localizedName(languageMode),
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.outline
+                                                )
+                                                if (subs.isNotEmpty()) {
+                                                    Text(
+                                                        text = "${subs.size} sub-categories (Inactive)",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        if (isEditMode) {
+                                            IconButton(
+                                                onClick = { onEditCategoryClick(parent) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Edit",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 3. Floating Bottom Navigation Bar (Expenses | All | Incomes) ---
+        AnimatedVisibility(
+            visible = isBottomNavVisible,
+            enter = slideInVertically(initialOffsetY = { it * 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it * 2 }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Expenses Button (Left)
+                    CategoryBottomFilterPill(
+                        selected = selectedTypeFilter == CategoryType.EXPENSE,
+                        label = LanguageHelper.getString("expenses", languageMode),
+                        icon = Icons.Default.TrendingDown,
+                        selectedColor = SolidExpense,
+                        onClick = { selectedTypeFilter = CategoryType.EXPENSE }
+                    )
+
+                    // All Button (Middle)
+                    CategoryBottomFilterPill(
+                        selected = selectedTypeFilter == null,
+                        label = if (languageMode == LanguageMode.BANGLA) "সব" else "All",
+                        icon = Icons.Default.Layers,
+                        selectedColor = SolidPrimary,
+                        onClick = { selectedTypeFilter = null }
+                    )
+
+                    // Incomes Button (Right)
+                    CategoryBottomFilterPill(
+                        selected = selectedTypeFilter == CategoryType.INCOME,
+                        label = LanguageHelper.getString("incomes", languageMode),
+                        icon = Icons.Default.TrendingUp,
+                        selectedColor = SolidIncome,
+                        onClick = { selectedTypeFilter = CategoryType.INCOME }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScopePill(
+    selected: Boolean,
+    label: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) Color.White else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) SolidPrimary else Color.White.copy(alpha = 0.85f)
+        )
+    }
+}
+
+@Composable
+private fun CategoryBottomFilterPill(
+    selected: Boolean,
+    label: String,
+    icon: ImageVector,
+    selectedColor: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) selectedColor else Color.Transparent,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(15.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun SingleCategoryCard(
+    item: FlattenedCategoryItem,
+    isEditMode: Boolean,
+    isInactive: Boolean = false,
+    languageMode: LanguageMode,
+    onEditCategory: (Category) -> Unit,
+    onToggleActiveStatus: ((Category, Boolean) -> Unit)? = null
+) {
+    val cat = item.category
+    val catColor = remember(cat.colorHex) {
+        try {
+            Color(android.graphics.Color.parseColor(cat.colorHex))
+        } catch (_: Exception) {
+            if (cat.type == CategoryType.EXPENSE) SolidExpense else SolidIncome
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onEditCategory(cat) },
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isInactive) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+            else MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isInactive) 0.dp else 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(if (isInactive) Color.Gray.copy(alpha = 0.2f) else catColor.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = IconHelper.getIconByName(cat.iconName),
+                        contentDescription = null,
+                        tint = if (isInactive) MaterialTheme.colorScheme.outline else catColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = cat.localizedName(languageMode),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isInactive) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (item.parentGroup != null) {
                         Text(
-                            text = LanguageHelper.getString("no_categories", languageMode),
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "Group: ${item.parentGroup.localizedName(languageMode)}",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
             }
-        } else {
-            items(parentCategories, key = { it.id }) { parent ->
-                val subs = subCategoriesMap[parent.id] ?: emptyList()
-                val isExpanded = expandedMap[parent.id] ?: true
 
-                val parentColor = remember(parent.colorHex) {
-                    try {
-                        Color(android.graphics.Color.parseColor(parent.colorHex))
-                    } catch (_: Exception) {
-                        if (currentType == CategoryType.EXPENSE) SolidExpense else SolidIncome
-                    }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (cat.budgetLimit > 0) {
+                    Text(
+                        text = LanguageHelper.formatCurrency(cat.budgetLimit, languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isInactive) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                 }
 
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            if (subs.isNotEmpty()) {
-                                expandedMap[parent.id] = !isExpanded
-                            } else {
-                                onEditCategoryClick(parent)
-                            }
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        // Parent Category Header
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(parentColor.copy(alpha = 0.16f))
-                                        .border(1.dp, parentColor.copy(alpha = 0.35f), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(parent.iconName),
-                                        contentDescription = null,
-                                        tint = parentColor,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            text = parent.localizedName(languageMode),
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 2,
-                                            lineHeight = 18.sp,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = parentColor.copy(alpha = 0.12f)
-                                        ) {
-                                            Text(
-                                                text = "Group",
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = parentColor,
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-
-                                    if (subs.isNotEmpty()) {
-                                        Text(
-                                            text = "${subs.size} ${LanguageHelper.getString("sub_categories", languageMode)}",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.outline
-                                        )
-                                    }
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (parent.budgetLimit > 0) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                                    ) {
-                                        Text(
-                                            text = "Limit: ${LanguageHelper.formatCurrency(parent.budgetLimit, languageMode)}",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-
-                                if (subs.isNotEmpty()) {
-                                    IconButton(
-                                        onClick = { expandedMap[parent.id] = !isExpanded },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                            contentDescription = "Expand",
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                IconButton(
-                                    onClick = { onEditCategoryClick(parent) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "Edit",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(17.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Sub-categories list
-                        AnimatedVisibility(visible = isExpanded && subs.isNotEmpty()) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 10.dp, start = 12.dp)
-                            ) {
-                                subs.forEach { subCat ->
-                                    val subColor = remember(subCat.colorHex) {
-                                        try {
-                                            Color(android.graphics.Color.parseColor(subCat.colorHex))
-                                        } catch (_: Exception) {
-                                            parentColor
-                                        }
-                                    }
-
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 3.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { onEditCategoryClick(subCat) },
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(26.dp)
-                                                        .clip(CircleShape)
-                                                        .background(subColor.copy(alpha = 0.18f)),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = IconHelper.getIconByName(subCat.iconName),
-                                                        contentDescription = null,
-                                                        tint = subColor,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Text(
-                                                    text = subCat.localizedName(languageMode),
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 2,
-                                                    lineHeight = 16.sp,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                            }
-
-                                            Icon(
-                                                imageVector = Icons.Default.Edit,
-                                                contentDescription = "Edit",
-                                                tint = MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Quick Add Sub-Category button
-                                Text(
-                                    text = "+ ${LanguageHelper.getString("add_sub_category", languageMode)}",
-                                    fontSize = 12.sp,
-                                    color = SolidPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .clickable { onAddSubCategoryClick(parent) }
-                                        .padding(vertical = 8.dp, horizontal = 4.dp)
-                                )
-                            }
-                        }
+                // Edit Button: HIDDEN BY DEFAULT, VISIBLE ONLY IN EDIT MODE
+                if (isEditMode) {
+                    IconButton(
+                        onClick = { onEditCategory(cat) },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(15.dp)
+                        )
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun EmptyCategoriesCard(languageMode: LanguageMode) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = LanguageHelper.getString("no_categories", languageMode),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun InactiveCategoryHeader(count: Int) {
+    Spacer(modifier = Modifier.height(6.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Default.VisibilityOff,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "Inactive Categories & Groups ($count)",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.outline
+        )
+    }
+}
+
+private fun getCategorySortLabel(filter: CategorySortFilter, languageMode: LanguageMode): String {
+    return when (filter) {
+        CategorySortFilter.DEFAULT -> if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter"
+        CategorySortFilter.BUDGET_HIGH_TO_LOW -> if (languageMode == LanguageMode.BANGLA) "বাজেট ↓" else "Budget ↓"
+        CategorySortFilter.BUDGET_LOW_TO_HIGH -> if (languageMode == LanguageMode.BANGLA) "বাজেট ↑" else "Budget ↑"
+        CategorySortFilter.MOST_USED -> if (languageMode == LanguageMode.BANGLA) "বেশি ব্যবহৃত" else "Most Used"
+        CategorySortFilter.LEAST_USED -> if (languageMode == LanguageMode.BANGLA) "কম ব্যবহৃত" else "Least Used"
+        CategorySortFilter.NAME_AZ -> if (languageMode == LanguageMode.BANGLA) "নাম A-Z" else "Name A-Z"
+        CategorySortFilter.NAME_ZA -> if (languageMode == LanguageMode.BANGLA) "নাম Z-A" else "Name Z-A"
+    }
+}
+
+private fun getCategorySortMenuLabel(filter: CategorySortFilter, languageMode: LanguageMode): String {
+    return when (filter) {
+        CategorySortFilter.DEFAULT -> if (languageMode == LanguageMode.BANGLA) "স্বাভাবিক ক্রম" else "Default Order"
+        CategorySortFilter.BUDGET_HIGH_TO_LOW -> if (languageMode == LanguageMode.BANGLA) "বাজেট সীমা: বেশি থেকে কম" else "Budget Limit: High to Low"
+        CategorySortFilter.BUDGET_LOW_TO_HIGH -> if (languageMode == LanguageMode.BANGLA) "বাজেট সীমা: কম থেকে বেশি" else "Budget Limit: Low to High"
+        CategorySortFilter.MOST_USED -> if (languageMode == LanguageMode.BANGLA) "সর্বাধিক ব্যবহৃত" else "Most Used / Frequent"
+        CategorySortFilter.LEAST_USED -> if (languageMode == LanguageMode.BANGLA) "কম ব্যবহৃত" else "Least Used"
+        CategorySortFilter.NAME_AZ -> if (languageMode == LanguageMode.BANGLA) "নাম: A থেকে Z" else "Name: A to Z"
+        CategorySortFilter.NAME_ZA -> if (languageMode == LanguageMode.BANGLA) "নাম: Z থেকে A" else "Name: Z to A"
+    }
 }

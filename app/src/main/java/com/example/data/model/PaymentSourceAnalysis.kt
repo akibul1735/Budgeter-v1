@@ -42,7 +42,9 @@ data class AccountRequirementItem(
     val colorHex: String = "#EF4444",
     val isMultiAccountSplit: Boolean = false,
     val totalCategoryBudget: Double = 0.0,
-    val splitAccountCount: Int = 1
+    val splitAccountCount: Int = 1,
+    val isAccountObligation: Boolean = false,
+    val linkedAccountId: Long? = null
 )
 
 data class CategoryAccountSplit(
@@ -60,7 +62,17 @@ data class CategoryAllocationAnalysis(
     val totalActualSpent: Double,
     val totalRemaining: Double,
     val accountSplits: List<CategoryAccountSplit>,
-    val isMultiAccount: Boolean = accountSplits.size > 1
+    val isMultiAccount: Boolean = accountSplits.size > 1,
+    val isExpense: Boolean = true
+)
+
+data class AccountObligationAnalysis(
+    val id: String,
+    val sourceAccount: Account,
+    val targetAccount: Account,
+    val amount: Double,
+    val isExpense: Boolean = true, // true: Pay payable/liability from source; false: Receive receivable into source
+    val note: String = ""
 )
 
 data class AccountRequirementAnalysis(
@@ -132,7 +144,9 @@ data class PaymentSourceAnalysisOverview(
     val accountsNeedingFundsCount: Int,
     val accountsWithSurplusCount: Int,
     val accountAnalyses: List<AccountRequirementAnalysis>,
-    val categoryAllocations: List<CategoryAllocationAnalysis> = emptyList(),
+    val categoryAllocations: List<CategoryAllocationAnalysis> = emptyList(), // Expense category allocations
+    val incomeAllocations: List<CategoryAllocationAnalysis> = emptyList(),   // Income category allocations
+    val accountObligationAllocations: List<AccountObligationAnalysis> = emptyList(), // Account obligation allocations
     val transferSuggestions: List<FundAllocationSuggestion> = emptyList()
 ) {
     val netStatus: Double get() = totalAvailable - totalRequired
