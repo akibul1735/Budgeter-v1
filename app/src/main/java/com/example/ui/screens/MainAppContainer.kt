@@ -67,6 +67,7 @@ import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -460,6 +461,7 @@ fun MainAppContainer(
                                     }
                                 }
                             },
+                            floatingActionButtonPosition = FabPosition.End,
                             floatingActionButton = {
                                 AppFab(
                                     currentView = currentView,
@@ -752,6 +754,7 @@ fun MainAppContainer(
                     }
 
                     Scaffold(
+                        floatingActionButtonPosition = FabPosition.End,
                         floatingActionButton = {
                             AppFab(
                                 currentView = currentView,
@@ -865,6 +868,7 @@ fun MainAppContainer(
                     }
                 ) {
                     Scaffold(
+                        floatingActionButtonPosition = FabPosition.End,
                         floatingActionButton = {
                             AppFab(
                                 currentView = currentView,
