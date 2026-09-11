@@ -69,7 +69,7 @@ fun ReportsScreen(
             .testTag("reports_screen")
     ) {
         AppTabHeader(
-            title = LanguageHelper.getString("reports", languageMode),
+            title = LanguageHelper.getString("net_earnings", languageMode),
             onOpenDrawer = onOpenDrawer
         )
 

@@ -796,6 +796,16 @@ class BudgetRepository(
         )
     }
 
+    suspend fun seedDefaultsIfEmpty() {
+        if (accountDao.getAccountCount() == 0) {
+            com.example.data.local.DatabaseInitializer.seedInitialData(
+                accountDao = accountDao,
+                categoryDao = categoryDao,
+                transactionDao = transactionDao
+            )
+        }
+    }
+
     suspend fun deleteAllAccounts() {
         transactionDao.deleteAll()
         accountDao.deleteAll()

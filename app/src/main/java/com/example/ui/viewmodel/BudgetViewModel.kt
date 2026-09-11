@@ -320,6 +320,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         viewModelScope.launch {
+            activeRepo.seedDefaultsIfEmpty()
+        }
+        viewModelScope.launch {
             DropboxAuthBridge.authCodes.collect { code ->
                 handleDropboxAuthCode(code)
             }

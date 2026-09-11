@@ -621,24 +621,86 @@ fun AddEditTransactionSheet(
     }
 
     val executeSave: () -> Unit = {
-        val parsedAmt = amountText.toDoubleOrNull() ?: amount
-        val absAmt = Math.abs(parsedAmt)
-        if (absAmt > 0) {
+        run {
+            val parsedAmt = amountText.toDoubleOrNull() ?: amount
+            val absAmt = Math.abs(parsedAmt)
+            if (absAmt <= 0) {
+                Toast.makeText(
+                    context,
+                    if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount first",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@run
+            }
+
+            // Mandatory Account and Category Validation
+            when (txType) {
+                TransactionType.EXPENSE -> {
+                    if (creditAccountId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি অ্যাকাউন্ট নির্বাচন করুন" else "Please select an account",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@run
+                    }
+                    if (selectedCategoryId == null && selectedSubCategoryId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন" else "Please select a category",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@run
+                    }
+                }
+                TransactionType.INCOME -> {
+                    if (debitAccountId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি অ্যাকাউন্ট নির্বাচন করুন" else "Please select an account",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@run
+                    }
+                    if (selectedCategoryId == null && selectedSubCategoryId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে একটি ক্যাটাগরি নির্বাচন করুন" else "Please select a category",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@run
+                    }
+                }
+                TransactionType.TRANSFER -> {
+                    if (creditAccountId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে উৎস অ্যাকাউন্ট নির্বাচন করুন" else "Please select source (From) account",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@run
+                    }
+                    if (debitAccountId == null) {
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে গন্তব্য অ্যাকাউন্ট নির্বাচন করুন" else "Please select destination (To) account",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@run
+                    }
+                }
+            }
+
             val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
             val isRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
             val finalAmount = if (isRevertExpense || isRevertIncome) -absAmt else absAmt
 
-            val fallbackGroup = categories.firstOrNull {
-                val targetType = if (txType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                it.type == targetType && it.parentId == null && it.nameEn.equals("Others", ignoreCase = true)
-            } ?: relevantCategories.firstOrNull()
-
             val finalCategoryId = if (txType != TransactionType.TRANSFER) {
-                selectedCategoryId ?: fallbackGroup?.id
+                selectedCategoryId
             } else null
 
             val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
-                selectedSubCategoryId ?: categories.firstOrNull { it.parentId == finalCategoryId }?.id
+                selectedSubCategoryId
             } else null
 
             val finalPayee = if (payee.isNotBlank()) {
@@ -685,12 +747,6 @@ fun AddEditTransactionSheet(
             )
             onSave(tx)
             onDismiss()
-        } else {
-            Toast.makeText(
-                context,
-                if (languageMode == LanguageMode.BANGLA) "অনুগ্রহ করে টাকার পরিমাণ দিন" else "Please enter an amount first",
-                Toast.LENGTH_SHORT
-            ).show()
         }
     }
 

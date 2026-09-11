@@ -134,24 +134,24 @@ enum class CalendarDisplayMode(val labelEn: String, val labelBn: String) {
 
 data class DashboardConfig(
     val cardOrder: List<DashboardCardType> = listOf(
+        DashboardCardType.FINANCIAL_OVERVIEW,
         DashboardCardType.DAILY_SUMMARY,
         DashboardCardType.BUDGET_SUMMARY,
         DashboardCardType.FAVORITE_ACCOUNTS,
         DashboardCardType.CALENDAR_VIEW,
         DashboardCardType.NET_WORTH,
         DashboardCardType.CASH_FLOW,
-        DashboardCardType.FINANCIAL_OVERVIEW,
         DashboardCardType.QUICK_ACTIONS,
         DashboardCardType.RECENT_TRANSACTIONS
     ),
     val visibleCards: Set<DashboardCardType> = setOf(
+        DashboardCardType.FINANCIAL_OVERVIEW,
         DashboardCardType.DAILY_SUMMARY,
         DashboardCardType.BUDGET_SUMMARY,
         DashboardCardType.FAVORITE_ACCOUNTS,
         DashboardCardType.CALENDAR_VIEW,
         DashboardCardType.NET_WORTH,
         DashboardCardType.CASH_FLOW,
-        DashboardCardType.FINANCIAL_OVERVIEW,
         DashboardCardType.QUICK_ACTIONS,
         DashboardCardType.RECENT_TRANSACTIONS
     ),
@@ -182,13 +182,13 @@ class DashboardPreferences private constructor(context: Context) {
 
     private fun loadConfig(): DashboardConfig {
         val defaultCards = listOf(
+            DashboardCardType.FINANCIAL_OVERVIEW,
             DashboardCardType.DAILY_SUMMARY,
             DashboardCardType.BUDGET_SUMMARY,
             DashboardCardType.FAVORITE_ACCOUNTS,
             DashboardCardType.CALENDAR_VIEW,
             DashboardCardType.NET_WORTH,
             DashboardCardType.CASH_FLOW,
-            DashboardCardType.FINANCIAL_OVERVIEW,
             DashboardCardType.QUICK_ACTIONS,
             DashboardCardType.RECENT_TRANSACTIONS
         )

@@ -75,7 +75,7 @@ fun RecurringBillsScreen(
             .padding(horizontal = 14.dp)
     ) {
         AppTabHeader(
-            title = LanguageHelper.getString("recurring_bills", languageMode),
+            title = LanguageHelper.getString("reminders", languageMode),
             onOpenDrawer = onOpenDrawer,
             actions = {
                 IconButton(
