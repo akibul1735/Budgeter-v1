@@ -108,7 +108,8 @@ fun DailySummaryDetailDialog(
     accounts: List<Account> = emptyList(),
     initialSelectedDateEpoch: Long? = null,
     onDismiss: () -> Unit,
-    onTransactionClick: ((TransactionWithDetails) -> Unit)? = null
+    onTransactionClick: ((TransactionWithDetails) -> Unit)? = null,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -1699,7 +1700,8 @@ fun DailySummaryDetailDialog(
                                                             Text(
                                                                 text = txAccount.localizedName(languageMode),
                                                                 fontSize = 10.sp,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                color = if (onAccountClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                modifier = if (onAccountClick != null) Modifier.clickable { onAccountClick(txAccount) } else Modifier
                                                             )
                                                         }
                                                     }

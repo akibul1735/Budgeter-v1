@@ -62,7 +62,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.window.DialogProperties
+import com.example.data.model.Account
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
@@ -85,7 +87,8 @@ fun TransactionDetailViewDialog(
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onEdit: (Transaction) -> Unit,
-    onShowSimilar: (String) -> Unit
+    onShowSimilar: (String) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     val tx = item.transaction
     val context = LocalContext.current
@@ -322,11 +325,20 @@ fun TransactionDetailViewDialog(
                         }
                     }
 
+                    val targetAccount = when (tx.type) {
+                        TransactionType.EXPENSE -> item.creditAccount
+                        TransactionType.INCOME -> item.debitAccount
+                        TransactionType.TRANSFER -> item.creditAccount ?: item.debitAccount
+                    }
+
                     DetailItemRow(
                         icon = Icons.Default.AccountBalance,
                         label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
                         value = accountDisplay,
-                        valueColor = MaterialTheme.colorScheme.onSurface
+                        valueColor = if (onAccountClick != null && targetAccount != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        onClick = if (onAccountClick != null && targetAccount != null) {
+                            { onAccountClick(targetAccount) }
+                        } else null
                     )
 
                     // 4. Labels / Tags
@@ -480,12 +492,15 @@ private fun DetailItemRow(
     icon: ImageVector,
     label: String,
     value: String,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 4.dp, horizontal = if (onClick != null) 4.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

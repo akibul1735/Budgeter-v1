@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.data.model.Account
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
@@ -113,7 +114,8 @@ fun AmountBreakdownDialog(
     info: AmountDetailInfo,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onTransactionClick: ((Transaction) -> Unit)? = null
+    onTransactionClick: ((Transaction) -> Unit)? = null,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     var selectedTab by remember {
         mutableIntStateOf(
@@ -309,7 +311,8 @@ fun AmountBreakdownDialog(
                         TransactionsBreakdownView(
                             transactions = info.relatedTransactions,
                             languageMode = languageMode,
-                            onTransactionClick = onTransactionClick
+                            onTransactionClick = onTransactionClick,
+                            onAccountClick = onAccountClick
                         )
                     } else if (hasCalc) {
                         CalculationBreakdownView(
@@ -590,7 +593,8 @@ private fun CalculationBreakdownView(
 private fun TransactionsBreakdownView(
     transactions: List<TransactionWithDetails>,
     languageMode: LanguageMode,
-    onTransactionClick: ((Transaction) -> Unit)?
+    onTransactionClick: ((Transaction) -> Unit)?,
+    onAccountClick: ((Account) -> Unit)? = null
 ) {
     if (transactions.isEmpty()) {
         Box(
@@ -673,8 +677,8 @@ private fun TransactionsBreakdownView(
                                         fontSize = 10.5.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
-                                    val accName = txWithDetails.debitAccount?.localizedName(languageMode)
-                                        ?: txWithDetails.creditAccount?.localizedName(languageMode)
+                                    val acc = txWithDetails.debitAccount ?: txWithDetails.creditAccount
+                                    val accName = acc?.localizedName(languageMode)
                                     if (!accName.isNullOrBlank()) {
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(text = "•", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
@@ -682,9 +686,10 @@ private fun TransactionsBreakdownView(
                                         Text(
                                             text = accName,
                                             fontSize = 10.5.sp,
-                                            color = MaterialTheme.colorScheme.outline,
+                                            color = if (onAccountClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = if (onAccountClick != null && acc != null) Modifier.clickable { onAccountClick(acc) } else Modifier
                                         )
                                     }
                                 }

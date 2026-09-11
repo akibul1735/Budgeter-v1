@@ -356,14 +356,17 @@ fun MainAppContainer(
 
     val handleBackPress: () -> Unit = {
         when {
-            selectedAccountForDetail != null -> selectedAccountForDetail = null
+            showAddTransactionSheet -> {
+                showAddTransactionSheet = false
+                editingTransaction = null
+            }
             showTabCustomizationDialog -> showTabCustomizationDialog = false
-            showAddTransactionSheet -> showAddTransactionSheet = false
             showAddAccountDialog -> showAddAccountDialog = false
             showAddCategoryDialog -> showAddCategoryDialog = false
             showGlobalCalculator -> showGlobalCalculator = false
             showThemeFontSettings -> showThemeFontSettings = false
             showAutofillSettingsDialog -> showAutofillSettingsDialog = false
+            selectedAccountForDetail != null -> selectedAccountForDetail = null
             drawerState.isOpen -> scope.launch { drawerState.close() }
             viewHistory.size > 1 -> {
                 viewHistory.removeAt(viewHistory.size - 1)
@@ -1843,6 +1846,7 @@ private fun ScreenRouter(
                 onVerifyPin = { viewModel.verifySecurityPin(it) },
                 onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
                 onTransactionClick = onEditTransaction,
+                onAccountClick = onAccountClick,
                 onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) },
                 onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
             )

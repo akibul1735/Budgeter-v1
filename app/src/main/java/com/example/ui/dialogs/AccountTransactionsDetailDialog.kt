@@ -104,6 +104,7 @@ fun AccountTransactionsDetailDialog(
     var selectedFilter by remember { mutableStateOf(AccountTxFilter.ALL) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearchBar by remember { mutableStateOf(false) }
+    var viewingTransactionItem by remember { mutableStateOf<TransactionWithDetails?>(null) }
 
     // Find all sub-account IDs if this is a parent group
     val subAccountIds = remember(account, allAccounts) {
@@ -243,7 +244,13 @@ fun AccountTransactionsDetailDialog(
     val accountLocalizedName = account.localizedName(languageMode)
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (viewingTransactionItem != null) {
+                viewingTransactionItem = null
+            } else {
+                onDismiss()
+            }
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
@@ -650,8 +657,7 @@ fun AccountTransactionsDetailDialog(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
-                                        onDismiss()
-                                        onEditTransaction(tx)
+                                        viewingTransactionItem = item
                                     }
                             ) {
                                 Row(
@@ -784,6 +790,29 @@ fun AccountTransactionsDetailDialog(
                     }
                 }
             }
+        }
+    }
+
+    viewingTransactionItem?.let { viewItem ->
+        val currentItem = allTransactions.firstOrNull { it.transaction.id == viewItem.transaction.id }
+        if (currentItem == null) {
+            viewingTransactionItem = null
+        } else {
+            TransactionDetailViewDialog(
+                item = currentItem,
+                languageMode = languageMode,
+                onDismiss = {
+                    viewingTransactionItem = null
+                },
+                onEdit = { tx ->
+                    onEditTransaction(tx)
+                },
+                onShowSimilar = { query ->
+                    viewingTransactionItem = null
+                    searchQuery = query
+                    showSearchBar = true
+                }
+            )
         }
     }
 }

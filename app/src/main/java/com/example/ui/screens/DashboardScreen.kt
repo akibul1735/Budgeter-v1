@@ -178,7 +178,11 @@ fun DashboardScreen(
                 amount = it.currentBalance,
                 percentage = if (overview.totalAssets > 0) (it.currentBalance / overview.totalAssets) * 100.0 else 0.0,
                 iconName = it.account.iconName,
-                color = SolidIncome
+                color = SolidIncome,
+                onClick = {
+                    activeAmountDetail = null
+                    onAccountClick(it.account)
+                }
             )
         }
         val assetTxs = recentTransactions.filter { txItem ->
@@ -212,7 +216,11 @@ fun DashboardScreen(
                 amount = it.currentBalance,
                 percentage = if (overview.totalLiabilities > 0) (it.currentBalance / overview.totalLiabilities) * 100.0 else 0.0,
                 iconName = it.account.iconName,
-                color = SolidExpense
+                color = SolidExpense,
+                onClick = {
+                    activeAmountDetail = null
+                    onAccountClick(it.account)
+                }
             )
         }
         val liabilityTxs = recentTransactions.filter { txItem ->
@@ -988,12 +996,7 @@ fun DashboardScreen(
                                     languageMode = languageMode,
                                     onOpenAccountPicker = { showFavoriteAccountsPicker = true },
                                     onAccountClick = { acc ->
-                                        val item = accountsWithBalances.firstOrNull { it.account.id == acc.id }
-                                        if (item != null) {
-                                            openAccountBreakdown(item)
-                                        } else {
-                                            onAccountClick(acc)
-                                        }
+                                        onAccountClick(acc)
                                     }
                                 )
                             }
@@ -1111,6 +1114,10 @@ fun DashboardScreen(
             onTransactionClick = { tx ->
                 activeAmountDetail = null
                 onTransactionClick(tx)
+            },
+            onAccountClick = { acc ->
+                activeAmountDetail = null
+                onAccountClick(acc)
             }
         )
     }
@@ -1239,6 +1246,11 @@ fun DashboardScreen(
                 showDailySummaryDetail = false
                 dailySummarySelectedDayEpoch = null
                 onTransactionClick(txItem.transaction)
+            },
+            onAccountClick = { acc ->
+                showDailySummaryDetail = false
+                dailySummarySelectedDayEpoch = null
+                onAccountClick(acc)
             }
         )
     }

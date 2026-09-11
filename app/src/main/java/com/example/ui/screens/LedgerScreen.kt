@@ -184,6 +184,7 @@ fun LedgerScreen(
     onOpenDrawer: () -> Unit = {},
     onAddTransactionClick: () -> Unit,
     onTransactionClick: (Transaction) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null,
     onUpdateTransactions: (List<Transaction>) -> Unit = {},
     onDeleteTransactions: (List<Transaction>) -> Unit = {},
     onDeleteTransaction: (Transaction) -> Unit = {}
@@ -1068,6 +1069,10 @@ fun LedgerScreen(
             onEdit = { tx ->
                 viewingTransactionItem = null
                 onTransactionClick(tx)
+            },
+            onAccountClick = { acc ->
+                viewingTransactionItem = null
+                onAccountClick?.invoke(acc)
             },
             onShowSimilar = { query ->
                 viewingTransactionItem = null
