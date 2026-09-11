@@ -1,6 +1,8 @@
 package com.example.ui.theme
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,10 +12,20 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+
+private fun Context.findActivity(): Activity? {
+    var ctx = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
 
 fun createAppShapes(cornerRadius: AppCornerRadius = AppCornerRadius.STANDARD): Shapes {
     val r = cornerRadius.cornerDp.toFloat()
@@ -70,15 +82,22 @@ fun MyApplicationTheme(
 
     val shapes = createAppShapes(themeConfig.cornerRadius)
 
+    val context = LocalContext.current
     val view = LocalView.current
     if (!view.isInEditMode) {
+        // Status bar background in this app is surface/background.
+        // If the surface or background is light (high luminance), icons must be dark (isAppearanceLightStatusBars = true).
+        val isLightSurface = colorScheme.surface.luminance() > 0.45f || !isDarkMode
         SideEffect {
-            val window = (view.context as? Activity)?.window
+            val window = context.findActivity()?.window ?: (view.context.findActivity()?.window)
             if (window != null) {
-                val insetsController = WindowCompat.getInsetsController(window, view)
-                // In light mode (!isDarkMode), status bar and nav bar icons must be dark (isAppearanceLightStatusBars = true)
-                insetsController.isAppearanceLightStatusBars = !isDarkMode
-                insetsController.isAppearanceLightNavigationBars = !isDarkMode
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    window.isStatusBarContrastEnforced = false
+                    window.isNavigationBarContrastEnforced = false
+                }
+                val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                insetsController.isAppearanceLightStatusBars = isLightSurface
+                insetsController.isAppearanceLightNavigationBars = isLightSurface
             }
         }
     }

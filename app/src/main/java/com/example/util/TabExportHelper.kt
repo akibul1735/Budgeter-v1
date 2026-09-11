@@ -1701,6 +1701,172 @@ object TabExportHelper {
         """.trimIndent()
     }
 
+    // ==========================================
+    // 6. TIMELINE (ACCOUNTS OVER TIME) EXPORT
+    // ==========================================
+    fun exportTimeline(
+        context: Context,
+        format: ExportFormat,
+        timelineData: AccountTimelineData,
+        displayCurrency: Boolean = true,
+        languageMode: LanguageMode = LanguageMode.ENGLISH
+    ) {
+        val title = if (languageMode == LanguageMode.BANGLA) "সময়ের সাথে অ্যাকাউন্টের ব্যালেন্স" else "Accounts Balances Over Time"
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+
+        when (format) {
+            ExportFormat.PDF -> {
+                PdfPrintHelper.printTimelineReport(context, timelineData, displayCurrency, languageMode)
+            }
+            ExportFormat.CSV -> {
+                val csv = buildTimelineCsv(timelineData, displayCurrency, languageMode)
+                shareFile(context, "Timeline_$timeStamp.csv", format.mimeType, csv, title)
+            }
+            ExportFormat.HTML -> {
+                val html = PdfPrintHelper.buildTimelineHtml(timelineData, displayCurrency, languageMode)
+                shareFile(context, "Timeline_$timeStamp.html", format.mimeType, html, title)
+            }
+            ExportFormat.JSON -> {
+                val json = buildTimelineJson(timelineData, languageMode)
+                shareFile(context, "Timeline_$timeStamp.json", format.mimeType, json, title)
+            }
+        }
+    }
+
+    private fun buildTimelineCsv(
+        data: AccountTimelineData,
+        displayCurrency: Boolean,
+        languageMode: LanguageMode
+    ): String {
+        val sb = StringBuilder()
+        val currencyHeader = if (displayCurrency) " (BDT)" else ""
+        sb.append("Account").append(currencyHeader)
+        for (p in data.periods) {
+            sb.append(",").append(escapeCsv(p.shortLabel))
+        }
+        sb.append("\n")
+
+        // Assets
+        val assetsLabel = if (languageMode == LanguageMode.BANGLA) "Assets (সম্পদ)" else "Assets"
+        sb.append(escapeCsv(assetsLabel))
+        for (amt in data.totalAssetsByPeriod) {
+            sb.append(",").append(String.format(Locale.US, "%.2f", amt))
+        }
+        sb.append("\n")
+
+        for (group in data.assetGroups) {
+            val groupName = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn
+            sb.append(escapeCsv("> $groupName"))
+            for (amt in group.groupBalances) {
+                sb.append(",").append(String.format(Locale.US, "%.2f", amt))
+            }
+            sb.append("\n")
+
+            for (sub in group.subAccounts) {
+                val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
+                sb.append(escapeCsv("  $subName"))
+                for (amt in sub.balances) {
+                    sb.append(",").append(String.format(Locale.US, "%.2f", amt))
+                }
+                sb.append("\n")
+            }
+        }
+
+        // Liabilities
+        val liabilitiesLabel = if (languageMode == LanguageMode.BANGLA) "Liabilities (দায়)" else "Liabilities"
+        sb.append(escapeCsv(liabilitiesLabel))
+        for (amt in data.totalLiabilitiesByPeriod) {
+            sb.append(",").append(String.format(Locale.US, "%.2f", amt))
+        }
+        sb.append("\n")
+
+        for (group in data.liabilityGroups) {
+            val groupName = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn
+            sb.append(escapeCsv("> $groupName"))
+            for (amt in group.groupBalances) {
+                sb.append(",").append(String.format(Locale.US, "%.2f", amt))
+            }
+            sb.append("\n")
+
+            for (sub in group.subAccounts) {
+                val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
+                sb.append(escapeCsv("  $subName"))
+                for (amt in sub.balances) {
+                    sb.append(",").append(String.format(Locale.US, "%.2f", amt))
+                }
+                sb.append("\n")
+            }
+        }
+
+        // Net Worth
+        val netWorthLabel = if (languageMode == LanguageMode.BANGLA) "Net Worth (মোট সম্পদ)" else "Net Worth"
+        sb.append(escapeCsv(netWorthLabel))
+        for (amt in data.netWorthByPeriod) {
+            sb.append(",").append(String.format(Locale.US, "%.2f", amt))
+        }
+        sb.append("\n")
+
+        return sb.toString()
+    }
+
+    private fun buildTimelineJson(
+        data: AccountTimelineData,
+        languageMode: LanguageMode
+    ): String {
+        return JSONObject().apply {
+            put("reportType", "AccountsTimeline")
+            put("generatedAt", formatTimestamp(System.currentTimeMillis()))
+            put("periods", JSONArray().apply {
+                data.periods.forEach { put(it.shortLabel) }
+            })
+            put("totalAssets", JSONArray().apply {
+                data.totalAssetsByPeriod.forEach { put(it) }
+            })
+            put("totalLiabilities", JSONArray().apply {
+                data.totalLiabilitiesByPeriod.forEach { put(it) }
+            })
+            put("netWorth", JSONArray().apply {
+                data.netWorthByPeriod.forEach { put(it) }
+            })
+            put("assetGroups", JSONArray().apply {
+                data.assetGroups.forEach { group ->
+                    val groupName = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn
+                    put(JSONObject().apply {
+                        put("groupName", groupName)
+                        put("balances", JSONArray().apply { group.groupBalances.forEach { put(it) } })
+                        put("subAccounts", JSONArray().apply {
+                            group.subAccounts.forEach { sub ->
+                                val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
+                                put(JSONObject().apply {
+                                    put("accountName", subName)
+                                    put("balances", JSONArray().apply { sub.balances.forEach { put(it) } })
+                                })
+                            }
+                        })
+                    })
+                }
+            })
+            put("liabilityGroups", JSONArray().apply {
+                data.liabilityGroups.forEach { group ->
+                    val groupName = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn
+                    put(JSONObject().apply {
+                        put("groupName", groupName)
+                        put("balances", JSONArray().apply { group.groupBalances.forEach { put(it) } })
+                        put("subAccounts", JSONArray().apply {
+                            group.subAccounts.forEach { sub ->
+                                val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
+                                put(JSONObject().apply {
+                                    put("accountName", subName)
+                                    put("balances", JSONArray().apply { sub.balances.forEach { put(it) } })
+                                })
+                            }
+                        })
+                    })
+                }
+            })
+        }.toString(2)
+    }
+
     private fun escapeCsv(value: String): String {
         var str = value.replace("\"", "\"\"")
         if (str.contains(",") || str.contains("\n") || str.contains("\"")) {

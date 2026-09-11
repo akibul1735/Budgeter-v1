@@ -336,6 +336,7 @@ fun BalanceSheetScreen(
     var isCalcMode by remember { mutableStateOf(false) }
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
     var isDualDateFlow by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
     // Date Pickers for Custom Mode
     var showBaseDatePicker by remember { mutableStateOf(false) }
@@ -351,6 +352,7 @@ fun BalanceSheetScreen(
         baseDateMs,
         compareDateMs,
         filterState,
+        searchQuery,
         accountCalcConfig,
         languageMode
     ) {
@@ -367,7 +369,7 @@ fun BalanceSheetScreen(
             excludeZeroAmounts = filterState.excludeZeroAmounts,
             filterNonZeroGroups = filterState.filterNonZeroGroups,
             sortOrder = filterState.sortOrder,
-            searchQuery = "",
+            searchQuery = searchQuery,
             accountCalcConfig = accountCalcConfig,
             showOnlyAccountsWithoutGroups = filterState.showOnlyAccountsWithoutGroups,
             languageMode = languageMode
@@ -383,14 +385,18 @@ fun BalanceSheetScreen(
 
     Box(modifier = Modifier.fillMaxSize().testTag("balance_sheet_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header bar with Timeline button and Filter button on right side
+            // Header bar with Search, Filter, Timeline and Export buttons
             AppTabHeader(
                 title = LanguageHelper.getString("balance_sheet", languageMode),
-                showTimelineButton = true,
-                onTimelineClick = { showTimelineScreen = true },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts...",
+                showSearchButton = true,
                 showFilterButton = true,
                 isFilterActive = filterState.isFilterActive,
                 onFilterClick = { showFilterDialog = true },
+                showTimelineButton = true,
+                onTimelineClick = { showTimelineScreen = true },
                 onOpenDrawer = onOpenDrawer,
                 actions = {
                     ExportMenuButton(

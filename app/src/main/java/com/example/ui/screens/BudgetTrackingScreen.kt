@@ -616,23 +616,20 @@ fun BudgetTrackingScreen(
 
     Box(modifier = Modifier.fillMaxSize().testTag("budget_tracking_screen")) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. App Tab Header with Timeline, Search, and Filter buttons
+            // 1. App Tab Header with Search, Filter, Timeline, and Export buttons
             AppTabHeader(
                 title = LanguageHelper.getString("budget", languageMode),
-                showTimelineButton = true,
-                onTimelineClick = { showTimelineScreen = true },
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি খুঁজুন..." else "Search categories...",
+                showSearchButton = true,
                 showFilterButton = true,
                 isFilterActive = filterState.isFilterActive,
                 onFilterClick = { showFilterDialog = true },
+                showTimelineButton = true,
+                onTimelineClick = { showTimelineScreen = true },
                 onOpenDrawer = onOpenDrawer,
                 actions = {
-                    IconButton(onClick = { isSearchActive = !isSearchActive }) {
-                        Icon(
-                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
                     ExportMenuButton(
                         languageMode = languageMode,
                         onExport = { format ->
@@ -673,49 +670,6 @@ fun BudgetTrackingScreen(
                     )
                 }
             )
-
-            // Search bar expansion
-            AnimatedVisibility(
-                visible = isSearchActive,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search categories...") },
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = BrandBlueLight) },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear")
-                                    }
-                                }
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = BrandBlueLight,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp)
-                        )
-                    }
-                }
-            }
 
             // 2. SCROLL-AWARE TOP FIXED CARD (Normal at page start, Mini when scrolling)
             if (!isScrolled) {

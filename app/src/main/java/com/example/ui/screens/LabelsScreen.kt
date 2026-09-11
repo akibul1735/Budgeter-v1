@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.Account
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
@@ -106,6 +107,7 @@ data class AggregatedLabel(
 @Composable
 fun LabelsScreen(
     transactions: List<TransactionWithDetails>,
+    accounts: List<Account> = emptyList(),
     languageMode: LanguageMode,
     onOpenDrawer: () -> Unit = {},
     onTransactionClick: (Transaction) -> Unit
@@ -120,9 +122,20 @@ fun LabelsScreen(
     var customEndDateMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     var showFilterDialog by remember { mutableStateOf(false) }
+    var showTimelineScreen by remember { mutableStateOf(false) }
     var selectedDrilldownLabel by remember { mutableStateOf<AggregatedLabel?>(null) }
     var showCustomStartPicker by remember { mutableStateOf(false) }
     var showCustomEndPicker by remember { mutableStateOf(false) }
+
+    if (showTimelineScreen) {
+        AccountTimelineScreen(
+            accounts = accounts,
+            transactions = transactions.map { it.transaction },
+            languageMode = languageMode,
+            onBack = { showTimelineScreen = false }
+        )
+        return
+    }
 
     // Date Bounds
     val (startEpochMs, endEpochMs) = remember(selectedPreset, customStartDateMs, customEndDateMs) {
@@ -283,6 +296,15 @@ fun LabelsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         AppTabHeader(
             title = LanguageHelper.getString("labels", languageMode),
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ খুঁজুন..." else "Search labels/tags...",
+            showSearchButton = true,
+            showFilterButton = true,
+            isFilterActive = selectedPreset != LabelDateFilterPreset.ALL_TIME || selectedTypeFilter != null || minAmountFilter > 0.0,
+            onFilterClick = { showFilterDialog = true },
+            showTimelineButton = true,
+            onTimelineClick = { showTimelineScreen = true },
             onOpenDrawer = onOpenDrawer,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
             actions = {
@@ -301,84 +323,39 @@ fun LabelsScreen(
             }
         )
 
-        // Top Search & Vast Filter Action Bar
+        // Summary Overview Header
         Surface(
             color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 2.dp,
+            shadowElevation = 1.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text(if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ খুঁজুন..." else "Search labels/tags...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Vast Filter Button
-                    Surface(
-                        onClick = { showFilterDialog = true },
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(50.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.FilterList,
-                                contentDescription = "Filter",
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Summary Overview Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    LabelSummaryCard(
-                        title = if (languageMode == LanguageMode.BANGLA) "সক্রিয় লেবেল" else "Active Labels",
-                        value = "${aggregatedLabels.size}",
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                LabelSummaryCard(
+                    title = if (languageMode == LanguageMode.BANGLA) "সক্রিয় লেবেল" else "Active Labels",
+                    value = "${aggregatedLabels.size}",
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                LabelSummaryCard(
+                    title = if (languageMode == LanguageMode.BANGLA) "ট্যাগকৃত খরচ" else "Tagged Expense",
+                    value = "৳ ${LanguageHelper.formatCurrency(totalExpenseOverall, languageMode)}",
+                    color = SolidExpense,
+                    modifier = Modifier.weight(1.3f)
+                )
+                if (totalIncomeOverall > 0) {
                     Spacer(modifier = Modifier.width(6.dp))
                     LabelSummaryCard(
-                        title = if (languageMode == LanguageMode.BANGLA) "ট্যাগকৃত খরচ" else "Tagged Expense",
-                        value = "৳ ${LanguageHelper.formatCurrency(totalExpenseOverall, languageMode)}",
-                        color = SolidExpense,
+                        title = if (languageMode == LanguageMode.BANGLA) "ট্যাগকৃত আয়" else "Tagged Income",
+                        value = "৳ ${LanguageHelper.formatCurrency(totalIncomeOverall, languageMode)}",
+                        color = SolidIncome,
                         modifier = Modifier.weight(1.3f)
                     )
-                    if (totalIncomeOverall > 0) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        LabelSummaryCard(
-                            title = if (languageMode == LanguageMode.BANGLA) "ট্যাগকৃত আয়" else "Tagged Income",
-                            value = "৳ ${LanguageHelper.formatCurrency(totalIncomeOverall, languageMode)}",
-                            color = SolidIncome,
-                            modifier = Modifier.weight(1.3f)
-                        )
-                    }
                 }
             }
         }

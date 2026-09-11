@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -82,11 +83,13 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
+import com.example.ui.components.ExportMenuButton
 import com.example.util.AccountTimelineHelper
 import com.example.util.AccountTimelineInterval
 import com.example.util.AccountTimelineData
 import com.example.util.LanguageHelper
 import com.example.util.PdfPrintHelper
+import com.example.util.TabExportHelper
 
 data class AccountTimelineFilterState(
     val interval: AccountTimelineInterval = AccountTimelineInterval.MONTHLY,
@@ -179,7 +182,7 @@ fun AccountTimelineScreen(
                     )
                 }
 
-                // Action Icons (Help, Filter, Print/PDF)
+                // Action Icons (Help, Filter, Export with all options)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -204,114 +207,112 @@ fun AccountTimelineScreen(
                         Icon(
                             imageVector = Icons.Default.FilterList,
                             contentDescription = "Filter",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (filterState.selectedAccountIds.isNotEmpty() || filterState.showHiddenAccounts || filterState.excludeZeroBalances)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
-                    // Print / PDF Button
-                    IconButton(
-                        onClick = {
-                            PdfPrintHelper.printTimelineReport(
+                    // Export Menu Button (PDF, CSV, HTML, JSON)
+                    ExportMenuButton(
+                        languageMode = languageMode,
+                        onExport = { format ->
+                            TabExportHelper.exportTimeline(
                                 context = context,
+                                format = format,
                                 timelineData = timelineData,
                                 displayCurrency = filterState.displayCurrency,
                                 languageMode = languageMode
                             )
-                        },
-                        modifier = Modifier.size(38.dp).testTag("timeline_print_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Print,
-                            contentDescription = "Print or Save PDF",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                        }
+                    )
                 }
             }
         }
 
-        // Timeline Matrix Table
-        Box(
+        // Timeline Matrix Table with Frozen First Column (Account Names)
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .weight(1f)
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .horizontalScroll(horizontalScrollState)
-            ) {
-                // 1. Header Row (Dates)
-                item {
-                    TimelineDateHeaderRow(
-                        periods = timelineData.periods,
-                        languageMode = languageMode
-                    )
-                }
+            // 1. Header Row (Dates)
+            item {
+                TimelineDateHeaderRow(
+                    periods = timelineData.periods,
+                    scrollState = horizontalScrollState,
+                    languageMode = languageMode
+                )
+            }
 
-                // 2. ASSETS Header Row (Light green background, bold green text)
-                item {
-                    TimelineSectionHeaderRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "Assets (সম্পদ)" else "Assets",
-                        totals = timelineData.totalAssetsByPeriod,
-                        backgroundColor = Color(0xFFE8F5E9),
-                        textColor = Color(0xFF2E7D32),
-                        displayCurrency = filterState.displayCurrency,
-                        languageMode = languageMode
-                    )
-                }
+            // 2. ASSETS Header Row
+            item {
+                TimelineSectionHeaderRow(
+                    title = if (languageMode == LanguageMode.BANGLA) "Assets (সম্পদ)" else "Assets",
+                    totals = timelineData.totalAssetsByPeriod,
+                    backgroundColor = Color(0xFFE8F5E9),
+                    textColor = Color(0xFF2E7D32),
+                    scrollState = horizontalScrollState,
+                    displayCurrency = filterState.displayCurrency,
+                    languageMode = languageMode
+                )
+            }
 
-                // Asset Groups & Accounts
-                items(timelineData.assetGroups, key = { "asset_${it.parentAccount.id}" }) { group ->
-                    val isExpanded = expandedMap[group.parentAccount.id] ?: true
-                    TimelineGroupItem(
-                        group = group,
-                        isExpanded = isExpanded,
-                        displayCurrency = filterState.displayCurrency,
-                        languageMode = languageMode,
-                        onToggleExpand = {
-                            expandedMap[group.parentAccount.id] = !isExpanded
-                        }
-                    )
-                }
+            // Asset Groups & Accounts
+            items(timelineData.assetGroups, key = { "asset_${it.parentAccount.id}" }) { group ->
+                val isExpanded = expandedMap[group.parentAccount.id] ?: true
+                TimelineGroupItem(
+                    group = group,
+                    isExpanded = isExpanded,
+                    scrollState = horizontalScrollState,
+                    displayCurrency = filterState.displayCurrency,
+                    languageMode = languageMode,
+                    onToggleExpand = {
+                        expandedMap[group.parentAccount.id] = !isExpanded
+                    }
+                )
+            }
 
-                // 3. LIABILITIES Header Row (Light red background, bold red text)
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TimelineSectionHeaderRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "Liabilities (দায়)" else "Liabilities",
-                        totals = timelineData.totalLiabilitiesByPeriod,
-                        backgroundColor = Color(0xFFFFEBEE),
-                        textColor = Color(0xFFC62828),
-                        displayCurrency = filterState.displayCurrency,
-                        languageMode = languageMode
-                    )
-                }
+            // 3. LIABILITIES Header Row
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                TimelineSectionHeaderRow(
+                    title = if (languageMode == LanguageMode.BANGLA) "Liabilities (দায়)" else "Liabilities",
+                    totals = timelineData.totalLiabilitiesByPeriod,
+                    backgroundColor = Color(0xFFFFEBEE),
+                    textColor = Color(0xFFC62828),
+                    scrollState = horizontalScrollState,
+                    displayCurrency = filterState.displayCurrency,
+                    languageMode = languageMode
+                )
+            }
 
-                // Liability Groups & Accounts
-                items(timelineData.liabilityGroups, key = { "liability_${it.parentAccount.id}" }) { group ->
-                    val isExpanded = expandedMap[group.parentAccount.id] ?: true
-                    TimelineGroupItem(
-                        group = group,
-                        isExpanded = isExpanded,
-                        displayCurrency = filterState.displayCurrency,
-                        languageMode = languageMode,
-                        onToggleExpand = {
-                            expandedMap[group.parentAccount.id] = !isExpanded
-                        }
-                    )
-                }
+            // Liability Groups & Accounts
+            items(timelineData.liabilityGroups, key = { "liability_${it.parentAccount.id}" }) { group ->
+                val isExpanded = expandedMap[group.parentAccount.id] ?: true
+                TimelineGroupItem(
+                    group = group,
+                    isExpanded = isExpanded,
+                    scrollState = horizontalScrollState,
+                    displayCurrency = filterState.displayCurrency,
+                    languageMode = languageMode,
+                    onToggleExpand = {
+                        expandedMap[group.parentAccount.id] = !isExpanded
+                    }
+                )
+            }
 
-                // 4. NET WORTH Summary Row
-                item {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    TimelineNetWorthHeaderRow(
-                        totals = timelineData.netWorthByPeriod,
-                        displayCurrency = filterState.displayCurrency,
-                        languageMode = languageMode
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
-                }
+            // 4. NET WORTH Summary Row
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+                TimelineNetWorthHeaderRow(
+                    totals = timelineData.netWorthByPeriod,
+                    scrollState = horizontalScrollState,
+                    displayCurrency = filterState.displayCurrency,
+                    languageMode = languageMode
+                )
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
@@ -342,33 +343,57 @@ fun AccountTimelineScreen(
 @Composable
 private fun TimelineDateHeaderRow(
     periods: List<com.example.util.TimelinePeriod>,
+    scrollState: ScrollState,
     languageMode: LanguageMode
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            .padding(vertical = 10.dp, horizontal = 12.dp),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Fixed Account Column Width
-        Text(
-            text = "",
-            modifier = Modifier.width(180.dp)
+        // Frozen Left Column: Header
+        Box(
+            modifier = Modifier
+                .width(155.dp)
+                .padding(start = 12.dp, end = 6.dp)
+        ) {
+            Text(
+                text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Frozen Column Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(20.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         )
 
-        // Date Period Columns
-        periods.forEach { period ->
-            Text(
-                text = period.shortLabel,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.End,
-                modifier = Modifier
-                    .width(115.dp)
-                    .padding(end = 8.dp)
-            )
+        // Horizontally Scrollable Period Columns
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(scrollState),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            periods.forEach { period ->
+                Text(
+                    text = period.shortLabel,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .width(115.dp)
+                        .padding(end = 12.dp)
+                )
+            }
         }
     }
 }
@@ -379,6 +404,7 @@ private fun TimelineSectionHeaderRow(
     totals: List<Double>,
     backgroundColor: Color,
     textColor: Color,
+    scrollState: ScrollState,
     displayCurrency: Boolean,
     languageMode: LanguageMode
 ) {
@@ -386,28 +412,52 @@ private fun TimelineSectionHeaderRow(
         modifier = Modifier
             .fillMaxWidth()
             .background(backgroundColor)
-            .padding(vertical = 10.dp, horizontal = 12.dp),
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = textColor,
-            modifier = Modifier.width(180.dp)
-        )
-
-        totals.forEach { amount ->
+        // Frozen Left Column: Section Title
+        Box(
+            modifier = Modifier
+                .width(155.dp)
+                .padding(start = 12.dp, end = 6.dp)
+        ) {
             Text(
-                text = formatAmount(amount, displayCurrency, languageMode),
+                text = title,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = textColor,
-                textAlign = TextAlign.End,
-                modifier = Modifier
-                    .width(115.dp)
-                    .padding(end = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+        }
+
+        // Frozen Column Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(20.dp)
+                .background(textColor.copy(alpha = 0.25f))
+        )
+
+        // Horizontally Scrollable Period Values
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(scrollState),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            totals.forEach { amount ->
+                Text(
+                    text = formatAmount(amount, displayCurrency, languageMode),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .width(115.dp)
+                        .padding(end = 12.dp)
+                )
+            }
         }
     }
 }
@@ -416,11 +466,13 @@ private fun TimelineSectionHeaderRow(
 private fun TimelineGroupItem(
     group: com.example.util.TimelineGroup,
     isExpanded: Boolean,
+    scrollState: ScrollState,
     displayCurrency: Boolean,
     languageMode: LanguageMode,
     onToggleExpand: () -> Unit
 ) {
     val groupName = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn
+    val typeColor = if (group.parentAccount.type == AccountType.ASSET) Color(0xFF2E7D32) else Color(0xFFC62828)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         // Group Row
@@ -429,41 +481,60 @@ private fun TimelineGroupItem(
                 .fillMaxWidth()
                 .background(if (isExpanded) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
                 .clickable { onToggleExpand() }
-                .padding(vertical = 9.dp, horizontal = 12.dp),
+                .padding(vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Frozen Left Column: Group Name
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.width(180.dp)
+                modifier = Modifier
+                    .width(155.dp)
+                    .padding(start = 8.dp, end = 4.dp)
             ) {
                 Icon(
                     imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = if (group.parentAccount.type == AccountType.ASSET) Color(0xFF2E7D32) else Color(0xFFC62828),
+                    tint = typeColor,
                     modifier = Modifier.size(18.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(2.dp))
                 Text(
                     text = groupName,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (group.parentAccount.type == AccountType.ASSET) Color(0xFF2E7D32) else Color(0xFFC62828),
+                    color = typeColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            group.groupBalances.forEach { amount ->
-                Text(
-                    text = formatAmount(amount, displayCurrency, languageMode),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (group.parentAccount.type == AccountType.ASSET) Color(0xFF2E7D32) else Color(0xFFC62828),
-                    textAlign = TextAlign.End,
-                    modifier = Modifier
-                        .width(115.dp)
-                        .padding(end = 8.dp)
-                )
+            // Frozen Column Divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(20.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            )
+
+            // Horizontally Scrollable Group Values
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                group.groupBalances.forEach { amount ->
+                    Text(
+                        text = formatAmount(amount, displayCurrency, languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = typeColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier
+                            .width(115.dp)
+                            .padding(end = 12.dp)
+                    )
+                }
             }
         }
 
@@ -482,30 +553,50 @@ private fun TimelineGroupItem(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.surface)
-                            .padding(vertical = 8.dp, horizontal = 12.dp),
+                            .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = subName,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
+                        // Frozen Left Column: Sub Account Name
+                        Box(
                             modifier = Modifier
-                                .width(180.dp)
-                                .padding(start = 22.dp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-
-                        sub.balances.forEach { amount ->
+                                .width(155.dp)
+                                .padding(start = 24.dp, end = 6.dp)
+                        ) {
                             Text(
-                                text = formatAmount(amount, displayCurrency, languageMode),
+                                text = subName,
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.End,
-                                modifier = Modifier
-                                    .width(115.dp)
-                                    .padding(end = 8.dp)
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                        }
+
+                        // Frozen Column Divider
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(16.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                        )
+
+                        // Horizontally Scrollable Sub-Account Values
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .horizontalScroll(scrollState),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            sub.balances.forEach { amount ->
+                                Text(
+                                    text = formatAmount(amount, displayCurrency, languageMode),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier
+                                        .width(115.dp)
+                                        .padding(end = 12.dp)
+                                )
+                            }
                         }
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
@@ -518,35 +609,60 @@ private fun TimelineGroupItem(
 @Composable
 private fun TimelineNetWorthHeaderRow(
     totals: List<Double>,
+    scrollState: ScrollState,
     displayCurrency: Boolean,
     languageMode: LanguageMode
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-            .padding(vertical = 12.dp, horizontal = 12.dp),
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f))
+            .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.width(180.dp)
-        )
-
-        totals.forEach { amount ->
+        // Frozen Left Column: Net Worth Title
+        Box(
+            modifier = Modifier
+                .width(155.dp)
+                .padding(start = 12.dp, end = 6.dp)
+        ) {
             Text(
-                text = formatAmount(amount, displayCurrency, languageMode),
+                text = if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ (Net Worth)" else "Net Worth",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (amount >= 0) MaterialTheme.colorScheme.primary else SolidExpense,
-                textAlign = TextAlign.End,
-                modifier = Modifier
-                    .width(115.dp)
-                    .padding(end = 8.dp)
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+        }
+
+        // Frozen Column Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(20.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+        )
+
+        // Horizontally Scrollable Net Worth Values
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(scrollState),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            totals.forEach { amount ->
+                Text(
+                    text = formatAmount(amount, displayCurrency, languageMode),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (amount >= 0) MaterialTheme.colorScheme.primary else SolidExpense,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .width(115.dp)
+                        .padding(end = 12.dp)
+                )
+            }
         }
     }
 }

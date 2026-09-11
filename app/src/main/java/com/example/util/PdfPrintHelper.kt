@@ -51,7 +51,7 @@ object PdfPrintHelper {
         }
     }
 
-    private fun buildTimelineHtml(
+    fun buildTimelineHtml(
         data: AccountTimelineData,
         displayCurrency: Boolean,
         languageMode: LanguageMode

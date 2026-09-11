@@ -574,19 +574,6 @@ fun LedgerScreen(
                             )
                         }
 
-                        ExportMenuButton(
-                            languageMode = languageMode,
-                            onExport = { format ->
-                                TabExportHelper.exportTransactions(
-                                    context = context,
-                                    format = format,
-                                    transactions = selectedTransactions,
-                                    filterSummary = "${selectedTransactions.size} Selected Transactions",
-                                    languageMode = languageMode
-                                )
-                            }
-                        )
-
                         // 3-Dots Overflow Menu for Batch Actions
                         Box {
                             IconButton(onClick = { showBatchMenu = true }) {

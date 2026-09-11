@@ -1968,12 +1968,14 @@ private fun ScreenRouter(
         )
         AppView.LABELS -> LabelsScreen(
             transactions = transactionsWithDetails,
+            accounts = allAccounts,
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer,
             onTransactionClick = onEditTransaction
         )
         AppView.ITEMS_SUMMARY -> ItemsScreen(
             transactions = transactionsWithDetails,
+            accounts = allAccounts,
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer,
             onTransactionClick = onEditTransaction

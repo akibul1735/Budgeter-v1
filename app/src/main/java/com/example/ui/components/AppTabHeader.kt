@@ -222,22 +222,6 @@ fun AppTabHeader(
                     }
                 }
 
-                // Timeline button if needed (left of filter button)
-                if (showTimelineButton || onTimelineClick != null) {
-                    IconButton(
-                        onClick = { onTimelineClick?.invoke() },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .testTag("header_timeline_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Timeline,
-                            contentDescription = "Timeline",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
                 // Filter button if needed
                 if (showFilterButton || onFilterClick != null) {
                     IconButton(
@@ -270,6 +254,22 @@ fun AppTabHeader(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    }
+                }
+
+                // Timeline button if needed
+                if (showTimelineButton || onTimelineClick != null) {
+                    IconButton(
+                        onClick = { onTimelineClick?.invoke() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .testTag("header_timeline_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Timeline,
+                            contentDescription = "Timeline",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
