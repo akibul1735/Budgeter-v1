@@ -103,10 +103,18 @@ object DataImportHelper {
                 val parsedAmount = parseAmount(amountStr)
                 if (parsedAmount == 0.0) continue
 
-                val isNegative = parsedAmount < 0 || amountStr.contains("(") || typeStr.lowercase().contains("expense")
+                val isStartingBal = typeStr.lowercase().contains("starting") ||
+                        typeStr.lowercase().contains("opening") ||
+                        typeStr.lowercase().contains("initial balance") ||
+                        catStr.lowercase().contains("new account") ||
+                        noteStr.lowercase().contains("starting balance") ||
+                        payeeStr.lowercase().contains("starting balance")
+
+                val isNegative = !isStartingBal && (parsedAmount < 0 || amountStr.contains("(") || typeStr.lowercase().contains("expense"))
                 val absAmount = Math.abs(parsedAmount)
 
                 val txType = when {
+                    isStartingBal -> TransactionType.TRANSFER
                     typeStr.lowercase().contains("transfer") -> TransactionType.TRANSFER
                     typeStr.lowercase().contains("income") -> TransactionType.INCOME
                     isNegative -> TransactionType.EXPENSE
@@ -126,7 +134,9 @@ object DataImportHelper {
                 } else defaultAccount
 
                 // Match category
-                val targetCategory = if (catStr.isNotEmpty()) {
+                val targetCategory = if (isStartingBal || txType == TransactionType.TRANSFER) {
+                    null
+                } else if (catStr.isNotEmpty()) {
                     categories.find { it.nameEn.equals(catStr, ignoreCase = true) || it.nameBn.equals(catStr, ignoreCase = true) }
                         ?: run {
                             val newCatType = if (txType == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE
@@ -136,16 +146,43 @@ object DataImportHelper {
                         }
                 } else defaultExpenseCat
 
-                val tx = Transaction(
-                    type = txType,
-                    amount = absAmount,
-                    dateEpochMs = dateEpoch,
-                    debitAccountId = if (txType == TransactionType.EXPENSE) null else targetAccount.id,
-                    creditAccountId = if (txType == TransactionType.EXPENSE) targetAccount.id else null,
-                    categoryId = targetCategory.id,
-                    payeeOrPayer = payeeStr.ifEmpty { "Imported" },
-                    note = if (noteStr.isNotEmpty()) noteStr else "Imported from Excel CSV"
-                )
+                val tx = if (isStartingBal) {
+                    var equityAcc = accounts.find { it.type == AccountType.EQUITY || it.nameEn.contains("Opening Balance", ignoreCase = true) }
+                    if (equityAcc == null) {
+                        val newEquity = Account(
+                            nameEn = "Owner's Equity / Opening Balance",
+                            nameBn = "মালিকানা স্বত্ব / প্রারম্ভিক উদ্বৃত্ত",
+                            type = AccountType.EQUITY,
+                            iconName = "AccountBalanceWallet",
+                            colorHex = "#8B5CF6",
+                            isSystem = true
+                        )
+                        val eqId = accountDao.insertAccount(newEquity)
+                        equityAcc = newEquity.copy(id = eqId)
+                        accounts.add(equityAcc)
+                    }
+                    Transaction(
+                        type = TransactionType.TRANSFER,
+                        amount = absAmount,
+                        dateEpochMs = dateEpoch,
+                        debitAccountId = if (targetAccount.type == AccountType.LIABILITY) equityAcc.id else targetAccount.id,
+                        creditAccountId = if (targetAccount.type == AccountType.LIABILITY) targetAccount.id else equityAcc.id,
+                        categoryId = null,
+                        payeeOrPayer = payeeStr.ifEmpty { "Starting Balance" },
+                        note = if (noteStr.isNotEmpty()) noteStr else "Starting Balance"
+                    )
+                } else {
+                    Transaction(
+                        type = txType,
+                        amount = absAmount,
+                        dateEpochMs = dateEpoch,
+                        debitAccountId = if (txType == TransactionType.EXPENSE) null else targetAccount.id,
+                        creditAccountId = if (txType == TransactionType.EXPENSE) targetAccount.id else null,
+                        categoryId = targetCategory?.id,
+                        payeeOrPayer = payeeStr.ifEmpty { "Imported" },
+                        note = if (noteStr.isNotEmpty()) noteStr else "Imported from Excel CSV"
+                    )
+                }
 
                 transactionDao.insertTransaction(tx)
                 importedCount++

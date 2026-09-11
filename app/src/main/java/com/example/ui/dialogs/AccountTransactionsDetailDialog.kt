@@ -123,6 +123,44 @@ fun AccountTransactionsDetailDialog(
         }.sortedByDescending { it.transaction.dateEpochMs }
     }
 
+    // Calculate running balance after each transaction in chronological order
+    val runningBalanceMap = remember(accountTransactions, account, allRelevantAccountIds, allAccounts) {
+        val subAccountInitial = if (account.parentId == null) {
+            allAccounts.filter { it.parentId == account.id }.sumOf { it.initialBalance }
+        } else 0.0
+        val baseInitial = account.initialBalance + subAccountInitial
+
+        val chronological = accountTransactions.sortedWith(
+            compareBy<TransactionWithDetails> { it.transaction.dateEpochMs }
+                .thenBy { it.transaction.id }
+        )
+
+        var currentRunning = baseInitial
+        val map = mutableMapOf<Long, Double>()
+
+        chronological.forEach { item ->
+            val tx = item.transaction
+            val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
+            val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
+
+            if (account.type == AccountType.ASSET) {
+                if (isDebit && !isCredit) {
+                    currentRunning += tx.amount
+                } else if (isCredit && !isDebit) {
+                    currentRunning -= tx.amount
+                }
+            } else {
+                if (isCredit && !isDebit) {
+                    currentRunning += tx.amount
+                } else if (isDebit && !isCredit) {
+                    currentRunning -= tx.amount
+                }
+            }
+            map[tx.id] = currentRunning
+        }
+        map
+    }
+
     // Compute monthly boundaries
     val cal = Calendar.getInstance()
     val thisMonthStart = remember { DateUtils.getStartOfMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1) }
@@ -677,7 +715,7 @@ fun AccountTransactionsDetailDialog(
 
                                     Spacer(modifier = Modifier.width(8.dp))
 
-                                    // Right: Amount & Status
+                                    // Right: Amount, Balance After Transaction, Status
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = "$amountPrefix${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
@@ -685,6 +723,16 @@ fun AccountTransactionsDetailDialog(
                                             fontWeight = FontWeight.Bold,
                                             color = txColor
                                         )
+                                        val runningBal = runningBalanceMap[tx.id]
+                                        if (runningBal != null) {
+                                            val sign = if (runningBal > 0) "+" else if (runningBal < 0) "-" else ""
+                                            Text(
+                                                text = "$sign${LanguageHelper.formatCurrency(Math.abs(runningBal), languageMode)}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+                                            )
+                                        }
                                         if (tx.status == TransactionStatus.CLEARED || tx.status == TransactionStatus.RECONCILED) {
                                             Text(
                                                 text = tx.status.name.lowercase(Locale.getDefault())

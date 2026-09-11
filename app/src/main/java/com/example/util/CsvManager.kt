@@ -301,7 +301,12 @@ object CsvManager {
                 parsedRows.add(finalRow)
 
                 val cleanedCatGroup = cleanCategoryGroupName(row.categoryGroup)
-                val isTransferCat = row.category.equals("(Transfer)", ignoreCase = true) ||
+                val isNewAccountCat = row.category.equals("(New Account)", ignoreCase = true) ||
+                        row.category.equals("New Account", ignoreCase = true) ||
+                        cleanedCatGroup.equals("(New Account)", ignoreCase = true) ||
+                        cleanedCatGroup.equals("New Account", ignoreCase = true)
+                val isTransferCat = isNewAccountCat ||
+                        row.category.equals("(Transfer)", ignoreCase = true) ||
                         row.category.equals("Transfer", ignoreCase = true) ||
                         cleanedCatGroup.equals("(Transfer)", ignoreCase = true) ||
                         cleanedCatGroup.equals("Transfer", ignoreCase = true)
@@ -725,11 +730,41 @@ object CsvManager {
                         itemA.isProcessed = true
                         itemB.isProcessed = true
                     } else {
-                        // Unpaired standalone transfer row
+                        // Unpaired standalone transfer row (including Starting Balance / Opening Balance)
                         var sourceAcc: Account? = null
                         var destAcc: Account? = null
 
-                        if (itemA.isOutflow) {
+                        val isStartingBalance = itemA.row.category.contains("New Account", ignoreCase = true) ||
+                                itemA.row.categoryGroup.contains("New Account", ignoreCase = true) ||
+                                itemA.row.name.contains("Starting Balance", ignoreCase = true) ||
+                                itemA.row.name.contains("Opening Balance", ignoreCase = true) ||
+                                itemA.row.notes.contains("Starting Balance", ignoreCase = true) ||
+                                itemA.row.notes.contains("Opening Balance", ignoreCase = true)
+
+                        if (isStartingBalance) {
+                            var equityAcc = accounts.find { it.type == AccountType.EQUITY || it.nameEn.contains("Opening Balance", ignoreCase = true) }
+                            if (equityAcc == null) {
+                                val newEquity = Account(
+                                    nameEn = "Owner's Equity / Opening Balance",
+                                    nameBn = "মালিকানা স্বত্ব / প্রারম্ভিক উদ্বৃত্ত",
+                                    type = AccountType.EQUITY,
+                                    iconName = "AccountBalanceWallet",
+                                    colorHex = "#8B5CF6",
+                                    isSystem = true
+                                )
+                                val eqId = accountDao.insertAccount(newEquity)
+                                equityAcc = newEquity.copy(id = eqId)
+                                accounts.add(equityAcc)
+                            }
+
+                            if (itemA.resolvedAccount.type == AccountType.LIABILITY) {
+                                destAcc = equityAcc
+                                sourceAcc = itemA.resolvedAccount
+                            } else {
+                                destAcc = itemA.resolvedAccount
+                                sourceAcc = equityAcc
+                            }
+                        } else if (itemA.isOutflow) {
                             sourceAcc = itemA.resolvedAccount
                             if (itemA.row.name.isNotBlank()) {
                                 destAcc = accounts.find {
@@ -752,9 +787,9 @@ object CsvManager {
                             debitAccountId = destAcc?.id,
                             creditAccountId = sourceAcc?.id,
                             categoryId = null,
-                            payeeOrPayer = itemA.row.name.ifEmpty { "Transfer" },
-                            note = formatNotes(itemA.row).ifEmpty { "Imported Transfer" },
-                            status = parseStatusEnum(itemA.row.status)
+                            payeeOrPayer = itemA.row.name.ifEmpty { if (isStartingBalance) "Starting Balance" else "Transfer" },
+                            note = formatNotes(itemA.row).ifEmpty { if (isStartingBalance) "Starting Balance" else "Imported Transfer" },
+                            status = if (isStartingBalance && itemA.row.status.isBlank()) TransactionStatus.RECONCILED else parseStatusEnum(itemA.row.status)
                         )
                         transactionsToInsert.add(tx)
                         existingTransactions.add(tx)
@@ -1083,12 +1118,21 @@ object CsvManager {
         val statusStr = get("status", 14)
 
         val rawAmount = parseAmount(amountStr)
-        val isNegative = rawAmount < 0 || amountStr.contains("(") || typeStr.lowercase().contains("expense")
+        val isStartingBalance = typeStr.lowercase().contains("starting") ||
+                typeStr.lowercase().contains("opening") ||
+                typeStr.lowercase().contains("initial balance") ||
+                catStr.lowercase().contains("new account") ||
+                catGroupStr.lowercase().contains("new account") ||
+                notesStr.lowercase().contains("starting balance") ||
+                notesStr.lowercase().contains("opening balance")
+
+        val isNegative = !isStartingBalance && (rawAmount < 0 || amountStr.contains("(") || typeStr.lowercase().contains("expense"))
         val parsedFxRate = parseAmount(fxRateStr).let { if (it > 0) it else 1.0 }
 
         val finalAmount = Math.abs(rawAmount) * parsedFxRate
 
         val txType = when {
+            isStartingBalance -> TransactionType.TRANSFER
             typeStr.lowercase().contains("transfer") -> TransactionType.TRANSFER
             typeStr.lowercase().contains("income") -> TransactionType.INCOME
             typeStr.lowercase().contains("expense") -> TransactionType.EXPENSE

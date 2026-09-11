@@ -16,6 +16,7 @@ import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import kotlinx.coroutines.Dispatchers
@@ -488,8 +489,60 @@ class BudgetRepository(
     }.flowOn(Dispatchers.Default)
 
     suspend fun insertAccount(account: Account): Long {
+        val initialBal = if (account.parentId == null) 0.0 else account.initialBalance
+        // Store account with initialBalance 0 if we generate a transaction for it, preventing double counting in balance calculation
         val finalAcc = if (account.parentId == null) account.copy(initialBalance = 0.0) else account
-        return accountDao.insertAccount(finalAcc)
+        val newAccId = accountDao.insertAccount(finalAcc)
+
+        // If there is an initial balance, auto-create a starting balance transaction linked to Equity
+        if (initialBal > 0.0) {
+            val allAccs = accountDao.getAllAccountsSnapshot()
+            var equityAcc = allAccs.find { it.type == AccountType.EQUITY || it.nameEn.contains("Opening Balance", ignoreCase = true) }
+            if (equityAcc == null) {
+                val newEquity = Account(
+                    nameEn = "Owner's Equity / Opening Balance",
+                    nameBn = "মালিকানা স্বত্ব / প্রারম্ভিক উদ্বৃত্ত",
+                    type = AccountType.EQUITY,
+                    iconName = "AccountBalanceWallet",
+                    colorHex = "#8B5CF6",
+                    isSystem = true
+                )
+                val eqId = accountDao.insertAccount(newEquity)
+                equityAcc = newEquity.copy(id = eqId)
+            }
+
+            val txDate = if (account.createdAt > 0L) account.createdAt else System.currentTimeMillis()
+            val startTx = if (account.type == AccountType.LIABILITY) {
+                Transaction(
+                    type = TransactionType.TRANSFER,
+                    amount = initialBal,
+                    dateEpochMs = txDate,
+                    debitAccountId = equityAcc.id,
+                    creditAccountId = newAccId,
+                    categoryId = null,
+                    payeeOrPayer = "Starting Balance",
+                    note = "Starting Balance",
+                    status = TransactionStatus.RECONCILED
+                )
+            } else {
+                Transaction(
+                    type = TransactionType.TRANSFER,
+                    amount = initialBal,
+                    dateEpochMs = txDate,
+                    debitAccountId = newAccId,
+                    creditAccountId = equityAcc.id,
+                    categoryId = null,
+                    payeeOrPayer = "Starting Balance",
+                    note = "Starting Balance",
+                    status = TransactionStatus.RECONCILED
+                )
+            }
+            // Reset initial balance on account entity to 0 since the transaction represents the full balance
+            accountDao.updateAccount(finalAcc.copy(id = newAccId, initialBalance = 0.0))
+            transactionDao.insertTransaction(startTx)
+        }
+
+        return newAccId
     }
 
     suspend fun updateAccount(account: Account) {
