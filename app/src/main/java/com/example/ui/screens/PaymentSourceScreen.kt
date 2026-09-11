@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -94,6 +95,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -679,20 +681,20 @@ private fun AccountsPaymentSourceTabContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("payment_source_overview_card"),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = SolidPrimary)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স সারসংক্ষেপ" else "Payment Sources Overview",
                                 color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
@@ -702,46 +704,46 @@ private fun AccountsPaymentSourceTabContent(
                                     "${if (languageMode == LanguageMode.BANGLA) "মোট ঘাটতি" else "Net Shortfall"}: -${LanguageHelper.formatCurrency(overview.totalShortfall, languageMode)}"
                                 },
                                 color = Color.White,
-                                fontSize = 16.sp,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
 
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = if (overview.accountsNeedingFundsCount > 0) SolidExpense else Color.White.copy(alpha = 0.2f)
                         ) {
                             Text(
                                 text = if (overview.accountsNeedingFundsCount == 0) (if (languageMode == LanguageMode.BANGLA) "সকল সোর্স প্রস্তুত" else "All Funded")
                                 else "${overview.accountsNeedingFundsCount} ${if (languageMode == LanguageMode.BANGLA) "টিতে ঘাটতি" else "Need Funds"}",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color.Black.copy(alpha = 0.2f))
-                            .padding(8.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "প্রয়োজনীয় ব্যয়" else "Required Expenses",
                                 color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 10.sp
+                                fontSize = 9.sp
                             )
                             Text(
                                 text = LanguageHelper.formatCurrency(overview.totalRequired, languageMode),
                                 color = Color.White,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -749,82 +751,101 @@ private fun AccountsPaymentSourceTabContent(
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "মোট মজুদ ও আয়" else "Total Available & Income",
                                 color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 10.sp
+                                fontSize = 9.sp
                             )
                             Text(
                                 text = LanguageHelper.formatCurrency(overview.totalAvailable, languageMode),
                                 color = SolidIncome,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
 
-                    // Suggested Fund Transfers button inside Overview Card
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Side-by-side action buttons inside the Overview Card
                     val suggestionsCount = overview.transferSuggestions.size
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = onOpenSuggestedTransfers,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (suggestionsCount > 0) Color.White else Color.White.copy(alpha = 0.2f),
-                            contentColor = if (suggestionsCount > 0) SolidPrimary else Color.White
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("btn_suggested_transfers"),
-                        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 12.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.SyncAlt,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "প্রস্তাবিত ফান্ড ট্রান্সফার" else "Suggested Fund Transfers",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (suggestionsCount > 0) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Surface(
-                                shape = CircleShape,
-                                color = SolidExpense,
-                                modifier = Modifier.size(20.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "$suggestionsCount",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
+                        // 1. Select Payment Sources Button
+                        Button(
+                            onClick = onOpenSourceSelector,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White.copy(alpha = 0.22f),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("btn_select_sources"),
+                            contentPadding = PaddingValues(vertical = 6.dp, horizontal = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সোর্স নির্বাচন" else "Select Sources",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // 2. Suggested Transfers Button
+                        Button(
+                            onClick = onOpenSuggestedTransfers,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (suggestionsCount > 0) Color.White else Color.White.copy(alpha = 0.22f),
+                                contentColor = if (suggestionsCount > 0) SolidPrimary else Color.White
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("btn_suggested_transfers"),
+                            contentPadding = PaddingValues(vertical = 6.dp, horizontal = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SyncAlt,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ফান্ড ট্রান্সফার" else "Fund Transfers",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (suggestionsCount > 0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SolidExpense,
+                                    modifier = Modifier.size(18.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "$suggestionsCount",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-        }
-
-        // Action Buttons Row (Select Payment Sources)
-        item {
-            Button(
-                onClick = onOpenSourceSelector,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
-            ) {
-                Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স একাউন্ট নির্বাচন করুন" else "Select Payment Source Accounts",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
             }
         }
 
@@ -984,230 +1005,217 @@ private fun AssignedItemsTabContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentPadding = PaddingValues(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 1. Search Box
+        // Compact Search Bar & All Filter Rows Grouped
         item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("assigned_items_search_input"),
-                placeholder = {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট, ক্যাটাগরি বা সোর্স অনুসন্ধান..." else "Search account, category, or payment source...",
-                        fontSize = 12.sp
-                    )
-                },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SolidPrimary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                )
-            )
-        }
-
-        // Active Account Filter Banner (if an account is selected)
-        if (selectedAccount != null) {
-            item {
-                Card(
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = SolidPrimary.copy(alpha = 0.1f)),
-                    border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.3f)),
-                    modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                // 1. Slim Compact Search Input
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
                 ) {
                     Row(
                         modifier = Modifier
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .fillMaxSize()
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(selectedAccount.iconName),
-                                contentDescription = null,
-                                tint = SolidPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (searchQuery.isEmpty()) {
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "ফিল্টারকৃত সোর্স অ্যাকাউন্ট" else "Filtered Payment Source",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট, ক্যাটাগরি অনুসন্ধান..." else "Search account, category...",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                Text(
-                                    text = selectedAccount.localizedName(languageMode),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SolidPrimary
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = onSearchChange,
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("assigned_items_search_input")
+                            )
+                        }
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { onSearchChange("") },
+                                modifier = Modifier.size(22.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                        IconButton(
+                    }
+                }
+
+                // 2. Source Accounts Micro-Chips Row
+                if (allPaymentSourceAccounts.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        CompactAssignedFilterChip(
+                            selected = selectedAccountId == null,
                             onClick = onClearAccountFilter,
-                            modifier = Modifier.size(26.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Clear Filter",
-                                tint = SolidPrimary,
-                                modifier = Modifier.size(16.dp)
+                            label = if (languageMode == LanguageMode.BANGLA) "সকল সোর্স" else "All Sources"
+                        )
+                        allPaymentSourceAccounts.forEach { acc ->
+                            CompactAssignedFilterChip(
+                                selected = selectedAccountId == acc.id,
+                                onClick = {
+                                    if (selectedAccountId == acc.id) onClearAccountFilter()
+                                    else onSelectAccountFilter(acc.id)
+                                },
+                                label = acc.localizedName(languageMode),
+                                leadingIcon = {
+                                    Icon(
+                                        IconHelper.getIconByName(acc.iconName),
+                                        contentDescription = null,
+                                        tint = if (selectedAccountId == acc.id) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
                             )
                         }
                     }
                 }
-            }
-        }
 
-        // Account Quick Filter Chips Row
-        if (allPaymentSourceAccounts.isNotEmpty()) {
-            item {
+                // 3. Section Selector Micro-Chips Row (All | Other Accounts | Expense | Income)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    FilterChip(
-                        selected = selectedAccountId == null,
-                        onClick = onClearAccountFilter,
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল সোর্স" else "All Sources", fontSize = 11.sp) }
+                    CompactAssignedFilterChip(
+                        selected = sectionFilter == AssignedItemSectionFilter.ALL,
+                        onClick = { onSectionFilterChange(AssignedItemSectionFilter.ALL) },
+                        label = if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Items"
                     )
-                    allPaymentSourceAccounts.forEach { acc ->
-                        FilterChip(
-                            selected = selectedAccountId == acc.id,
-                            onClick = { onSelectAccountFilter(acc.id) },
-                            label = { Text(acc.localizedName(languageMode), fontSize = 11.sp) },
-                            leadingIcon = {
-                                Icon(
-                                    IconHelper.getIconByName(acc.iconName),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        )
-                    }
+                    CompactAssignedFilterChip(
+                        selected = sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS,
+                        onClick = { onSectionFilterChange(AssignedItemSectionFilter.OTHER_ACCOUNTS) },
+                        label = if (languageMode == LanguageMode.BANGLA) "অন্যান্য (${overview.otherAccountAllocations.size})" else "Other Accounts (${overview.otherAccountAllocations.size})",
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.People,
+                                contentDescription = null,
+                                tint = if (sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    )
+                    CompactAssignedFilterChip(
+                        selected = sectionFilter == AssignedItemSectionFilter.EXPENSES,
+                        onClick = { onSectionFilterChange(AssignedItemSectionFilter.EXPENSES) },
+                        label = if (languageMode == LanguageMode.BANGLA) "ব্যয় (${overview.categoryAllocations.size})" else "Expenses (${overview.categoryAllocations.size})",
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.MonetizationOn,
+                                contentDescription = null,
+                                tint = if (sectionFilter == AssignedItemSectionFilter.EXPENSES) SolidExpense else SolidExpense.copy(alpha = 0.7f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    )
+                    CompactAssignedFilterChip(
+                        selected = sectionFilter == AssignedItemSectionFilter.INCOMES,
+                        onClick = { onSectionFilterChange(AssignedItemSectionFilter.INCOMES) },
+                        label = if (languageMode == LanguageMode.BANGLA) "আয় (${overview.incomeAllocations.size})" else "Income (${overview.incomeAllocations.size})",
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Category,
+                                contentDescription = null,
+                                tint = if (sectionFilter == AssignedItemSectionFilter.INCOMES) SolidIncome else SolidIncome.copy(alpha = 0.7f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    )
                 }
-            }
-        }
 
-        // 2. Section Selector Pills (All | Other Accounts | Expense | Income)
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                FilterChip(
-                    selected = sectionFilter == AssignedItemSectionFilter.ALL,
-                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.ALL) },
-                    label = {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Items",
-                            fontSize = 11.sp,
-                            fontWeight = if (sectionFilter == AssignedItemSectionFilter.ALL) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                )
-                FilterChip(
-                    selected = sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS,
-                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.OTHER_ACCOUNTS) },
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.People, contentDescription = null, modifier = Modifier.size(13.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "অন্যান্য একাউন্ট (${overview.otherAccountAllocations.size})" else "Other Accounts (${overview.otherAccountAllocations.size})",
-                                fontSize = 11.sp,
-                                fontWeight = if (sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) FontWeight.Bold else FontWeight.Medium
+                // 4. Status / Sort Micro-Chips Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    CompactAssignedFilterChip(
+                        selected = statusFilter == AssignedItemStatusFilter.ALL,
+                        onClick = { onStatusFilterChange(AssignedItemStatusFilter.ALL) },
+                        label = if (languageMode == LanguageMode.BANGLA) "সকল" else "All"
+                    )
+                    CompactAssignedFilterChip(
+                        selected = statusFilter == AssignedItemStatusFilter.BUDGETED_ONLY,
+                        onClick = { onStatusFilterChange(AssignedItemStatusFilter.BUDGETED_ONLY) },
+                        label = if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত / দেনা" else "Budgeted / Due"
+                    )
+                    CompactAssignedFilterChip(
+                        selected = statusFilter == AssignedItemStatusFilter.REMAINING_ONLY,
+                        onClick = { onStatusFilterChange(AssignedItemStatusFilter.REMAINING_ONLY) },
+                        label = if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"
+                    )
+                    CompactAssignedFilterChip(
+                        selected = statusFilter == AssignedItemStatusFilter.MOST_FREQUENT,
+                        onClick = { onStatusFilterChange(AssignedItemStatusFilter.MOST_FREQUENT) },
+                        label = if (languageMode == LanguageMode.BANGLA) "সর্বাধিক ব্যবহৃত" else "Most Used"
+                    )
+                    CompactAssignedFilterChip(
+                        selected = statusFilter == AssignedItemStatusFilter.SPLIT_ONLY,
+                        onClick = { onStatusFilterChange(AssignedItemStatusFilter.SPLIT_ONLY) },
+                        label = if (languageMode == LanguageMode.BANGLA) "একাধিক সোর্সে বিভক্ত" else "Split Across Sources",
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.CallSplit,
+                                contentDescription = null,
+                                tint = if (statusFilter == AssignedItemStatusFilter.SPLIT_ONLY) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp)
                             )
                         }
-                    }
-                )
-                FilterChip(
-                    selected = sectionFilter == AssignedItemSectionFilter.EXPENSES,
-                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.EXPENSES) },
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(13.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (${overview.categoryAllocations.size})" else "Expenses (${overview.categoryAllocations.size})",
-                                fontSize = 11.sp,
-                                fontWeight = if (sectionFilter == AssignedItemSectionFilter.EXPENSES) FontWeight.Bold else FontWeight.Medium
+                    )
+                    CompactAssignedFilterChip(
+                        selected = statusFilter == AssignedItemStatusFilter.UNASSIGNED_ONLY,
+                        onClick = { onStatusFilterChange(AssignedItemStatusFilter.UNASSIGNED_ONLY) },
+                        label = if (languageMode == LanguageMode.BANGLA) "বরাদ্দহীন" else "Unassigned",
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = SolidExpense,
+                                modifier = Modifier.size(12.dp)
                             )
                         }
-                    }
-                )
-                FilterChip(
-                    selected = sectionFilter == AssignedItemSectionFilter.INCOMES,
-                    onClick = { onSectionFilterChange(AssignedItemSectionFilter.INCOMES) },
-                    label = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.Category, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(13.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "আয় (${overview.incomeAllocations.size})" else "Income (${overview.incomeAllocations.size})",
-                                fontSize = 11.sp,
-                                fontWeight = if (sectionFilter == AssignedItemSectionFilter.INCOMES) FontWeight.Bold else FontWeight.Medium
-                            )
-                        }
-                    }
-                )
-            }
-        }
-
-        // 3. Status Filters Row (All | Budgeted | Remaining | Most Used | Split Across Sources | Unassigned)
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                FilterChip(
-                    selected = statusFilter == AssignedItemStatusFilter.ALL,
-                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.ALL) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = statusFilter == AssignedItemStatusFilter.BUDGETED_ONLY,
-                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.BUDGETED_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত / দেনা" else "Budgeted / Due", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = statusFilter == AssignedItemStatusFilter.REMAINING_ONLY,
-                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.REMAINING_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = statusFilter == AssignedItemStatusFilter.MOST_FREQUENT,
-                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.MOST_FREQUENT) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সর্বাধিক ব্যবহৃত" else "Most Used", fontSize = 11.sp) }
-                )
-                FilterChip(
-                    selected = statusFilter == AssignedItemStatusFilter.SPLIT_ONLY,
-                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.SPLIT_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "একাধিক সোর্সে বিভক্ত" else "Split Across Sources", fontSize = 11.sp) },
-                    leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                )
-                FilterChip(
-                    selected = statusFilter == AssignedItemStatusFilter.UNASSIGNED_ONLY,
-                    onClick = { onStatusFilterChange(AssignedItemStatusFilter.UNASSIGNED_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দহীন" else "Unassigned", fontSize = 11.sp) },
-                    leadingIcon = { Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(13.dp)) }
-                )
+                    )
+                }
             }
         }
 
@@ -3773,6 +3781,44 @@ private fun EmptyStateCard(message: String) {
             contentAlignment = Alignment.Center
         ) {
             Text(text = message, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun CompactAssignedFilterChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    selectedColor: Color = SolidPrimary,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(6.dp),
+        color = if (selected) selectedColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            if (selected) selectedColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        ),
+        modifier = modifier.height(28.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (leadingIcon != null) {
+                leadingIcon()
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) selectedColor else MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
