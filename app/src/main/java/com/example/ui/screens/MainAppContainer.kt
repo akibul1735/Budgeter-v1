@@ -1035,8 +1035,8 @@ fun MainAppContainer(
             onDismiss = { showAddAccountDialog = false },
             onSave = { acc -> viewModel.saveAccount(acc) },
             onDelete = { acc -> viewModel.deleteAccount(acc) },
-            onDeleteWithStrategy = { acc, deleteTx, targetId ->
-                viewModel.deleteAccountWithStrategy(acc, deleteTx, targetId)
+            onDeleteWithStrategy = { acc, deleteTx, targetId, customMap ->
+                viewModel.deleteAccountWithStrategy(acc, deleteTx, targetId, customMap)
             }
         )
     }
@@ -1056,8 +1056,8 @@ fun MainAppContainer(
             onDismiss = { showAddCategoryDialog = false },
             onSave = { cat -> viewModel.saveCategory(cat) },
             onDelete = { cat -> viewModel.deleteCategory(cat) },
-            onDeleteWithStrategy = { cat, deleteTx, targetId ->
-                viewModel.deleteCategoryWithStrategy(cat, deleteTx, targetId)
+            onDeleteWithStrategy = { cat, deleteTx, targetId, customMap ->
+                viewModel.deleteCategoryWithStrategy(cat, deleteTx, targetId, customMap)
             }
         )
     }

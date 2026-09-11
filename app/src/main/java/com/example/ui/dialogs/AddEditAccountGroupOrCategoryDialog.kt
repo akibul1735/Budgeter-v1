@@ -90,7 +90,7 @@ fun AddEditAccountGroupOrCategoryDialog(
     onDismiss: () -> Unit,
     onSave: (Account) -> Unit,
     onDelete: ((Account) -> Unit)? = null,
-    onDeleteWithStrategy: ((Account, Boolean, Long?) -> Unit)? = null
+    onDeleteWithStrategy: ((Account, Boolean, Long?, Map<Long, Long>?) -> Unit)? = null
 ) {
     // Determine entry mode: If editing a top-level group, NEW_GROUP. If editing child, NEW_CATEGORY.
     var entryMode by remember {
@@ -455,7 +455,7 @@ fun AddEditAccountGroupOrCategoryDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (existingAccount != null && onDelete != null && !existingAccount.isSystem) {
+                    if (existingAccount != null && onDelete != null) {
                         Button(
                             onClick = { showDeleteConfirmDialog = true },
                             colors = ButtonDefaults.buttonColors(
@@ -536,9 +536,9 @@ fun AddEditAccountGroupOrCategoryDialog(
             securityConfig = securityConfig,
             languageMode = languageMode,
             onVerifyPin = onVerifyPin,
-            onConfirmDelete = { deleteTx, targetId ->
+            onConfirmDelete = { deleteTx, targetId, customMap ->
                 if (onDeleteWithStrategy != null) {
-                    onDeleteWithStrategy(existingAccount, deleteTx, targetId)
+                    onDeleteWithStrategy(existingAccount, deleteTx, targetId, customMap)
                 } else {
                     onDelete?.invoke(existingAccount)
                 }

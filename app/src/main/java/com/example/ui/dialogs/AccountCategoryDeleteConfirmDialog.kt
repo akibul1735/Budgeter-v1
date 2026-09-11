@@ -1,5 +1,10 @@
 package com.example.ui.dialogs
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,16 +28,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,9 +53,11 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,17 +70,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
+import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.BiometricHelper
+import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.SecurityConfig
@@ -84,7 +101,7 @@ fun AccountDeleteConfirmDialog(
     securityConfig: SecurityConfig = SecurityConfig(),
     languageMode: LanguageMode,
     onVerifyPin: ((String) -> Boolean)? = null,
-    onConfirmDelete: (deleteTransactions: Boolean, targetAccountId: Long?) -> Unit,
+    onConfirmDelete: (deleteTransactions: Boolean, targetAccountId: Long?, transactionTargetMap: Map<Long, Long>?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val isGroup = account.parentId == null
@@ -101,14 +118,15 @@ fun AccountDeleteConfirmDialog(
         }
     }
 
-    // Count related transactions
-    val relatedTxCount = remember(affectedAccountIds, transactions) {
-        transactions.count { item ->
+    // Filter related transactions
+    val relatedTransactions = remember(affectedAccountIds, transactions) {
+        transactions.filter { item ->
             val tx = item.transaction
             (tx.debitAccountId != null && tx.debitAccountId in affectedAccountIds) ||
                     (tx.creditAccountId != null && tx.creditAccountId in affectedAccountIds)
         }
     }
+    val relatedTxCount = relatedTransactions.size
 
     // Target accounts available for moving (exclude self and children)
     val candidateTargetAccounts = remember(allAccounts, affectedAccountIds) {
@@ -130,10 +148,26 @@ fun AccountDeleteConfirmDialog(
         mutableStateOf<Long?>(candidateTargetAccounts.firstOrNull()?.id)
     }
 
-    var targetMenuExpanded by remember { mutableStateOf(false) }
+    // Per-transaction target account overrides (transactionId -> targetAccountId)
+    val customTxAccountMap = remember { mutableStateMapOf<Long, Long>() }
+    var showTxListExpanded by remember { mutableStateOf(false) }
 
+    var targetMenuExpanded by remember { mutableStateOf(false) }
     var inputPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf("") }
+
+    fun buildFinalTargetMap(): Map<Long, Long>? {
+        if (selectedAction != DeleteTransactionAction.MOVE_TO_ANOTHER) return null
+        val defaultTarget = selectedTargetAccountId ?: candidateTargetAccounts.firstOrNull()?.id ?: return null
+        return relatedTransactions.associate { it.transaction.id to (customTxAccountMap[it.transaction.id] ?: defaultTarget) }
+    }
+
+    fun executeDelete() {
+        val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
+        val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) (selectedTargetAccountId ?: candidateTargetAccounts.firstOrNull()?.id) else null
+        val targetMap = buildFinalTargetMap()
+        onConfirmDelete(deleteTx, targetId, targetMap)
+    }
 
     fun triggerBiometric() {
         if (securityConfig.isBiometricEnabled && context is FragmentActivity) {
@@ -143,9 +177,7 @@ fun AccountDeleteConfirmDialog(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "ফিঙ্গারপ্রিন্ট দিয়ে যাচাই করুন: ${account.localizedName(languageMode)}" else "Verify fingerprint to delete: ${account.localizedName(languageMode)}",
                 negativeButtonText = if (languageMode == LanguageMode.BANGLA) "পিন ব্যবহার করুন" else "Use PIN",
                 onSuccess = {
-                    val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                    val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetAccountId else null
-                    onConfirmDelete(deleteTx, targetId)
+                    executeDelete()
                 },
                 onError = { _, err ->
                     pinError = err
@@ -208,42 +240,235 @@ fun AccountDeleteConfirmDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                // Related Transactions Info Card
+                // Related Transactions Info Card & List
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ReceiptLong,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val txText = if (languageMode == LanguageMode.BANGLA) {
-                            if (relatedTxCount > 0) {
-                                "সম্পর্কিত লেনদেন: ${LanguageHelper.toBanglaDigits(relatedTxCount.toString())} টি পাওয়া গেছে"
-                            } else {
-                                "কোনো সম্পর্কিত লেনদেন নেই"
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ReceiptLong,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val txText = if (languageMode == LanguageMode.BANGLA) {
+                                    if (relatedTxCount > 0) {
+                                        "সম্পর্কিত লেনদেন: ${LanguageHelper.toBanglaDigits(relatedTxCount.toString())} টি"
+                                    } else {
+                                        "কোনো সম্পর্কিত লেনদেন নেই"
+                                    }
+                                } else {
+                                    if (relatedTxCount > 0) {
+                                        "Related transactions: $relatedTxCount found"
+                                    } else {
+                                        "No related transactions found"
+                                    }
+                                }
+                                Text(
+                                    text = txText,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                        } else {
+
                             if (relatedTxCount > 0) {
-                                "Related transactions: $relatedTxCount found"
-                            } else {
-                                "No related transactions found"
+                                TextButton(
+                                    onClick = { showTxListExpanded = !showTxListExpanded },
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(
+                                        text = if (showTxListExpanded) {
+                                            if (languageMode == LanguageMode.BANGLA) "লুকান" else "Hide"
+                                        } else {
+                                            if (languageMode == LanguageMode.BANGLA) "দেখুন ও ভাগ করুন" else "View / Assign"
+                                        },
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        imageVector = if (showTxListExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
-                        Text(
-                            text = txText,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                        // Expandable list of related transactions with individual target selectors
+                        AnimatedVisibility(
+                            visible = showTxListExpanded && relatedTxCount > 0,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                            ) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && candidateTargetAccounts.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "প্রতিটি লেনদেনের জন্য আলাদা অ্যাকাউন্ট নির্বাচন করুন:" else "Assign target account per transaction:",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (customTxAccountMap.isNotEmpty()) {
+                                            TextButton(
+                                                onClick = { customTxAccountMap.clear() },
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset",
+                                                    fontSize = 10.5.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 220.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    relatedTransactions.forEach { txItem ->
+                                        val tx = txItem.transaction
+                                        val assignedTargetId = customTxAccountMap[tx.id] ?: selectedTargetAccountId ?: candidateTargetAccounts.firstOrNull()?.id
+                                        val assignedAccount = candidateTargetAccounts.firstOrNull { it.id == assignedTargetId }
+                                        val isCustomized = customTxAccountMap.containsKey(tx.id)
+                                        var itemMenuExpanded by remember { mutableStateOf(false) }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            border = androidx.compose.foundation.BorderStroke(
+                                                1.dp,
+                                                if (isCustomized) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(8.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = tx.note.ifBlank {
+                                                                if (languageMode == LanguageMode.BANGLA) "বিবরণ নেই" else "No Note"
+                                                            },
+                                                            fontSize = 12.5.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            text = DateUtils.formatDate(tx.dateEpochMs, languageMode),
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    val amountColor = when (tx.type) {
+                                                        TransactionType.INCOME -> SolidIncome
+                                                        TransactionType.EXPENSE -> SolidExpense
+                                                        TransactionType.TRANSFER -> SolidPrimary
+                                                    }
+                                                    Text(
+                                                        text = "${if (tx.type == TransactionType.EXPENSE) "-" else if (tx.type == TransactionType.INCOME) "+" else ""}${String.format("%.2f", tx.amount)}",
+                                                        fontSize = 12.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = amountColor
+                                                    )
+                                                }
+
+                                                if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && candidateTargetAccounts.isNotEmpty()) {
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Box {
+                                                        AssistChip(
+                                                            onClick = { itemMenuExpanded = true },
+                                                            label = {
+                                                                Text(
+                                                                    text = "${if (languageMode == LanguageMode.BANGLA) "স্থানান্তর ➔ " else "Move ➔ "}${assignedAccount?.localizedName(languageMode) ?: ""}${if (isCustomized) " (কাস্টম)" else ""}",
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = if (isCustomized) FontWeight.Bold else FontWeight.Normal
+                                                                )
+                                                            },
+                                                            trailingIcon = {
+                                                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                            },
+                                                            colors = AssistChipDefaults.assistChipColors(
+                                                                containerColor = if (isCustomized) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                                labelColor = if (isCustomized) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                            ),
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        )
+
+                                                        DropdownMenu(
+                                                            expanded = itemMenuExpanded,
+                                                            onDismissRequest = { itemMenuExpanded = false }
+                                                        ) {
+                                                            candidateTargetAccounts.forEach { candidate ->
+                                                                DropdownMenuItem(
+                                                                    text = {
+                                                                        Text(
+                                                                            text = candidate.localizedName(languageMode),
+                                                                            fontSize = 12.sp,
+                                                                            fontWeight = if (candidate.id == assignedTargetId) FontWeight.Bold else FontWeight.Normal
+                                                                        )
+                                                                    },
+                                                                    leadingIcon = {
+                                                                        Icon(
+                                                                            imageVector = IconHelper.getIconByName(candidate.iconName),
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.size(16.dp)
+                                                                        )
+                                                                    },
+                                                                    onClick = {
+                                                                        customTxAccountMap[tx.id] = candidate.id
+                                                                        itemMenuExpanded = false
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -287,7 +512,7 @@ fun AccountDeleteConfirmDialog(
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "সকল লেনদেন অন্য অ্যাকাউন্টে যুক্ত হবে" else "Reassign all transactions to target account",
+                                            text = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট বা নির্দিষ্ট অ্যাকাউন্টে লেনদেন স্থানান্তর করুন" else "Reassign transactions to default or custom accounts",
                                             fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -296,6 +521,13 @@ fun AccountDeleteConfirmDialog(
 
                                 if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) {
                                     Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "মূল / ডিফল্ট টার্গেট অ্যাকাউন্ট:" else "Default Target Account:",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Box(modifier = Modifier.fillMaxWidth()) {
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
@@ -424,9 +656,7 @@ fun AccountDeleteConfirmDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
                             if (onVerifyPin?.invoke(inputPin) == true) {
-                                val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                                val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetAccountId else null
-                                onConfirmDelete(deleteTx, targetId)
+                                executeDelete()
                             } else {
                                 pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
                             }
@@ -463,16 +693,12 @@ fun AccountDeleteConfirmDialog(
                 onClick = {
                     if (requiresAuth) {
                         if (onVerifyPin?.invoke(inputPin) == true) {
-                            val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                            val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetAccountId else null
-                            onConfirmDelete(deleteTx, targetId)
+                            executeDelete()
                         } else {
                             pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
                         }
                     } else {
-                        val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                        val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetAccountId else null
-                        onConfirmDelete(deleteTx, targetId)
+                        executeDelete()
                     }
                 },
                 enabled = !isMoveDisabled,
@@ -497,7 +723,7 @@ fun CategoryDeleteConfirmDialog(
     securityConfig: SecurityConfig = SecurityConfig(),
     languageMode: LanguageMode,
     onVerifyPin: ((String) -> Boolean)? = null,
-    onConfirmDelete: (deleteTransactions: Boolean, targetCategoryId: Long?) -> Unit,
+    onConfirmDelete: (deleteTransactions: Boolean, targetCategoryId: Long?, transactionTargetMap: Map<Long, Long>?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val isGroup = category.parentId == null
@@ -514,14 +740,15 @@ fun CategoryDeleteConfirmDialog(
         }
     }
 
-    // Count related transactions
-    val relatedTxCount = remember(affectedCategoryIds, transactions) {
-        transactions.count { item ->
+    // Filter related transactions
+    val relatedTransactions = remember(affectedCategoryIds, transactions) {
+        transactions.filter { item ->
             val tx = item.transaction
             (tx.categoryId != null && tx.categoryId in affectedCategoryIds) ||
                     (tx.subCategoryId != null && tx.subCategoryId in affectedCategoryIds)
         }
     }
+    val relatedTxCount = relatedTransactions.size
 
     // Target categories available for moving (same type EXPENSE/INCOME, exclude self and children)
     val candidateTargetCategories = remember(allCategories, affectedCategoryIds, category.type) {
@@ -543,10 +770,26 @@ fun CategoryDeleteConfirmDialog(
         mutableStateOf<Long?>(candidateTargetCategories.firstOrNull()?.id)
     }
 
-    var targetMenuExpanded by remember { mutableStateOf(false) }
+    // Per-transaction target category overrides (transactionId -> targetCategoryId)
+    val customTxCategoryMap = remember { mutableStateMapOf<Long, Long>() }
+    var showTxListExpanded by remember { mutableStateOf(false) }
 
+    var targetMenuExpanded by remember { mutableStateOf(false) }
     var inputPin by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf("") }
+
+    fun buildFinalTargetMap(): Map<Long, Long>? {
+        if (selectedAction != DeleteTransactionAction.MOVE_TO_ANOTHER) return null
+        val defaultTarget = selectedTargetCategoryId ?: candidateTargetCategories.firstOrNull()?.id ?: return null
+        return relatedTransactions.associate { it.transaction.id to (customTxCategoryMap[it.transaction.id] ?: defaultTarget) }
+    }
+
+    fun executeDelete() {
+        val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
+        val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) (selectedTargetCategoryId ?: candidateTargetCategories.firstOrNull()?.id) else null
+        val targetMap = buildFinalTargetMap()
+        onConfirmDelete(deleteTx, targetId, targetMap)
+    }
 
     fun triggerBiometric() {
         if (securityConfig.isBiometricEnabled && context is FragmentActivity) {
@@ -556,9 +799,7 @@ fun CategoryDeleteConfirmDialog(
                 subtitle = if (languageMode == LanguageMode.BANGLA) "ফিঙ্গারপ্রিন্ট দিয়ে যাচাই করুন: ${category.localizedName(languageMode)}" else "Verify fingerprint to delete: ${category.localizedName(languageMode)}",
                 negativeButtonText = if (languageMode == LanguageMode.BANGLA) "পিন ব্যবহার করুন" else "Use PIN",
                 onSuccess = {
-                    val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                    val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetCategoryId else null
-                    onConfirmDelete(deleteTx, targetId)
+                    executeDelete()
                 },
                 onError = { _, err ->
                     pinError = err
@@ -621,42 +862,235 @@ fun CategoryDeleteConfirmDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                // Related Transactions Info Card
+                // Related Transactions Info Card & List
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ReceiptLong,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val txText = if (languageMode == LanguageMode.BANGLA) {
-                            if (relatedTxCount > 0) {
-                                "সম্পর্কিত লেনদেন: ${LanguageHelper.toBanglaDigits(relatedTxCount.toString())} টি পাওয়া গেছে"
-                            } else {
-                                "কোনো সম্পর্কিত লেনদেন নেই"
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ReceiptLong,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val txText = if (languageMode == LanguageMode.BANGLA) {
+                                    if (relatedTxCount > 0) {
+                                        "সম্পর্কিত লেনদেন: ${LanguageHelper.toBanglaDigits(relatedTxCount.toString())} টি"
+                                    } else {
+                                        "কোনো সম্পর্কিত লেনদেন নেই"
+                                    }
+                                } else {
+                                    if (relatedTxCount > 0) {
+                                        "Related transactions: $relatedTxCount found"
+                                    } else {
+                                        "No related transactions found"
+                                    }
+                                }
+                                Text(
+                                    text = txText,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                        } else {
+
                             if (relatedTxCount > 0) {
-                                "Related transactions: $relatedTxCount found"
-                            } else {
-                                "No related transactions found"
+                                TextButton(
+                                    onClick = { showTxListExpanded = !showTxListExpanded },
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(
+                                        text = if (showTxListExpanded) {
+                                            if (languageMode == LanguageMode.BANGLA) "লুকান" else "Hide"
+                                        } else {
+                                            if (languageMode == LanguageMode.BANGLA) "দেখুন ও ভাগ করুন" else "View / Assign"
+                                        },
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        imageVector = if (showTxListExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
-                        Text(
-                            text = txText,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                        // Expandable list of related transactions with individual target category selectors
+                        AnimatedVisibility(
+                            visible = showTxListExpanded && relatedTxCount > 0,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                            ) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && candidateTargetCategories.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "প্রতিটি লেনদেনের জন্য আলাদা ক্যাটাগরি বেছে নিন:" else "Assign target category per transaction:",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (customTxCategoryMap.isNotEmpty()) {
+                                            TextButton(
+                                                onClick = { customTxCategoryMap.clear() },
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset",
+                                                    fontSize = 10.5.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 220.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    relatedTransactions.forEach { txItem ->
+                                        val tx = txItem.transaction
+                                        val assignedTargetId = customTxCategoryMap[tx.id] ?: selectedTargetCategoryId ?: candidateTargetCategories.firstOrNull()?.id
+                                        val assignedCategory = candidateTargetCategories.firstOrNull { it.id == assignedTargetId }
+                                        val isCustomized = customTxCategoryMap.containsKey(tx.id)
+                                        var itemMenuExpanded by remember { mutableStateOf(false) }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            border = androidx.compose.foundation.BorderStroke(
+                                                1.dp,
+                                                if (isCustomized) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(8.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = tx.note.ifBlank {
+                                                                if (languageMode == LanguageMode.BANGLA) "বিবরণ নেই" else "No Note"
+                                                            },
+                                                            fontSize = 12.5.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Text(
+                                                            text = DateUtils.formatDate(tx.dateEpochMs, languageMode),
+                                                            fontSize = 11.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                    val amountColor = when (tx.type) {
+                                                        TransactionType.INCOME -> SolidIncome
+                                                        TransactionType.EXPENSE -> SolidExpense
+                                                        TransactionType.TRANSFER -> SolidPrimary
+                                                    }
+                                                    Text(
+                                                        text = "${if (tx.type == TransactionType.EXPENSE) "-" else if (tx.type == TransactionType.INCOME) "+" else ""}${String.format("%.2f", tx.amount)}",
+                                                        fontSize = 12.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = amountColor
+                                                    )
+                                                }
+
+                                                if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && candidateTargetCategories.isNotEmpty()) {
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Box {
+                                                        AssistChip(
+                                                            onClick = { itemMenuExpanded = true },
+                                                            label = {
+                                                                Text(
+                                                                    text = "${if (languageMode == LanguageMode.BANGLA) "স্থানান্তর ➔ " else "Move ➔ "}${assignedCategory?.localizedName(languageMode) ?: ""}${if (isCustomized) " (কাস্টম)" else ""}",
+                                                                    fontSize = 11.sp,
+                                                                    fontWeight = if (isCustomized) FontWeight.Bold else FontWeight.Normal
+                                                                )
+                                                            },
+                                                            trailingIcon = {
+                                                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                            },
+                                                            colors = AssistChipDefaults.assistChipColors(
+                                                                containerColor = if (isCustomized) SolidPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                                labelColor = if (isCustomized) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                            ),
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        )
+
+                                                        DropdownMenu(
+                                                            expanded = itemMenuExpanded,
+                                                            onDismissRequest = { itemMenuExpanded = false }
+                                                        ) {
+                                                            candidateTargetCategories.forEach { candidate ->
+                                                                DropdownMenuItem(
+                                                                    text = {
+                                                                        Text(
+                                                                            text = candidate.localizedName(languageMode),
+                                                                            fontSize = 12.sp,
+                                                                            fontWeight = if (candidate.id == assignedTargetId) FontWeight.Bold else FontWeight.Normal
+                                                                        )
+                                                                    },
+                                                                    leadingIcon = {
+                                                                        Icon(
+                                                                            imageVector = IconHelper.getIconByName(candidate.iconName),
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.size(16.dp)
+                                                                        )
+                                                                    },
+                                                                    onClick = {
+                                                                        customTxCategoryMap[tx.id] = candidate.id
+                                                                        itemMenuExpanded = false
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -700,7 +1134,7 @@ fun CategoryDeleteConfirmDialog(
                                             fontSize = 14.sp
                                         )
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "সকল লেনদেন নতুন ক্যাটাগরিতে যুক্ত হবে" else "Reassign all transactions to target category",
+                                            text = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট বা নির্দিষ্ট ক্যাটাগরিতে লেনদেন স্থানান্তর করুন" else "Reassign transactions to default or custom categories",
                                             fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -709,6 +1143,13 @@ fun CategoryDeleteConfirmDialog(
 
                                 if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) {
                                     Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "মূল / ডিফল্ট টার্গেট ক্যাটাগরি:" else "Default Target Category:",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Box(modifier = Modifier.fillMaxWidth()) {
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
@@ -837,9 +1278,7 @@ fun CategoryDeleteConfirmDialog(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
                             if (onVerifyPin?.invoke(inputPin) == true) {
-                                val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                                val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetCategoryId else null
-                                onConfirmDelete(deleteTx, targetId)
+                                executeDelete()
                             } else {
                                 pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
                             }
@@ -876,16 +1315,12 @@ fun CategoryDeleteConfirmDialog(
                 onClick = {
                     if (requiresAuth) {
                         if (onVerifyPin?.invoke(inputPin) == true) {
-                            val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                            val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetCategoryId else null
-                            onConfirmDelete(deleteTx, targetId)
+                            executeDelete()
                         } else {
                             pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
                         }
                     } else {
-                        val deleteTx = selectedAction == DeleteTransactionAction.DELETE_TRANSACTIONS
-                        val targetId = if (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER) selectedTargetCategoryId else null
-                        onConfirmDelete(deleteTx, targetId)
+                        executeDelete()
                     }
                 },
                 enabled = !isMoveDisabled,

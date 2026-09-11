@@ -86,7 +86,7 @@ fun AddEditCategoryDialog(
     onDismiss: () -> Unit,
     onSave: (Category) -> Unit,
     onDelete: ((Category) -> Unit)? = null,
-    onDeleteWithStrategy: ((Category, Boolean, Long?) -> Unit)? = null
+    onDeleteWithStrategy: ((Category, Boolean, Long?, Map<Long, Long>?) -> Unit)? = null
 ) {
     var nameEn by remember { mutableStateOf(existingCategory?.nameEn ?: "") }
     var nameBn by remember { mutableStateOf(existingCategory?.nameBn ?: "") }
@@ -446,7 +446,7 @@ fun AddEditCategoryDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (existingCategory != null && onDelete != null && !existingCategory.isSystem) {
+                    if (existingCategory != null && onDelete != null) {
                         Button(
                             onClick = { showDeleteConfirmDialog = true },
                             colors = ButtonDefaults.buttonColors(
@@ -509,9 +509,9 @@ fun AddEditCategoryDialog(
             securityConfig = securityConfig,
             languageMode = languageMode,
             onVerifyPin = onVerifyPin,
-            onConfirmDelete = { deleteTx, targetId ->
+            onConfirmDelete = { deleteTx, targetId, customMap ->
                 if (onDeleteWithStrategy != null) {
-                    onDeleteWithStrategy(existingCategory, deleteTx, targetId)
+                    onDeleteWithStrategy(existingCategory, deleteTx, targetId, customMap)
                 } else {
                     onDelete?.invoke(existingCategory)
                 }

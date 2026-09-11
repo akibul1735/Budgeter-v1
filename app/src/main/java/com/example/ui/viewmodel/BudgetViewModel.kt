@@ -724,10 +724,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun deleteAccountWithStrategy(account: Account, deleteTransactions: Boolean, targetAccountId: Long?) {
+    fun deleteAccountWithStrategy(
+        account: Account,
+        deleteTransactions: Boolean,
+        targetAccountId: Long?,
+        transactionTargetMap: Map<Long, Long>? = null
+    ) {
         viewModelScope.launch {
             trashManager.addAccount(account)
-            activeRepo.deleteAccountWithStrategy(account, deleteTransactions, targetAccountId)
+            activeRepo.deleteAccountWithStrategy(account, deleteTransactions, targetAccountId, transactionTargetMap)
         }
     }
 
@@ -763,10 +768,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun deleteCategoryWithStrategy(category: Category, deleteTransactions: Boolean, targetCategoryId: Long?) {
+    fun deleteCategoryWithStrategy(
+        category: Category,
+        deleteTransactions: Boolean,
+        targetCategoryId: Long?,
+        transactionTargetMap: Map<Long, Long>? = null
+    ) {
         viewModelScope.launch {
             trashManager.addCategory(category)
-            activeRepo.deleteCategoryWithStrategy(category, deleteTransactions, targetCategoryId)
+            activeRepo.deleteCategoryWithStrategy(category, deleteTransactions, targetCategoryId, transactionTargetMap)
         }
     }
 

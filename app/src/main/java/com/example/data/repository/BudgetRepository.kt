@@ -502,7 +502,8 @@ class BudgetRepository(
     suspend fun deleteAccountWithStrategy(
         account: Account,
         deleteTransactions: Boolean,
-        targetAccountId: Long?
+        targetAccountId: Long?,
+        transactionTargetMap: Map<Long, Long>? = null
     ) {
         val allAccounts = accountDao.getAllAccountsSnapshot()
         val affectedIds = if (account.parentId == null) {
@@ -517,18 +518,23 @@ class BudgetRepository(
 
         if (deleteTransactions) {
             transactionDao.deleteTransactions(relatedTx)
-        } else if (targetAccountId != null) {
-            val updatedTx = relatedTx.map { tx ->
-                var updated = tx
-                if (tx.debitAccountId != null && tx.debitAccountId in affectedIds) {
-                    updated = updated.copy(debitAccountId = targetAccountId)
-                }
-                if (tx.creditAccountId != null && tx.creditAccountId in affectedIds) {
-                    updated = updated.copy(creditAccountId = targetAccountId)
-                }
-                updated
+        } else {
+            val updatedTx = relatedTx.mapNotNull { tx ->
+                val assignedTargetId = transactionTargetMap?.get(tx.id) ?: targetAccountId
+                if (assignedTargetId != null) {
+                    var updated = tx
+                    if (tx.debitAccountId != null && tx.debitAccountId in affectedIds) {
+                        updated = updated.copy(debitAccountId = assignedTargetId)
+                    }
+                    if (tx.creditAccountId != null && tx.creditAccountId in affectedIds) {
+                        updated = updated.copy(creditAccountId = assignedTargetId)
+                    }
+                    updated
+                } else null
             }
-            transactionDao.updateTransactions(updatedTx)
+            if (updatedTx.isNotEmpty()) {
+                transactionDao.updateTransactions(updatedTx)
+            }
         }
 
         if (account.parentId == null) {
@@ -549,7 +555,8 @@ class BudgetRepository(
     suspend fun deleteCategoryWithStrategy(
         category: Category,
         deleteTransactions: Boolean,
-        targetCategoryId: Long?
+        targetCategoryId: Long?,
+        transactionTargetMap: Map<Long, Long>? = null
     ) {
         val allCats = categoryDao.getAllCategoriesSnapshot()
         val affectedIds = if (category.parentId == null) {
@@ -564,18 +571,23 @@ class BudgetRepository(
 
         if (deleteTransactions) {
             transactionDao.deleteTransactions(relatedTx)
-        } else if (targetCategoryId != null) {
-            val updatedTx = relatedTx.map { tx ->
-                var updated = tx
-                if (tx.categoryId != null && tx.categoryId in affectedIds) {
-                    updated = updated.copy(categoryId = targetCategoryId)
-                }
-                if (tx.subCategoryId != null && tx.subCategoryId in affectedIds) {
-                    updated = updated.copy(subCategoryId = targetCategoryId)
-                }
-                updated
+        } else {
+            val updatedTx = relatedTx.mapNotNull { tx ->
+                val assignedTargetId = transactionTargetMap?.get(tx.id) ?: targetCategoryId
+                if (assignedTargetId != null) {
+                    var updated = tx
+                    if (tx.categoryId != null && tx.categoryId in affectedIds) {
+                        updated = updated.copy(categoryId = assignedTargetId)
+                    }
+                    if (tx.subCategoryId != null && tx.subCategoryId in affectedIds) {
+                        updated = updated.copy(subCategoryId = assignedTargetId)
+                    }
+                    updated
+                } else null
             }
-            transactionDao.updateTransactions(updatedTx)
+            if (updatedTx.isNotEmpty()) {
+                transactionDao.updateTransactions(updatedTx)
+            }
         }
 
         if (category.parentId == null) {
