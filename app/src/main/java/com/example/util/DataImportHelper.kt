@@ -110,13 +110,26 @@ object DataImportHelper {
                         noteStr.lowercase().contains("starting balance") ||
                         payeeStr.lowercase().contains("starting balance")
 
-                val isNegative = !isStartingBal && (parsedAmount < 0 || amountStr.contains("(") || typeStr.lowercase().contains("expense"))
+                val isExplicitExpense = typeStr.lowercase().contains("expense")
+                val isExplicitIncome = typeStr.lowercase().contains("income")
+                val isExplicitTransfer = typeStr.lowercase().contains("transfer")
+
+                val hasNegativeNotation = parsedAmount < 0 || amountStr.contains("(") || amountStr.trim().startsWith("-")
+                val hasPositiveNotation = parsedAmount > 0 && !hasNegativeNotation
+
+                val isRevertedExpense = isExplicitExpense && hasPositiveNotation
+                val isRevertedIncome = isExplicitIncome && hasNegativeNotation
+                val isReverted = isRevertedExpense || isRevertedIncome
+
+                val isNegative = !isStartingBal && (hasNegativeNotation || isExplicitExpense)
                 val absAmount = Math.abs(parsedAmount)
+                val finalAmount = if (isReverted) -absAmount else absAmount
 
                 val txType = when {
                     isStartingBal -> TransactionType.TRANSFER
-                    typeStr.lowercase().contains("transfer") -> TransactionType.TRANSFER
-                    typeStr.lowercase().contains("income") -> TransactionType.INCOME
+                    isExplicitTransfer -> TransactionType.TRANSFER
+                    isExplicitIncome -> TransactionType.INCOME
+                    isExplicitExpense -> TransactionType.EXPENSE
                     isNegative -> TransactionType.EXPENSE
                     else -> TransactionType.INCOME
                 }
@@ -174,7 +187,7 @@ object DataImportHelper {
                 } else {
                     Transaction(
                         type = txType,
-                        amount = absAmount,
+                        amount = finalAmount,
                         dateEpochMs = dateEpoch,
                         debitAccountId = if (txType == TransactionType.EXPENSE) null else targetAccount.id,
                         creditAccountId = if (txType == TransactionType.EXPENSE) targetAccount.id else null,

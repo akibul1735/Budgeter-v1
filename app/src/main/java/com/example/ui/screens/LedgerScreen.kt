@@ -337,7 +337,7 @@ fun LedgerScreen(
             val tx = item.transaction
             val matchesType = selectedTypeFilter == null || tx.type == selectedTypeFilter
             val matchesDate = tx.dateEpochMs in startEpochMs..endEpochMs
-            val matchesAmount = tx.amount >= minAmountFilter && tx.amount <= maxAmountFilter
+            val matchesAmount = Math.abs(tx.amount) >= minAmountFilter && Math.abs(tx.amount) <= maxAmountFilter
 
             val matchesCategory = if (selectedCategoryIdFilter == null) true else {
                 tx.categoryId == selectedCategoryIdFilter || tx.subCategoryId == selectedCategoryIdFilter
@@ -358,7 +358,10 @@ fun LedgerScreen(
 
             val matchesSearch = if (searchQuery.isBlank()) true else {
                 val query = searchQuery.trim().lowercase()
-                tx.note.lowercase().contains(query) ||
+                val isRevertTx = tx.amount < 0
+                val revertKeywordMatch = (query == "revert" || query == "reverted" || query == "reversal" || query == "রিভার্স" || query == "রিভার্সাল") && isRevertTx
+                revertKeywordMatch ||
+                        tx.note.lowercase().contains(query) ||
                         tx.payeeOrPayer.lowercase().contains(query) ||
                         tx.referenceNo.lowercase().contains(query) ||
                         (item.category?.nameEn?.lowercase()?.contains(query) == true) ||
@@ -366,7 +369,8 @@ fun LedgerScreen(
                         (item.subCategory?.nameEn?.lowercase()?.contains(query) == true) ||
                         (item.subCategory?.nameBn?.lowercase()?.contains(query) == true) ||
                         (item.debitAccount?.nameEn?.lowercase()?.contains(query) == true) ||
-                        (item.creditAccount?.nameEn?.lowercase()?.contains(query) == true)
+                        (item.creditAccount?.nameEn?.lowercase()?.contains(query) == true) ||
+                        Math.abs(tx.amount).toString().contains(query)
             }
             matchesType && matchesDate && matchesAmount && matchesCategory && matchesAccount && matchesLabel && matchesStatus && matchesSearch
         }
@@ -2141,7 +2145,21 @@ internal fun TransactionRowItem(
                 }
             }
 
-            if (tx.status != TransactionStatus.NONE) {
+            if (tx.amount < 0) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = amtColor.copy(alpha = 0.14f),
+                    modifier = Modifier.padding(top = 2.dp)
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "রিভার্সাল" else "Reversal",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = amtColor,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            } else if (tx.status != TransactionStatus.NONE) {
                 Surface(
                     shape = RoundedCornerShape(4.dp),
                     color = (if (tx.status == TransactionStatus.RECONCILED) SolidIncome else MaterialTheme.colorScheme.outline).copy(alpha = 0.12f),

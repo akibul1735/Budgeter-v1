@@ -197,12 +197,16 @@ fun AccountTransactionsDetailDialog(
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim().lowercase(Locale.getDefault())
             list = list.filter { item ->
+                val isRevertTx = item.transaction.amount < 0
+                val revertKeywordMatch = (q == "revert" || q == "reverted" || q == "reversal" || q == "রিভার্স" || q == "রিভার্সাল") && isRevertTx
+                revertKeywordMatch ||
                 item.transaction.note.lowercase(Locale.getDefault()).contains(q) ||
                 item.transaction.payeeOrPayer.lowercase(Locale.getDefault()).contains(q) ||
                 (item.category?.nameEn?.lowercase(Locale.getDefault())?.contains(q) == true) ||
                 (item.category?.nameBn?.lowercase(Locale.getDefault())?.contains(q) == true) ||
                 (item.debitAccount?.nameEn?.lowercase(Locale.getDefault())?.contains(q) == true) ||
-                (item.creditAccount?.nameEn?.lowercase(Locale.getDefault())?.contains(q) == true)
+                (item.creditAccount?.nameEn?.lowercase(Locale.getDefault())?.contains(q) == true) ||
+                Math.abs(item.transaction.amount).toString().contains(q)
             }
         }
 
@@ -731,13 +735,14 @@ fun AccountTransactionsDetailDialog(
                                                 )
                                             }
                                         } else {
-                                            val sign = if (account.type == AccountType.ASSET) {
-                                                if (isDebit && !isCredit) "+" else if (isCredit && !isDebit) "−" else ""
+                                            val isIncrease = if (account.type == AccountType.ASSET) {
+                                                if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
                                             } else {
-                                                if (isDebit && !isCredit) "−" else if (isCredit && !isDebit) "+" else ""
+                                                if (isCredit && !isDebit) tx.amount >= 0 else if (isDebit && !isCredit) tx.amount < 0 else false
                                             }
 
-                                            val amtColor = if (sign == "+") SolidIncome else SolidExpense
+                                            val sign = if (isIncrease) "+" else "−"
+                                            val amtColor = if (isIncrease) SolidIncome else SolidExpense
                                             val runningBal = runningBalanceMap[tx.id]
 
                                             TransactionRowItem(

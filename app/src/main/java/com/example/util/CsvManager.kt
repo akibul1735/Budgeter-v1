@@ -467,14 +467,14 @@ object CsvManager {
                     repairedMatch
                 } else {
                     val parsed = parseRowFromTokens(tokens, headerMap, lineNo)
-                    if ((!parsed.isValid || parsed.amount <= 0.0) && autoRepairUnsupported) {
+                    if ((!parsed.isValid || Math.abs(parsed.amount) <= 0.0) && autoRepairUnsupported) {
                         buildCandidateRow(tokens, headerMap, lineNo, parsed)
                     } else {
                         parsed
                     }
                 }
 
-                if (!row.isValid || row.amount <= 0.0) {
+                if (!row.isValid || Math.abs(row.amount) <= 0.0) {
                     val rawTokens = tokens.take(8)
                     unsupportedList.add(
                         UnsupportedRow(
@@ -1126,16 +1126,28 @@ object CsvManager {
                 notesStr.lowercase().contains("starting balance") ||
                 notesStr.lowercase().contains("opening balance")
 
-        val isNegative = !isStartingBalance && (rawAmount < 0 || amountStr.contains("(") || typeStr.lowercase().contains("expense"))
+        val isExplicitExpense = typeStr.lowercase().contains("expense")
+        val isExplicitIncome = typeStr.lowercase().contains("income")
+        val isExplicitTransfer = typeStr.lowercase().contains("transfer")
+
+        val hasNegativeNotation = rawAmount < 0 || amountStr.contains("(") || amountStr.trim().startsWith("-")
+        val hasPositiveNotation = rawAmount > 0 && !hasNegativeNotation
+
+        val isRevertedExpense = isExplicitExpense && hasPositiveNotation
+        val isRevertedIncome = isExplicitIncome && hasNegativeNotation
+        val isReverted = isRevertedExpense || isRevertedIncome
+
+        val isNegative = !isStartingBalance && (hasNegativeNotation || isExplicitExpense)
         val parsedFxRate = parseAmount(fxRateStr).let { if (it > 0) it else 1.0 }
 
-        val finalAmount = Math.abs(rawAmount) * parsedFxRate
+        val absConvertedAmount = Math.abs(rawAmount) * parsedFxRate
+        val finalAmount = if (isReverted) -absConvertedAmount else absConvertedAmount
 
         val txType = when {
             isStartingBalance -> TransactionType.TRANSFER
-            typeStr.lowercase().contains("transfer") -> TransactionType.TRANSFER
-            typeStr.lowercase().contains("income") -> TransactionType.INCOME
-            typeStr.lowercase().contains("expense") -> TransactionType.EXPENSE
+            isExplicitTransfer -> TransactionType.TRANSFER
+            isExplicitIncome -> TransactionType.INCOME
+            isExplicitExpense -> TransactionType.EXPENSE
             isNegative -> TransactionType.EXPENSE
             else -> TransactionType.EXPENSE
         }
@@ -1147,10 +1159,10 @@ object CsvManager {
         var errorReason: String? = null
         var suggestion: String? = null
 
-        if (finalAmount <= 0.0 && amountStr.isBlank()) {
+        if (absConvertedAmount <= 0.0 && amountStr.isBlank()) {
             errorReason = "Amount column is empty"
             suggestion = "Map the 'Amount' field to the correct CSV column in Column Mapping."
-        } else if (finalAmount <= 0.0) {
+        } else if (absConvertedAmount <= 0.0) {
             errorReason = "Invalid amount value: '$amountStr'"
             suggestion = "Verify amount contains numbers (e.g. 500, 120.50). Currency symbols and commas are auto-stripped."
         } else if (dateEpoch <= 0L && dateStr.isBlank()) {
@@ -1161,7 +1173,7 @@ object CsvManager {
             suggestion = "Use supported formats like YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, or DD-MMM-YYYY."
         }
 
-        val isValid = dateEpoch > 0 && finalAmount > 0.0
+        val isValid = dateEpoch > 0 && absConvertedAmount > 0.0
 
         return ParsedCsvRow(
             rawLineNumber = lineNo,
@@ -1203,7 +1215,7 @@ object CsvManager {
         baseRow: ParsedCsvRow
     ): ParsedCsvRow {
         val fallbackDate = if (baseRow.dateEpochMs > 0L) baseRow.dateEpochMs else System.currentTimeMillis()
-        val scannedAmt = if (baseRow.amount > 0.0) baseRow.amount else scanTokensForAnyAmount(tokens).let { if (it > 0.0) it else 100.0 }
+        val scannedAmt = if (Math.abs(baseRow.amount) > 0.0) baseRow.amount else scanTokensForAnyAmount(tokens).let { if (it > 0.0) it else 100.0 }
         val dateFormatted = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(fallbackDate))
         val timeFormatted = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(fallbackDate))
 

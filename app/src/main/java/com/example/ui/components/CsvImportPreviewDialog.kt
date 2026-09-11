@@ -1511,10 +1511,25 @@ private fun StatMiniCard(
 
 @Composable
 private fun SampleRowCard(row: ParsedCsvRow) {
+    val isReverted = row.amount < 0
+    val isPositiveEffect = when (row.type) {
+        TransactionType.EXPENSE -> isReverted
+        TransactionType.INCOME -> !isReverted
+        TransactionType.TRANSFER -> false
+    }
     val typeColor = when (row.type) {
         TransactionType.EXPENSE -> SolidExpense
         TransactionType.INCOME -> SolidIncome
         TransactionType.TRANSFER -> SolidPrimary
+    }
+    val amountColor = when (row.type) {
+        TransactionType.TRANSFER -> SolidPrimary
+        TransactionType.EXPENSE -> if (isReverted) SolidIncome else SolidExpense
+        TransactionType.INCOME -> if (isReverted) SolidExpense else SolidIncome
+    }
+    val sign = when (row.type) {
+        TransactionType.TRANSFER -> ""
+        else -> if (isPositiveEffect) "+" else "−"
     }
 
     Card(
@@ -1544,6 +1559,21 @@ private fun SampleRowCard(row: ParsedCsvRow) {
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                         )
                     }
+                    if (isReverted) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = amountColor.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "Reversal",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = amountColor,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "${row.dateFormatted} ${row.timeFormatted}",
@@ -1553,10 +1583,10 @@ private fun SampleRowCard(row: ParsedCsvRow) {
                 }
 
                 Text(
-                    text = "${if (row.type == TransactionType.EXPENSE) "-" else "+"} ৳${String.format(Locale.US, "%.2f", row.amount)}",
+                    text = "$sign ৳${String.format(Locale.US, "%.2f", Math.abs(row.amount))}",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = typeColor
+                    color = amountColor
                 )
             }
 

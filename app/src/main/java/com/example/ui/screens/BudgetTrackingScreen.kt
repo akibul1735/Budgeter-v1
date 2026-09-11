@@ -283,11 +283,11 @@ fun BudgetTrackingScreen(
                     (tx.subCategoryId != null && filterState.selectedCategoryIds.contains(tx.subCategoryId))
             val matchesLabels = filterState.selectedLabels.isEmpty() ||
                     filterState.selectedLabels.any { tx.note.contains(it, ignoreCase = true) }
-            val matchesZero = !filterState.excludeZeroAmounts || tx.amount > 0.0
+            val matchesZero = !filterState.excludeZeroAmounts || Math.abs(tx.amount) > 0.0
             val minAmt = filterState.minAmount
             val maxAmt = filterState.maxAmount
-            val matchesMin = minAmt == null || tx.amount >= minAmt
-            val matchesMax = maxAmt == null || tx.amount <= maxAmt
+            val matchesMin = minAmt == null || Math.abs(tx.amount) >= minAmt
+            val matchesMax = maxAmt == null || Math.abs(tx.amount) <= maxAmt
             inTime && matchesAcc && matchesStatus && matchesCat && matchesLabels && matchesZero && matchesMin && matchesMax
         }
     }
@@ -309,11 +309,11 @@ fun BudgetTrackingScreen(
                         (tx.subCategoryId != null && filterState.selectedCategoryIds.contains(tx.subCategoryId))
                 val matchesLabels = filterState.selectedLabels.isEmpty() ||
                         filterState.selectedLabels.any { tx.note.contains(it, ignoreCase = true) }
-                val matchesZero = !filterState.excludeZeroAmounts || tx.amount > 0.0
+                val matchesZero = !filterState.excludeZeroAmounts || Math.abs(tx.amount) > 0.0
                 val minAmt = filterState.minAmount
                 val maxAmt = filterState.maxAmount
-                val matchesMin = minAmt == null || tx.amount >= minAmt
-                val matchesMax = maxAmt == null || tx.amount <= maxAmt
+                val matchesMin = minAmt == null || Math.abs(tx.amount) >= minAmt
+                val matchesMax = maxAmt == null || Math.abs(tx.amount) <= maxAmt
                 inTime && matchesAcc && matchesStatus && matchesCat && matchesLabels && matchesZero && matchesMin && matchesMax
             }
         }
