@@ -1759,7 +1759,7 @@ private fun FilterSelectorRow(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TransactionRowItem(
+internal fun TransactionRowItem(
     item: TransactionWithDetails,
     languageMode: LanguageMode,
     rowStyle: LedgerRowStyle = LedgerRowStyle.STANDARD,

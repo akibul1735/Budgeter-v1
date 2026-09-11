@@ -81,6 +81,14 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.example.ui.screens.TransactionRowItem
+import com.example.ui.screens.LedgerRowStyle
+
+private data class AccountDayGroup(
+    val dayEpochMs: Long,
+    val transactions: List<TransactionWithDetails>,
+    val dayNet: Double
+)
 
 private enum class AccountTxFilter(val labelEn: String, val labelBn: String) {
     ALL("All", "সকল"),
@@ -104,7 +112,6 @@ fun AccountTransactionsDetailDialog(
     var selectedFilter by remember { mutableStateOf(AccountTxFilter.ALL) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearchBar by remember { mutableStateOf(false) }
-    var viewingTransactionItem by remember { mutableStateOf<TransactionWithDetails?>(null) }
 
     // Find all sub-account IDs if this is a parent group
     val subAccountIds = remember(account, allAccounts) {
@@ -243,19 +250,40 @@ fun AccountTransactionsDetailDialog(
 
     val accountLocalizedName = account.localizedName(languageMode)
 
-    Dialog(
-        onDismissRequest = {
-            if (viewingTransactionItem != null) {
-                viewingTransactionItem = null
-            } else {
-                onDismiss()
+    // Group displayed transactions by day with net totals
+    val groupedByDay = remember(displayedTransactions, account, allRelevantAccountIds) {
+        displayedTransactions
+            .groupBy { DateUtils.getStartOfDay(it.transaction.dateEpochMs) }
+            .map { (dayEpochMs, dayTxList) ->
+                var net = 0.0
+                for (item in dayTxList) {
+                    val tx = item.transaction
+                    val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
+                    val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
+                    if (account.type == AccountType.ASSET) {
+                        if (isDebit && !isCredit) net += tx.amount
+                        else if (isCredit && !isDebit) net -= tx.amount
+                    } else {
+                        if (isDebit && !isCredit) net -= tx.amount
+                        else if (isCredit && !isDebit) net += tx.amount
+                    }
+                }
+                AccountDayGroup(
+                    dayEpochMs = dayEpochMs,
+                    transactions = dayTxList,
+                    dayNet = net
+                )
             }
-        },
+            .sortedByDescending { it.dayEpochMs }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
             tonalElevation = 6.dp,
             modifier = Modifier
                 .fillMaxWidth(0.95f)
@@ -599,153 +627,136 @@ fun AccountTransactionsDetailDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        items(displayedTransactions, key = { it.transaction.id }) { item ->
-                            val tx = item.transaction
-                            val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
-                            val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
+                        items(
+                            items = groupedByDay,
+                            key = { "day_${it.dayEpochMs}" }
+                        ) { dayGroup ->
+                            val dayEpochMs = dayGroup.dayEpochMs
+                            val dayTxList = dayGroup.transactions
+                            val dayNet = dayGroup.dayNet
 
-                            // Determine Inflow / Outflow display
-                            val isPositive = when (tx.type) {
-                                TransactionType.INCOME -> true
-                                TransactionType.EXPENSE -> false
-                                TransactionType.TRANSFER -> isDebit // If this account is destination (Debit), it's + incoming
-                            }
-
-                            val amountPrefix = if (tx.type == TransactionType.TRANSFER) {
-                                if (isDebit) "+ " else "- "
-                            } else if (tx.type == TransactionType.INCOME) "+ " else "- "
-
-                            val txColor = when {
-                                tx.type == TransactionType.TRANSFER -> SolidTransfer
-                                isPositive -> SolidIncome
-                                else -> SolidExpense
-                            }
-
-                            val dateStr = com.example.util.DateUtils.formatDate(tx.dateEpochMs, languageMode)
-
-                            // Main Title: Note or Category / Transfer Info
-                            val mainTitle = when (tx.type) {
-                                TransactionType.TRANSFER -> {
-                                    val srcName = item.creditAccount?.localizedName(languageMode) ?: "Account"
-                                    val destName = item.debitAccount?.localizedName(languageMode) ?: "Account"
-                                    "$srcName ➔ $destName"
-                                }
-                                else -> {
-                                    if (tx.note.isNotBlank()) tx.note
-                                    else if (item.category != null) item.category.localizedName(languageMode)
-                                    else if (tx.type == TransactionType.INCOME) "Income" else "Expense"
-                                }
-                            }
-
-                            val subSubtitle = when (tx.type) {
-                                TransactionType.TRANSFER -> {
-                                    if (tx.note.isNotBlank()) tx.note else "Account Transfer"
-                                }
-                                else -> {
-                                    val catStr = item.category?.localizedName(languageMode) ?: ""
-                                    val payeeStr = tx.payeeOrPayer
-                                    if (catStr.isNotBlank() && payeeStr.isNotBlank()) "$catStr • $payeeStr"
-                                    else if (catStr.isNotBlank()) catStr
-                                    else payeeStr
-                                }
-                            }
-
+                            // Day Header
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        viewingTransactionItem = item
-                                    }
+                                    .padding(top = 8.dp, bottom = 2.dp),
+                                color = Color.Transparent
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                        .padding(horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Left: Type Icon & Details
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(CircleShape)
-                                                .background(txColor.copy(alpha = 0.12f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = when (tx.type) {
-                                                    TransactionType.TRANSFER -> Icons.Default.SwapHoriz
-                                                    TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
-                                                    TransactionType.EXPENSE -> Icons.AutoMirrored.Filled.TrendingDown
-                                                },
-                                                contentDescription = null,
-                                                tint = txColor,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
+                                    Text(
+                                        text = DateUtils.formatDayHeader(dayEpochMs, languageMode),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
 
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                    val netSign = if (dayNet > 0) "+" else if (dayNet < 0) "−" else ""
+                                    val netColor = if (dayNet > 0) SolidIncome else if (dayNet < 0) SolidExpense else MaterialTheme.colorScheme.outline
+                                    Text(
+                                        text = "$netSign${LanguageHelper.formatCurrency(kotlin.math.abs(dayNet), languageMode)}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = netColor
+                                    )
+                                }
+                            }
 
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = mainTitle,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            if (subSubtitle.isNotBlank()) {
-                                                Text(
-                                                    text = subSubtitle,
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                            // Day's Transaction Items Container (Cards matching Transactions Tab style)
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    dayTxList.forEachIndexed { index, item ->
+                                        val tx = item.transaction
+                                        val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
+                                        val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
+
+                                        if (tx.type == TransactionType.TRANSFER) {
+                                            val isTransferOut = isCredit && !isDebit
+                                            val isTransferIn = isDebit && !isCredit
+                                            val transferTitle = if (tx.payeeOrPayer.isNotBlank()) tx.payeeOrPayer else LanguageHelper.getString("transfer", languageMode)
+                                            val runningBal = runningBalanceMap[tx.id]
+
+                                            if (isTransferOut) {
+                                                val destName = item.debitAccount?.localizedName(languageMode) ?: "Dest"
+                                                TransactionRowItem(
+                                                    item = item,
+                                                    languageMode = languageMode,
+                                                    rowStyle = LedgerRowStyle.STANDARD,
+                                                    accountName = "$accountLocalizedName ➔ $destName",
+                                                    accountBalance = runningBal,
+                                                    overrideTitle = transferTitle,
+                                                    overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
+                                                    overrideSign = "−",
+                                                    overrideAmtColor = SolidExpense,
+                                                    onClick = { onEditTransaction(tx) }
+                                                )
+                                            } else if (isTransferIn) {
+                                                val srcName = item.creditAccount?.localizedName(languageMode) ?: "Source"
+                                                TransactionRowItem(
+                                                    item = item,
+                                                    languageMode = languageMode,
+                                                    rowStyle = LedgerRowStyle.STANDARD,
+                                                    accountName = "$srcName ➔ $accountLocalizedName",
+                                                    accountBalance = runningBal,
+                                                    overrideTitle = transferTitle,
+                                                    overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
+                                                    overrideSign = "+",
+                                                    overrideAmtColor = SolidIncome,
+                                                    onClick = { onEditTransaction(tx) }
+                                                )
+                                            } else {
+                                                val srcName = item.creditAccount?.localizedName(languageMode) ?: "Source"
+                                                val destName = item.debitAccount?.localizedName(languageMode) ?: "Dest"
+                                                TransactionRowItem(
+                                                    item = item,
+                                                    languageMode = languageMode,
+                                                    rowStyle = LedgerRowStyle.STANDARD,
+                                                    accountName = "$srcName ➔ $destName",
+                                                    accountBalance = runningBal,
+                                                    overrideTitle = transferTitle,
+                                                    overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
+                                                    overrideSign = "",
+                                                    overrideAmtColor = SolidTransfer,
+                                                    onClick = { onEditTransaction(tx) }
                                                 )
                                             }
-                                            Text(
-                                                text = dateStr,
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline
+                                        } else {
+                                            val sign = if (account.type == AccountType.ASSET) {
+                                                if (isDebit && !isCredit) "+" else if (isCredit && !isDebit) "−" else ""
+                                            } else {
+                                                if (isDebit && !isCredit) "−" else if (isCredit && !isDebit) "+" else ""
+                                            }
+
+                                            val amtColor = if (sign == "+") SolidIncome else SolidExpense
+                                            val runningBal = runningBalanceMap[tx.id]
+
+                                            TransactionRowItem(
+                                                item = item,
+                                                languageMode = languageMode,
+                                                rowStyle = LedgerRowStyle.STANDARD,
+                                                accountName = accountLocalizedName,
+                                                accountBalance = runningBal,
+                                                overrideSign = sign.ifBlank { null },
+                                                overrideAmtColor = amtColor,
+                                                onClick = { onEditTransaction(tx) }
                                             )
                                         }
-                                    }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Right: Amount, Balance After Transaction, Status
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = "$amountPrefix${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
-                                            fontSize = 13.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = txColor
-                                        )
-                                        val runningBal = runningBalanceMap[tx.id]
-                                        if (runningBal != null) {
-                                            val sign = if (runningBal > 0) "+" else if (runningBal < 0) "-" else ""
-                                            Text(
-                                                text = "$sign${LanguageHelper.formatCurrency(Math.abs(runningBal), languageMode)}",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                            )
-                                        }
-                                        if (tx.status == TransactionStatus.CLEARED || tx.status == TransactionStatus.RECONCILED) {
-                                            Text(
-                                                text = tx.status.name.lowercase(Locale.getDefault())
-                                                    .replaceFirstChar { it.uppercase() },
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = SolidIncome
+                                        if (index < dayTxList.size - 1) {
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(start = 56.dp, end = 12.dp),
+                                                thickness = 0.5.dp,
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                                             )
                                         }
                                     }
@@ -790,29 +801,6 @@ fun AccountTransactionsDetailDialog(
                     }
                 }
             }
-        }
-    }
-
-    viewingTransactionItem?.let { viewItem ->
-        val currentItem = allTransactions.firstOrNull { it.transaction.id == viewItem.transaction.id }
-        if (currentItem == null) {
-            viewingTransactionItem = null
-        } else {
-            TransactionDetailViewDialog(
-                item = currentItem,
-                languageMode = languageMode,
-                onDismiss = {
-                    viewingTransactionItem = null
-                },
-                onEdit = { tx ->
-                    onEditTransaction(tx)
-                },
-                onShowSimilar = { query ->
-                    viewingTransactionItem = null
-                    searchQuery = query
-                    showSearchBar = true
-                }
-            )
         }
     }
 }
