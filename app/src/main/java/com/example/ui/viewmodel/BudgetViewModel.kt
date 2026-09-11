@@ -34,6 +34,10 @@ import com.example.ui.theme.FontPreset
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
 import com.example.ui.theme.ThemePreferences
+import com.example.util.AmountFormatConfig
+import com.example.util.AmountFormatPreferences
+import com.example.util.AmountSeparatorPreset
+import com.example.util.NumberGroupingStyle
 import com.example.util.AutofillConfig
 import com.example.util.AutofillPreferences
 import com.example.util.BackupManager
@@ -126,16 +130,38 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val autofillPrefs: com.example.util.AutofillPreferences = com.example.util.AutofillPreferences.getInstance(application)
     private val transferFeePrefs: com.example.util.TransferFeePreferences = com.example.util.TransferFeePreferences.getInstance(application)
     private val paymentSourcePrefs: com.example.util.PaymentSourcePreferences = com.example.util.PaymentSourcePreferences.getInstance(application)
+    private val amountFormatPrefs: AmountFormatPreferences = AmountFormatPreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
     val dashboardConfig: StateFlow<DashboardConfig> = dashboardPrefs.config
     val currencyConfig: StateFlow<CurrencyConfig> = currencyPrefs.config
+    val amountFormatConfig: StateFlow<AmountFormatConfig> = amountFormatPrefs.config
     val displayFormatConfig: StateFlow<DisplayFormatConfig> = displayFormatPrefs.config
     val trashedItems: StateFlow<List<com.example.util.TrashedItem>> = trashManager.trashedItems
     val securityConfig: StateFlow<SecurityConfig> = securityPrefs.config
     val autofillConfig: StateFlow<AutofillConfig> = autofillPrefs.config
     val paymentSourceConfig: StateFlow<com.example.util.PaymentSourceConfig> = paymentSourcePrefs.config
+
+    fun setAmountFormatPreset(preset: AmountSeparatorPreset) {
+        amountFormatPrefs.setPreset(preset)
+    }
+
+    fun setCustomAmountFormat(
+        groupingSeparator: String,
+        decimalSeparator: String,
+        groupingStyle: NumberGroupingStyle
+    ) {
+        amountFormatPrefs.setCustomConfig(groupingSeparator, decimalSeparator, groupingStyle)
+    }
+
+    fun updateAmountFormatConfig(config: AmountFormatConfig) {
+        amountFormatPrefs.updateConfig(config)
+    }
+
+    fun resetAmountFormatToDefaults() {
+        amountFormatPrefs.resetToDefaults()
+    }
 
     fun setPaymentSourceAccountIds(ids: Set<Long>) {
         paymentSourcePrefs.setSelectedSourceAccountIds(ids)

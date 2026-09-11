@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
@@ -89,6 +90,7 @@ enum class SettingsSubPage {
     PAYMENT_SOURCES,
     LANGUAGE,
     CURRENCY,
+    AMOUNT_FORMAT,
     DATE_TIME,
     THEMES,
     NAVIGATION_TABS,
@@ -120,6 +122,7 @@ fun SettingsScreen(
 
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
+    val amountFormatConfig by viewModel.amountFormatConfig.collectAsStateWithLifecycle()
     val displayFormatConfig by viewModel.displayFormatConfig.collectAsStateWithLifecycle()
     val dashboardConfig by viewModel.dashboardConfig.collectAsStateWithLifecycle()
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
@@ -169,6 +172,13 @@ fun SettingsScreen(
         }
         SettingsSubPage.CURRENCY -> {
             CurrencySettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
+        SettingsSubPage.AMOUNT_FORMAT -> {
+            com.example.ui.screens.settings.AmountFormatSettingsPage(
                 viewModel = viewModel,
                 languageMode = languageMode,
                 onBack = { currentSubPage = SettingsSubPage.ROOT }
@@ -397,6 +407,21 @@ fun SettingsScreen(
                             subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol}) • ${if (languageMode == LanguageMode.BANGLA) currencyConfig.displayMode.titleBn else currencyConfig.displayMode.titleEn}",
                             icon = Icons.Default.CurrencyExchange,
                             onClick = { currentSubPage = SettingsSubPage.CURRENCY }
+                        )
+                    }
+
+                    item {
+                        val presetTitle = if (languageMode == LanguageMode.BANGLA) {
+                            amountFormatConfig.preset.titleBn
+                        } else {
+                            amountFormatConfig.preset.titleEn
+                        }
+                        val sampleText = LanguageHelper.formatCurrency(1234567.89, languageMode)
+                        SettingsListItem(
+                            title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Comma Separator",
+                            subtitle = "$presetTitle • $sampleText",
+                            icon = Icons.Default.Numbers,
+                            onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
                         )
                     }
 

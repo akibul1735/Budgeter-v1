@@ -54,5 +54,85 @@ class ExampleUnitTest {
     val formattedBn = LanguageHelper.formatCurrency(12500.5, LanguageMode.BANGLA)
     assertTrue(formattedBn.contains("৳"))
   }
+
+  @Test
+  fun languageHelper_amountSeparatorFormats() {
+    // 1. Standard Western 3-digit comma
+    val standard = LanguageHelper.formatAmountNumber(
+      value = 1234567.89,
+      mode = LanguageMode.ENGLISH,
+      groupingSeparator = ",",
+      decimalSeparator = ".",
+      groupingStyle = com.example.util.NumberGroupingStyle.STANDARD_3,
+      decimalPlaces = 2
+    )
+    assertEquals("1,234,567.89", standard)
+
+    // 2. South Asian Lakh/Crore
+    val southAsian = LanguageHelper.formatAmountNumber(
+      value = 1234567.89,
+      mode = LanguageMode.ENGLISH,
+      groupingSeparator = ",",
+      decimalSeparator = ".",
+      groupingStyle = com.example.util.NumberGroupingStyle.SOUTH_ASIAN,
+      decimalPlaces = 2
+    )
+    assertEquals("12,34,567.89", southAsian)
+
+    // 3. European Dot and Comma
+    val european = LanguageHelper.formatAmountNumber(
+      value = 1234567.89,
+      mode = LanguageMode.ENGLISH,
+      groupingSeparator = ".",
+      decimalSeparator = ",",
+      groupingStyle = com.example.util.NumberGroupingStyle.STANDARD_3,
+      decimalPlaces = 2
+    )
+    assertEquals("1.234.567,89", european)
+
+    // 4. Space / SI Separator
+    val spaceSep = LanguageHelper.formatAmountNumber(
+      value = 1234567.89,
+      mode = LanguageMode.ENGLISH,
+      groupingSeparator = " ",
+      decimalSeparator = ".",
+      groupingStyle = com.example.util.NumberGroupingStyle.STANDARD_3,
+      decimalPlaces = 2
+    )
+    assertEquals("1 234 567.89", spaceSep)
+
+    // 5. Swiss Apostrophe
+    val swiss = LanguageHelper.formatAmountNumber(
+      value = 1234567.89,
+      mode = LanguageMode.ENGLISH,
+      groupingSeparator = "'",
+      decimalSeparator = ".",
+      groupingStyle = com.example.util.NumberGroupingStyle.STANDARD_3,
+      decimalPlaces = 2
+    )
+    assertEquals("1'234'567.89", swiss)
+
+    // 6. Plain / No separator
+    val plain = LanguageHelper.formatAmountNumber(
+      value = 1234567.89,
+      mode = LanguageMode.ENGLISH,
+      groupingSeparator = "",
+      decimalSeparator = ".",
+      groupingStyle = com.example.util.NumberGroupingStyle.NONE,
+      decimalPlaces = 2
+    )
+    assertEquals("1234567.89", plain)
+
+    // 7. Bangla digits conversion with South Asian grouping
+    val bnLakhCrore = LanguageHelper.formatAmountNumber(
+      value = 1234567.89,
+      mode = LanguageMode.BANGLA,
+      groupingSeparator = ",",
+      decimalSeparator = ".",
+      groupingStyle = com.example.util.NumberGroupingStyle.SOUTH_ASIAN,
+      decimalPlaces = 2
+    )
+    assertEquals("১২,৩৪,৫৬৭.৮৯", bnLakhCrore)
+  }
 }
 

@@ -230,6 +230,7 @@ fun MainAppContainer(
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
     val accountCalcConfig by viewModel.accountCalcConfig.collectAsStateWithLifecycle()
     val paymentSourceConfig by viewModel.paymentSourceConfig.collectAsStateWithLifecycle()
+    val amountFormatConfig by viewModel.amountFormatConfig.collectAsStateWithLifecycle()
     val isAppLocked by viewModel.isAppLocked.collectAsStateWithLifecycle()
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
     val detectedBackups by viewModel.detectedBackups.collectAsStateWithLifecycle()

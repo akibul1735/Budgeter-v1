@@ -11,18 +11,110 @@ object LanguageHelper {
     var activeCurrencyConfig: CurrencyConfig = CurrencyConfig()
         private set
 
+    @Volatile
+    var activeAmountFormatConfig: AmountFormatConfig = AmountFormatConfig()
+        private set
+
     fun updateCurrencyConfig(config: CurrencyConfig) {
         activeCurrencyConfig = config
     }
 
+    fun updateAmountFormatConfig(config: AmountFormatConfig) {
+        activeAmountFormatConfig = config
+    }
+
     fun formatNumber(value: Double, mode: LanguageMode, includeDecimals: Boolean = true): String {
-        val df = if (includeDecimals) DecimalFormat("#,##0.00") else DecimalFormat("#,##0")
-        val formatted = df.format(value)
-        return if (mode == LanguageMode.BANGLA) {
-            toBanglaDigits(formatted)
-        } else {
-            formatted
+        val config = activeAmountFormatConfig
+        return formatAmountNumber(
+            value = value,
+            mode = mode,
+            groupingSeparator = config.effectiveGroupingSeparator,
+            decimalSeparator = config.effectiveDecimalSeparator,
+            groupingStyle = config.effectiveGroupingStyle,
+            decimalPlaces = if (includeDecimals) 2 else 0
+        )
+    }
+
+    fun formatAmountNumber(
+        value: Double,
+        mode: LanguageMode,
+        groupingSeparator: String,
+        decimalSeparator: String,
+        groupingStyle: NumberGroupingStyle,
+        decimalPlaces: Int
+    ): String {
+        val isNegative = value < 0
+        val absValue = Math.abs(value)
+        val pattern = if (decimalPlaces > 0) "%.${decimalPlaces}f" else "%.0f"
+        val rawStr = String.format(java.util.Locale.US, pattern, absValue)
+        val dotIdx = rawStr.indexOf('.')
+        val intPart = if (dotIdx != -1) rawStr.substring(0, dotIdx) else rawStr
+        val decPart = if (dotIdx != -1 && dotIdx < rawStr.length - 1) rawStr.substring(dotIdx + 1) else ""
+
+        val groupedInt = when (groupingStyle) {
+            NumberGroupingStyle.SOUTH_ASIAN -> formatSouthAsian(intPart, groupingSeparator)
+            NumberGroupingStyle.STANDARD_3 -> formatStandard3(intPart, groupingSeparator)
+            NumberGroupingStyle.MYRIAD_4 -> formatMyriad4(intPart, groupingSeparator)
+            NumberGroupingStyle.NONE -> intPart
         }
+
+        val combined = if (decPart.isNotEmpty() && decimalPlaces > 0) {
+            "$groupedInt$decimalSeparator$decPart"
+        } else {
+            groupedInt
+        }
+
+        val sign = if (isNegative) "-" else ""
+        val result = "$sign$combined"
+        return if (mode == LanguageMode.BANGLA) toBanglaDigits(result) else result
+    }
+
+    private fun formatSouthAsian(intStr: String, separator: String): String {
+        if (separator.isEmpty() || intStr.length <= 3) return intStr
+        val last3 = intStr.substring(intStr.length - 3)
+        val remaining = intStr.substring(0, intStr.length - 3)
+        val sb = StringBuilder()
+        var count = 0
+        for (i in remaining.length - 1 downTo 0) {
+            sb.append(remaining[i])
+            count++
+            if (count == 2 && i != 0) {
+                sb.append(separator.reversed())
+                count = 0
+            }
+        }
+        val formattedRemaining = sb.reverse().toString()
+        return "$formattedRemaining$separator$last3"
+    }
+
+    private fun formatStandard3(intStr: String, separator: String): String {
+        if (separator.isEmpty() || intStr.length <= 3) return intStr
+        val sb = StringBuilder()
+        var count = 0
+        for (i in intStr.length - 1 downTo 0) {
+            sb.append(intStr[i])
+            count++
+            if (count == 3 && i != 0) {
+                sb.append(separator.reversed())
+                count = 0
+            }
+        }
+        return sb.reverse().toString()
+    }
+
+    private fun formatMyriad4(intStr: String, separator: String): String {
+        if (separator.isEmpty() || intStr.length <= 4) return intStr
+        val sb = StringBuilder()
+        var count = 0
+        for (i in intStr.length - 1 downTo 0) {
+            sb.append(intStr[i])
+            count++
+            if (count == 4 && i != 0) {
+                sb.append(separator.reversed())
+                count = 0
+            }
+        }
+        return sb.reverse().toString()
     }
 
     fun formatCurrency(
@@ -57,25 +149,31 @@ object LanguageHelper {
         showCurrency: Boolean = true,
         showCurrencySymbol: Boolean = true
     ): String {
-        val pattern = when (decimalPrecision) {
-            DecimalPrecision.OFF -> "#,##0"
-            DecimalPrecision.ONE_DIGIT -> "#,##0.0"
-            DecimalPrecision.TWO_DIGITS -> "#,##0.00"
+        val decimalPlaces = when (decimalPrecision) {
+            DecimalPrecision.OFF -> 0
+            DecimalPrecision.ONE_DIGIT -> 1
+            DecimalPrecision.TWO_DIGITS -> 2
         }
-        val df = DecimalFormat(pattern)
-        val formattedNum = df.format(Math.abs(amount))
-        val finalNum = if (mode == LanguageMode.BANGLA) toBanglaDigits(formattedNum) else formattedNum
+        val formatConfig = activeAmountFormatConfig
+        val formattedNum = formatAmountNumber(
+            value = Math.abs(amount),
+            mode = mode,
+            groupingSeparator = formatConfig.effectiveGroupingSeparator,
+            decimalSeparator = formatConfig.effectiveDecimalSeparator,
+            groupingStyle = formatConfig.effectiveGroupingStyle,
+            decimalPlaces = decimalPlaces
+        )
         val isNegative = amount < 0
         val sign = if (isNegative) "-" else ""
 
         if (!showCurrency) {
-            return "$sign$finalNum"
+            return "$sign$formattedNum"
         }
 
-        val config = activeCurrencyConfig
-        val symbol = if (showCurrencySymbol) config.activeSymbol else ""
-        val code = if (config.displayMode == CurrencyDisplayMode.CODE_ONLY || config.displayMode == CurrencyDisplayMode.CODE_AND_SYMBOL) {
-            "${config.activeCode} "
+        val currConfig = activeCurrencyConfig
+        val symbol = if (showCurrencySymbol) currConfig.activeSymbol else ""
+        val code = if (currConfig.displayMode == CurrencyDisplayMode.CODE_ONLY || currConfig.displayMode == CurrencyDisplayMode.CODE_AND_SYMBOL) {
+            "${currConfig.activeCode} "
         } else ""
 
         val prefix = if (showCurrencySymbol) {
@@ -84,7 +182,7 @@ object LanguageHelper {
             if (code.isNotEmpty()) "${code.trim()} " else ""
         }
 
-        return "$sign$prefix$finalNum"
+        return "$sign$prefix$formattedNum"
     }
 
     /**

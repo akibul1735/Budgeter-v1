@@ -31,6 +31,7 @@ import java.util.Locale
 data class AppSettingsBackup(
     val theme: AppThemeConfig? = null,
     val currency: CurrencyConfig? = null,
+    val amountFormat: AmountFormatConfig? = null,
     val displayFormat: DisplayFormatConfig? = null,
     val autofill: AutofillConfig? = null,
     val tabConfig: NavigationTabConfig? = null,
@@ -90,6 +91,7 @@ object BackupManager {
             val themePrefs = ThemePreferences.getInstance(context)
             val currencyPrefs = CurrencyPreferences.getInstance(context)
             val displayPrefs = DisplayFormatPreferences.getInstance(context)
+            val amountPrefs = AmountFormatPreferences.getInstance(context)
             val autofillPrefs = AutofillPreferences.getInstance(context)
             val tabPrefs = TabPreferences.getInstance(context)
             val backupPrefs = BackupPreferences.getInstance(context)
@@ -98,6 +100,7 @@ object BackupManager {
             AppSettingsBackup(
                 theme = themePrefs.themeConfig.value,
                 currency = currencyPrefs.config.value,
+                amountFormat = amountPrefs.config.value,
                 displayFormat = displayPrefs.config.value,
                 autofill = autofillPrefs.config.value,
                 tabConfig = tabPrefs.config.value,
@@ -133,6 +136,9 @@ object BackupManager {
             }
             settings.currency?.let {
                 CurrencyPreferences.getInstance(context).updateConfig(it)
+            }
+            settings.amountFormat?.let {
+                AmountFormatPreferences.getInstance(context).updateConfig(it)
             }
             settings.displayFormat?.let {
                 DisplayFormatPreferences.getInstance(context).updateConfig(it)
