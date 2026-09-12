@@ -141,7 +141,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 data class BalanceSheetFilterState(
-    val preset: BalanceSheetComparisonPreset = BalanceSheetComparisonPreset.LAST_12_MONTHS,
+    val preset: BalanceSheetComparisonPreset = BalanceSheetComparisonPreset.THIS_MONTH,
     val customBaseDateMs: Long? = null,
     val customCompareDateMs: Long? = null,
     val selectedAccountIds: Set<Long> = emptySet(),
@@ -156,7 +156,7 @@ data class BalanceSheetFilterState(
     val showOnlyAccountsWithoutGroups: Boolean = false
 ) {
     val isFilterActive: Boolean
-        get() = preset != BalanceSheetComparisonPreset.LAST_12_MONTHS ||
+        get() = preset != BalanceSheetComparisonPreset.THIS_MONTH ||
                 selectedAccountIds.isNotEmpty() ||
                 selectedStatusSet.isNotEmpty() ||
                 !excludeZeroAmounts ||
@@ -325,11 +325,11 @@ fun BalanceSheetScreen(
     }
 
     var baseDateMs by remember {
-        val (base, _) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.LAST_12_MONTHS)
+        val (base, _) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.THIS_MONTH)
         mutableStateOf(base)
     }
     var compareDateMs by remember {
-        val (_, compare) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.LAST_12_MONTHS)
+        val (_, compare) = BalanceSheetHelper.getPresetDateRanges(BalanceSheetComparisonPreset.THIS_MONTH)
         mutableStateOf(compare)
     }
 

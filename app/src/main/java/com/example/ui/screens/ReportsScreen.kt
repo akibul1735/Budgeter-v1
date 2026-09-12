@@ -84,8 +84,8 @@ fun ReportsScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var showTimelineScreen by remember { mutableStateOf(false) }
 
-    // Date range filter state - default to LAST_12_MONTHS as requested
-    var selectedPreset by remember { mutableStateOf(BudgetDateRangePreset.LAST_12_MONTHS) }
+    // Date range filter state - default to THIS_MONTH
+    var selectedPreset by remember { mutableStateOf(BudgetDateRangePreset.THIS_MONTH) }
     var customStartDateMs by remember { mutableStateOf<Long?>(null) }
     var customEndDateMs by remember { mutableStateOf<Long?>(null) }
 

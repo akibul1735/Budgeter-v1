@@ -115,7 +115,7 @@ fun LabelsScreen(
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
-    var selectedPreset by remember { mutableStateOf(LabelDateFilterPreset.ALL_TIME) }
+    var selectedPreset by remember { mutableStateOf(LabelDateFilterPreset.THIS_MONTH) }
     var sortOption by remember { mutableStateOf(LabelSortOption.SUM_AMOUNT_DESC) }
     var minAmountFilter by remember { mutableDoubleStateOf(0.0) }
     var customStartDateMs by remember { mutableLongStateOf(0L) }
@@ -301,7 +301,7 @@ fun LabelsScreen(
             searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ খুঁজুন..." else "Search labels/tags...",
             showSearchButton = true,
             showFilterButton = true,
-            isFilterActive = selectedPreset != LabelDateFilterPreset.ALL_TIME || selectedTypeFilter != null || minAmountFilter > 0.0,
+            isFilterActive = selectedPreset != LabelDateFilterPreset.THIS_MONTH || selectedTypeFilter != null || minAmountFilter > 0.0,
             onFilterClick = { showFilterDialog = true },
             showTimelineButton = true,
             onTimelineClick = { showTimelineScreen = true },

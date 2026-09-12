@@ -8,6 +8,7 @@ import com.example.data.model.TransactionStatus
 import java.util.Calendar
 
 enum class BalanceSheetComparisonPreset(val titleEn: String, val titleBn: String) {
+    THIS_MONTH("This Month", "চলতি মাস"),
     LAST_12_MONTHS("Last 12 Months", "গত ১২ মাস"),
     END_OF_LAST_MONTH("End of Last Month", "গত মাসের শেষ"),
     BEGINNING_OF_MONTH("Start of This Month", "এই মাসের শুরু"),
@@ -74,6 +75,17 @@ object BalanceSheetHelper {
         val cal = Calendar.getInstance()
 
         return when (preset) {
+            BalanceSheetComparisonPreset.THIS_MONTH,
+            BalanceSheetComparisonPreset.BEGINNING_OF_MONTH -> {
+                cal.timeInMillis = now
+                cal.set(Calendar.DAY_OF_MONTH, 1)
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                val base = cal.timeInMillis
+                Pair(base, now)
+            }
             BalanceSheetComparisonPreset.LAST_12_MONTHS -> {
                 cal.timeInMillis = now
                 cal.add(Calendar.MONTH, -12)

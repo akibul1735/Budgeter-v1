@@ -194,7 +194,7 @@ fun LedgerScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
     var showSearchField by remember { mutableStateOf(true) }
-    var selectedDatePreset by remember { mutableStateOf(LedgerDatePreset.ALL_TIME) }
+    var selectedDatePreset by remember { mutableStateOf(LedgerDatePreset.THIS_MONTH) }
     var minAmountFilter by remember { mutableDoubleStateOf(0.0) }
     var maxAmountFilter by remember { mutableDoubleStateOf(Double.MAX_VALUE) }
     var customStartDateMs by remember { mutableLongStateOf(0L) }
@@ -411,7 +411,7 @@ fun LedgerScreen(
         inc - exp
     }
 
-    val hasActiveFilters = selectedDatePreset != LedgerDatePreset.ALL_TIME ||
+    val hasActiveFilters = selectedDatePreset != LedgerDatePreset.THIS_MONTH ||
             selectedTypeFilter != null ||
             minAmountFilter > 0.0 ||
             maxAmountFilter < Double.MAX_VALUE ||
@@ -432,7 +432,7 @@ fun LedgerScreen(
             val s = DateUtils.formatDate(customStartDateMs, languageMode)
             val e = DateUtils.formatDate(customEndDateMs, languageMode)
             parts.add("$s - $e")
-        } else if (selectedDatePreset != LedgerDatePreset.ALL_TIME) {
+        } else if (selectedDatePreset != LedgerDatePreset.THIS_MONTH) {
             parts.add(selectedDatePreset.displayName)
         }
 
@@ -840,7 +840,7 @@ fun LedgerScreen(
 
                                 TextButton(
                                     onClick = {
-                                        selectedDatePreset = LedgerDatePreset.ALL_TIME
+                                        selectedDatePreset = LedgerDatePreset.THIS_MONTH
                                         selectedTypeFilter = null
                                         minAmountFilter = 0.0
                                         maxAmountFilter = Double.MAX_VALUE

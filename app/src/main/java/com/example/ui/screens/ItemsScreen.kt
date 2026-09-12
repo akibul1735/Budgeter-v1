@@ -126,7 +126,7 @@ fun ItemsScreen(
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
-    var selectedPreset by remember { mutableStateOf(ItemDateFilterPreset.ALL_TIME) }
+    var selectedPreset by remember { mutableStateOf(ItemDateFilterPreset.THIS_MONTH) }
     var sortOption by remember { mutableStateOf(ItemSortOption.AMOUNT_DESC) }
     var minAmountFilter by remember { mutableDoubleStateOf(0.0) }
     var customStartDateMs by remember { mutableLongStateOf(0L) }
@@ -321,7 +321,7 @@ fun ItemsScreen(
             searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "আইটেম খুঁজুন..." else "Search items...",
             showSearchButton = true,
             showFilterButton = true,
-            isFilterActive = selectedPreset != ItemDateFilterPreset.ALL_TIME || selectedTypeFilter != null || minAmountFilter > 0.0,
+            isFilterActive = selectedPreset != ItemDateFilterPreset.THIS_MONTH || selectedTypeFilter != null || minAmountFilter > 0.0,
             onFilterClick = { showFilterDialog = true },
             showTimelineButton = true,
             onTimelineClick = { showTimelineScreen = true },

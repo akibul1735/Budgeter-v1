@@ -56,7 +56,7 @@ enum class BudgetSortOrder(val titleEn: String, val titleBn: String) {
  */
 data class BudgetFilterState(
     // 1. Date Range
-    val datePreset: BudgetDateRangePreset = BudgetDateRangePreset.LAST_12_MONTHS,
+    val datePreset: BudgetDateRangePreset = BudgetDateRangePreset.THIS_MONTH,
     val customStartDateMs: Long? = null,
     val customEndDateMs: Long? = null,
 
@@ -95,7 +95,7 @@ data class BudgetFilterState(
     val maxAmount: Double? = null
 ) {
     val isFilterActive: Boolean
-        get() = datePreset != BudgetDateRangePreset.LAST_12_MONTHS ||
+        get() = datePreset != BudgetDateRangePreset.THIS_MONTH ||
                 customStartDateMs != null ||
                 customEndDateMs != null ||
                 comparisonEnabled ||
@@ -120,7 +120,7 @@ data class BudgetFilterState(
     val activeFilterCount: Int
         get() {
             var count = 0
-            if (datePreset != BudgetDateRangePreset.LAST_12_MONTHS || customStartDateMs != null) count++
+            if (datePreset != BudgetDateRangePreset.THIS_MONTH || customStartDateMs != null) count++
             if (comparisonEnabled) count++
             if (selectedCategoryIds.isNotEmpty()) count++
             if (selectedAccountIds.isNotEmpty()) count++
