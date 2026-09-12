@@ -2360,6 +2360,229 @@ object TabExportHelper {
             .replace("\"", "&quot;")
             .replace("'", "&#39;")
     }
+
+    // ==========================================
+    // CATEGORY BUDGET TIMELINE EXPORT
+    // ==========================================
+    fun exportCategoryTimeline(
+        context: Context,
+        format: ExportFormat,
+        data: CategoryTimelineData,
+        languageMode: LanguageMode = LanguageMode.ENGLISH
+    ) {
+        val title = if (languageMode == LanguageMode.BANGLA) "বাজেট টাইমলাইন রিপোর্ট" else "Budget Category Timeline Report"
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+
+        when (format) {
+            ExportFormat.PDF -> {
+                val html = buildCategoryTimelineHtml(title, data, languageMode)
+                PdfPrintHelper.printHtml(context, "Budget_Timeline_$timeStamp", html, isLandscape = true)
+            }
+            ExportFormat.CSV -> {
+                val csv = buildCategoryTimelineCsv(data, languageMode)
+                shareFile(context, "Budget_Timeline_$timeStamp.csv", format.mimeType, csv, title)
+            }
+            ExportFormat.HTML -> {
+                val html = buildCategoryTimelineHtml(title, data, languageMode)
+                shareFile(context, "Budget_Timeline_$timeStamp.html", format.mimeType, html, title)
+            }
+            ExportFormat.JSON -> {
+                val json = buildCategoryTimelineJson(data, languageMode)
+                shareFile(context, "Budget_Timeline_$timeStamp.json", format.mimeType, json, title)
+            }
+        }
+    }
+
+    private fun buildCategoryTimelineHtml(
+        title: String,
+        data: CategoryTimelineData,
+        languageMode: LanguageMode
+    ): String {
+        val periodHeaders = data.periods.joinToString("") { p ->
+            "<th style=\"text-align: right; min-width: 75px;\">${escapeHtml(p.shortLabel)}</th>"
+        }
+
+        fun renderGroupsHtml(groups: List<CategoryTimelineGroup>, isExpense: Boolean): String {
+            val sb = StringBuilder()
+            val colorClass = if (isExpense) "text-danger" else "text-success"
+            for (grp in groups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.groupNameEn, grp.groupNameBn, languageMode)
+                sb.append("<tr style=\"background-color: #f1f5f9; font-weight: bold;\">")
+                sb.append("<td style=\"font-weight: bold;\">📁 ${escapeHtml(grpName)}</td>")
+                for (amt in grp.groupAmountsByPeriod) {
+                    sb.append("<td style=\"text-align: right;\" class=\"$colorClass\">${if (amt > 0) "৳ " + LanguageHelper.formatNumber(amt, languageMode) else "—"}</td>")
+                }
+                sb.append("<td style=\"text-align: right; font-weight: bold;\" class=\"$colorClass\">৳ ${LanguageHelper.formatNumber(grp.totalAmount, languageMode)}</td>")
+                sb.append("<td style=\"text-align: right; color: #64748b;\">৳ ${LanguageHelper.formatNumber(grp.averageAmount, languageMode)}</td>")
+                sb.append("</tr>")
+
+                for (sub in grp.subCategories) {
+                    val subName = sub.category.localizedName(languageMode)
+                    sb.append("<tr>")
+                    sb.append("<td style=\"padding-left: 20px;\">• ${escapeHtml(subName)}</td>")
+                    for (amt in sub.amountsByPeriod) {
+                        sb.append("<td style=\"text-align: right;\">${if (amt > 0) "৳ " + LanguageHelper.formatNumber(amt, languageMode) else "—"}</td>")
+                    }
+                    sb.append("<td style=\"text-align: right; font-weight: 600;\">৳ ${LanguageHelper.formatNumber(sub.totalAmount, languageMode)}</td>")
+                    sb.append("<td style=\"text-align: right; color: #64748b; font-size: 11px;\">৳ ${LanguageHelper.formatNumber(sub.averageAmount, languageMode)}</td>")
+                    sb.append("</tr>")
+                }
+            }
+            return sb.toString()
+        }
+
+        val totalIncomeCells = data.totalIncomeByPeriod.joinToString("") { amt ->
+            "<td style=\"text-align: right; font-weight: bold;\" class=\"text-success\">৳ ${LanguageHelper.formatNumber(amt, languageMode)}</td>"
+        }
+        val totalExpenseCells = data.totalExpenseByPeriod.joinToString("") { amt ->
+            "<td style=\"text-align: right; font-weight: bold;\" class=\"text-danger\">৳ ${LanguageHelper.formatNumber(amt, languageMode)}</td>"
+        }
+        val netSavingsCells = data.netSavingsByPeriod.joinToString("") { amt ->
+            val cls = if (amt >= 0) "text-success" else "text-danger"
+            val sign = if (amt >= 0) "+" else ""
+            "<td style=\"text-align: right; font-weight: bold;\" class=\"$cls\">$sign৳ ${LanguageHelper.formatNumber(amt, languageMode)}</td>"
+        }
+
+        return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>${escapeHtml(title)}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; color: #1e293b; }
+                    .header { margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+                    .title { font-size: 20px; font-weight: bold; color: #0284c7; }
+                    .subtitle { font-size: 12px; color: #64748b; margin-top: 4px; }
+                    .cards { display: flex; gap: 16px; margin-bottom: 20px; }
+                    .card { flex: 1; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+                    .card-title { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: bold; }
+                    .card-value { font-size: 18px; font-weight: bold; margin-top: 4px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+                    th, td { padding: 7px 9px; border: 1px solid #cbd5e1; }
+                    th { background-color: #f1f5f9; font-weight: 600; }
+                    .text-success { color: #16a34a; }
+                    .text-danger { color: #dc2626; }
+                    .section-head { background-color: #e2e8f0; font-weight: bold; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="title">${escapeHtml(title)}</div>
+                    <div class="subtitle">${if (languageMode == LanguageMode.BANGLA) "সময়সীমা: " else "Interval: "}${if (languageMode == LanguageMode.BANGLA) data.interval.titleBn else data.interval.titleEn} (${data.periods.size} ${if (languageMode == LanguageMode.BANGLA) "পিরিয়ড" else "Periods"})</div>
+                </div>
+                <div class="cards">
+                    <div class="card">
+                        <div class="card-title">${if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Total Income"}</div>
+                        <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(data.grandTotalIncome, languageMode)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">${if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expense"}</div>
+                        <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(data.grandTotalExpense, languageMode)}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">${if (languageMode == LanguageMode.BANGLA) "নেট উদ্বৃত্ত" else "Net Surplus"}</div>
+                        <div class="card-value ${if (data.grandNetSavings >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(data.grandNetSavings, languageMode)}</div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; min-width: 140px;">${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category"}</th>
+                            $periodHeaders
+                            <th style="text-align: right; min-width: 80px;">${if (languageMode == LanguageMode.BANGLA) "সর্বমোট" else "Total"}</th>
+                            <th style="text-align: right; min-width: 75px;">${if (languageMode == LanguageMode.BANGLA) "গড়" else "Average"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="section-head"><td colspan="${data.periods.size + 3}" style="background-color: #fee2e2; color: #991b1b;">📉 ${if (languageMode == LanguageMode.BANGLA) "ব্যয়ের খাতসমূহ" else "Expense Categories"}</td></tr>
+                        ${renderGroupsHtml(data.expenseGroups, isExpense = true)}
+                        <tr class="section-head"><td colspan="${data.periods.size + 3}" style="background-color: #dcfce7; color: #166534;">📈 ${if (languageMode == LanguageMode.BANGLA) "আয়ের খাতসমূহ" else "Income Categories"}</td></tr>
+                        ${renderGroupsHtml(data.incomeGroups, isExpense = false)}
+                        <tr style="background-color: #dcfce7; font-weight: bold;">
+                            <td>${if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Total Income"}</td>
+                            $totalIncomeCells
+                            <td style="text-align: right;" class="text-success">৳ ${LanguageHelper.formatNumber(data.grandTotalIncome, languageMode)}</td>
+                            <td style="text-align: right;" class="text-success">৳ ${LanguageHelper.formatNumber(data.avgIncomePerPeriod, languageMode)}</td>
+                        </tr>
+                        <tr style="background-color: #fee2e2; font-weight: bold;">
+                            <td>${if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expense"}</td>
+                            $totalExpenseCells
+                            <td style="text-align: right;" class="text-danger">৳ ${LanguageHelper.formatNumber(data.grandTotalExpense, languageMode)}</td>
+                            <td style="text-align: right;" class="text-danger">৳ ${LanguageHelper.formatNumber(data.avgExpensePerPeriod, languageMode)}</td>
+                        </tr>
+                        <tr style="background-color: #e0f2fe; font-weight: bold;">
+                            <td>${if (languageMode == LanguageMode.BANGLA) "নেট উদ্বৃত্ত" else "Net Surplus"}</td>
+                            $netSavingsCells
+                            <td style="text-align: right;" class="${if (data.grandNetSavings >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(data.grandNetSavings, languageMode)}</td>
+                            <td style="text-align: right;" class="${if (data.avgNetSavingsPerPeriod >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(data.avgNetSavingsPerPeriod, languageMode)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </body>
+            </html>
+        """.trimIndent()
+    }
+
+    private fun buildCategoryTimelineCsv(data: CategoryTimelineData, languageMode: LanguageMode): String {
+        val sb = java.lang.StringBuilder()
+        sb.append("Type,Group,Category,")
+        data.periods.forEach { sb.append("${escapeCsv(it.shortLabel)},") }
+        sb.append("Total,Average\n")
+
+        fun writeGroups(groups: List<CategoryTimelineGroup>, typeName: String) {
+            for (grp in groups) {
+                val grpName = LanguageHelper.getLocalizedName(grp.groupNameEn, grp.groupNameBn, languageMode)
+                sb.append("$typeName,${escapeCsv(grpName)},[Group Total],")
+                grp.groupAmountsByPeriod.forEach { sb.append(String.format(Locale.US, "%.2f,", it)) }
+                sb.append(String.format(Locale.US, "%.2f,%.2f\n", grp.totalAmount, grp.averageAmount))
+
+                for (sub in grp.subCategories) {
+                    val subName = sub.category.localizedName(languageMode)
+                    sb.append("$typeName,${escapeCsv(grpName)},${escapeCsv(subName)},")
+                    sub.amountsByPeriod.forEach { sb.append(String.format(Locale.US, "%.2f,", it)) }
+                    sb.append(String.format(Locale.US, "%.2f,%.2f\n", sub.totalAmount, sub.averageAmount))
+                }
+            }
+        }
+
+        writeGroups(data.expenseGroups, "Expense")
+        writeGroups(data.incomeGroups, "Income")
+
+        sb.append("Summary,,Total Income,")
+        data.totalIncomeByPeriod.forEach { sb.append(String.format(Locale.US, "%.2f,", it)) }
+        sb.append(String.format(Locale.US, "%.2f,%.2f\n", data.grandTotalIncome, data.avgIncomePerPeriod))
+
+        sb.append("Summary,,Total Expense,")
+        data.totalExpenseByPeriod.forEach { sb.append(String.format(Locale.US, "%.2f,", it)) }
+        sb.append(String.format(Locale.US, "%.2f,%.2f\n", data.grandTotalExpense, data.avgExpensePerPeriod))
+
+        sb.append("Summary,,Net Surplus,")
+        data.netSavingsByPeriod.forEach { sb.append(String.format(Locale.US, "%.2f,", it)) }
+        sb.append(String.format(Locale.US, "%.2f,%.2f\n", data.grandNetSavings, data.avgNetSavingsPerPeriod))
+
+        return sb.toString()
+    }
+
+    private fun buildCategoryTimelineJson(data: CategoryTimelineData, languageMode: LanguageMode): String {
+        return buildString {
+            append("{\n")
+            append("  \"interval\": \"${data.interval.name}\",\n")
+            append("  \"periodsCount\": ${data.periods.size},\n")
+            append("  \"grandTotalIncome\": ${data.grandTotalIncome},\n")
+            append("  \"grandTotalExpense\": ${data.grandTotalExpense},\n")
+            append("  \"grandNetSavings\": ${data.grandNetSavings},\n")
+            append("  \"periods\": [")
+            data.periods.forEachIndexed { i, p ->
+                append("{\"label\": \"${escapeJson(p.label)}\", \"shortLabel\": \"${escapeJson(p.shortLabel)}\"}")
+                if (i < data.periods.size - 1) append(", ")
+            }
+            append("]\n")
+            append("}\n")
+        }
+    }
+
+    private fun escapeJson(value: String): String = value.replace("\"", "\\\"")
 }
 
 data class NetEarningsExportItem(

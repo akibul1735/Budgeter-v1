@@ -1981,6 +1981,8 @@ private fun ScreenRouter(
         AppView.REPORTS -> ReportsScreen(
             overview = overview,
             accountsWithBalances = accountsWithBalances,
+            transactions = transactionsWithDetails,
+            categories = allCategories,
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer
         )

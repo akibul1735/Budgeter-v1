@@ -323,6 +323,7 @@ fun BudgetFilterDialog(
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
                                         val presetLabel = when (tempFilter.datePreset) {
+                                            BudgetDateRangePreset.LAST_12_MONTHS -> if (languageMode == LanguageMode.BANGLA) "গত ১২ মাস" else "Last 12 Months"
                                             BudgetDateRangePreset.THIS_MONTH -> if (languageMode == LanguageMode.BANGLA) "চলতি মাস" else "This Month"
                                             BudgetDateRangePreset.LAST_MONTH -> if (languageMode == LanguageMode.BANGLA) "গত মাস" else "Last Month"
                                             BudgetDateRangePreset.LAST_3_MONTHS -> if (languageMode == LanguageMode.BANGLA) "গত ৩ মাস" else "Last 3 Months"

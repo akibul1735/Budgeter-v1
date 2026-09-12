@@ -240,8 +240,8 @@ fun BudgetTrackingScreen(
     // TIMELINE NAVIGATION
     if (showTimelineScreen) {
         val allTx = remember(transactionsWithDetails) { transactionsWithDetails.map { it.transaction } }
-        AccountTimelineScreen(
-            accounts = allAccounts,
+        CategoryTimelineScreen(
+            categories = allCategories,
             transactions = allTx,
             languageMode = languageMode,
             onBack = { showTimelineScreen = false }

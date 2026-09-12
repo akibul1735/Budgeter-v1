@@ -92,8 +92,8 @@ import com.example.util.PdfPrintHelper
 import com.example.util.TabExportHelper
 
 data class AccountTimelineFilterState(
-    val interval: AccountTimelineInterval = AccountTimelineInterval.MONTHLY,
-    val periodsCount: Int = 4,
+    val interval: AccountTimelineInterval = AccountTimelineInterval.PAST_12_MONTHS,
+    val periodsCount: Int = 12,
     val selectedAccountIds: Set<Long> = emptySet(),
     val selectedStatusSet: Set<TransactionStatus> = emptySet(),
     val showHiddenAccounts: Boolean = false,

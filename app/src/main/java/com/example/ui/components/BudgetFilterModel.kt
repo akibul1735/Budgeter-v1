@@ -13,6 +13,7 @@ import java.util.Locale
  * Date range presets for Budget filtering.
  */
 enum class BudgetDateRangePreset(val labelEn: String, val labelBn: String) {
+    LAST_12_MONTHS("Last 12 Months", "গত ১২ মাস"),
     THIS_MONTH("This Month", "চলতি মাস"),
     LAST_MONTH("Last Month", "গত মাস"),
     LAST_3_MONTHS("Last 3 Months", "গত ৩ মাস"),
@@ -55,7 +56,7 @@ enum class BudgetSortOrder(val titleEn: String, val titleBn: String) {
  */
 data class BudgetFilterState(
     // 1. Date Range
-    val datePreset: BudgetDateRangePreset = BudgetDateRangePreset.THIS_MONTH,
+    val datePreset: BudgetDateRangePreset = BudgetDateRangePreset.LAST_12_MONTHS,
     val customStartDateMs: Long? = null,
     val customEndDateMs: Long? = null,
 
@@ -94,7 +95,7 @@ data class BudgetFilterState(
     val maxAmount: Double? = null
 ) {
     val isFilterActive: Boolean
-        get() = datePreset != BudgetDateRangePreset.THIS_MONTH ||
+        get() = datePreset != BudgetDateRangePreset.LAST_12_MONTHS ||
                 customStartDateMs != null ||
                 customEndDateMs != null ||
                 comparisonEnabled ||
@@ -119,7 +120,7 @@ data class BudgetFilterState(
     val activeFilterCount: Int
         get() {
             var count = 0
-            if (datePreset != BudgetDateRangePreset.THIS_MONTH || customStartDateMs != null) count++
+            if (datePreset != BudgetDateRangePreset.LAST_12_MONTHS || customStartDateMs != null) count++
             if (comparisonEnabled) count++
             if (selectedCategoryIds.isNotEmpty()) count++
             if (selectedAccountIds.isNotEmpty()) count++
@@ -150,6 +151,17 @@ fun calculateBudgetFilterRanges(
 
     // 1. Determine Primary Date Range
     val (primaryStartMs, primaryEndMs, primaryLabel) = when (filterState.datePreset) {
+        BudgetDateRangePreset.LAST_12_MONTHS -> {
+            cal.set(Calendar.YEAR, year)
+            cal.set(Calendar.MONTH, month - 1)
+            val end = DateUtils.getEndOfMonth(year, month)
+            cal.add(Calendar.MONTH, -11)
+            val startY = cal.get(Calendar.YEAR)
+            val startM = cal.get(Calendar.MONTH) + 1
+            val start = DateUtils.getStartOfMonth(startY, startM)
+            val label = if (languageMode == LanguageMode.BANGLA) "বিগত ১২ মাস" else "Last 12 Months"
+            Triple(start, end, label)
+        }
         BudgetDateRangePreset.THIS_MONTH -> {
             val start = DateUtils.getStartOfMonth(year, month)
             val end = DateUtils.getEndOfMonth(year, month)
