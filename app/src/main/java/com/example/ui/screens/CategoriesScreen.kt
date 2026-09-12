@@ -416,7 +416,7 @@ fun CategoriesScreen(
                                             modifier = Modifier
                                                 .size(7.dp)
                                                 .clip(CircleShape)
-                                                .background(SolidIncome)
+                                                .background(Color(0xFF6EE7B7))
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
@@ -429,7 +429,7 @@ fun CategoriesScreen(
                                     Spacer(modifier = Modifier.height(1.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(totalIncomeBudget, languageMode),
-                                        color = SolidIncome,
+                                        color = Color.White,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -440,7 +440,7 @@ fun CategoriesScreen(
                                     modifier = Modifier
                                         .width(1.dp)
                                         .height(26.dp)
-                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .background(Color.White.copy(alpha = 0.25f))
                                 )
 
                                 // Total Expenses
@@ -457,13 +457,13 @@ fun CategoriesScreen(
                                             modifier = Modifier
                                                 .size(7.dp)
                                                 .clip(CircleShape)
-                                                .background(SolidExpense)
+                                                .background(Color(0xFFFCA5A5))
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(1.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(totalExpenseBudget, languageMode),
-                                        color = SolidExpense,
+                                        color = Color(0xFFFFCDD2),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -658,8 +658,8 @@ fun CategoriesScreen(
                                                     .border(1.dp, parentColor.copy(alpha = 0.35f), CircleShape),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Icon(
-                                                    imageVector = IconHelper.getIconByName(parent.iconName),
+                                                IconHelper.AppIcon(
+                                                    iconName = parent.iconName,
                                                     contentDescription = null,
                                                     tint = parentColor,
                                                     modifier = Modifier.size(20.dp)
@@ -794,8 +794,8 @@ fun CategoriesScreen(
                                                                         .background(subColor.copy(alpha = 0.18f)),
                                                                     contentAlignment = Alignment.Center
                                                                 ) {
-                                                                    Icon(
-                                                                        imageVector = IconHelper.getIconByName(subCat.iconName),
+                                                                    IconHelper.AppIcon(
+                                                                        iconName = subCat.iconName,
                                                                         contentDescription = null,
                                                                         tint = subColor,
                                                                         modifier = Modifier.size(14.dp)
@@ -881,8 +881,8 @@ fun CategoriesScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(parent.iconName),
+                                            IconHelper.AppIcon(
+                                                iconName = parent.iconName,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.outline,
                                                 modifier = Modifier.size(22.dp)
@@ -1189,8 +1189,8 @@ fun SingleCategoryCard(
                         .background(if (isInactive) Color.Gray.copy(alpha = 0.2f) else catColor.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = IconHelper.getIconByName(cat.iconName),
+                    IconHelper.AppIcon(
+                        iconName = cat.iconName,
                         contentDescription = null,
                         tint = if (isInactive) MaterialTheme.colorScheme.outline else catColor,
                         modifier = Modifier.size(16.dp)

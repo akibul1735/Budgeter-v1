@@ -342,8 +342,8 @@ fun AddEditAccountGroupOrCategoryDialog(
                                 .clickable { showIconPicker = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(selectedIcon),
+                            IconHelper.AppIcon(
+                                iconName = selectedIcon,
                                 contentDescription = "Icon",
                                 tint = SolidPrimary,
                                 modifier = Modifier.size(24.dp)
@@ -352,7 +352,11 @@ fun AddEditAccountGroupOrCategoryDialog(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text("Icon", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(selectedIcon, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                            Text(
+                                if (IconHelper.isCustomIcon(selectedIcon)) "Custom Icon" else selectedIcon,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
                         }
                     }
 

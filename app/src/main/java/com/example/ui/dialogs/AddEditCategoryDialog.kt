@@ -92,9 +92,6 @@ fun AddEditCategoryDialog(
     var nameBn by remember { mutableStateOf(existingCategory?.nameBn ?: "") }
     var categoryType by remember { mutableStateOf(existingCategory?.type ?: defaultType) }
     var parentId by remember { mutableStateOf(existingCategory?.parentId ?: defaultParentId) }
-    var budgetLimitText by remember {
-        mutableStateOf(existingCategory?.budgetLimit?.toString() ?: "0.0")
-    }
     var isActive by remember {
         mutableStateOf(existingCategory?.isActive ?: true)
     }
@@ -188,8 +185,8 @@ fun AddEditCategoryDialog(
                                     .clickable { showIconPicker = true },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(iconName),
+                                IconHelper.AppIcon(
+                                    iconName = iconName,
                                     contentDescription = "Category Icon",
                                     tint = parsedColor,
                                     modifier = Modifier.size(26.dp)
@@ -205,7 +202,7 @@ fun AddEditCategoryDialog(
                                     fontSize = 14.sp
                                 )
                                 Text(
-                                    text = "Icon: $iconName",
+                                    text = if (IconHelper.isCustomIcon(iconName)) "Custom Icon" else "Icon: $iconName",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.outline
                                 )
@@ -344,8 +341,8 @@ fun AddEditCategoryDialog(
                             label = { Text(LanguageHelper.getString("parent_category", languageMode)) },
                             leadingIcon = {
                                 if (selectedParent != null) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(selectedParent.iconName),
+                                    IconHelper.AppIcon(
+                                        iconName = selectedParent.iconName,
                                         contentDescription = null,
                                         tint = parsedColor,
                                         modifier = Modifier.size(20.dp)
@@ -366,8 +363,8 @@ fun AddEditCategoryDialog(
                             filteredParents.forEach { parent ->
                                 DropdownMenuItem(
                                     leadingIcon = {
-                                        Icon(
-                                            imageVector = IconHelper.getIconByName(parent.iconName),
+                                        IconHelper.AppIcon(
+                                            iconName = parent.iconName,
                                             contentDescription = null,
                                             tint = parsedColor,
                                             modifier = Modifier.size(18.dp)
@@ -407,18 +404,6 @@ fun AddEditCategoryDialog(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
-
-                if (categoryType == CategoryType.EXPENSE && !isSubCategory) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = budgetLimitText,
-                        onValueChange = { budgetLimitText = it },
-                        label = { Text(LanguageHelper.getString("budget_limit", languageMode)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
@@ -462,14 +447,13 @@ fun AddEditCategoryDialog(
 
                     Button(
                         onClick = {
-                            val parsedLimit = budgetLimitText.toDoubleOrNull() ?: 0.0
                             val category = Category(
                                 id = existingCategory?.id ?: 0,
                                 nameEn = nameEn.ifBlank { nameBn },
                                 nameBn = nameBn.ifBlank { nameEn },
                                 type = categoryType,
                                 parentId = if (isSubCategory) parentId else null,
-                                budgetLimit = parsedLimit,
+                                budgetLimit = existingCategory?.budgetLimit ?: 0.0,
                                 iconName = iconName,
                                 colorHex = colorHex,
                                 isActive = isActive

@@ -539,7 +539,7 @@ fun AccountsScreen(
                                             modifier = Modifier
                                                 .size(7.dp)
                                                 .clip(CircleShape)
-                                                .background(SolidIncome)
+                                                .background(Color(0xFF6EE7B7))
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
@@ -553,7 +553,7 @@ fun AccountsScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(calculatedTotalAssets, languageMode),
-                                        color = SolidIncome,
+                                        color = Color.White,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -571,7 +571,7 @@ fun AccountsScreen(
                                     modifier = Modifier
                                         .width(1.dp)
                                         .height(30.dp)
-                                        .background(Color.White.copy(alpha = 0.2f))
+                                        .background(Color.White.copy(alpha = 0.25f))
                                 )
 
                                 // Liabilities
@@ -589,13 +589,13 @@ fun AccountsScreen(
                                             modifier = Modifier
                                                 .size(7.dp)
                                                 .clip(CircleShape)
-                                                .background(SolidExpense)
+                                                .background(Color(0xFFFCA5A5))
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(calculatedTotalLiabilities, languageMode),
-                                        color = SolidExpense,
+                                        color = Color(0xFFFFCDD2),
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -1175,8 +1175,8 @@ fun SingleAccountCard(
                         .background(typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = IconHelper.getIconByName(acc.iconName),
+                    IconHelper.AppIcon(
+                        iconName = acc.iconName,
                         contentDescription = null,
                         tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
                         modifier = Modifier.size(20.dp)
@@ -1403,8 +1403,8 @@ fun AccountGroupCard(
                             .background(typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = IconHelper.getIconByName(group.iconName),
+                        IconHelper.AppIcon(
+                            iconName = group.iconName,
                             contentDescription = null,
                             tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
                             modifier = Modifier.size(22.dp)
@@ -1626,8 +1626,8 @@ fun AccountGroupCard(
                                                 )
                                             }
 
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(sub.iconName),
+                                            IconHelper.AppIcon(
+                                                iconName = sub.iconName,
                                                 contentDescription = null,
                                                 tint = if (sub.isActive && subIncluded) SolidPrimary else MaterialTheme.colorScheme.outline,
                                                 modifier = Modifier.size(18.dp)
