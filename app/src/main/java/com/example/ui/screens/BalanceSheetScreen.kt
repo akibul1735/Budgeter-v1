@@ -115,6 +115,8 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.CreditCard
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.AppTabHeader
@@ -337,6 +339,8 @@ fun BalanceSheetScreen(
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
     var isDualDateFlow by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var activeTabMode by remember { mutableStateOf("ASSETS") } // "ASSETS" or "LIABILITIES"
+    var isSpeedDialExpanded by remember { mutableStateOf(false) }
 
     // Date Pickers for Custom Mode
     var showBaseDatePicker by remember { mutableStateOf(false) }
@@ -494,145 +498,308 @@ fun BalanceSheetScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // 2. ASSETS Section
-                item {
-                    SectionHeader(
-                        title = if (languageMode == LanguageMode.BANGLA) "সম্পদ (ASSETS)" else "ASSETS",
-                        baseAmount = balanceSheetData.totalAssetsBase,
-                        currentAmount = balanceSheetData.totalAssetsCurrent,
-                        displayCurrency = filterState.displayCurrency,
-                        displayCurrencySymbol = filterState.displayCurrencySymbol,
-                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
-                        headerColor = MaterialTheme.colorScheme.primary,
-                        languageMode = languageMode
-                    )
-                }
-
-                if (balanceSheetData.assetGroups.isEmpty()) {
+                // Section based on activeTabMode ("ASSETS" or "LIABILITIES")
+                if (activeTabMode == "ASSETS") {
                     item {
-                        EmptySectionPlaceholder(
-                            message = if (languageMode == LanguageMode.BANGLA) "কোন সম্পদ অ্যাকাউন্ট পাওয়া যায়নি" else "No asset accounts found"
-                        )
-                    }
-                } else {
-                    items(balanceSheetData.assetGroups, key = { it.parentAccount.id }) { group ->
-                        val isExpanded = expandedMap[group.parentAccount.id] ?: true
-                        BalanceSheetGroupItem(
-                            group = group,
-                            isExpanded = isExpanded,
-                            isCalcMode = isCalcMode,
-                            accountCalcConfig = accountCalcConfig,
+                        SectionHeader(
+                            title = if (languageMode == LanguageMode.BANGLA) "সম্পদ (ASSETS)" else "ASSETS",
+                            baseAmount = balanceSheetData.totalAssetsBase,
+                            currentAmount = balanceSheetData.totalAssetsCurrent,
                             displayCurrency = filterState.displayCurrency,
                             displayCurrencySymbol = filterState.displayCurrencySymbol,
                             showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
-                            languageMode = languageMode,
-                            onToggleExpand = {
-                                expandedMap[group.parentAccount.id] = !isExpanded
-                            },
-                            onToggleIncludeStatus = onToggleIncludeStatus,
-                            onRequestAdjustCalculation = { acc, bal ->
-                                calcDialogTarget = Pair(acc, bal)
-                            },
-                            onAccountClick = onAccountClick
+                            headerColor = MaterialTheme.colorScheme.primary,
+                            languageMode = languageMode
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                }
 
-                item {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // 4. LIABILITIES Section
-                item {
-                    SectionHeader(
-                        title = if (languageMode == LanguageMode.BANGLA) "দায় (LIABILITIES)" else "LIABILITIES",
-                        baseAmount = balanceSheetData.totalLiabilitiesBase,
-                        currentAmount = balanceSheetData.totalLiabilitiesCurrent,
-                        displayCurrency = filterState.displayCurrency,
-                        displayCurrencySymbol = filterState.displayCurrencySymbol,
-                        showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
-                        headerColor = SolidExpense,
-                        languageMode = languageMode
-                    )
-                }
-
-                if (balanceSheetData.liabilityGroups.isEmpty()) {
-                    item {
-                        EmptySectionPlaceholder(
-                            message = if (languageMode == LanguageMode.BANGLA) "কোন দায় অ্যাকাউন্ট পাওয়া যায়নি" else "No liability accounts found"
-                        )
+                    if (balanceSheetData.assetGroups.isEmpty()) {
+                        item {
+                            EmptySectionPlaceholder(
+                                message = if (languageMode == LanguageMode.BANGLA) "কোন সম্পদ অ্যাকাউন্ট পাওয়া যায়নি" else "No asset accounts found"
+                            )
+                        }
+                    } else {
+                        items(balanceSheetData.assetGroups, key = { it.parentAccount.id }) { group ->
+                            val isExpanded = expandedMap[group.parentAccount.id] ?: true
+                            BalanceSheetGroupItem(
+                                group = group,
+                                isExpanded = isExpanded,
+                                isCalcMode = isCalcMode,
+                                accountCalcConfig = accountCalcConfig,
+                                displayCurrency = filterState.displayCurrency,
+                                displayCurrencySymbol = filterState.displayCurrencySymbol,
+                                showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                                languageMode = languageMode,
+                                onToggleExpand = {
+                                    expandedMap[group.parentAccount.id] = !isExpanded
+                                },
+                                onToggleIncludeStatus = onToggleIncludeStatus,
+                                onRequestAdjustCalculation = { acc, bal ->
+                                    calcDialogTarget = Pair(acc, bal)
+                                },
+                                onAccountClick = onAccountClick
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 } else {
-                    items(balanceSheetData.liabilityGroups, key = { it.parentAccount.id }) { group ->
-                        val isExpanded = expandedMap[group.parentAccount.id] ?: true
-                        BalanceSheetGroupItem(
-                            group = group,
-                            isExpanded = isExpanded,
-                            isCalcMode = isCalcMode,
-                            accountCalcConfig = accountCalcConfig,
+                    item {
+                        SectionHeader(
+                            title = if (languageMode == LanguageMode.BANGLA) "দায় (LIABILITIES)" else "LIABILITIES",
+                            baseAmount = balanceSheetData.totalLiabilitiesBase,
+                            currentAmount = balanceSheetData.totalLiabilitiesCurrent,
                             displayCurrency = filterState.displayCurrency,
                             displayCurrencySymbol = filterState.displayCurrencySymbol,
                             showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
-                            languageMode = languageMode,
-                            onToggleExpand = {
-                                expandedMap[group.parentAccount.id] = !isExpanded
-                            },
-                            onToggleIncludeStatus = onToggleIncludeStatus,
-                            onRequestAdjustCalculation = { acc, bal ->
-                                calcDialogTarget = Pair(acc, bal)
-                            },
-                            onAccountClick = onAccountClick
+                            headerColor = SolidExpense,
+                            languageMode = languageMode
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (balanceSheetData.liabilityGroups.isEmpty()) {
+                        item {
+                            EmptySectionPlaceholder(
+                                message = if (languageMode == LanguageMode.BANGLA) "কোন দায় অ্যাকাউন্ট পাওয়া যায়নি" else "No liability accounts found"
+                            )
+                        }
+                    } else {
+                        items(balanceSheetData.liabilityGroups, key = { it.parentAccount.id }) { group ->
+                            val isExpanded = expandedMap[group.parentAccount.id] ?: true
+                            BalanceSheetGroupItem(
+                                group = group,
+                                isExpanded = isExpanded,
+                                isCalcMode = isCalcMode,
+                                accountCalcConfig = accountCalcConfig,
+                                displayCurrency = filterState.displayCurrency,
+                                displayCurrencySymbol = filterState.displayCurrencySymbol,
+                                showOnlyCurrentBalance = filterState.showOnlyCurrentBalance,
+                                languageMode = languageMode,
+                                onToggleExpand = {
+                                    expandedMap[group.parentAccount.id] = !isExpanded
+                                },
+                                onToggleIncludeStatus = onToggleIncludeStatus,
+                                onRequestAdjustCalculation = { acc, bal ->
+                                    calcDialogTarget = Pair(acc, bal)
+                                },
+                                onAccountClick = onAccountClick
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 }
             }
         }
 
-        // Action Buttons: Quick Add Account and Add Transaction
+        // Action Buttons: Speed Dial FAB & Segmented [ Assets | Liabilities ] Buttons at bottom
         val headerScrollState = LocalHeaderScrollState.current
+        val rotationAngle by animateFloatAsState(
+            targetValue = if (isSpeedDialExpanded) 45f else 0f,
+            label = "fab_rotation"
+        )
+
         AutoHidingBottomContainer(
             headerScrollState = headerScrollState,
-            modifier = Modifier.align(Alignment.BottomEnd)
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                horizontalAlignment = Alignment.End
             ) {
-                Surface(
-                    onClick = onAddAccountClick,
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier.size(44.dp)
+                // Expanded Speed Dial Options
+                AnimatedVisibility(
+                    visible = isSpeedDialExpanded,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.AccountBalance,
-                            contentDescription = "New Account",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(22.dp)
-                        )
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    ) {
+                        // Option 1: Add Account
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "নতুন অ্যাকাউন্ট" else "New Account",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    onAddAccountClick()
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shadowElevation = 4.dp,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountBalance,
+                                        contentDescription = "New Account",
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Option 2: Add Transaction
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেন" else "New Transaction",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    onAddTransactionClick()
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shadowElevation = 4.dp,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "New Transaction",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
+                // Main Floating Action Button
                 Surface(
-                    onClick = onAddTransactionClick,
+                    onClick = { isSpeedDialExpanded = !isSpeedDialExpanded },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
                     shadowElevation = 6.dp,
-                    modifier = Modifier.size(54.dp)
+                    modifier = Modifier.size(52.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "New Transaction",
+                            contentDescription = "Quick Actions",
                             tint = Color.White,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier
+                                .size(28.dp)
+                                .rotate(rotationAngle)
                         )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Bottom Segmented Toggle: [ Assets (সম্পদ) | Liabilities (দায়) ]
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Assets Button
+                        val isAssets = activeTabMode == "ASSETS"
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isAssets) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { activeTabMode = "ASSETS" }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = if (isAssets) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets",
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isAssets) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isAssets) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+
+                        // Liabilities Button
+                        val isLiabilities = activeTabMode == "LIABILITIES"
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isLiabilities) SolidExpense.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { activeTabMode = "LIABILITIES" }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CreditCard,
+                                    contentDescription = null,
+                                    tint = if (isLiabilities) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities",
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isLiabilities) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isLiabilities) SolidExpense else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -2131,14 +2298,16 @@ private fun NetWorthSummaryCard(
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+            containerColor = MaterialTheme.colorScheme.surface
         ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 1. Total Assets (Left)
@@ -2148,28 +2317,29 @@ private fun NetWorthSummaryCard(
             ) {
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    color = Color(0xFF0D9488),
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = formatBalance(data.totalAssetsCurrent, displayCurrency, languageMode, displayCurrencySymbol),
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (!showOnlyCurrentBalance) {
-                    Spacer(modifier = Modifier.height(1.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Prev: ${formatBalance(data.totalAssetsBase, displayCurrency, languageMode, displayCurrencySymbol)}",
-                        fontSize = 9.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )
@@ -2179,9 +2349,9 @@ private fun NetWorthSummaryCard(
             // Divider 1
             VerticalDivider(
                 modifier = Modifier
-                    .height(36.dp)
+                    .height(40.dp)
                     .padding(horizontal = 4.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
 
             // 2. Total Net Worth (Center)
@@ -2191,44 +2361,44 @@ private fun NetWorthSummaryCard(
             ) {
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ (নেট ওর্থ)" else "Total Net Worth",
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = formatBalance(data.netWorthCurrent, displayCurrency, languageMode, displayCurrencySymbol),
-                    fontSize = 15.5.sp,
+                    fontSize = 16.5.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = if (data.netWorthCurrent >= 0) MaterialTheme.colorScheme.primary else SolidExpense,
+                    color = if (data.netWorthCurrent >= 0) SolidPrimary else SolidExpense,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (!showOnlyCurrentBalance) {
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     val sign = if (isPositive) "+" else ""
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = if (isPositive) SolidIncome.copy(alpha = 0.15f) else SolidExpense.copy(alpha = 0.15f)
+                        color = if (isPositive) SolidIncome.copy(alpha = 0.18f) else SolidExpense.copy(alpha = 0.18f)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = if (isPositive) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
                                 contentDescription = null,
                                 tint = if (isPositive) SolidIncome else SolidExpense,
-                                modifier = Modifier.size(11.dp)
+                                modifier = Modifier.size(12.dp)
                             )
-                            Spacer(modifier = Modifier.width(2.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
                             Text(
                                 text = "$sign${LanguageHelper.formatNumber(deltaPercent, languageMode)}%",
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
                                 color = if (isPositive) SolidIncome else SolidExpense
                             )
                         }
@@ -2239,9 +2409,9 @@ private fun NetWorthSummaryCard(
             // Divider 2
             VerticalDivider(
                 modifier = Modifier
-                    .height(36.dp)
+                    .height(40.dp)
                     .padding(horizontal = 4.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
 
             // 3. Total Liabilities (Right)
@@ -2251,28 +2421,29 @@ private fun NetWorthSummaryCard(
             ) {
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities",
-                    fontSize = 11.sp,
-                    color = SolidExpense,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    color = Color(0xFFDC2626),
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = formatBalance(data.totalLiabilitiesCurrent, displayCurrency, languageMode, displayCurrencySymbol),
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SolidExpense,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFFDC2626),
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (!showOnlyCurrentBalance) {
-                    Spacer(modifier = Modifier.height(1.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Prev: ${formatBalance(data.totalLiabilitiesBase, displayCurrency, languageMode, displayCurrencySymbol)}",
-                        fontSize = 9.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )

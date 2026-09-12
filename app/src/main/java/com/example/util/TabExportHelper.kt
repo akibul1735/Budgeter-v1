@@ -1341,7 +1341,10 @@ object TabExportHelper {
                     put("items", JSONArray().apply {
                         items.forEach { itm ->
                             put(JSONObject().apply {
+                                put("id", itm.id)
                                 put("name", itm.name)
+                                put("type", itm.type.name)
+                                if (!itm.groupName.isNullOrBlank()) put("group", itm.groupName)
                                 put("expense", itm.totalExpense)
                                 put("income", itm.totalIncome)
                                 put("count", itm.transactionCount)
@@ -1365,13 +1368,14 @@ object TabExportHelper {
         if (filterSubtitle.isNotBlank()) {
             sb.append("# Filter: ${escapeCsv(filterSubtitle)}\n")
         }
-        sb.append("Item Name,Total Expense (BDT),Total Income (BDT),Transaction Count,Latest Date,% Share\n")
+        sb.append("Item Name,Type,Group,Total Expense (BDT),Total Income (BDT),Transaction Count,Latest Date,% Share\n")
         for (itm in items) {
             val exp = String.format(Locale.US, "%.2f", itm.totalExpense)
             val inc = String.format(Locale.US, "%.2f", itm.totalIncome)
             val latest = DateUtils.formatDate(itm.latestDateEpochMs, languageMode)
             val share = String.format(Locale.US, "%.1f", itm.percentageShare)
-            sb.append("${escapeCsv(itm.name)},$exp,$inc,${itm.transactionCount},${escapeCsv(latest)},$share%\n")
+            val grp = itm.groupName ?: ""
+            sb.append("${escapeCsv(itm.name)},${itm.type.name},${escapeCsv(grp)},$exp,$inc,${itm.transactionCount},${escapeCsv(latest)},$share%\n")
         }
         return sb.toString()
     }
@@ -1853,6 +1857,493 @@ object TabExportHelper {
         }.toString(2)
     }
 
+    // ==========================================
+    // NET EARNINGS (ACTUAL INCOME & EXPENSES) EXPORT
+    // ==========================================
+    fun exportNetEarnings(
+        context: Context,
+        format: ExportFormat,
+        periodLabel: String,
+        expenseGroups: List<NetEarningsExportGroup>,
+        totalExpense: Double,
+        totalExpenseBase: Double = 0.0,
+        incomeGroups: List<NetEarningsExportGroup>,
+        totalIncome: Double,
+        totalIncomeBase: Double = 0.0,
+        netEarnings: Double,
+        netEarningsBase: Double = 0.0,
+        comparisonEnabled: Boolean = false,
+        baseDateLabel: String = "",
+        compareDateLabel: String = periodLabel,
+        languageMode: LanguageMode = LanguageMode.ENGLISH
+    ) {
+        val title = if (languageMode == LanguageMode.BANGLA) {
+            if (comparisonEnabled) "নেট আয় তুলনামূলক বিবরণী ($compareDateLabel বনাম $baseDateLabel)"
+            else "নেট আয় বিবরণী ($periodLabel)"
+        } else {
+            if (comparisonEnabled) "Net Earnings Comparison Report ($compareDateLabel vs $baseDateLabel)"
+            else "Net Earnings Report ($periodLabel)"
+        }
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+
+        when (format) {
+            ExportFormat.PDF -> {
+                val html = buildNetEarningsHtml(
+                    title, periodLabel, expenseGroups, totalExpense, totalExpenseBase,
+                    incomeGroups, totalIncome, totalIncomeBase, netEarnings, netEarningsBase,
+                    comparisonEnabled, baseDateLabel, compareDateLabel, languageMode
+                )
+                PdfPrintHelper.printHtml(context, "NetEarnings_$timeStamp", html, isLandscape = comparisonEnabled)
+            }
+            ExportFormat.CSV -> {
+                val csv = buildNetEarningsCsv(
+                    periodLabel, expenseGroups, totalExpense, totalExpenseBase,
+                    incomeGroups, totalIncome, totalIncomeBase, netEarnings, netEarningsBase,
+                    comparisonEnabled, baseDateLabel, compareDateLabel, languageMode
+                )
+                shareFile(context, "NetEarnings_$timeStamp.csv", format.mimeType, csv, title)
+            }
+            ExportFormat.HTML -> {
+                val html = buildNetEarningsHtml(
+                    title, periodLabel, expenseGroups, totalExpense, totalExpenseBase,
+                    incomeGroups, totalIncome, totalIncomeBase, netEarnings, netEarningsBase,
+                    comparisonEnabled, baseDateLabel, compareDateLabel, languageMode
+                )
+                shareFile(context, "NetEarnings_$timeStamp.html", format.mimeType, html, title)
+            }
+            ExportFormat.JSON -> {
+                val json = JSONObject().apply {
+                    put("reportType", "NetEarnings")
+                    put("period", periodLabel)
+                    put("comparisonEnabled", comparisonEnabled)
+                    if (comparisonEnabled) {
+                        put("basePeriod", baseDateLabel)
+                        put("comparePeriod", compareDateLabel)
+                        put("totalIncomeBase", totalIncomeBase)
+                        put("totalIncomeCurrent", totalIncome)
+                        put("incomeDelta", totalIncome - totalIncomeBase)
+                        put("totalExpenseBase", totalExpenseBase)
+                        put("totalExpenseCurrent", totalExpense)
+                        put("expenseDelta", totalExpense - totalExpenseBase)
+                        put("netEarningsBase", netEarningsBase)
+                        put("netEarningsCurrent", netEarnings)
+                        put("netEarningsDelta", netEarnings - netEarningsBase)
+                    } else {
+                        put("totalIncome", totalIncome)
+                        put("totalExpense", totalExpense)
+                        put("netEarnings", netEarnings)
+                    }
+                    put("incomes", JSONArray().apply {
+                        incomeGroups.forEach { grp ->
+                            put(JSONObject().apply {
+                                put("group", if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn)
+                                put("total", grp.totalAmount)
+                                if (comparisonEnabled) {
+                                    put("totalBase", grp.totalBaseAmount)
+                                    put("delta", grp.delta)
+                                    put("deltaPercent", grp.deltaPercent)
+                                }
+                                put("percentageShare", grp.percentageShare)
+                                put("items", JSONArray().apply {
+                                    grp.items.forEach { itm ->
+                                        put(JSONObject().apply {
+                                            put("category", if (languageMode == LanguageMode.BANGLA) itm.categoryNameBn else itm.categoryNameEn)
+                                            put("amount", itm.amount)
+                                            if (comparisonEnabled) {
+                                                put("baseAmount", itm.baseAmount)
+                                                put("delta", itm.delta)
+                                                put("deltaPercent", itm.deltaPercent)
+                                            }
+                                            put("percentageShare", itm.percentageShare)
+                                            put("transactionsCount", itm.txCount)
+                                        })
+                                    }
+                                })
+                            })
+                        }
+                    })
+                    put("expenses", JSONArray().apply {
+                        expenseGroups.forEach { grp ->
+                            put(JSONObject().apply {
+                                put("group", if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn)
+                                put("total", grp.totalAmount)
+                                if (comparisonEnabled) {
+                                    put("totalBase", grp.totalBaseAmount)
+                                    put("delta", grp.delta)
+                                    put("deltaPercent", grp.deltaPercent)
+                                }
+                                put("percentageShare", grp.percentageShare)
+                                put("items", JSONArray().apply {
+                                    grp.items.forEach { itm ->
+                                        put(JSONObject().apply {
+                                            put("category", if (languageMode == LanguageMode.BANGLA) itm.categoryNameBn else itm.categoryNameEn)
+                                            put("amount", itm.amount)
+                                            if (comparisonEnabled) {
+                                                put("baseAmount", itm.baseAmount)
+                                                put("delta", itm.delta)
+                                                put("deltaPercent", itm.deltaPercent)
+                                            }
+                                            put("percentageShare", itm.percentageShare)
+                                            put("transactionsCount", itm.txCount)
+                                        })
+                                    }
+                                })
+                            })
+                        }
+                    })
+                }.toString(2)
+                shareFile(context, "NetEarnings_$timeStamp.json", format.mimeType, json, title)
+            }
+        }
+    }
+
+    private fun buildNetEarningsHtml(
+        title: String,
+        periodLabel: String,
+        expenseGroups: List<NetEarningsExportGroup>,
+        totalExpense: Double,
+        totalExpenseBase: Double,
+        incomeGroups: List<NetEarningsExportGroup>,
+        totalIncome: Double,
+        totalIncomeBase: Double,
+        netEarnings: Double,
+        netEarningsBase: Double,
+        comparisonEnabled: Boolean,
+        baseDateLabel: String,
+        compareDateLabel: String,
+        languageMode: LanguageMode
+    ): String {
+        val sb = StringBuilder()
+        val netDelta = netEarnings - netEarningsBase
+        val savingsRate = if (totalIncome > 0) ((netEarnings / totalIncome) * 100).toInt() else 0
+
+        if (comparisonEnabled) {
+            val currLbl = compareDateLabel.ifBlank { "Current" }
+            val baseLbl = baseDateLabel.ifBlank { "Base" }
+            val netDeltaClass = if (netDelta >= 0) "badge-positive" else "badge-negative"
+            val netDeltaArrow = if (netDelta > 0) "▲" else if (netDelta < 0) "▼" else "—"
+            val netDeltaSign = if (netDelta > 0) "+" else ""
+
+            sb.append("""
+                <div class="summary-cards">
+                    <div class="card card-success">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট প্রকৃত আয়" else "Total Actual Income"}</div>
+                        <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalIncome, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী: " else "Prev: "}৳ ${LanguageHelper.formatNumber(totalIncomeBase, languageMode)}</div>
+                    </div>
+                    <div class="card card-danger">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট প্রকৃত ব্যয়" else "Total Actual Expense"}</div>
+                        <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalExpense, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী: " else "Prev: "}৳ ${LanguageHelper.formatNumber(totalExpenseBase, languageMode)}</div>
+                    </div>
+                    <div class="card card-primary">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট আয় (উদ্বৃত্ত)" else "Net Earnings / Savings"}</div>
+                        <div class="card-value text-primary">৳ ${LanguageHelper.formatNumber(netEarnings, languageMode)}</div>
+                        <div class="card-sub"><span class="badge $netDeltaClass">$netDeltaSign৳ ${LanguageHelper.formatNumber(netDelta, languageMode)} $netDeltaArrow</span></div>
+                    </div>
+                    <div class="card card-neutral">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "সঞ্চয় হার" else "Savings Rate"}</div>
+                        <div class="card-value text-neutral">$savingsRate%</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "আয়ের সঞ্চিত অংশ" else "Retained Surplus"}</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 24px; color: #15803d; border-bottom: 2px solid #16a34a; padding-bottom: 4px;">${if (languageMode == LanguageMode.BANGLA) "📈 আয়ের বিবরণী (Incomes)" else "📈 Income Breakdown"}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি গ্রুপ ও নাম" else "Category Group & Name"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ($baseLbl)" else "Base ($baseLbl)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বর্তমান ($currLbl)" else "Current ($currLbl)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পার্থক্য" else "Variance"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পরিবর্তন %" else "Growth %"}</th>
+                            <th style="text-align: right; width: 15%;">${if (languageMode == LanguageMode.BANGLA) "আয়ের অনুপাত" else "Share %"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            for (grp in incomeGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                val grpDelta = grp.delta
+                val grpDeltaSign = if (grpDelta > 0) "+" else ""
+                val grpDeltaClass = if (grpDelta >= 0) "text-success" else "text-danger"
+                val grpPctClass = if (grpDelta >= 0) "badge-positive" else "badge-negative"
+                val grpArrow = if (grpDelta > 0) "▲" else if (grpDelta < 0) "▼" else "—"
+
+                sb.append("""
+                    <tr class="group-row">
+                        <td><strong>📁 $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.totalBaseAmount, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold; color: #16a34a;">৳ ${LanguageHelper.formatNumber(grp.totalAmount, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;" class="$grpDeltaClass">$grpDeltaSign৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
+                        <td style="text-align: right;"><span class="badge $grpPctClass">$grpDeltaSign${String.format(Locale.US, "%.1f", grp.deltaPercent)}% $grpArrow</span></td>
+                        <td style="text-align: right; font-weight: bold;">${String.format(Locale.US, "%.1f", grp.percentageShare)}%</td>
+                    </tr>
+                """.trimIndent())
+
+                for (item in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) item.categoryNameBn else item.categoryNameEn
+                    val itmDelta = item.delta
+                    val itmDeltaSign = if (itmDelta > 0) "+" else ""
+                    val itmDeltaClass = if (itmDelta >= 0) "text-success" else "text-danger"
+                    val itmPctClass = if (itmDelta >= 0) "badge-positive" else "badge-negative"
+                    val itmArrow = if (itmDelta > 0) "▲" else if (itmDelta < 0) "▼" else "—"
+
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $catName</td>
+                            <td style="text-align: right; color: #64748b;">৳ ${LanguageHelper.formatNumber(item.baseAmount, languageMode)}</td>
+                            <td style="text-align: right; font-weight: 600; color: #16a34a;">৳ ${LanguageHelper.formatNumber(item.amount, languageMode)}</td>
+                            <td style="text-align: right;" class="$itmDeltaClass">$itmDeltaSign৳ ${LanguageHelper.formatNumber(itmDelta, languageMode)}</td>
+                            <td style="text-align: right;"><span class="badge $itmPctClass">$itmDeltaSign${String.format(Locale.US, "%.1f", item.deltaPercent)}% $itmArrow</span></td>
+                            <td style="text-align: right; color: #64748b;">${String.format(Locale.US, "%.1f", item.percentageShare)}%</td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+
+            sb.append("""
+                    </tbody>
+                </table>
+
+                <h3 style="margin-top: 28px; color: #b91c1c; border-bottom: 2px solid #dc2626; padding-bottom: 4px;">${if (languageMode == LanguageMode.BANGLA) "📉 ব্যয়ের বিবরণী (Expenses)" else "📉 Expense Breakdown"}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 35%;">${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি গ্রুপ ও নাম" else "Category Group & Name"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ($baseLbl)" else "Base ($baseLbl)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "বর্তমান ($currLbl)" else "Current ($currLbl)"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পার্থক্য" else "Variance"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "পরিবর্তন %" else "Growth %"}</th>
+                            <th style="text-align: right; width: 15%;">${if (languageMode == LanguageMode.BANGLA) "ব্যয়ের অনুপাত" else "Share %"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            for (grp in expenseGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                val grpDelta = grp.delta
+                val grpDeltaSign = if (grpDelta > 0) "+" else ""
+                val grpDeltaClass = if (grpDelta <= 0) "text-success" else "text-danger"
+                val grpPctClass = if (grpDelta <= 0) "badge-positive" else "badge-negative"
+                val grpArrow = if (grpDelta > 0) "▲" else if (grpDelta < 0) "▼" else "—"
+
+                sb.append("""
+                    <tr class="group-row">
+                        <td><strong>📁 $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.totalBaseAmount, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold; color: #dc2626;">৳ ${LanguageHelper.formatNumber(grp.totalAmount, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;" class="$grpDeltaClass">$grpDeltaSign৳ ${LanguageHelper.formatNumber(grpDelta, languageMode)}</td>
+                        <td style="text-align: right;"><span class="badge $grpPctClass">$grpDeltaSign${String.format(Locale.US, "%.1f", grp.deltaPercent)}% $grpArrow</span></td>
+                        <td style="text-align: right; font-weight: bold;">${String.format(Locale.US, "%.1f", grp.percentageShare)}%</td>
+                    </tr>
+                """.trimIndent())
+
+                for (item in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) item.categoryNameBn else item.categoryNameEn
+                    val itmDelta = item.delta
+                    val itmDeltaSign = if (itmDelta > 0) "+" else ""
+                    val itmDeltaClass = if (itmDelta <= 0) "text-success" else "text-danger"
+                    val itmPctClass = if (itmDelta <= 0) "badge-positive" else "badge-negative"
+                    val itmArrow = if (itmDelta > 0) "▲" else if (itmDelta < 0) "▼" else "—"
+
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $catName</td>
+                            <td style="text-align: right; color: #64748b;">৳ ${LanguageHelper.formatNumber(item.baseAmount, languageMode)}</td>
+                            <td style="text-align: right; font-weight: 600; color: #dc2626;">৳ ${LanguageHelper.formatNumber(item.amount, languageMode)}</td>
+                            <td style="text-align: right;" class="$itmDeltaClass">$itmDeltaSign৳ ${LanguageHelper.formatNumber(itmDelta, languageMode)}</td>
+                            <td style="text-align: right;"><span class="badge $itmPctClass">$itmDeltaSign${String.format(Locale.US, "%.1f", item.deltaPercent)}% $itmArrow</span></td>
+                            <td style="text-align: right; color: #64748b;">${String.format(Locale.US, "%.1f", item.percentageShare)}%</td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+            sb.append("</tbody></table>")
+        } else {
+            sb.append("""
+                <div class="summary-cards">
+                    <div class="card card-success">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট প্রকৃত আয়" else "Total Actual Income"}</div>
+                        <div class="card-value text-success">৳ ${LanguageHelper.formatNumber(totalIncome, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "নির্বাচিত সময়কালে অর্জিত" else "Earned in Period"}</div>
+                    </div>
+                    <div class="card card-danger">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "মোট প্রকৃত ব্যয়" else "Total Actual Expense"}</div>
+                        <div class="card-value text-danger">৳ ${LanguageHelper.formatNumber(totalExpense, languageMode)}</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "নির্বাচিত সময়কালে ব্যয়িত" else "Spent in Period"}</div>
+                    </div>
+                    <div class="card card-primary">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "নেট আয় (উদ্বৃত্ত)" else "Net Earnings (Surplus)"}</div>
+                        <div class="card-value text-primary">৳ ${LanguageHelper.formatNumber(netEarnings, languageMode)}</div>
+                        <div class="card-sub">${if (netEarnings >= 0) (if (languageMode == LanguageMode.BANGLA) "ইতিবাচক সঞ্চয়" else "Positive Surplus") else (if (languageMode == LanguageMode.BANGLA) "ঘাটতি" else "Deficit")}</div>
+                    </div>
+                    <div class="card card-neutral">
+                        <div class="card-label">${if (languageMode == LanguageMode.BANGLA) "সঞ্চয় হার" else "Savings Rate"}</div>
+                        <div class="card-value text-neutral">$savingsRate%</div>
+                        <div class="card-sub">${if (languageMode == LanguageMode.BANGLA) "আয়ের সঞ্চিত অনুপাত" else "Retained of Income"}</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 24px; color: #15803d; border-bottom: 2px solid #16a34a; padding-bottom: 4px;">${if (languageMode == LanguageMode.BANGLA) "📈 আয়ের বিবরণী (Incomes)" else "📈 Income Breakdown"}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50%;">${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি গ্রুপ ও আইটেম" else "Category Group & Item"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "লেনদেন সংখ্যা" else "Tx Count"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "প্রকৃত পরিমাণ" else "Actual Amount"}</th>
+                            <th style="text-align: right; width: 18%;">${if (languageMode == LanguageMode.BANGLA) "আয়ের অনুপাত" else "Share %"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            for (grp in incomeGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                val grpTxCount = grp.items.sumOf { it.txCount }
+                sb.append("""
+                    <tr class="group-row">
+                        <td><strong>📁 $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">$grpTxCount</td>
+                        <td style="text-align: right; font-weight: bold; color: #16a34a;">৳ ${LanguageHelper.formatNumber(grp.totalAmount, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;">${String.format(Locale.US, "%.1f", grp.percentageShare)}%</td>
+                    </tr>
+                """.trimIndent())
+
+                for (item in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) item.categoryNameBn else item.categoryNameEn
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $catName</td>
+                            <td style="text-align: right; color: #64748b;">${item.txCount}</td>
+                            <td style="text-align: right; font-weight: 600; color: #16a34a;">৳ ${LanguageHelper.formatNumber(item.amount, languageMode)}</td>
+                            <td style="text-align: right; color: #64748b;">${String.format(Locale.US, "%.1f", item.percentageShare)}%</td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+
+            sb.append("""
+                    </tbody>
+                </table>
+
+                <h3 style="margin-top: 28px; color: #b91c1c; border-bottom: 2px solid #dc2626; padding-bottom: 4px;">${if (languageMode == LanguageMode.BANGLA) "📉 ব্যয়ের বিবরণী (Expenses)" else "📉 Expense Breakdown"}</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 50%;">${if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি গ্রুপ ও আইটেম" else "Category Group & Item"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "লেনদেন সংখ্যা" else "Tx Count"}</th>
+                            <th style="text-align: right;">${if (languageMode == LanguageMode.BANGLA) "প্রকৃত পরিমাণ" else "Actual Amount"}</th>
+                            <th style="text-align: right; width: 18%;">${if (languageMode == LanguageMode.BANGLA) "ব্যয়ের অনুপাত" else "Share %"}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            """.trimIndent())
+
+            for (grp in expenseGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                val grpTxCount = grp.items.sumOf { it.txCount }
+                sb.append("""
+                    <tr class="group-row">
+                        <td><strong>📁 $grpName</strong></td>
+                        <td style="text-align: right; font-weight: bold;">$grpTxCount</td>
+                        <td style="text-align: right; font-weight: bold; color: #dc2626;">৳ ${LanguageHelper.formatNumber(grp.totalAmount, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;">${String.format(Locale.US, "%.1f", grp.percentageShare)}%</td>
+                    </tr>
+                """.trimIndent())
+
+                for (item in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) item.categoryNameBn else item.categoryNameEn
+                    sb.append("""
+                        <tr>
+                            <td style="padding-left: 24px;">• $catName</td>
+                            <td style="text-align: right; color: #64748b;">${item.txCount}</td>
+                            <td style="text-align: right; font-weight: 600; color: #dc2626;">৳ ${LanguageHelper.formatNumber(item.amount, languageMode)}</td>
+                            <td style="text-align: right; color: #64748b;">${String.format(Locale.US, "%.1f", item.percentageShare)}%</td>
+                        </tr>
+                    """.trimIndent())
+                }
+            }
+            sb.append("</tbody></table>")
+        }
+
+        return buildBaseHtml(title, "$periodLabel • ${DateUtils.formatDate(System.currentTimeMillis(), languageMode)}", sb.toString())
+    }
+
+    private fun buildNetEarningsCsv(
+        periodLabel: String,
+        expenseGroups: List<NetEarningsExportGroup>,
+        totalExpense: Double,
+        totalExpenseBase: Double,
+        incomeGroups: List<NetEarningsExportGroup>,
+        totalIncome: Double,
+        totalIncomeBase: Double,
+        netEarnings: Double,
+        netEarningsBase: Double,
+        comparisonEnabled: Boolean,
+        baseDateLabel: String,
+        compareDateLabel: String,
+        languageMode: LanguageMode
+    ): String {
+        val sb = StringBuilder()
+        sb.append("# Net Earnings Report: ${escapeCsv(periodLabel)}\n")
+        sb.append("# Generated At: ${formatTimestamp(System.currentTimeMillis())}\n")
+        sb.append("# Total Income: ${String.format(Locale.US, "%.2f", totalIncome)}\n")
+        sb.append("# Total Expense: ${String.format(Locale.US, "%.2f", totalExpense)}\n")
+        sb.append("# Net Earnings: ${String.format(Locale.US, "%.2f", netEarnings)}\n")
+        if (comparisonEnabled) {
+            sb.append("# Base Period: ${escapeCsv(baseDateLabel)}\n")
+            sb.append("# Base Net Earnings: ${String.format(Locale.US, "%.2f", netEarningsBase)}\n")
+            sb.append("# Net Delta: ${String.format(Locale.US, "%.2f", netEarnings - netEarningsBase)}\n")
+        }
+        sb.append("\n")
+
+        if (comparisonEnabled) {
+            sb.append("Section,Group,Category,Base Amount (BDT),Current Amount (BDT),Variance (BDT),Change %,Share %\n")
+            // Incomes
+            for (grp in incomeGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                sb.append("Income,${escapeCsv(grpName)},[Group Total],${String.format(Locale.US, "%.2f", grp.totalBaseAmount)},${String.format(Locale.US, "%.2f", grp.totalAmount)},${String.format(Locale.US, "%.2f", grp.delta)},${String.format(Locale.US, "%.2f", grp.deltaPercent)}%,${String.format(Locale.US, "%.2f", grp.percentageShare)}%\n")
+                for (itm in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) itm.categoryNameBn else itm.categoryNameEn
+                    sb.append("Income,${escapeCsv(grpName)},${escapeCsv(catName)},${String.format(Locale.US, "%.2f", itm.baseAmount)},${String.format(Locale.US, "%.2f", itm.amount)},${String.format(Locale.US, "%.2f", itm.delta)},${String.format(Locale.US, "%.2f", itm.deltaPercent)}%,${String.format(Locale.US, "%.2f", itm.percentageShare)}%\n")
+                }
+            }
+            // Expenses
+            for (grp in expenseGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                sb.append("Expense,${escapeCsv(grpName)},[Group Total],${String.format(Locale.US, "%.2f", grp.totalBaseAmount)},${String.format(Locale.US, "%.2f", grp.totalAmount)},${String.format(Locale.US, "%.2f", grp.delta)},${String.format(Locale.US, "%.2f", grp.deltaPercent)}%,${String.format(Locale.US, "%.2f", grp.percentageShare)}%\n")
+                for (itm in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) itm.categoryNameBn else itm.categoryNameEn
+                    sb.append("Expense,${escapeCsv(grpName)},${escapeCsv(catName)},${String.format(Locale.US, "%.2f", itm.baseAmount)},${String.format(Locale.US, "%.2f", itm.amount)},${String.format(Locale.US, "%.2f", itm.delta)},${String.format(Locale.US, "%.2f", itm.deltaPercent)}%,${String.format(Locale.US, "%.2f", itm.percentageShare)}%\n")
+                }
+            }
+        } else {
+            sb.append("Section,Group,Category,Tx Count,Amount (BDT),Share %\n")
+            // Incomes
+            for (grp in incomeGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                sb.append("Income,${escapeCsv(grpName)},[Group Total],${grp.items.sumOf { it.txCount }},${String.format(Locale.US, "%.2f", grp.totalAmount)},${String.format(Locale.US, "%.2f", grp.percentageShare)}%\n")
+                for (itm in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) itm.categoryNameBn else itm.categoryNameEn
+                    sb.append("Income,${escapeCsv(grpName)},${escapeCsv(catName)},${itm.txCount},${String.format(Locale.US, "%.2f", itm.amount)},${String.format(Locale.US, "%.2f", itm.percentageShare)}%\n")
+                }
+            }
+            // Expenses
+            for (grp in expenseGroups) {
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn
+                sb.append("Expense,${escapeCsv(grpName)},[Group Total],${grp.items.sumOf { it.txCount }},${String.format(Locale.US, "%.2f", grp.totalAmount)},${String.format(Locale.US, "%.2f", grp.percentageShare)}%\n")
+                for (itm in grp.items) {
+                    val catName = if (languageMode == LanguageMode.BANGLA) itm.categoryNameBn else itm.categoryNameEn
+                    sb.append("Expense,${escapeCsv(grpName)},${escapeCsv(catName)},${itm.txCount},${String.format(Locale.US, "%.2f", itm.amount)},${String.format(Locale.US, "%.2f", itm.percentageShare)}%\n")
+                }
+            }
+        }
+        return sb.toString()
+    }
+
     private fun escapeCsv(value: String): String {
         var str = value.replace("\"", "\"\"")
         if (str.contains(",") || str.contains("\n") || str.contains("\"")) {
@@ -1870,3 +2361,26 @@ object TabExportHelper {
             .replace("'", "&#39;")
     }
 }
+
+data class NetEarningsExportItem(
+    val categoryNameEn: String,
+    val categoryNameBn: String,
+    val amount: Double,
+    val baseAmount: Double = 0.0,
+    val delta: Double = 0.0,
+    val deltaPercent: Double = 0.0,
+    val percentageShare: Double = 0.0,
+    val txCount: Int = 0
+)
+
+data class NetEarningsExportGroup(
+    val groupNameEn: String,
+    val groupNameBn: String,
+    val totalAmount: Double,
+    val totalBaseAmount: Double = 0.0,
+    val delta: Double = 0.0,
+    val deltaPercent: Double = 0.0,
+    val percentageShare: Double = 0.0,
+    val items: List<NetEarningsExportItem>
+)
+

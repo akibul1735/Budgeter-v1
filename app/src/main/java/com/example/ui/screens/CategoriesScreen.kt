@@ -399,74 +399,101 @@ fun CategoriesScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // Middle Compact Row: Total Incomes vs Total Expenses
+                            // Middle Compact Row: Total Incomes vs Total Expenses with High-Contrast Badges
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.Black.copy(alpha = 0.2f))
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 // Total Incomes
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.Black.copy(alpha = 0.28f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(7.dp)
+                                                .size(24.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF6EE7B7))
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        Text(
-                                            text = LanguageHelper.getString("incomes", languageMode),
-                                            color = Color.White.copy(alpha = 0.9f),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                                .background(Color(0xFF10B981).copy(alpha = 0.25f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.TrendingUp,
+                                                contentDescription = null,
+                                                tint = Color(0xFF6EE7B7),
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = LanguageHelper.getString("incomes", languageMode),
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.height(1.dp))
+                                            Text(
+                                                text = LanguageHelper.formatCurrency(totalIncomeBudget, languageMode),
+                                                color = Color(0xFFE6FFFA),
+                                                fontSize = 14.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.height(1.dp))
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(totalIncomeBudget, languageMode),
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
                                 }
 
-                                // Divider
-                                Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .height(26.dp)
-                                        .background(Color.White.copy(alpha = 0.25f))
-                                )
-
                                 // Total Expenses
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = LanguageHelper.getString("expenses", languageMode),
-                                            color = Color.White.copy(alpha = 0.9f),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Spacer(modifier = Modifier.width(5.dp))
+                                Surface(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.Black.copy(alpha = 0.28f),
+                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(7.dp)
+                                                .size(24.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFFFCA5A5))
-                                        )
+                                                .background(Color(0xFFEF4444).copy(alpha = 0.25f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.TrendingDown,
+                                                contentDescription = null,
+                                                tint = Color(0xFFFCA5A5),
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = LanguageHelper.getString("expenses", languageMode),
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.height(1.dp))
+                                            Text(
+                                                text = LanguageHelper.formatCurrency(totalExpenseBudget, languageMode),
+                                                color = Color(0xFFFFECEE),
+                                                fontSize = 14.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.height(1.dp))
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(totalExpenseBudget, languageMode),
-                                        color = Color(0xFFFFCDD2),
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
                                 }
                             }
 

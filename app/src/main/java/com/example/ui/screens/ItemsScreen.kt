@@ -75,6 +75,7 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
+import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
 import androidx.compose.ui.platform.LocalContext
@@ -99,7 +100,12 @@ enum class ItemDateFilterPreset {
 }
 
 data class AggregatedItem(
+    val id: String,
     val name: String,
+    val type: TransactionType,
+    val categoryId: Long? = null,
+    val groupName: String? = null,
+    val iconName: String? = null,
     val totalExpense: Double,
     val totalIncome: Double,
     val transactionCount: Int,
@@ -198,27 +204,54 @@ fun ItemsScreen(
         }
 
         val grouped = filteredTxs.groupBy { item ->
-            val payee = item.transaction.payeeOrPayer.trim()
-            if (payee.isNotBlank()) payee else {
-                val catName = if (languageMode == LanguageMode.BANGLA) {
-                    item.category?.nameBn ?: item.category?.nameEn ?: "অন্যান্য (Other)"
-                } else {
-                    item.category?.nameEn ?: "Other"
-                }
-                catName
+            val tx = item.transaction
+            val payee = tx.payeeOrPayer.trim()
+            if (payee.isNotBlank()) {
+                "payee_${tx.type.name}_${tx.categoryId ?: 0}_${tx.subCategoryId ?: 0}_${payee.lowercase()}"
+            } else {
+                val catId = item.category?.id ?: 0L
+                val parentId = item.category?.parentId ?: 0L
+                "cat_${tx.type.name}_${parentId}_${catId}"
             }
         }
 
         val totalAllExpense = filteredTxs.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
 
-        val list = grouped.map { (itemName, txList) ->
+        val list = grouped.map { (key, txList) ->
+            val first = txList.first()
+            val tx = first.transaction
+            val payee = tx.payeeOrPayer.trim()
+            val itemName = if (payee.isNotBlank()) {
+                payee
+            } else {
+                if (languageMode == LanguageMode.BANGLA) {
+                    first.category?.nameBn ?: first.category?.nameEn ?: "অন্যান্য (Other)"
+                } else {
+                    first.category?.nameEn ?: "Other"
+                }
+            }
+
+            val groupName = if (first.subCategory != null) {
+                val parent = first.category
+                if (languageMode == LanguageMode.BANGLA) parent?.nameBn ?: parent?.nameEn else parent?.nameEn
+            } else if (first.category?.parentId != null) {
+                if (languageMode == LanguageMode.BANGLA) first.category?.nameBn ?: first.category?.nameEn else first.category?.nameEn
+            } else null
+
+            val iconName = first.category?.iconName ?: if (tx.type == TransactionType.EXPENSE) "ShoppingBag" else "TrendingUp"
+
             val expenseSum = txList.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
             val incomeSum = txList.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
             val latestDate = txList.maxOfOrNull { it.transaction.dateEpochMs } ?: 0L
             val share = if (totalAllExpense > 0 && expenseSum > 0) (expenseSum / totalAllExpense) * 100.0 else 0.0
 
             AggregatedItem(
+                id = key,
                 name = itemName,
+                type = tx.type,
+                categoryId = first.category?.id,
+                groupName = groupName,
+                iconName = iconName,
                 totalExpense = expenseSum,
                 totalIncome = incomeSum,
                 transactionCount = txList.size,
@@ -376,7 +409,7 @@ fun ItemsScreen(
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(aggregatedItems, key = { it.name }) { item ->
+                items(aggregatedItems, key = { it.id }) { item ->
                     AggregatedItemCard(
                         item = item,
                         languageMode = languageMode,
@@ -603,6 +636,15 @@ private fun AggregatedItemCard(
     languageMode: LanguageMode,
     onClick: () -> Unit
 ) {
+    val isExpense = item.type == TransactionType.EXPENSE
+    val typeColor = if (isExpense) SolidExpense else SolidIncome
+    val typeBg = typeColor.copy(alpha = 0.12f)
+    val typeText = when (item.type) {
+        TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
+        TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+        TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+    }
+
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -619,42 +661,69 @@ private fun AggregatedItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Item Name & Count
+                // Item Icon & Name & Subtitle Info
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        modifier = Modifier.size(36.dp)
+                        color = typeBg,
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.ShoppingBag,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                            IconHelper.AppIcon(
+                                iconName = item.iconName ?: if (isExpense) "ShoppingBag" else "TrendingUp",
+                                contentDescription = item.name,
+                                tint = typeColor,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = item.name,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = typeBg
+                            ) {
+                                Text(
+                                    text = typeText,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = typeColor,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        val subtitle = buildString {
+                            if (!item.groupName.isNullOrBlank()) {
+                                append(item.groupName)
+                                append(" • ")
+                            }
+                            append("${item.transactionCount} ${if (languageMode == LanguageMode.BANGLA) "টি লেনদেন" else "txs"}")
+                        }
                         Text(
-                            text = item.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            text = subtitle,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = "${item.transactionCount} ${if (languageMode == LanguageMode.BANGLA) "টি লেনদেন" else "transactions"}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Total Amount
                 Column(horizontalAlignment = Alignment.End) {
