@@ -215,6 +215,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         displayFormatPrefs.setFirstDayOfWeek(day)
     }
 
+    fun setTimeZoneId(zoneId: String) {
+        displayFormatPrefs.setTimeZoneId(zoneId)
+    }
+
     fun setCurrency(currency: CurrencyItem) {
         currencyPrefs.setCurrency(currency)
     }

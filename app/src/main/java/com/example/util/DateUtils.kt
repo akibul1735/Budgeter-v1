@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 object DateUtils {
 
@@ -13,6 +14,27 @@ object DateUtils {
 
     @Volatile
     var activeFirstDayOfWeek: Int = Calendar.SUNDAY
+
+    @Volatile
+    var activeTimeZoneId: String = "Asia/Dhaka"
+
+    fun getActiveTimeZone(): TimeZone {
+        return try {
+            if (activeTimeZoneId.isNotBlank() && activeTimeZoneId != "SYSTEM") {
+                TimeZone.getTimeZone(activeTimeZoneId)
+            } else {
+                TimeZone.getDefault()
+            }
+        } catch (e: Exception) {
+            TimeZone.getTimeZone("Asia/Dhaka")
+        }
+    }
+
+    fun getCalendar(): Calendar {
+        val cal = Calendar.getInstance(getActiveTimeZone())
+        cal.firstDayOfWeek = activeFirstDayOfWeek
+        return cal
+    }
 
     private val banglaMonths = arrayOf(
         "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
@@ -75,7 +97,7 @@ object DateUtils {
     }
 
     fun formatDayHeader(epochMs: Long, mode: LanguageMode): String {
-        val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
+        val cal = getCalendar().apply { timeInMillis = epochMs }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 1 = Sunday ... 7 = Saturday
         val formattedDate = formatDate(epochMs, mode)
 
@@ -93,7 +115,9 @@ object DateUtils {
     }
 
     fun formatTime(epochMs: Long, mode: LanguageMode): String {
-        val sdf = SimpleDateFormat("h:mm a", Locale.US)
+        val sdf = SimpleDateFormat("h:mm a", Locale.US).apply {
+            timeZone = getActiveTimeZone()
+        }
         val formatted = sdf.format(Date(epochMs))
         return if (mode == LanguageMode.BANGLA) {
             LanguageHelper.toBanglaDigits(formatted)
@@ -112,9 +136,13 @@ object DateUtils {
         val rawPattern = customPattern ?: activeDateFormat
         val pattern = normalizePattern(rawPattern)
         val sdf = try {
-            SimpleDateFormat(pattern, Locale.US)
+            SimpleDateFormat(pattern, Locale.US).apply {
+                timeZone = getActiveTimeZone()
+            }
         } catch (e: Exception) {
-            SimpleDateFormat("dd MMM, yyyy", Locale.US)
+            SimpleDateFormat("dd MMM, yyyy", Locale.US).apply {
+                timeZone = getActiveTimeZone()
+            }
         }
         val formattedEn = sdf.format(Date(epochMs))
 
@@ -159,7 +187,7 @@ object DateUtils {
     }
 
     fun getStartOfMonth(): Long {
-        val cal = Calendar.getInstance()
+        val cal = getCalendar()
         cal.set(Calendar.DAY_OF_MONTH, 1)
         cal.set(Calendar.HOUR_OF_DAY, 0)
         cal.set(Calendar.MINUTE, 0)
@@ -169,7 +197,7 @@ object DateUtils {
     }
 
     fun getStartOfMonth(year: Int, month: Int): Long {
-        val cal = Calendar.getInstance()
+        val cal = getCalendar()
         cal.set(Calendar.YEAR, year)
         cal.set(Calendar.MONTH, month - 1)
         cal.set(Calendar.DAY_OF_MONTH, 1)
@@ -181,7 +209,7 @@ object DateUtils {
     }
 
     fun getEndOfMonth(): Long {
-        val cal = Calendar.getInstance()
+        val cal = getCalendar()
         cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
         cal.set(Calendar.HOUR_OF_DAY, 23)
         cal.set(Calendar.MINUTE, 59)
@@ -191,7 +219,7 @@ object DateUtils {
     }
 
     fun getEndOfMonth(year: Int, month: Int): Long {
-        val cal = Calendar.getInstance()
+        val cal = getCalendar()
         cal.set(Calendar.YEAR, year)
         cal.set(Calendar.MONTH, month - 1)
         cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
@@ -227,7 +255,7 @@ object DateUtils {
     }
 
     fun getStartOfDay(epochMs: Long = System.currentTimeMillis()): Long {
-        val cal = Calendar.getInstance().apply { timeInMillis = epochMs }
+        val cal = getCalendar().apply { timeInMillis = epochMs }
         cal.set(Calendar.HOUR_OF_DAY, 0)
         cal.set(Calendar.MINUTE, 0)
         cal.set(Calendar.SECOND, 0)
@@ -236,14 +264,14 @@ object DateUtils {
     }
 
     fun isSameDay(epochMs1: Long, epochMs2: Long): Boolean {
-        val cal1 = Calendar.getInstance().apply { timeInMillis = epochMs1 }
-        val cal2 = Calendar.getInstance().apply { timeInMillis = epochMs2 }
+        val cal1 = getCalendar().apply { timeInMillis = epochMs1 }
+        val cal2 = getCalendar().apply { timeInMillis = epochMs2 }
         return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
                 cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
     }
 
     fun calculateNextDueDate(currentDueDate: Long, recurrence: com.example.data.model.RecurrencePeriod): Long {
-        val cal = Calendar.getInstance().apply { timeInMillis = currentDueDate }
+        val cal = getCalendar().apply { timeInMillis = currentDueDate }
         when (recurrence) {
             com.example.data.model.RecurrencePeriod.DAILY -> cal.add(Calendar.DAY_OF_YEAR, 1)
             com.example.data.model.RecurrencePeriod.WEEKLY -> cal.add(Calendar.WEEK_OF_YEAR, 1)

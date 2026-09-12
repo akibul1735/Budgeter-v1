@@ -331,6 +331,178 @@ fun DateSettingsPage(
                 }
             }
 
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Timezone Settings Card
+            var showTimezoneDialog by remember { mutableStateOf(false) }
+
+            Text(
+                text = if (isBangla) "টাইমজোন (সময় অঞ্চল)" else "Timezone",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            val currentTzId = displayFormatConfig.timeZoneId
+            val currentTzName = when (currentTzId) {
+                "Asia/Dhaka" -> if (isBangla) "বাংলাদেশ / ঢাকা (GMT+6) [ডিফল্ট]" else "Bangladesh / Dhaka (GMT+6) [Default]"
+                "Asia/Kolkata" -> if (isBangla) "ভারত / কলকাতা (GMT+5:30)" else "India / Kolkata (GMT+5:30)"
+                "UTC" -> "UTC (GMT+0)"
+                "Asia/Dubai" -> if (isBangla) "দুবাই / সংযুক্ত আরব আমিরাত (GMT+4)" else "Dubai / UAE (GMT+4)"
+                "Asia/Singapore" -> if (isBangla) "সিঙ্গাপুর (GMT+8)" else "Singapore (GMT+8)"
+                "Asia/Tokyo" -> if (isBangla) "টোকিও / জাপান (GMT+9)" else "Tokyo / Japan (GMT+9)"
+                "Europe/London" -> if (isBangla) "লন্ডন / যুক্তরাজ্য (GMT+0/+1)" else "London / UK (GMT+0/+1)"
+                "America/New_York" -> if (isBangla) "নিউ ইয়র্ক / যুক্তরাষ্ট্র (GMT-5)" else "New York / US (GMT-5)"
+                "SYSTEM" -> if (isBangla) "সিস্টেম ডিফল্ট ডিভাইস টাইমজোন" else "System Default Timezone"
+                else -> currentTzId
+            }
+
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showTimezoneDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentTzName,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "বর্তমান সময়: ${DateUtils.formatTime(System.currentTimeMillis(), languageMode)}" else "Current Time: ${DateUtils.formatTime(System.currentTimeMillis(), languageMode)}",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(
+                            text = if (isBangla) "পরিবর্তন" else "Change",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            if (showTimezoneDialog) {
+                var searchQuery by remember { mutableStateOf("") }
+                val commonTimezones = listOf(
+                    "Asia/Dhaka" to if (isBangla) "বাংলাদেশ / ঢাকা (GMT+6) [ডিফল্ট]" else "Bangladesh / Dhaka (GMT+6) [Default]",
+                    "Asia/Kolkata" to if (isBangla) "ভারত / কলকাতা (GMT+5:30)" else "India / Kolkata (GMT+5:30)",
+                    "UTC" to "UTC (GMT+0)",
+                    "Asia/Dubai" to if (isBangla) "দুবাই / সংযুক্ত আরব আমিরাত (GMT+4)" else "Dubai / UAE (GMT+4)",
+                    "Asia/Singapore" to if (isBangla) "সিঙ্গাপুর (GMT+8)" else "Singapore (GMT+8)",
+                    "Asia/Tokyo" to if (isBangla) "টোকিও / জাপান (GMT+9)" else "Tokyo / Japan (GMT+9)",
+                    "Europe/London" to if (isBangla) "লন্ডন / যুক্তরাজ্য (GMT+0/+1)" else "London / UK (GMT+0/+1)",
+                    "America/New_York" to if (isBangla) "নিউ ইয়র্ক / যুক্তরাষ্ট্র (GMT-5)" else "New York / US (GMT-5)",
+                    "SYSTEM" to (if (isBangla) "সিস্টেম ডিফল্ট ডিভাইস টাইমজোন" else "System Device Timezone")
+                )
+
+                val allAvailableIds = remember {
+                    java.util.TimeZone.getAvailableIDs().sorted()
+                }
+
+                val filteredList = remember(searchQuery) {
+                    if (searchQuery.isBlank()) {
+                        commonTimezones
+                    } else {
+                        val fromCommon = commonTimezones.filter {
+                            it.first.contains(searchQuery, ignoreCase = true) || it.second.contains(searchQuery, ignoreCase = true)
+                        }
+                        val otherIds = allAvailableIds.filter {
+                            it.contains(searchQuery, ignoreCase = true) && commonTimezones.none { c -> c.first == it }
+                        }.map { it to it }
+                        (fromCommon + otherIds).take(40)
+                    }
+                }
+
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showTimezoneDialog = false },
+                    title = {
+                        Text(
+                            text = if (isBangla) "টাইমজোন নির্বাচন করুন" else "Select Timezone",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    },
+                    text = {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                label = { Text(if (isBangla) "টাইমজোন খুঁজুন..." else "Search timezone...", fontSize = 12.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(260.dp)
+                            ) {
+                                items(filteredList.size) { index ->
+                                    val (id, label) = filteredList[index]
+                                    val isSelected = currentTzId == id
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                viewModel.setTimeZoneId(id)
+                                                showTimezoneDialog = false
+                                            }
+                                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = SolidPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showTimezoneDialog = false }) {
+                            Text(if (isBangla) "বন্ধ করুন" else "Close")
+                        }
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }

@@ -607,9 +607,11 @@ fun AccountDetailScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Action Subheader: "Edit" & "Reconcile" (Screenshot 1 top right)
+            // Action Subheader: Latest Balance & "Edit" & "Reconcile" (Screenshot 1 top right)
             AccountDetailSubheaderRow(
                 account = account,
+                latestBalance = currentEndingBalance,
+                languageMode = languageMode,
                 onEditAccount = { onEditAccount(account) },
                 onReconcile = { showReconcileSheet = true }
             )
@@ -1058,11 +1060,13 @@ private fun AccountDetailTopAppBar(
 }
 
 // -------------------------------------------------------------------------------------------------
-// SUBHEADER: "Edit" and "Reconcile" (Screenshot 1 top right)
+// SUBHEADER: Latest Balance & "Edit" and "Reconcile"
 // -------------------------------------------------------------------------------------------------
 @Composable
 private fun AccountDetailSubheaderRow(
     account: Account,
+    latestBalance: Double,
+    languageMode: LanguageMode,
     onEditAccount: () -> Unit,
     onReconcile: () -> Unit
 ) {
@@ -1070,35 +1074,56 @@ private fun AccountDetailSubheaderRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TextButton(
-            onClick = onEditAccount,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            modifier = Modifier.testTag("account_edit_btn")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Edit",
+                text = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স:" else "Balance:",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = LanguageHelper.formatCurrency(latestBalance, languageMode),
                 fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = SolidIncome
+                fontWeight = FontWeight.Bold,
+                color = if (latestBalance >= 0) SolidIncome else SolidExpense
             )
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
-
-        TextButton(
-            onClick = onReconcile,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            modifier = Modifier.testTag("account_reconcile_btn")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "Reconcile",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = SolidIncome
-            )
+            TextButton(
+                onClick = onEditAccount,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.testTag("account_edit_btn")
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "সম্পাদনা" else "Edit",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = SolidIncome
+                )
+            }
+
+            TextButton(
+                onClick = onReconcile,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.testTag("account_reconcile_btn")
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "রিকনসাইল" else "Reconcile",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = SolidIncome
+                )
+            }
         }
     }
 }

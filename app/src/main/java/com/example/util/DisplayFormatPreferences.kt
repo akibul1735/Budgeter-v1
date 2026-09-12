@@ -44,7 +44,8 @@ data class DisplayFormatConfig(
     val itemDisplayFormat: ItemDisplayFormat = ItemDisplayFormat.TWO_LINES,
     val dateFormatPattern: String = "dd MMM, yyyy",
     val customDateFormat: String = "",
-    val firstDayOfWeek: Int = Calendar.SUNDAY
+    val firstDayOfWeek: Int = Calendar.SUNDAY,
+    val timeZoneId: String = "Asia/Dhaka"
 ) {
     val effectiveDateFormatPattern: String
         get() = if (dateFormatPattern == "CUSTOM" && customDateFormat.isNotBlank()) customDateFormat else if (dateFormatPattern == "CUSTOM") "dd MMM, yyyy" else dateFormatPattern
@@ -60,6 +61,7 @@ class DisplayFormatPreferences private constructor(context: Context) {
     init {
         DateUtils.activeDateFormat = _config.value.effectiveDateFormatPattern
         DateUtils.activeFirstDayOfWeek = _config.value.firstDayOfWeek
+        DateUtils.activeTimeZoneId = _config.value.timeZoneId
     }
 
     private fun loadConfig(): DisplayFormatConfig {
@@ -72,12 +74,14 @@ class DisplayFormatPreferences private constructor(context: Context) {
         val datePattern = prefs.getString(KEY_DATE_FORMAT, "dd MMM, yyyy") ?: "dd MMM, yyyy"
         val customDatePattern = prefs.getString(KEY_CUSTOM_DATE_FORMAT, "") ?: ""
         val firstDay = prefs.getInt(KEY_FIRST_DAY_OF_WEEK, Calendar.SUNDAY)
+        val tzId = prefs.getString(KEY_TIMEZONE_ID, "Asia/Dhaka") ?: "Asia/Dhaka"
 
         return DisplayFormatConfig(
             itemDisplayFormat = format,
             dateFormatPattern = datePattern,
             customDateFormat = customDatePattern,
-            firstDayOfWeek = firstDay
+            firstDayOfWeek = firstDay,
+            timeZoneId = tzId
         )
     }
 
@@ -111,16 +115,25 @@ class DisplayFormatPreferences private constructor(context: Context) {
         DateUtils.activeFirstDayOfWeek = day
     }
 
+    fun setTimeZoneId(zoneId: String) {
+        prefs.edit().putString(KEY_TIMEZONE_ID, zoneId).apply()
+        val updated = _config.value.copy(timeZoneId = zoneId)
+        _config.value = updated
+        DateUtils.activeTimeZoneId = zoneId
+    }
+
     fun updateConfig(newConfig: DisplayFormatConfig) {
         prefs.edit()
             .putString(KEY_DISPLAY_FORMAT, newConfig.itemDisplayFormat.name)
             .putString(KEY_DATE_FORMAT, newConfig.dateFormatPattern)
             .putString(KEY_CUSTOM_DATE_FORMAT, newConfig.customDateFormat)
             .putInt(KEY_FIRST_DAY_OF_WEEK, newConfig.firstDayOfWeek)
+            .putString(KEY_TIMEZONE_ID, newConfig.timeZoneId)
             .apply()
         _config.value = newConfig
         DateUtils.activeDateFormat = newConfig.effectiveDateFormatPattern
         DateUtils.activeFirstDayOfWeek = newConfig.firstDayOfWeek
+        DateUtils.activeTimeZoneId = newConfig.timeZoneId
     }
 
     fun resetToDefaults() {
@@ -129,6 +142,7 @@ class DisplayFormatPreferences private constructor(context: Context) {
         _config.value = defaultCfg
         DateUtils.activeDateFormat = defaultCfg.effectiveDateFormatPattern
         DateUtils.activeFirstDayOfWeek = defaultCfg.firstDayOfWeek
+        DateUtils.activeTimeZoneId = defaultCfg.timeZoneId
     }
 
     companion object {
@@ -136,6 +150,7 @@ class DisplayFormatPreferences private constructor(context: Context) {
         private const val KEY_DATE_FORMAT = "key_date_format_pattern"
         private const val KEY_CUSTOM_DATE_FORMAT = "key_custom_date_format_pattern"
         private const val KEY_FIRST_DAY_OF_WEEK = "key_first_day_of_week"
+        private const val KEY_TIMEZONE_ID = "key_timezone_id"
 
         @Volatile
         private var instance: DisplayFormatPreferences? = null

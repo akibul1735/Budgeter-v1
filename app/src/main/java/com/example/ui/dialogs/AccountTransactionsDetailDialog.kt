@@ -252,6 +252,24 @@ fun AccountTransactionsDetailDialog(
         else -> SolidPrimary
     }
 
+    val currentLatestBalance = remember(account, allAccounts, accountTransactions, runningBalanceMap) {
+        val subAccountInitial = if (account.parentId == null) {
+            allAccounts.filter { it.parentId == account.id }.sumOf { it.initialBalance }
+        } else 0.0
+        val baseInitial = account.initialBalance + subAccountInitial
+        if (accountTransactions.isEmpty()) {
+            baseInitial
+        } else {
+            // Find latest transaction chronologically
+            val chronological = accountTransactions.sortedWith(
+                compareBy<TransactionWithDetails> { it.transaction.dateEpochMs }
+                    .thenBy { it.transaction.id }
+            )
+            val latestTx = chronological.lastOrNull()
+            latestTx?.let { runningBalanceMap[it.transaction.id] } ?: baseInitial
+        }
+    }
+
     val accountLocalizedName = account.localizedName(languageMode)
 
     // Group displayed transactions by day with net totals
@@ -419,90 +437,120 @@ fun AccountTransactionsDetailDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // 2. Summary Card: Total Inflow vs Outflow
+                // 2. Summary Card: Current Balance & Total Inflow vs Outflow
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Inflow
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .clip(CircleShape)
-                                    .background(SolidIncome.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                    contentDescription = null,
-                                    tint = SolidIncome,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = if (account.type == AccountType.ASSET) "Total Received" else "Total Borrowed",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = LanguageHelper.formatCurrency(totalInflow, languageMode),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SolidIncome
-                                )
-                            }
+                        // Current Balance Display
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "বর্তমান ব্যালেন্স:" else "Current Balance:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = LanguageHelper.formatCurrency(currentLatestBalance, languageMode),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (currentLatestBalance >= 0) SolidIncome else SolidExpense
+                            )
                         }
 
-                        // Vertical Divider
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(32.dp)
-                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                            thickness = 0.8.dp
                         )
 
-                        // Outflow
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Inflow
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(SolidIncome.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                        contentDescription = null,
+                                        tint = SolidIncome,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = if (account.type == AccountType.ASSET) "Received" else "Borrowed",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(totalInflow, languageMode),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidIncome
+                                    )
+                                }
+                            }
+
+                            // Vertical Divider
                             Box(
                                 modifier = Modifier
-                                    .size(30.dp)
-                                    .clip(CircleShape)
-                                    .background(SolidExpense.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.TrendingDown,
-                                    contentDescription = null,
-                                    tint = SolidExpense,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = if (account.type == AccountType.ASSET) "Total Spent / Out" else "Total Paid Off",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = LanguageHelper.formatCurrency(totalOutflow, languageMode),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SolidExpense
-                                )
+                                    .width(1.dp)
+                                    .height(28.dp)
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            )
+
+                            // Outflow
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(SolidExpense.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                                        contentDescription = null,
+                                        tint = SolidExpense,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = if (account.type == AccountType.ASSET) "Spent" else "Paid Off",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(totalOutflow, languageMode),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidExpense
+                                    )
+                                }
                             }
                         }
                     }
