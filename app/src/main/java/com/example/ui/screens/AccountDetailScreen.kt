@@ -135,10 +135,15 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidTransfer
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.AttachFile
+import com.example.ui.components.ExportMenuButton
 import com.example.util.DateUtils
+import com.example.util.ExportFormat
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.PdfPrintHelper
+import com.example.util.TabExportHelper
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -454,6 +459,7 @@ fun AccountDetailScreen(
             if (selectedTxIds.isNotEmpty()) {
                 AccountDetailSelectionTopAppBar(
                     selectedAmountText = selectedAmountText,
+                    languageMode = languageMode,
                     onBack = { selectedTxIds = emptySet() },
                     onSelectAll = {
                         val displayedIds = displayedTransactions.map { it.transaction.id }.toSet()
@@ -476,6 +482,38 @@ fun AccountDetailScreen(
                         }
                         Toast.makeText(context, "Duplicated ${toDuplicate.size} transactions", Toast.LENGTH_SHORT).show()
                         selectedTxIds = emptySet()
+                    },
+                    onExport = { format ->
+                        val selectedList = displayedTransactions.filter { selectedTxIds.contains(it.transaction.id) }
+                        when (format) {
+                            ExportFormat.PDF -> {
+                                val html = buildAccountStatementHtml(
+                                    account = account,
+                                    accountName = accountName,
+                                    transactions = selectedList,
+                                    runningBalanceMap = runningBalanceMap,
+                                    currentBalance = currentEndingBalance,
+                                    filterState = filterState,
+                                    languageMode = languageMode
+                                )
+                                PdfPrintHelper.printHtml(
+                                    context = context,
+                                    jobName = "Statement_${account.nameEn.replace(" ", "_")}_Selected",
+                                    htmlContent = html,
+                                    isLandscape = false
+                                )
+                            }
+                            ExportFormat.CSV, ExportFormat.HTML, ExportFormat.JSON -> {
+                                val summary = "${accountName} (${selectedList.size} ${if (languageMode == LanguageMode.BANGLA) "টি নির্বাচিত লেনদেন" else "Selected Transactions"})"
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = selectedList,
+                                    filterSummary = summary,
+                                    languageMode = languageMode
+                                )
+                            }
+                        }
                     },
                     onChangeName = { showBatchNameDialog = true },
                     onChangeDate = { showBatchDateDialog = true },
@@ -500,24 +538,43 @@ fun AccountDetailScreen(
                     accountName = accountName,
                     isFilterActive = filterState.isActive,
                     activeFilterCount = filterState.activeCount,
+                    languageMode = languageMode,
                     onBack = onDismiss,
                     onFilterClick = { showFilterDialog = true },
-                    onPrintPdf = {
-                        val html = buildAccountStatementHtml(
-                            account = account,
-                            accountName = accountName,
-                            transactions = displayedTransactions,
-                            runningBalanceMap = runningBalanceMap,
-                            currentBalance = currentEndingBalance,
-                            filterState = filterState,
-                            languageMode = languageMode
-                        )
-                        PdfPrintHelper.printHtml(
-                            context = context,
-                            jobName = "Statement_${account.nameEn.replace(" ", "_")}",
-                            htmlContent = html,
-                            isLandscape = false
-                        )
+                    onExport = { format ->
+                        when (format) {
+                            ExportFormat.PDF -> {
+                                val html = buildAccountStatementHtml(
+                                    account = account,
+                                    accountName = accountName,
+                                    transactions = displayedTransactions,
+                                    runningBalanceMap = runningBalanceMap,
+                                    currentBalance = currentEndingBalance,
+                                    filterState = filterState,
+                                    languageMode = languageMode
+                                )
+                                PdfPrintHelper.printHtml(
+                                    context = context,
+                                    jobName = "Statement_${account.nameEn.replace(" ", "_")}",
+                                    htmlContent = html,
+                                    isLandscape = false
+                                )
+                            }
+                            ExportFormat.CSV, ExportFormat.HTML, ExportFormat.JSON -> {
+                                val filterSummary = if (filterState.isActive) {
+                                    "${accountName} (Filtered: ${displayedTransactions.size} transactions)"
+                                } else {
+                                    "${accountName} (All: ${displayedTransactions.size} transactions)"
+                                }
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = displayedTransactions,
+                                    filterSummary = filterSummary,
+                                    languageMode = languageMode
+                                )
+                            }
+                        }
                     }
                 )
             }
@@ -919,9 +976,10 @@ private fun AccountDetailTopAppBar(
     accountName: String,
     isFilterActive: Boolean,
     activeFilterCount: Int,
+    languageMode: LanguageMode,
     onBack: () -> Unit,
     onFilterClick: () -> Unit,
-    onPrintPdf: () -> Unit
+    onExport: (ExportFormat) -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -989,17 +1047,12 @@ private fun AccountDetailTopAppBar(
                 }
             }
 
-            // Print / PDF Icon
-            IconButton(
-                onClick = onPrintPdf,
-                modifier = Modifier.testTag("account_detail_pdf_btn")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Print,
-                    contentDescription = "Print or Export PDF",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            // Export Menu Button (PDF, CSV, HTML, JSON)
+            ExportMenuButton(
+                onExport = onExport,
+                languageMode = languageMode,
+                testTag = "account_detail_export_btn"
+            )
         }
     }
 }
@@ -1152,8 +1205,14 @@ private fun AccountActiveFilterChips(
 }
 
 // -------------------------------------------------------------------------------------------------
-// TABLE TAB (Matching Screenshot 1 & Image 1 Selection)
+// TABLE TAB (Matching LedgerScreen Grouped by Date Layout)
 // -------------------------------------------------------------------------------------------------
+private data class AccountDayGroupedTransactions(
+    val dayEpochMs: Long,
+    val transactions: List<TransactionWithDetails>,
+    val dayNet: Double
+)
+
 @Composable
 private fun AccountDetailTableTab(
     account: Account,
@@ -1194,43 +1253,122 @@ private fun AccountDetailTableTab(
         }
     } else {
         val isSelectionMode = selectedTxIds.isNotEmpty()
+
+        val groupedByDay = remember(transactions, account) {
+            transactions.groupBy { DateUtils.getStartOfDay(it.transaction.dateEpochMs) }
+                .map { (dayEpochMs, dayTxList) ->
+                    var dayInflow = 0.0
+                    var dayOutflow = 0.0
+                    for (item in dayTxList) {
+                        val tx = item.transaction
+                        val isDebit = tx.debitAccountId == account.id
+                        val isCredit = tx.creditAccountId == account.id
+                        val isIncrease = if (account.type == AccountType.ASSET) {
+                            if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
+                        } else {
+                            if (isCredit && !isDebit) tx.amount >= 0 else if (isDebit && !isCredit) tx.amount < 0 else false
+                        }
+                        if (isIncrease) dayInflow += abs(tx.amount) else dayOutflow += abs(tx.amount)
+                    }
+                    AccountDayGroupedTransactions(
+                        dayEpochMs = dayEpochMs,
+                        transactions = dayTxList,
+                        dayNet = dayInflow - dayOutflow
+                    )
+                }
+                .sortedByDescending { it.dayEpochMs }
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
+            contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(transactions, key = { it.transaction.id }) { item ->
-                val tx = item.transaction
-                val runningBal = runningBalanceMap[tx.id]
-                val isSelected = selectedTxIds.contains(tx.id)
+            items(groupedByDay, key = { "day_${it.dayEpochMs}" }) { dayGroup ->
+                // Day Header
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 2.dp),
+                    color = Color.Transparent
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = DateUtils.formatDayHeader(dayGroup.dayEpochMs, languageMode),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
-                AccountDetailTransactionRow(
-                    account = account,
-                    item = item,
-                    runningBal = runningBal,
-                    languageMode = languageMode,
-                    isSelected = isSelected,
-                    isSelectionMode = isSelectionMode,
-                    onClick = {
-                        if (isSelectionMode) {
-                            onToggleSelectTransaction(tx.id)
-                        } else {
-                            onEditTransaction(tx)
-                        }
-                    },
-                    onLongClick = {
-                        onToggleSelectTransaction(tx.id)
-                    },
-                    onAvatarClick = {
-                        onToggleSelectTransaction(tx.id)
+                        val netSign = if (dayGroup.dayNet > 0) "+" else if (dayGroup.dayNet < 0) "−" else ""
+                        val netColor = if (dayGroup.dayNet > 0) SolidIncome else if (dayGroup.dayNet < 0) SolidExpense else MaterialTheme.colorScheme.outline
+                        Text(
+                            text = "$netSign${LanguageHelper.formatCurrency(abs(dayGroup.dayNet), languageMode)}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = netColor
+                        )
                     }
-                )
+                }
+
+                // Day Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        dayGroup.transactions.forEachIndexed { index, item ->
+                            val tx = item.transaction
+                            val runningBal = runningBalanceMap[tx.id]
+                            val isSelected = selectedTxIds.contains(tx.id)
+
+                            AccountDetailTransactionRow(
+                                account = account,
+                                item = item,
+                                runningBal = runningBal,
+                                languageMode = languageMode,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        onToggleSelectTransaction(tx.id)
+                                    } else {
+                                        onEditTransaction(tx)
+                                    }
+                                },
+                                onLongClick = {
+                                    onToggleSelectTransaction(tx.id)
+                                },
+                                onAvatarClick = {
+                                    onToggleSelectTransaction(tx.id)
+                                }
+                            )
+
+                            if (index < dayGroup.transactions.size - 1) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 56.dp, end = 12.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 // -------------------------------------------------------------------------------------------------
-// TRANSACTION ROW (Faithful to Screenshot 1 & Image 1 layout)
+// TRANSACTION ROW (Faithful to LedgerScreen layout)
 // -------------------------------------------------------------------------------------------------
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -1264,7 +1402,7 @@ private fun AccountDetailTransactionRow(
 
     val isTransfer = tx.type == TransactionType.TRANSFER || (tx.debitAccountId != null && tx.creditAccountId != null)
 
-    // Category avatar color and icon (Image 1 uses blue #0288D1 for transfers)
+    // Category avatar color and icon
     val catColor = remember(item.category, isTransfer) {
         if (isTransfer) {
             Color(0xFF0288D1)
@@ -1277,11 +1415,6 @@ private fun AccountDetailTransactionRow(
     }
     val catIcon = remember(item.category, isTransfer) {
         if (isTransfer) Icons.Default.SwapHoriz else IconHelper.getIconByName(item.category?.iconName ?: "")
-    }
-
-    // Formatted date (e.g. "SEPTEMBER 11, 2026")
-    val dateStr = remember(tx.dateEpochMs) {
-        SimpleDateFormat("MMMM d, yyyy", Locale.US).format(Date(tx.dateEpochMs)).uppercase(Locale.US)
     }
 
     // Main title: Payee / Payer if available, else Category name, else Note
@@ -1301,15 +1434,17 @@ private fun AccountDetailTransactionRow(
     // Subtitle: Category/Subcategory or Note
     val subtitle = remember(item, isTransfer) {
         if (isTransfer) {
-            "(Transfer)"
+            val fromName = item.creditAccount?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: "Account"
+            val toName = item.debitAccount?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: "Account"
+            "$fromName ➔ $toName"
         } else {
             val catName = if (languageMode == LanguageMode.BANGLA && item.category?.nameBn?.isNotBlank() == true) {
                 item.category.nameBn
             } else item.category?.nameEn ?: ""
 
-            val subName = item.subCategory?.nameEn ?: ""
+            val subName = item.subCategory?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: ""
             when {
-                catName.isNotBlank() && subName.isNotBlank() -> "$catName ($subName)"
+                catName.isNotBlank() && subName.isNotBlank() -> "$catName > $subName"
                 catName.isNotBlank() -> catName
                 tx.note.isNotBlank() -> tx.note
                 else -> ""
@@ -1322,7 +1457,7 @@ private fun AccountDetailTransactionRow(
     }
 
     // Selection highlight background
-    val rowBg = if (isSelected) Color(0xFF0288D1).copy(alpha = 0.12f) else Color.Transparent
+    val rowBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent
 
     Box(
         modifier = Modifier
@@ -1332,7 +1467,7 @@ private fun AccountDetailTransactionRow(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 9.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1341,9 +1476,9 @@ private fun AccountDetailTransactionRow(
             // Left: Circle Avatar (Checkmark if selected, else Transfer/Category)
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
-                    .background(if (isSelected) Color(0xFF0288D1) else catColor)
+                    .background(if (isSelected) MaterialTheme.colorScheme.primary else catColor.copy(alpha = 0.15f))
                     .clickable(onClick = onAvatarClick),
                 contentAlignment = Alignment.Center
             ) {
@@ -1351,39 +1486,32 @@ private fun AccountDetailTransactionRow(
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Selected",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                 } else {
                     Icon(
                         imageVector = catIcon,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        tint = catColor,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Center Column: Date, Title, Subtitle
+            // Center Column: Title, Subtitle, Badges & Notes
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = dateStr,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.outline,
-                    letterSpacing = 0.5.sp
-                )
-                Spacer(modifier = Modifier.height(1.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = title,
-                        fontSize = 14.5.sp,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     if (isReverted) {
                         Spacer(modifier = Modifier.width(4.dp))
@@ -1410,14 +1538,77 @@ private fun AccountDetailTransactionRow(
                         )
                     }
                 }
+
                 if (subtitle.isNotBlank()) {
                     Text(
                         text = subtitle,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.outline,
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+
+                // Tags, Notes & Attachment indicators
+                val hasLabels = tx.referenceNo.isNotBlank()
+                val hasNotes = tx.note.isNotBlank() && title != tx.note && subtitle != tx.note
+                val hasAttachment = tx.attachmentUri.isNotBlank()
+
+                if (hasLabels || hasNotes || hasAttachment) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (hasLabels) {
+                            val tags = tx.referenceNo.split(" ", ",").filter { it.isNotBlank() }
+                            tags.take(2).forEach { tag ->
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                                ) {
+                                    Text(
+                                        text = if (tag.startsWith("#")) tag else "#$tag",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        if (hasNotes) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Notes,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = tx.note,
+                                    fontSize = 10.5.sp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        if (hasAttachment) {
+                            Icon(
+                                imageVector = Icons.Default.AttachFile,
+                                contentDescription = "Attachment",
+                                tint = SolidPrimary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -1427,14 +1618,14 @@ private fun AccountDetailTransactionRow(
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = "$sign${LanguageHelper.formatCurrency(absAmount, languageMode)}",
-                    fontSize = 14.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = amtColor
                 )
                 if (runningBal != null) {
                     Text(
                         text = "$accountDisplayName ${LanguageHelper.formatCurrency(runningBal, languageMode)}",
-                        fontSize = 11.5.sp,
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.outline,
                         fontWeight = FontWeight.Medium
                     )
@@ -2798,9 +2989,11 @@ private fun buildAccountStatementHtml(
 @Composable
 private fun AccountDetailSelectionTopAppBar(
     selectedAmountText: String,
+    languageMode: LanguageMode,
     onBack: () -> Unit,
     onSelectAll: () -> Unit,
     onDuplicate: () -> Unit,
+    onExport: (ExportFormat) -> Unit,
     onChangeName: () -> Unit,
     onChangeDate: () -> Unit,
     onChangeCategory: () -> Unit,
@@ -2867,6 +3060,12 @@ private fun AccountDetailSelectionTopAppBar(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            ExportMenuButton(
+                onExport = onExport,
+                languageMode = languageMode,
+                testTag = "account_selection_export_btn"
+            )
 
             Box {
                 IconButton(
