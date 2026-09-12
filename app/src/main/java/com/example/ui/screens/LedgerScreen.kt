@@ -2119,9 +2119,9 @@ internal fun TransactionRowItem(
 
             if (accountLine.isNotBlank()) {
                 val accountForIcon = when (tx.type) {
-                    TransactionType.EXPENSE -> item.creditAccount
-                    TransactionType.INCOME -> item.debitAccount
-                    TransactionType.TRANSFER -> if (overrideSign == "+") item.debitAccount else item.creditAccount
+                    TransactionType.EXPENSE -> item.creditAccount ?: item.debitAccount
+                    TransactionType.INCOME -> item.debitAccount ?: item.creditAccount
+                    TransactionType.TRANSFER -> if (overrideSign == "+") (item.debitAccount ?: item.creditAccount) else (item.creditAccount ?: item.debitAccount)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (txConfig.enableAccountIcons && accountForIcon != null) {

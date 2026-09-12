@@ -1330,27 +1330,73 @@ private fun AccountDetailTableTab(
                             val runningBal = runningBalanceMap[tx.id]
                             val isSelected = selectedTxIds.contains(tx.id)
 
-                            AccountDetailTransactionRow(
-                                account = account,
-                                item = item,
-                                runningBal = runningBal,
-                                languageMode = languageMode,
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        onToggleSelectTransaction(tx.id)
-                                    } else {
-                                        onEditTransaction(tx)
-                                    }
-                                },
-                                onLongClick = {
-                                    onToggleSelectTransaction(tx.id)
-                                },
-                                onAvatarClick = {
-                                    onToggleSelectTransaction(tx.id)
+                            if (tx.type == TransactionType.TRANSFER) {
+                                val isSource = tx.creditAccountId == account.id
+                                val transferTitle = if (tx.payeeOrPayer.isNotBlank()) {
+                                    tx.payeeOrPayer
+                                } else {
+                                    val otherAcc = if (isSource) item.debitAccount else item.creditAccount
+                                    otherAcc?.localizedName(languageMode) ?: LanguageHelper.getString("transfer", languageMode)
                                 }
-                            )
+
+                                val overrideSign = if (isSource) "−" else "+"
+                                val overrideAmtColor = if (isSource) SolidExpense else SolidIncome
+
+                                TransactionRowItem(
+                                    item = item,
+                                    languageMode = languageMode,
+                                    isSelected = isSelected,
+                                    isSelectionMode = isSelectionMode,
+                                    accountName = account.localizedName(languageMode),
+                                    accountBalance = runningBal,
+                                    overrideTitle = transferTitle,
+                                    overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
+                                    overrideSign = overrideSign,
+                                    overrideAmtColor = overrideAmtColor,
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            onToggleSelectTransaction(tx.id)
+                                        } else {
+                                            onEditTransaction(tx)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        onToggleSelectTransaction(tx.id)
+                                    }
+                                )
+                            } else {
+                                val isDebit = tx.debitAccountId == account.id
+                                val isCredit = tx.creditAccountId == account.id
+                                val isIncrease = if (account.type == AccountType.ASSET) {
+                                    if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
+                                } else {
+                                    if (isCredit && !isDebit) tx.amount >= 0 else if (isDebit && !isCredit) tx.amount < 0 else false
+                                }
+
+                                val overrideSign = if (isIncrease) "+" else "−"
+                                val overrideAmtColor = if (isIncrease) SolidIncome else SolidExpense
+
+                                TransactionRowItem(
+                                    item = item,
+                                    languageMode = languageMode,
+                                    isSelected = isSelected,
+                                    isSelectionMode = isSelectionMode,
+                                    accountName = account.localizedName(languageMode),
+                                    accountBalance = runningBal,
+                                    overrideSign = overrideSign,
+                                    overrideAmtColor = overrideAmtColor,
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            onToggleSelectTransaction(tx.id)
+                                        } else {
+                                            onEditTransaction(tx)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        onToggleSelectTransaction(tx.id)
+                                    }
+                                )
+                            }
 
                             if (index < dayGroup.transactions.size - 1) {
                                 HorizontalDivider(
@@ -1361,274 +1407,6 @@ private fun AccountDetailTableTab(
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-// TRANSACTION ROW (Faithful to LedgerScreen layout)
-// -------------------------------------------------------------------------------------------------
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun AccountDetailTransactionRow(
-    account: Account,
-    item: TransactionWithDetails,
-    runningBal: Double?,
-    languageMode: LanguageMode,
-    isSelected: Boolean,
-    isSelectionMode: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onAvatarClick: () -> Unit
-) {
-    val tx = item.transaction
-    val isDebit = tx.debitAccountId == account.id
-    val isCredit = tx.creditAccountId == account.id
-
-    // Check if this transaction represents an inflow or outflow for this account
-    val isIncrease = if (account.type == AccountType.ASSET) {
-        if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
-    } else {
-        if (isCredit && !isDebit) tx.amount >= 0 else if (isDebit && !isCredit) tx.amount < 0 else false
-    }
-
-    val isReverted = tx.amount < 0
-    val absAmount = abs(tx.amount)
-
-    val sign = if (isIncrease) "+" else "−"
-    val amtColor = if (isIncrease) SolidIncome else SolidExpense
-
-    val isTransfer = tx.type == TransactionType.TRANSFER || (tx.debitAccountId != null && tx.creditAccountId != null)
-
-    // Category avatar color and icon
-    val catColor = remember(item.category, isTransfer) {
-        if (isTransfer) {
-            Color(0xFF0288D1)
-        } else {
-            val hex = item.category?.colorHex
-            if (!hex.isNullOrBlank()) {
-                try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color(0xFFEA580C) }
-            } else Color(0xFFEA580C)
-        }
-    }
-    val catIcon = remember(item.category, isTransfer) {
-        if (isTransfer) Icons.Default.SwapHoriz else IconHelper.getIconByName(item.category?.iconName ?: "")
-    }
-
-    // Main title: Payee / Payer if available, else Category name, else Note
-    val title = remember(item, isTransfer) {
-        when {
-            tx.payeeOrPayer.isNotBlank() -> tx.payeeOrPayer
-            item.category != null -> if (languageMode == LanguageMode.BANGLA && item.category.nameBn.isNotBlank()) item.category.nameBn else item.category.nameEn
-            isTransfer -> {
-                val otherAcc = if (isDebit) item.creditAccount else item.debitAccount
-                otherAcc?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: "Transfer"
-            }
-            tx.note.isNotBlank() -> tx.note
-            else -> "Transaction"
-        }
-    }
-
-    // Subtitle: Category/Subcategory or Note
-    val subtitle = remember(item, isTransfer) {
-        if (isTransfer) {
-            val fromName = item.creditAccount?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: "Account"
-            val toName = item.debitAccount?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: "Account"
-            "$fromName ➔ $toName"
-        } else {
-            val catName = if (languageMode == LanguageMode.BANGLA && item.category?.nameBn?.isNotBlank() == true) {
-                item.category.nameBn
-            } else item.category?.nameEn ?: ""
-
-            val subName = item.subCategory?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: ""
-            when {
-                catName.isNotBlank() && subName.isNotBlank() -> "$catName > $subName"
-                catName.isNotBlank() -> catName
-                tx.note.isNotBlank() -> tx.note
-                else -> ""
-            }
-        }
-    }
-
-    val accountDisplayName = remember(account, languageMode) {
-        if (languageMode == LanguageMode.BANGLA && account.nameBn.isNotBlank()) account.nameBn else account.nameEn
-    }
-
-    // Selection highlight background
-    val rowBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(rowBg)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .padding(horizontal = 12.dp, vertical = 9.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left: Circle Avatar (Checkmark if selected, else Transfer/Category)
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (isSelected) MaterialTheme.colorScheme.primary else catColor.copy(alpha = 0.15f))
-                    .clickable(onClick = onAvatarClick),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Selected",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                } else {
-                    Icon(
-                        imageVector = catIcon,
-                        contentDescription = null,
-                        tint = catColor,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Center Column: Title, Subtitle, Badges & Notes
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = title,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isReverted) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(3.dp),
-                            color = SolidIncome.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = "Reversal",
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidIncome,
-                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                    if (tx.status == TransactionStatus.RECONCILED) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Reconciled",
-                            tint = SolidIncome,
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
-                }
-
-                if (subtitle.isNotBlank()) {
-                    Text(
-                        text = subtitle,
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Tags, Notes & Attachment indicators
-                val hasLabels = tx.referenceNo.isNotBlank()
-                val hasNotes = tx.note.isNotBlank() && title != tx.note && subtitle != tx.note
-                val hasAttachment = tx.attachmentUri.isNotBlank()
-
-                if (hasLabels || hasNotes || hasAttachment) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        if (hasLabels) {
-                            val tags = tx.referenceNo.split(" ", ",").filter { it.isNotBlank() }
-                            tags.take(2).forEach { tag ->
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                                ) {
-                                    Text(
-                                        text = if (tag.startsWith("#")) tag else "#$tag",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        if (hasNotes) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f, fill = false)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Notes,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(
-                                    text = tx.note,
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        if (hasAttachment) {
-                            Icon(
-                                imageVector = Icons.Default.AttachFile,
-                                contentDescription = "Attachment",
-                                tint = SolidPrimary,
-                                modifier = Modifier.size(12.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Right Column: Amount & Running Balance
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "$sign${LanguageHelper.formatCurrency(absAmount, languageMode)}",
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = amtColor
-                )
-                if (runningBal != null) {
-                    Text(
-                        text = "$accountDisplayName ${LanguageHelper.formatCurrency(runningBal, languageMode)}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontWeight = FontWeight.Medium
-                    )
                 }
             }
         }
