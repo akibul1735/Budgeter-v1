@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import com.example.ui.theme.ThemePreferences
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
@@ -1123,27 +1124,37 @@ fun MainAppContainer(
     }
 
     if (selectedAccountForDetail != null) {
-        AccountTransactionsDetailDialog(
-            account = selectedAccountForDetail!!,
-            allAccounts = allAccounts,
-            allTransactions = transactionsWithDetails,
-            languageMode = languageMode,
-            onDismiss = { selectedAccountForDetail = null },
-            onEditTransaction = { tx ->
-                editingTransaction = tx
-                showAddTransactionSheet = true
-            },
-            onAddTransactionForAccount = { acc: Account ->
-                editingTransaction = null
-                presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
-                showAddTransactionSheet = true
-            },
-            onEditAccount = { acc: Account ->
-                editingAccount = acc
-                presetAccountParentId = acc.parentId
-                showAddAccountDialog = true
-            }
-        )
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(20f),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            AccountDetailScreen(
+                account = selectedAccountForDetail!!,
+                allAccounts = allAccounts,
+                allCategories = allCategories,
+                allTransactions = transactionsWithDetails,
+                languageMode = languageMode,
+                onDismiss = { selectedAccountForDetail = null },
+                onEditTransaction = { tx ->
+                    editingTransaction = tx
+                    showAddTransactionSheet = true
+                },
+                onAddTransactionForAccount = { acc: Account ->
+                    editingTransaction = null
+                    presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
+                    showAddTransactionSheet = true
+                },
+                onEditAccount = { acc: Account ->
+                    editingAccount = acc
+                    presetAccountParentId = acc.parentId
+                    showAddAccountDialog = true
+                },
+                onSaveTransaction = { tx -> viewModel.saveTransaction(tx) },
+                onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) }
+            )
+        }
     }
 
     if (firstLaunchCheckDialogVisible && detectedBackups.isNotEmpty()) {
