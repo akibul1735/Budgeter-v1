@@ -85,6 +85,7 @@ import com.example.util.LanguageHelper
 @Composable
 fun TransactionDetailViewDialog(
     item: TransactionWithDetails,
+    allTransactions: List<TransactionWithDetails> = emptyList(),
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onEdit: (Transaction) -> Unit,
@@ -93,6 +94,10 @@ fun TransactionDetailViewDialog(
 ) {
     val tx = item.transaction
     val context = LocalContext.current
+
+    val linkedFeeItem = if (tx.type == TransactionType.TRANSFER) {
+        com.example.util.TransactionLinkHelper.findLinkedFeeTransaction(tx, allTransactions)
+    } else null
 
     val isExpense = tx.type == TransactionType.EXPENSE
     val isIncome = tx.type == TransactionType.INCOME
@@ -311,21 +316,29 @@ fun TransactionDetailViewDialog(
                     val accountDisplay = when (tx.type) {
                         TransactionType.EXPENSE -> {
                             val name = item.creditAccount?.localizedName(languageMode) ?: "-"
-                            val isInc = tx.amount < 0
+                            val isLiab = item.creditAccount?.type == AccountType.LIABILITY
+                            // For Liability: expense/outflow increases debt -> ⩓
+                            val isInc = if (isLiab) (tx.amount >= 0) else (tx.amount < 0)
                             val caret = if (isInc) "⩓" else "⩔"
                             "$name  $caret"
                         }
                         TransactionType.INCOME -> {
                             val name = item.debitAccount?.localizedName(languageMode) ?: "-"
-                            val isInc = tx.amount >= 0
+                            val isLiab = item.debitAccount?.type == AccountType.LIABILITY
+                            // For Liability: income/inflow decreases debt -> ⩔
+                            val isInc = if (isLiab) (tx.amount < 0) else (tx.amount >= 0)
                             val caret = if (isInc) "⩓" else "⩔"
                             "$name  $caret"
                         }
                         TransactionType.TRANSFER -> {
-                            val from = item.creditAccount?.localizedName(languageMode) ?: "-"
-                            val to = item.debitAccount?.localizedName(languageMode) ?: "-"
-                            val fromInc = tx.amount < 0
-                            val toInc = tx.amount >= 0
+                            val fromAcc = item.creditAccount
+                            val toAcc = item.debitAccount
+                            val from = fromAcc?.localizedName(languageMode) ?: "-"
+                            val to = toAcc?.localizedName(languageMode) ?: "-"
+                            val fromIsLiab = fromAcc?.type == AccountType.LIABILITY
+                            val toIsLiab = toAcc?.type == AccountType.LIABILITY
+                            val fromInc = if (fromIsLiab) (tx.amount >= 0) else (tx.amount < 0)
+                            val toInc = if (toIsLiab) (tx.amount < 0) else (tx.amount >= 0)
                             val fromCaret = if (fromInc) "⩓" else "⩔"
                             val toCaret = if (toInc) "⩓" else "⩔"
                             "$from ($fromCaret)  ➔  $to ($toCaret)"
@@ -347,6 +360,23 @@ fun TransactionDetailViewDialog(
                             { onAccountClick(targetAccount) }
                         } else null
                     )
+
+                    // 3b. Linked Transfer Fee Details
+                    if (linkedFeeItem != null) {
+                        val feeAcc = linkedFeeItem.creditAccount?.localizedName(languageMode) ?: ""
+                        val feeCat = linkedFeeItem.category?.localizedName(languageMode)
+                        val feeDisplay = buildString {
+                            append(LanguageHelper.formatCurrency(linkedFeeItem.transaction.amount, languageMode))
+                            if (feeAcc.isNotBlank()) append(" • $feeAcc")
+                            if (!feeCat.isNullOrBlank()) append(" • $feeCat")
+                        }
+                        DetailItemRow(
+                            icon = Icons.Default.SwapHoriz,
+                            label = if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার ফি" else "Transfer Fee",
+                            value = feeDisplay,
+                            valueColor = SolidExpense
+                        )
+                    }
 
                     // 4. Labels / Tags
                     if (tx.referenceNo.isNotBlank()) {

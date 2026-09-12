@@ -711,6 +711,37 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun saveTransferWithFee(transferTx: Transaction, feeTx: Transaction?, previousFeeTxId: Long? = null) {
+        viewModelScope.launch {
+            val transferId = if (transferTx.id == 0L) {
+                activeRepo.insertTransaction(transferTx)
+            } else {
+                activeRepo.updateTransaction(transferTx)
+                transferTx.id
+            }
+
+            transferTx.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
+            transferTx.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
+
+            if (feeTx != null && feeTx.amount > 0) {
+                val tagPattern = "[TransferTx:$transferId]"
+                val feeNote = if (feeTx.note.contains("[TransferTx:")) feeTx.note else "${feeTx.note} $tagPattern".trim()
+                val feeToSave = feeTx.copy(note = feeNote)
+
+                if (previousFeeTxId != null && previousFeeTxId > 0L) {
+                    activeRepo.updateTransaction(feeToSave.copy(id = previousFeeTxId))
+                } else if (feeToSave.id != 0L) {
+                    activeRepo.updateTransaction(feeToSave)
+                } else {
+                    activeRepo.insertTransaction(feeToSave)
+                }
+                feeToSave.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
+            } else if (previousFeeTxId != null && previousFeeTxId > 0L) {
+                activeRepo.deleteTransactionById(previousFeeTxId)
+            }
+        }
+    }
+
     fun updateTransactions(transactions: List<Transaction>) {
         viewModelScope.launch {
             activeRepo.updateTransactions(transactions)
@@ -723,13 +754,34 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             trashManager.addTransaction(transaction)
             activeRepo.deleteTransaction(transaction)
+
+            // If deleting a transfer, also delete any linked fee transaction
+            if (transaction.type == TransactionType.TRANSFER) {
+                val currentTxs = transactionsWithDetails.value
+                val linkedFee = com.example.util.TransactionLinkHelper.findLinkedFeeTransaction(transaction, currentTxs)
+                if (linkedFee != null) {
+                    trashManager.addTransaction(linkedFee.transaction)
+                    activeRepo.deleteTransaction(linkedFee.transaction)
+                }
+            }
         }
     }
 
     fun deleteTransactions(transactions: List<Transaction>) {
         viewModelScope.launch {
-            transactions.forEach { trashManager.addTransaction(it) }
-            activeRepo.deleteTransactions(transactions)
+            val currentTxs = transactionsWithDetails.value
+            val allToDelete = mutableListOf<Transaction>()
+            transactions.forEach { tx ->
+                allToDelete.add(tx)
+                if (tx.type == TransactionType.TRANSFER) {
+                    val linkedFee = com.example.util.TransactionLinkHelper.findLinkedFeeTransaction(tx, currentTxs)
+                    if (linkedFee != null && !transactions.any { it.id == linkedFee.transaction.id }) {
+                        allToDelete.add(linkedFee.transaction)
+                    }
+                }
+            }
+            allToDelete.forEach { trashManager.addTransaction(it) }
+            activeRepo.deleteTransactions(allToDelete)
         }
     }
 

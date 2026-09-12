@@ -780,6 +780,7 @@ class BudgetRepository(
     suspend fun updateTransactions(transactions: List<Transaction>) = transactionDao.updateTransactions(transactions)
     suspend fun deleteTransaction(transaction: Transaction) = transactionDao.deleteTransaction(transaction)
     suspend fun deleteTransactions(transactions: List<Transaction>) = transactionDao.deleteTransactions(transactions)
+    suspend fun deleteTransactionById(id: Long) = transactionDao.deleteTransactionById(id)
 
     suspend fun insertRecurringBill(bill: RecurringBill): Long = recurringBillDao.insertBill(bill)
     suspend fun updateRecurringBill(bill: RecurringBill) = recurringBillDao.updateBill(bill)

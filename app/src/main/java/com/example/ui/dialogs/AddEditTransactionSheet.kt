@@ -57,6 +57,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -272,6 +276,24 @@ fun AddEditTransactionSheet(
         )
     }
 
+    var amountTextFieldValue by remember {
+        mutableStateOf(
+            TextFieldValue(
+                text = amountText,
+                selection = TextRange(0, amountText.length)
+            )
+        )
+    }
+
+    LaunchedEffect(amountText) {
+        if (amountTextFieldValue.text != amountText) {
+            amountTextFieldValue = TextFieldValue(
+                text = amountText,
+                selection = TextRange(0, amountText.length)
+            )
+        }
+    }
+
     var selectedDateEpochMs by remember {
         mutableLongStateOf(existingTransaction?.dateEpochMs ?: System.currentTimeMillis())
     }
@@ -332,12 +354,57 @@ fun AddEditTransactionSheet(
     }
 
     // Transfer Fee State
-    var hasTransferFee by remember { mutableStateOf(false) }
-    var transferFeeAmount by remember { mutableDoubleStateOf(0.0) }
-    var transferFeeAmountText by remember { mutableStateOf("") }
-    var transferFeeAccountId by remember { mutableStateOf<Long?>(null) }
-    var transferFeeCategoryId by remember { mutableStateOf<Long?>(null) }
-    var transferFeeSubCategoryId by remember { mutableStateOf<Long?>(null) }
+    val existingFeeItem = remember(existingTransaction, allTransactions) {
+        if (existingTransaction != null && existingTransaction.type == TransactionType.TRANSFER) {
+            com.example.util.TransactionLinkHelper.findLinkedFeeTransaction(existingTransaction, allTransactions)
+        } else null
+    }
+    val existingFeeTx = existingFeeItem?.transaction
+
+    var hasTransferFee by remember { mutableStateOf(existingFeeTx != null) }
+    var transferFeeAmount by remember { mutableDoubleStateOf(existingFeeTx?.amount ?: 0.0) }
+    var transferFeeAmountText by remember {
+        mutableStateOf(
+            if (existingFeeTx != null && existingFeeTx.amount > 0.0) {
+                LanguageHelper.formatAmountNumber(
+                    value = existingFeeTx.amount,
+                    mode = LanguageMode.ENGLISH,
+                    groupingSeparator = amountFormatConfig.effectiveGroupingSeparator,
+                    decimalSeparator = amountFormatConfig.effectiveDecimalSeparator,
+                    groupingStyle = amountFormatConfig.effectiveGroupingStyle,
+                    decimalPlaces = 2
+                )
+            } else ""
+        )
+    }
+    var transferFeeAccountId by remember {
+        mutableStateOf<Long?>(existingFeeTx?.creditAccountId ?: (if (existingTransaction != null) existingTransaction.creditAccountId else null))
+    }
+    var transferFeeCategoryId by remember {
+        mutableStateOf<Long?>(existingFeeTx?.categoryId)
+    }
+    var transferFeeSubCategoryId by remember {
+        mutableStateOf<Long?>(existingFeeTx?.subCategoryId)
+    }
+
+    var transferFeeTextFieldValue by remember {
+        mutableStateOf(
+            TextFieldValue(
+                text = transferFeeAmountText,
+                selection = TextRange(0, transferFeeAmountText.length)
+            )
+        )
+    }
+
+    LaunchedEffect(transferFeeAmountText) {
+        if (transferFeeTextFieldValue.text != transferFeeAmountText) {
+            transferFeeTextFieldValue = TextFieldValue(
+                text = transferFeeAmountText,
+                selection = TextRange(0, transferFeeAmountText.length)
+            )
+        }
+    }
+
     var showTransferFeeCalculator by remember { mutableStateOf(false) }
     var showTransferFeeCategoryPicker by remember { mutableStateOf(false) }
 
@@ -1454,12 +1521,18 @@ fun AddEditTransactionSheet(
 
                                 // Direct Numeric Amount Input
                                 BasicTextField(
-                                    value = amountText,
-                                    onValueChange = { input ->
-                                        val clean = input.filter {
+                                    value = amountTextFieldValue,
+                                    onValueChange = { newVal ->
+                                        val clean = newVal.text.filter {
                                             it.isDigit() || it == '.' || it.toString() == amountFormatConfig.effectiveGroupingSeparator || it.toString() == amountFormatConfig.effectiveDecimalSeparator
                                         }
                                         if (clean.length <= 16) {
+                                            val selection = if (clean.length != newVal.text.length) {
+                                                TextRange(clean.length)
+                                            } else {
+                                                newVal.selection
+                                            }
+                                            amountTextFieldValue = newVal.copy(text = clean, selection = selection)
                                             amountText = clean
                                             amount = parseAmountInput(clean)
                                         }
@@ -1483,17 +1556,35 @@ fun AddEditTransactionSheet(
                                             val parsed = parseAmountInput(amountText)
                                             if (parsed > 0.0) {
                                                 amount = parsed
-                                                amountText = formatAmountInput(parsed)
+                                                val formatted = formatAmountInput(parsed)
+                                                amountText = formatted
+                                                amountTextFieldValue = TextFieldValue(formatted, selection = TextRange(0, formatted.length))
                                             }
                                         }
                                     ),
                                     singleLine = true,
                                     modifier = Modifier
                                         .weight(1f)
-                                        .testTag("tx_amount_input"),
+                                        .testTag("tx_amount_input")
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused && amountTextFieldValue.text.isNotEmpty()) {
+                                                amountTextFieldValue = amountTextFieldValue.copy(
+                                                    selection = TextRange(0, amountTextFieldValue.text.length)
+                                                )
+                                            }
+                                        }
+                                        .pointerInput(amountTextFieldValue.text) {
+                                            detectTapGestures {
+                                                if (amountTextFieldValue.text.isNotEmpty()) {
+                                                    amountTextFieldValue = amountTextFieldValue.copy(
+                                                        selection = TextRange(0, amountTextFieldValue.text.length)
+                                                    )
+                                                }
+                                            }
+                                        },
                                     decorationBox = { innerTextField ->
                                         Box(contentAlignment = Alignment.CenterStart) {
-                                            if (amountText.isEmpty()) {
+                                            if (amountTextFieldValue.text.isEmpty()) {
                                                 Text(
                                                     text = "0",
                                                     fontSize = 26.sp,
@@ -1900,9 +1991,15 @@ fun AddEditTransactionSheet(
                                                 )
 
                                                 OutlinedTextField(
-                                                    value = transferFeeAmountText,
+                                                    value = transferFeeTextFieldValue,
                                                     onValueChange = { newVal ->
-                                                        val clean = newVal.filter { it.isDigit() || it == '.' }
+                                                        val clean = newVal.text.filter { it.isDigit() || it == '.' }
+                                                        val selection = if (clean.length != newVal.text.length) {
+                                                            TextRange(clean.length)
+                                                        } else {
+                                                            newVal.selection
+                                                        }
+                                                        transferFeeTextFieldValue = newVal.copy(text = clean, selection = selection)
                                                         transferFeeAmountText = clean
                                                         transferFeeAmount = clean.toDoubleOrNull() ?: 0.0
                                                     },
@@ -1917,7 +2014,23 @@ fun AddEditTransactionSheet(
                                                     ),
                                                     modifier = Modifier
                                                         .weight(1f)
-                                                        .padding(end = 6.dp),
+                                                        .padding(end = 6.dp)
+                                                        .onFocusChanged { focusState ->
+                                                            if (focusState.isFocused && transferFeeTextFieldValue.text.isNotEmpty()) {
+                                                                transferFeeTextFieldValue = transferFeeTextFieldValue.copy(
+                                                                    selection = TextRange(0, transferFeeTextFieldValue.text.length)
+                                                                )
+                                                            }
+                                                        }
+                                                        .pointerInput(transferFeeTextFieldValue.text) {
+                                                            detectTapGestures {
+                                                                if (transferFeeTextFieldValue.text.isNotEmpty()) {
+                                                                    transferFeeTextFieldValue = transferFeeTextFieldValue.copy(
+                                                                        selection = TextRange(0, transferFeeTextFieldValue.text.length)
+                                                                    )
+                                                                }
+                                                            }
+                                                        },
                                                     colors = OutlinedTextFieldDefaults.colors(
                                                         focusedBorderColor = SolidTransfer,
                                                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant

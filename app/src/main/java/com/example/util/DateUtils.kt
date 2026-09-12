@@ -263,6 +263,15 @@ object DateUtils {
         return cal.timeInMillis
     }
 
+    fun getEndOfDay(epochMs: Long = System.currentTimeMillis()): Long {
+        val cal = getCalendar().apply { timeInMillis = epochMs }
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        return cal.timeInMillis
+    }
+
     fun isSameDay(epochMs1: Long, epochMs2: Long): Boolean {
         val cal1 = getCalendar().apply { timeInMillis = epochMs1 }
         val cal2 = getCalendar().apply { timeInMillis = epochMs2 }

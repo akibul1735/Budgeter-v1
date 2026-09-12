@@ -1052,6 +1052,7 @@ fun LedgerScreen(
     viewingTransactionItem?.let { viewItem ->
         TransactionDetailViewDialog(
             item = viewItem,
+            allTransactions = transactions,
             languageMode = languageMode,
             onDismiss = { viewingTransactionItem = null },
             onEdit = { tx ->
