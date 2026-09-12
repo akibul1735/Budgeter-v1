@@ -8,6 +8,9 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.example.util.CreateDocumentWithInitialUri
+import com.example.util.OpenDocumentWithInitialUri
+import com.example.util.StorageLocationHelper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -299,31 +302,41 @@ fun BackupSyncSettingsScreen(
     }
 
     val exportFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
+        contract = CreateDocumentWithInitialUri("application/json") {
+            StorageLocationHelper.getInitialStorageUri(context, config.localBackupDirectory)
+        }
     ) { uri: Uri? ->
         uri?.let { viewModel.exportBackupToUri(it) }
     }
 
     val importFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = OpenDocumentWithInitialUri {
+            StorageLocationHelper.getInitialStorageUri(context, config.localBackupDirectory)
+        }
     ) { uri: Uri? ->
         uri?.let { viewModel.restoreBackupFromUri(it) }
     }
 
     val csvFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = OpenDocumentWithInitialUri {
+            StorageLocationHelper.getInitialStorageUri(context, config.localBackupDirectory)
+        }
     ) { uri: Uri? ->
         uri?.let { viewModel.importFromCsv(it) }
     }
 
     val qifFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = OpenDocumentWithInitialUri {
+            StorageLocationHelper.getInitialStorageUri(context, config.localBackupDirectory)
+        }
     ) { uri: Uri? ->
         uri?.let { viewModel.importFromQif(it) }
     }
 
     val csvExportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/csv")
+        contract = CreateDocumentWithInitialUri("text/csv") {
+            StorageLocationHelper.getInitialStorageUri(context, config.localBackupDirectory)
+        }
     ) { uri: Uri? ->
         uri?.let { destUri ->
             pendingCsvExportConfig?.let { cfg ->
@@ -1207,7 +1220,7 @@ fun BackupSyncSettingsScreen(
 
                         OutlinedButton(
                             onClick = {
-                                importFileLauncher.launch(arrayOf("application/json", "*/*"))
+                                importFileLauncher.launch(StorageLocationHelper.JSON_MIME_TYPES)
                             },
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f),
@@ -1393,7 +1406,7 @@ fun BackupSyncSettingsScreen(
                                     Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
                                 },
                                 onClick = {
-                                    csvFileLauncher.launch(arrayOf("text/csv", "text/comma-separated-values", "application/csv", "text/plain", "*/*"))
+                                    csvFileLauncher.launch(StorageLocationHelper.CSV_EXCEL_MIME_TYPES)
                                 }
                             )
 
@@ -1408,7 +1421,7 @@ fun BackupSyncSettingsScreen(
                                     Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
                                 },
                                 onClick = {
-                                    qifFileLauncher.launch(arrayOf("text/plain", "application/qif", "*/*"))
+                                    qifFileLauncher.launch(StorageLocationHelper.QIF_MIME_TYPES)
                                 }
                             )
 
@@ -1423,7 +1436,7 @@ fun BackupSyncSettingsScreen(
                                     Icon(Icons.AutoMirrored.Filled.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
                                 },
                                 onClick = {
-                                    importFileLauncher.launch(arrayOf("application/json", "*/*"))
+                                    importFileLauncher.launch(StorageLocationHelper.JSON_MIME_TYPES)
                                 }
                             )
                         }

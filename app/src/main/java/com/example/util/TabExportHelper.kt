@@ -1444,39 +1444,25 @@ object TabExportHelper {
         chooserTitle: String
     ) {
         try {
-            // 1. Save directly into the selected local sync folder under "Exports" subfolder
+            // Launch transparent export activity to open user-selected storage location ("Storage / Budgeter")
+            com.example.ui.activities.ExportDocActivity.start(
+                context = context,
+                fileName = fileName,
+                mimeType = mimeType,
+                content = content,
+                title = chooserTitle
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback: save directly to local folder
             val savedLocation = BackupManager.saveExportToLocalFolder(
                 context = context,
                 fileName = fileName,
                 mimeType = mimeType,
                 content = content
             )
-
-            // 2. Prepare cached copy for Android Share Sheet
-            val file = File(context.cacheDir, fileName)
-            val fos = FileOutputStream(file)
-            fos.write(content.toByteArray(Charsets.UTF_8))
-            fos.flush()
-            fos.close()
-
-            val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = mimeType
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, chooserTitle)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(intent, chooserTitle))
-
-            val feedback = if (savedLocation != null) {
-                "Saved to $savedLocation"
-            } else {
-                "Export ready: $fileName"
-            }
+            val feedback = if (savedLocation != null) "Saved to $savedLocation" else "Exported $fileName"
             Toast.makeText(context, feedback, Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(context, "Export error: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
 

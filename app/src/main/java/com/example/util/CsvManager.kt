@@ -338,7 +338,7 @@ object CsvManager {
                 columnMappings = columnMappings,
                 rawHeaders = rawHeaders,
                 detectedHeaderMap = effectiveHeaderMap,
-                sampleRows = parsedRows.take(15),
+                sampleRows = parsedRows.sortedByDescending { it.dateEpochMs }.take(15),
                 unsupportedRows = unsupportedRows.take(20),
                 newCategoryGroups = newCatGroups.toList(),
                 newCategories = newCats.toList(),

@@ -2125,7 +2125,11 @@ private fun AccountReconcileBottomSheet(
             if (diff >= 0.01) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "An adjustment transaction amounting to ${LanguageHelper.formatCurrency(diff, languageMode)} will be created",
+                    text = if (languageMode == LanguageMode.BANGLA) {
+                        "${LanguageHelper.formatCurrency(diff, languageMode)} পরিমাণের একটি সমন্বয় লেনদেন তৈরি করা হবে"
+                    } else {
+                        "An adjustment transaction amounting to ${LanguageHelper.formatCurrency(diff, languageMode)} will be created"
+                    },
                     fontSize = 13.5.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 18.sp
