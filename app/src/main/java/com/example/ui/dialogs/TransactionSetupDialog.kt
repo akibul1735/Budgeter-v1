@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,6 +57,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
@@ -86,6 +88,7 @@ import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DisplayFormatConfig
 import com.example.util.DisplayFormatPreferences
+import com.example.util.IconHelper
 import com.example.util.ItemDisplayFormat
 import com.example.util.LabelsDisplayMode
 import com.example.util.NotesDisplayMode
@@ -240,8 +243,7 @@ fun TransactionSetupDialog(
                     1 -> DefaultsAndNamesTab(
                         txConfig = txConfig,
                         accounts = accounts,
-                        incomeCategories = incomeCategories,
-                        expenseCategories = expenseCategories,
+                        categories = categories,
                         isBangla = isBangla,
                         onUpdate = { txPrefs.updateConfig(it) }
                     )
@@ -517,11 +519,11 @@ private fun InputAndDateTab(
 private fun DefaultsAndNamesTab(
     txConfig: TransactionConfig,
     accounts: List<Account>,
-    incomeCategories: List<Category>,
-    expenseCategories: List<Category>,
+    categories: List<Category>,
     isBangla: Boolean,
     onUpdate: ((TransactionConfig) -> TransactionConfig) -> Unit
 ) {
+    val languageMode = if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Section A: Default Account & Category Card
         Card(
@@ -539,39 +541,109 @@ private fun DefaultsAndNamesTab(
                 )
 
                 // 1. Default Account
-                SelectorRow(
+                val parentAccounts = remember(accounts) { accounts.filter { it.parentId == null && it.isActive } }
+                val currentAccount = accounts.firstOrNull { it.id == txConfig.defaultAccountId }
+                val parentOfCurrentAccount = if (currentAccount?.parentId != null) accounts.firstOrNull { it.id == currentAccount.parentId } else null
+                val currentAccountDisplay = if (currentAccount != null) {
+                    if (parentOfCurrentAccount != null) {
+                        "${parentOfCurrentAccount.localizedName(languageMode)} > ${currentAccount.localizedName(languageMode)}"
+                    } else {
+                        currentAccount.localizedName(languageMode)
+                    }
+                } else {
+                    if (isBangla) "কোনোটি নয় (সর্বশেষ ব্যবহৃত)" else "None (Last Used)"
+                }
+
+                val accountGroups = parentAccounts.map { it.localizedName(languageMode) to it.iconName }
+                val accountsByGroup = parentAccounts.associate { parent ->
+                    val children = accounts.filter { it.parentId == parent.id && it.isActive }
+                    val items = if (children.isNotEmpty()) children else listOf(parent)
+                    parent.localizedName(languageMode) to items.map { it.id to it.localizedName(languageMode) }
+                }
+
+                GroupedSelectorRow(
                     icon = Icons.Default.AccountBalance,
                     title = if (isBangla) "ডিফল্ট অ্যাকাউন্ট" else "Default Account",
-                    selectedName = accounts.firstOrNull { it.id == txConfig.defaultAccountId }?.localizedName(if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH)
-                        ?: (if (isBangla) "কোনোটি নয় (সর্বশেষ ব্যবহৃত)" else "None (Last Used)"),
-                    options = listOf(null to (if (isBangla) "কোনোটি নয় (স্বয়ংক্রিয়)" else "None (Auto)")) +
-                            accounts.map { it.id to it.localizedName(if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH) },
+                    selectedName = currentAccountDisplay,
+                    groups = accountGroups,
+                    itemsByGroup = accountsByGroup,
+                    noneOptionLabel = if (isBangla) "কোনোটি নয় (সর্বশেষ ব্যবহৃত)" else "None (Last Used)",
+                    selectedId = txConfig.defaultAccountId,
+                    tintColor = SolidPrimary,
                     onSelect = { id -> onUpdate { it.copy(defaultAccountId = id) } }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 // 2. Default Expense Category
-                SelectorRow(
+                val parentExpenseCategories = remember(categories) {
+                    categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
+                }
+                val currentExpenseCat = categories.firstOrNull { it.id == txConfig.defaultExpenseCategoryId }
+                val parentOfCurrentExpenseCat = if (currentExpenseCat?.parentId != null) categories.firstOrNull { it.id == currentExpenseCat.parentId } else null
+                val currentExpenseCatDisplay = if (currentExpenseCat != null) {
+                    if (parentOfCurrentExpenseCat != null) {
+                        "${parentOfCurrentExpenseCat.localizedName(languageMode)} > ${currentExpenseCat.localizedName(languageMode)}"
+                    } else {
+                        currentExpenseCat.localizedName(languageMode)
+                    }
+                } else {
+                    if (isBangla) "কোনোটি নয়" else "None"
+                }
+
+                val expenseGroups = parentExpenseCategories.map { it.localizedName(languageMode) to it.iconName }
+                val expenseByGroup = parentExpenseCategories.associate { parent ->
+                    val children = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == parent.id && it.isActive }
+                    val items = if (children.isNotEmpty()) children else listOf(parent)
+                    parent.localizedName(languageMode) to items.map { it.id to it.localizedName(languageMode) }
+                }
+
+                GroupedSelectorRow(
                     icon = Icons.Default.Category,
                     title = if (isBangla) "ডিফল্ট খরচ ক্যাটাগরি" else "Default Expense Category",
-                    selectedName = expenseCategories.firstOrNull { it.id == txConfig.defaultExpenseCategoryId }?.localizedName(if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH)
-                        ?: (if (isBangla) "কোনোটি নয়" else "None"),
-                    options = listOf(null to (if (isBangla) "কোনোটি নয়" else "None")) +
-                            expenseCategories.map { it.id to it.localizedName(if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH) },
+                    selectedName = currentExpenseCatDisplay,
+                    groups = expenseGroups,
+                    itemsByGroup = expenseByGroup,
+                    noneOptionLabel = if (isBangla) "কোনোটি নয়" else "None",
+                    selectedId = txConfig.defaultExpenseCategoryId,
+                    tintColor = SolidExpense,
                     onSelect = { id -> onUpdate { it.copy(defaultExpenseCategoryId = id) } }
                 )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 // 3. Default Income Category
-                SelectorRow(
+                val parentIncomeCategories = remember(categories) {
+                    categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
+                }
+                val currentIncomeCat = categories.firstOrNull { it.id == txConfig.defaultIncomeCategoryId }
+                val parentOfCurrentIncomeCat = if (currentIncomeCat?.parentId != null) categories.firstOrNull { it.id == currentIncomeCat.parentId } else null
+                val currentIncomeCatDisplay = if (currentIncomeCat != null) {
+                    if (parentOfCurrentIncomeCat != null) {
+                        "${parentOfCurrentIncomeCat.localizedName(languageMode)} > ${currentIncomeCat.localizedName(languageMode)}"
+                    } else {
+                        currentIncomeCat.localizedName(languageMode)
+                    }
+                } else {
+                    if (isBangla) "কোনোটি নয়" else "None"
+                }
+
+                val incomeGroups = parentIncomeCategories.map { it.localizedName(languageMode) to it.iconName }
+                val incomeByGroup = parentIncomeCategories.associate { parent ->
+                    val children = categories.filter { it.type == CategoryType.INCOME && it.parentId == parent.id && it.isActive }
+                    val items = if (children.isNotEmpty()) children else listOf(parent)
+                    parent.localizedName(languageMode) to items.map { it.id to it.localizedName(languageMode) }
+                }
+
+                GroupedSelectorRow(
                     icon = Icons.Default.Category,
                     title = if (isBangla) "ডিফল্ট আয় ক্যাটাগরি" else "Default Income Category",
-                    selectedName = incomeCategories.firstOrNull { it.id == txConfig.defaultIncomeCategoryId }?.localizedName(if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH)
-                        ?: (if (isBangla) "কোনোটি নয়" else "None"),
-                    options = listOf(null to (if (isBangla) "কোনোটি নয়" else "None")) +
-                            incomeCategories.map { it.id to it.localizedName(if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH) },
+                    selectedName = currentIncomeCatDisplay,
+                    groups = incomeGroups,
+                    itemsByGroup = incomeByGroup,
+                    noneOptionLabel = if (isBangla) "কোনোটি নয়" else "None",
+                    selectedId = txConfig.defaultIncomeCategoryId,
+                    tintColor = SolidIncome,
                     onSelect = { id -> onUpdate { it.copy(defaultIncomeCategoryId = id) } }
                 )
             }
@@ -909,6 +981,127 @@ private fun PlusOneToggleRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
         )
+    }
+}
+
+@Composable
+private fun GroupedSelectorRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    selectedName: String,
+    groups: List<Pair<String, String>>,
+    itemsByGroup: Map<String, List<Pair<Long, String>>>,
+    noneOptionLabel: String,
+    selectedId: Long?,
+    tintColor: Color = SolidPrimary,
+    onSelect: (Long?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = tintColor, modifier = Modifier.size(20.dp))
+            Column {
+                Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(text = selectedName, fontSize = 12.sp, color = tintColor, fontWeight = FontWeight.Medium)
+            }
+        }
+
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Select", fontSize = 12.sp)
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .heightIn(max = 400.dp)
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = noneOptionLabel,
+                            fontWeight = if (selectedId == null) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedId == null) tintColor else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    trailingIcon = if (selectedId == null) {
+                        { Icon(Icons.Default.Check, contentDescription = null, tint = tintColor, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                    onClick = {
+                        onSelect(null)
+                        expanded = false
+                    }
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                groups.forEach { (groupName, iconName) ->
+                    val childItems = itemsByGroup[groupName] ?: emptyList()
+
+                    // Group Header (Not selectable)
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = IconHelper.getIconByName(iconName),
+                                contentDescription = null,
+                                tint = tintColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = groupName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = tintColor
+                            )
+                        }
+                    }
+
+                    childItems.forEach { (id, name) ->
+                        val isSelected = selectedId == id
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = name,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) tintColor else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(start = 16.dp)
+                                )
+                            },
+                            trailingIcon = if (isSelected) {
+                                { Icon(Icons.Default.Check, contentDescription = null, tint = tintColor, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            onClick = {
+                                onSelect(id)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

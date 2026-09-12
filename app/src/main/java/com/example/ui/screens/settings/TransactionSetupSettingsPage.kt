@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -86,6 +87,7 @@ import com.example.ui.theme.SolidPrimary
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.DisplayFormatConfig
 import com.example.util.DisplayFormatPreferences
+import com.example.util.IconHelper
 import com.example.util.ItemDisplayFormat
 import com.example.util.LabelsDisplayMode
 import com.example.util.NotesDisplayMode
@@ -372,7 +374,7 @@ fun TransactionSetupSettingsPage(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            // Default Account
+                            // 1. Default Account
                             Text(
                                 text = if (isBangla) "ডিফল্ট অ্যাকাউন্ট" else "Default Account",
                                 fontWeight = FontWeight.Bold,
@@ -381,7 +383,18 @@ fun TransactionSetupSettingsPage(
                             )
 
                             var showAccountDropdown by remember { mutableStateOf(false) }
+                            val parentAccounts = remember(accounts) { accounts.filter { it.parentId == null && it.isActive } }
                             val currentAccount = accounts.firstOrNull { it.id == txConfig.defaultAccountId }
+                            val parentOfCurrentAccount = if (currentAccount?.parentId != null) accounts.firstOrNull { it.id == currentAccount.parentId } else null
+                            val currentAccountDisplay = if (currentAccount != null) {
+                                if (parentOfCurrentAccount != null) {
+                                    "${parentOfCurrentAccount.localizedName(languageMode)} > ${currentAccount.localizedName(languageMode)}"
+                                } else {
+                                    currentAccount.localizedName(languageMode)
+                                }
+                            } else {
+                                if (isBangla) "কোনো ডিফল্ট নেই (শেষ ব্যবহৃত)" else "None (Use Last Selected)"
+                            }
 
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedButton(
@@ -395,8 +408,9 @@ fun TransactionSetupSettingsPage(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = currentAccount?.localizedName(languageMode) ?: (if (isBangla) "কোনো ডিফল্ট নেই (শেষ ব্যবহৃত)" else "None (Use Last Selected)"),
-                                            fontSize = 13.sp
+                                            text = currentAccountDisplay,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (txConfig.defaultAccountId != null) FontWeight.SemiBold else FontWeight.Normal
                                         )
                                         Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
                                     }
@@ -404,30 +418,86 @@ fun TransactionSetupSettingsPage(
 
                                 DropdownMenu(
                                     expanded = showAccountDropdown,
-                                    onDismissRequest = { showAccountDropdown = false }
+                                    onDismissRequest = { showAccountDropdown = false },
+                                    modifier = Modifier.heightIn(max = 400.dp)
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (isBangla) "কোনো ডিফল্ট নেই (শেষ ব্যবহৃত)" else "None (Use Last Selected)") },
+                                        text = {
+                                            Text(
+                                                text = if (isBangla) "কোনো ডিফল্ট নেই (শেষ ব্যবহৃত)" else "None (Use Last Selected)",
+                                                fontWeight = if (txConfig.defaultAccountId == null) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (txConfig.defaultAccountId == null) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        trailingIcon = if (txConfig.defaultAccountId == null) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp)) }
+                                        } else null,
                                         onClick = {
                                             txPrefs.updateConfig { it.copy(defaultAccountId = null) }
                                             showAccountDropdown = false
                                         }
                                     )
-                                    accounts.forEach { acc ->
-                                        DropdownMenuItem(
-                                            text = { Text(acc.localizedName(languageMode)) },
-                                            onClick = {
-                                                txPrefs.updateConfig { it.copy(defaultAccountId = acc.id) }
-                                                showAccountDropdown = false
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                    parentAccounts.forEach { parent ->
+                                        val childAccounts = accounts.filter { it.parentId == parent.id && it.isActive }
+
+                                        // Group Header (Not selectable)
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = IconHelper.getIconByName(parent.iconName),
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = parent.localizedName(languageMode),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = SolidPrimary
+                                                )
                                             }
-                                        )
+                                        }
+
+                                        val itemsToDisplay = if (childAccounts.isNotEmpty()) childAccounts else listOf(parent)
+                                        itemsToDisplay.forEach { acc ->
+                                            val isSelected = txConfig.defaultAccountId == acc.id
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = acc.localizedName(languageMode),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface,
+                                                        modifier = Modifier.padding(start = 16.dp)
+                                                    )
+                                                },
+                                                trailingIcon = if (isSelected) {
+                                                    { Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp)) }
+                                                } else null,
+                                                onClick = {
+                                                    txPrefs.updateConfig { it.copy(defaultAccountId = acc.id) }
+                                                    showAccountDropdown = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
 
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                            // Default Income Category
+                            // 2. Default Income Category
                             Text(
                                 text = if (isBangla) "ডিফল্ট আয়ের ক্যাটাগরি" else "Default Income Category",
                                 fontWeight = FontWeight.Bold,
@@ -436,7 +506,20 @@ fun TransactionSetupSettingsPage(
                             )
 
                             var showIncomeCatDropdown by remember { mutableStateOf(false) }
-                            val currentIncomeCat = incomeCategories.firstOrNull { it.id == txConfig.defaultIncomeCategoryId }
+                            val parentIncomeCategories = remember(categories) {
+                                categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
+                            }
+                            val currentIncomeCat = categories.firstOrNull { it.id == txConfig.defaultIncomeCategoryId }
+                            val parentOfCurrentIncomeCat = if (currentIncomeCat?.parentId != null) categories.firstOrNull { it.id == currentIncomeCat.parentId } else null
+                            val currentIncomeCatDisplay = if (currentIncomeCat != null) {
+                                if (parentOfCurrentIncomeCat != null) {
+                                    "${parentOfCurrentIncomeCat.localizedName(languageMode)} > ${currentIncomeCat.localizedName(languageMode)}"
+                                } else {
+                                    currentIncomeCat.localizedName(languageMode)
+                                }
+                            } else {
+                                if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)"
+                            }
 
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedButton(
@@ -450,39 +533,96 @@ fun TransactionSetupSettingsPage(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = currentIncomeCat?.localizedName(languageMode) ?: (if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)"),
-                                            fontSize = 13.sp
+                                            text = currentIncomeCatDisplay,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (txConfig.defaultIncomeCategoryId != null) FontWeight.SemiBold else FontWeight.Normal
                                         )
-                                        Icon(Icons.Default.Category, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Category, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(16.dp))
                                     }
                                 }
 
                                 DropdownMenu(
                                     expanded = showIncomeCatDropdown,
-                                    onDismissRequest = { showIncomeCatDropdown = false }
+                                    onDismissRequest = { showIncomeCatDropdown = false },
+                                    modifier = Modifier.heightIn(max = 400.dp)
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)") },
+                                        text = {
+                                            Text(
+                                                text = if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)",
+                                                fontWeight = if (txConfig.defaultIncomeCategoryId == null) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (txConfig.defaultIncomeCategoryId == null) SolidIncome else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        trailingIcon = if (txConfig.defaultIncomeCategoryId == null) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(16.dp)) }
+                                        } else null,
                                         onClick = {
                                             txPrefs.updateConfig { it.copy(defaultIncomeCategoryId = null) }
                                             showIncomeCatDropdown = false
                                         }
                                     )
-                                    incomeCategories.forEach { cat ->
-                                        DropdownMenuItem(
-                                            text = { Text(cat.localizedName(languageMode)) },
-                                            onClick = {
-                                                txPrefs.updateConfig { it.copy(defaultIncomeCategoryId = cat.id) }
-                                                showIncomeCatDropdown = false
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                    parentIncomeCategories.forEach { parent ->
+                                        val childCategories = categories.filter { it.type == CategoryType.INCOME && it.parentId == parent.id && it.isActive }
+
+                                        // Group Header (Not selectable)
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = IconHelper.getIconByName(parent.iconName),
+                                                    contentDescription = null,
+                                                    tint = SolidIncome,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = parent.localizedName(languageMode),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = SolidIncome
+                                                )
                                             }
-                                        )
+                                        }
+
+                                        val itemsToDisplay = if (childCategories.isNotEmpty()) childCategories else listOf(parent)
+                                        itemsToDisplay.forEach { cat ->
+                                            val isSelected = txConfig.defaultIncomeCategoryId == cat.id
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = cat.localizedName(languageMode),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isSelected) SolidIncome else MaterialTheme.colorScheme.onSurface,
+                                                        modifier = Modifier.padding(start = 16.dp)
+                                                    )
+                                                },
+                                                trailingIcon = if (isSelected) {
+                                                    { Icon(Icons.Default.Check, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(16.dp)) }
+                                                } else null,
+                                                onClick = {
+                                                    txPrefs.updateConfig { it.copy(defaultIncomeCategoryId = cat.id) }
+                                                    showIncomeCatDropdown = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
 
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                            // Default Expense Category
+                            // 3. Default Expense Category
                             Text(
                                 text = if (isBangla) "ডিফল্ট খরচের ক্যাটাগরি" else "Default Expense Category",
                                 fontWeight = FontWeight.Bold,
@@ -491,7 +631,20 @@ fun TransactionSetupSettingsPage(
                             )
 
                             var showExpenseCatDropdown by remember { mutableStateOf(false) }
-                            val currentExpenseCat = expenseCategories.firstOrNull { it.id == txConfig.defaultExpenseCategoryId }
+                            val parentExpenseCategories = remember(categories) {
+                                categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
+                            }
+                            val currentExpenseCat = categories.firstOrNull { it.id == txConfig.defaultExpenseCategoryId }
+                            val parentOfCurrentExpenseCat = if (currentExpenseCat?.parentId != null) categories.firstOrNull { it.id == currentExpenseCat.parentId } else null
+                            val currentExpenseCatDisplay = if (currentExpenseCat != null) {
+                                if (parentOfCurrentExpenseCat != null) {
+                                    "${parentOfCurrentExpenseCat.localizedName(languageMode)} > ${currentExpenseCat.localizedName(languageMode)}"
+                                } else {
+                                    currentExpenseCat.localizedName(languageMode)
+                                }
+                            } else {
+                                if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)"
+                            }
 
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedButton(
@@ -505,32 +658,89 @@ fun TransactionSetupSettingsPage(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = currentExpenseCat?.localizedName(languageMode) ?: (if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)"),
-                                            fontSize = 13.sp
+                                            text = currentExpenseCatDisplay,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (txConfig.defaultExpenseCategoryId != null) FontWeight.SemiBold else FontWeight.Normal
                                         )
-                                        Icon(Icons.Default.Category, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.Category, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(16.dp))
                                     }
                                 }
 
                                 DropdownMenu(
                                     expanded = showExpenseCatDropdown,
-                                    onDismissRequest = { showExpenseCatDropdown = false }
+                                    onDismissRequest = { showExpenseCatDropdown = false },
+                                    modifier = Modifier.heightIn(max = 400.dp)
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)") },
+                                        text = {
+                                            Text(
+                                                text = if (isBangla) "কোনো ডিফল্ট নেই" else "None (Select Manually)",
+                                                fontWeight = if (txConfig.defaultExpenseCategoryId == null) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (txConfig.defaultExpenseCategoryId == null) SolidExpense else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        trailingIcon = if (txConfig.defaultExpenseCategoryId == null) {
+                                            { Icon(Icons.Default.Check, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(16.dp)) }
+                                        } else null,
                                         onClick = {
                                             txPrefs.updateConfig { it.copy(defaultExpenseCategoryId = null) }
                                             showExpenseCatDropdown = false
                                         }
                                     )
-                                    expenseCategories.forEach { cat ->
-                                        DropdownMenuItem(
-                                            text = { Text(cat.localizedName(languageMode)) },
-                                            onClick = {
-                                                txPrefs.updateConfig { it.copy(defaultExpenseCategoryId = cat.id) }
-                                                showExpenseCatDropdown = false
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                    parentExpenseCategories.forEach { parent ->
+                                        val childCategories = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == parent.id && it.isActive }
+
+                                        // Group Header (Not selectable)
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = IconHelper.getIconByName(parent.iconName),
+                                                    contentDescription = null,
+                                                    tint = SolidExpense,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = parent.localizedName(languageMode),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = SolidExpense
+                                                )
                                             }
-                                        )
+                                        }
+
+                                        val itemsToDisplay = if (childCategories.isNotEmpty()) childCategories else listOf(parent)
+                                        itemsToDisplay.forEach { cat ->
+                                            val isSelected = txConfig.defaultExpenseCategoryId == cat.id
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = cat.localizedName(languageMode),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isSelected) SolidExpense else MaterialTheme.colorScheme.onSurface,
+                                                        modifier = Modifier.padding(start = 16.dp)
+                                                    )
+                                                },
+                                                trailingIcon = if (isSelected) {
+                                                    { Icon(Icons.Default.Check, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(16.dp)) }
+                                                } else null,
+                                                onClick = {
+                                                    txPrefs.updateConfig { it.copy(defaultExpenseCategoryId = cat.id) }
+                                                    showExpenseCatDropdown = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }

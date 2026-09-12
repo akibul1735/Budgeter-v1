@@ -297,6 +297,7 @@ fun AddEditTransactionSheet(
     }
 
     var showNameDropdown by remember { mutableStateOf(false) }
+    var isNameFocused by remember { mutableStateOf(false) }
     var keepFormOpen by remember { mutableStateOf(false) }
 
     // Double-entry Accounts
@@ -1030,11 +1031,41 @@ fun AddEditTransactionSheet(
                             onValueChange = {
                                 payee = it
                                 showNameDropdown = it.isNotBlank()
+                                if (existingTransaction == null && it.isNotBlank()) {
+                                    val exactMatch = allTransactions.firstOrNull { txWithDetails ->
+                                        txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
+                                    }?.transaction
+                                    if (exactMatch != null) {
+                                        txType = exactMatch.type
+                                        if (exactMatch.type != TransactionType.TRANSFER) {
+                                            selectedCategoryId = exactMatch.categoryId
+                                            selectedSubCategoryId = exactMatch.subCategoryId
+                                        }
+                                        when (exactMatch.type) {
+                                            TransactionType.EXPENSE -> {
+                                                creditAccountId = exactMatch.creditAccountId
+                                            }
+                                            TransactionType.INCOME -> {
+                                                debitAccountId = exactMatch.debitAccountId
+                                            }
+                                            TransactionType.TRANSFER -> {
+                                                creditAccountId = exactMatch.creditAccountId
+                                                debitAccountId = exactMatch.debitAccountId
+                                            }
+                                        }
+                                        selectedSign = when (exactMatch.type) {
+                                            TransactionType.EXPENSE -> if (exactMatch.amount < 0.0) "+" else "−"
+                                            TransactionType.INCOME -> if (exactMatch.amount < 0.0) "−" else "+"
+                                            TransactionType.TRANSFER -> "⇄"
+                                        }
+                                    }
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(nameFocusRequester)
                                 .onFocusChanged { focusState ->
+                                    isNameFocused = focusState.isFocused
                                     if (!focusState.isFocused) {
                                         showNameDropdown = false
                                     }
@@ -1088,8 +1119,8 @@ fun AddEditTransactionSheet(
                             shape = RoundedCornerShape(12.dp)
                         )
 
-                        // Inline Dropdown Suggestions: Does not open a popup window, so keyboard NEVER closes!
-                        if (showNameDropdown && payeeSuggestions.isNotEmpty()) {
+                        // Inline Dropdown Suggestions: Shown while focused & typing
+                        if (isNameFocused && showNameDropdown && payee.isNotBlank() && payeeSuggestions.isNotEmpty()) {
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1320,67 +1351,87 @@ fun AddEditTransactionSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                // Dual Sign Selector Pill on Left of Amount: [ − ] [ + ]
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                    shadowElevation = 1.dp
-                                ) {
-                                    Row(
+                                // Left Amount Indicator: Transfer Icon for Transfer, or Dual Sign Selector Pill [ − ] [ + ] for Expense/Income
+                                if (txType == TransactionType.TRANSFER) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = SolidTransfer.copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.35f)),
                                         modifier = Modifier
-                                            .padding(3.dp)
-                                            .clickable {
-                                                selectedSign = if (selectedSign == "+" || selectedSign == "⇄") "−" else "+"
-                                            }
-                                            .testTag("tx_sign_toggle_btn"),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .size(36.dp)
+                                            .testTag("tx_transfer_indicator")
                                     ) {
-                                        // Minus Button (Default for Expense, Revert/Decrease for Income)
-                                        val isMinusSelected = selectedSign == "−" || selectedSign == "-"
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (isMinusSelected) SolidExpense else Color.Transparent,
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .clip(CircleShape)
-                                                .clickable {
-                                                    selectedSign = "−"
-                                                }
-                                                .testTag("tx_sign_minus_btn")
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(
-                                                    text = "−",
-                                                    fontSize = 18.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isMinusSelected) Color.White else SolidExpense
-                                                )
-                                            }
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.SwapHoriz,
+                                                contentDescription = "Transfer",
+                                                tint = SolidTransfer,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
-
-                                        Spacer(modifier = Modifier.width(3.dp))
-
-                                        // Plus Button (Default for Income, Revert/Decrease for Expense)
-                                        val isPlusSelected = selectedSign == "+"
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (isPlusSelected) SolidIncome else Color.Transparent,
+                                    }
+                                } else {
+                                    Surface(
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                        shadowElevation = 1.dp
+                                    ) {
+                                        Row(
                                             modifier = Modifier
-                                                .size(32.dp)
-                                                .clip(CircleShape)
+                                                .padding(3.dp)
                                                 .clickable {
-                                                    selectedSign = "+"
+                                                    selectedSign = if (selectedSign == "+" || selectedSign == "⇄") "−" else "+"
                                                 }
-                                                .testTag("tx_sign_plus_btn")
+                                                .testTag("tx_sign_toggle_btn"),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(
-                                                    text = "+",
-                                                    fontSize = 18.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isPlusSelected) Color.White else SolidIncome
-                                                )
+                                            // Minus Button (Default for Expense, Revert/Decrease for Income)
+                                            val isMinusSelected = selectedSign == "−" || selectedSign == "-"
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isMinusSelected) SolidExpense else Color.Transparent,
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        selectedSign = "−"
+                                                    }
+                                                    .testTag("tx_sign_minus_btn")
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "−",
+                                                        fontSize = 18.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isMinusSelected) Color.White else SolidExpense
+                                                    )
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.width(3.dp))
+
+                                            // Plus Button (Default for Income, Revert/Decrease for Expense)
+                                            val isPlusSelected = selectedSign == "+"
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isPlusSelected) SolidIncome else Color.Transparent,
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(CircleShape)
+                                                    .clickable {
+                                                        selectedSign = "+"
+                                                    }
+                                                    .testTag("tx_sign_plus_btn")
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = "+",
+                                                        fontSize = 18.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isPlusSelected) Color.White else SolidIncome
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -2300,7 +2351,7 @@ fun AddEditTransactionSheet(
                         label = "BottomBarModeTransition"
                     ) { keyboardActive ->
                         if (keyboardActive) {
-                            // When keyboard is focused: show three buttons just above keyboard on right side: Expense icon, Income icon, Transfer icon, Save button
+                            // When keyboard is focused: show three text-only buttons just above keyboard: Expense, Income, Transfer, Save button
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2308,94 +2359,54 @@ fun AddEditTransactionSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                // Expense icon button
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (txType == TransactionType.EXPENSE) SolidExpense else SolidExpense.copy(alpha = 0.12f),
-                                    border = if (txType == TransactionType.EXPENSE) null else BorderStroke(1.dp, SolidExpense.copy(alpha = 0.35f)),
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            txType = TransactionType.EXPENSE
-                                            selectedSign = "−"
-                                            val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
-                                            if (currentCat == null || currentCat.type != CategoryType.EXPENSE) {
-                                                val relevant = categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null && it.isActive }
-                                                val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                                selectedCategoryId = defaultGroup?.id
-                                                val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
-                                                selectedSubCategoryId = subs.firstOrNull()?.id
-                                            }
-                                        }
+                                val miniTypes = listOf(
+                                    Triple(TransactionType.EXPENSE, (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
+                                    Triple(TransactionType.INCOME, (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
+                                    Triple(TransactionType.TRANSFER, (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
+                                )
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowDownward,
-                                            contentDescription = "Expense",
-                                            tint = if (txType == TransactionType.EXPENSE) Color.White else SolidExpense,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                // Income icon button
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (txType == TransactionType.INCOME) SolidIncome else SolidIncome.copy(alpha = 0.12f),
-                                    border = if (txType == TransactionType.INCOME) null else BorderStroke(1.dp, SolidIncome.copy(alpha = 0.35f)),
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            txType = TransactionType.INCOME
-                                            selectedSign = "+"
-                                            val currentCat = categories.firstOrNull { it.id == selectedCategoryId }
-                                            if (currentCat == null || currentCat.type != CategoryType.INCOME) {
-                                                val relevant = categories.filter { it.type == CategoryType.INCOME && it.parentId == null && it.isActive }
-                                                val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                                selectedCategoryId = defaultGroup?.id
-                                                val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
-                                                selectedSubCategoryId = subs.firstOrNull()?.id
-                                            }
+                                    miniTypes.forEach { (type, label, color) ->
+                                        val isSelected = txType == type
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (isSelected) color else color.copy(alpha = 0.12f),
+                                            border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.35f)),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    txType = type
+                                                    selectedSign = when (type) {
+                                                        TransactionType.EXPENSE -> "−"
+                                                        TransactionType.INCOME -> "+"
+                                                        TransactionType.TRANSFER -> "⇄"
+                                                    }
+                                                    if (type != TransactionType.TRANSFER) {
+                                                        val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                                                        val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
+                                                        val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                                                        selectedCategoryId = defaultGroup?.id
+                                                        val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
+                                                        selectedSubCategoryId = subs.firstOrNull()?.id
+                                                    } else {
+                                                        selectedCategoryId = null
+                                                        selectedSubCategoryId = null
+                                                    }
+                                                }
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) Color.White else color,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 1,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                                            )
                                         }
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowUpward,
-                                            contentDescription = "Income",
-                                            tint = if (txType == TransactionType.INCOME) Color.White else SolidIncome,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                // Transfer icon button
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (txType == TransactionType.TRANSFER) SolidTransfer else SolidTransfer.copy(alpha = 0.12f),
-                                    border = if (txType == TransactionType.TRANSFER) null else BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.35f)),
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            txType = TransactionType.TRANSFER
-                                            selectedSign = "⇄"
-                                            selectedCategoryId = null
-                                            selectedSubCategoryId = null
-                                        }
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.SwapHoriz,
-                                            contentDescription = "Transfer",
-                                            tint = if (txType == TransactionType.TRANSFER) Color.White else SolidTransfer,
-                                            modifier = Modifier.size(20.dp)
-                                        )
                                     }
                                 }
 
@@ -2423,16 +2434,16 @@ fun AddEditTransactionSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                // Segmented Type Pills: EXPENSE, INCOME, TRANSFER
+                                // Segmented Type Pills: EXPENSE, INCOME, TRANSFER (Text-only)
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     val types = listOf(
-                                        Triple(TransactionType.EXPENSE, "− " + (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
-                                        Triple(TransactionType.INCOME, "+ " + (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
-                                        Triple(TransactionType.TRANSFER, "⇄ " + (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
+                                        Triple(TransactionType.EXPENSE, (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
+                                        Triple(TransactionType.INCOME, (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
+                                        Triple(TransactionType.TRANSFER, (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
                                     )
 
                                     types.forEach { (type, label, color) ->
