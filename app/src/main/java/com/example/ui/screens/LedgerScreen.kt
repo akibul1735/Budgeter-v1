@@ -240,7 +240,7 @@ fun LedgerScreen(
     // Compute Date Bounds
     val (startEpochMs, endEpochMs) = remember(selectedDatePreset, customStartDateMs, customEndDateMs) {
         val now = System.currentTimeMillis()
-        val cal = Calendar.getInstance()
+        val cal = Calendar.getInstance().apply { timeInMillis = now }
         when (selectedDatePreset) {
             LedgerDatePreset.ALL_TIME -> Pair(0L, Long.MAX_VALUE)
             LedgerDatePreset.TODAY -> {
@@ -253,68 +253,48 @@ fun LedgerScreen(
                 Pair(yestStart, todayStart - 1L)
             }
             LedgerDatePreset.THIS_WEEK -> {
-                cal.timeInMillis = now
                 cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
                 val start = DateUtils.getStartOfDay(cal.timeInMillis)
-                Pair(start, now)
+                Pair(start, start + (7L * 86400000L) - 1L)
             }
             LedgerDatePreset.LAST_WEEK -> {
-                cal.timeInMillis = now
                 cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
                 val thisWeekStart = DateUtils.getStartOfDay(cal.timeInMillis)
                 val lastWeekStart = thisWeekStart - (7L * 86400000L)
                 Pair(lastWeekStart, thisWeekStart - 1L)
             }
             LedgerDatePreset.THIS_MONTH -> {
-                cal.timeInMillis = now
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                val start = DateUtils.getStartOfDay(cal.timeInMillis)
-                Pair(start, now)
+                val year = cal.get(Calendar.YEAR)
+                val month = cal.get(Calendar.MONTH) + 1
+                Pair(DateUtils.getStartOfMonth(year, month), DateUtils.getEndOfMonth(year, month))
             }
             LedgerDatePreset.LAST_MONTH -> {
-                cal.timeInMillis = now
                 cal.set(Calendar.DAY_OF_MONTH, 1)
-                val thisMonthStart = DateUtils.getStartOfDay(cal.timeInMillis)
                 cal.add(Calendar.MONTH, -1)
-                val lastMonthStart = DateUtils.getStartOfDay(cal.timeInMillis)
-                Pair(lastMonthStart, thisMonthStart - 1L)
+                val prevYear = cal.get(Calendar.YEAR)
+                val prevMonth = cal.get(Calendar.MONTH) + 1
+                Pair(DateUtils.getStartOfMonth(prevYear, prevMonth), DateUtils.getEndOfMonth(prevYear, prevMonth))
             }
             LedgerDatePreset.THIS_QUARTER -> {
-                cal.timeInMillis = now
+                val year = cal.get(Calendar.YEAR)
                 val currentMonth = cal.get(Calendar.MONTH)
-                val quarterStartMonth = (currentMonth / 3) * 3
-                cal.set(Calendar.MONTH, quarterStartMonth)
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                val start = DateUtils.getStartOfDay(cal.timeInMillis)
-                Pair(start, now)
+                val quarterStartMonth = (currentMonth / 3) * 3 + 1
+                val quarterEndMonth = quarterStartMonth + 2
+                Pair(DateUtils.getStartOfMonth(year, quarterStartMonth), DateUtils.getEndOfMonth(year, quarterEndMonth))
             }
             LedgerDatePreset.THIS_YEAR -> {
-                cal.timeInMillis = now
-                cal.set(Calendar.MONTH, Calendar.JANUARY)
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                val start = DateUtils.getStartOfDay(cal.timeInMillis)
-                Pair(start, now)
+                val year = cal.get(Calendar.YEAR)
+                Pair(DateUtils.getStartOfMonth(year, 1), DateUtils.getEndOfMonth(year, 12))
             }
             LedgerDatePreset.LAST_YEAR -> {
-                cal.timeInMillis = now
                 val curYear = cal.get(Calendar.YEAR)
-                cal.set(Calendar.YEAR, curYear - 1)
-                cal.set(Calendar.MONTH, Calendar.JANUARY)
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                val start = DateUtils.getStartOfDay(cal.timeInMillis)
-                cal.set(Calendar.MONTH, Calendar.DECEMBER)
-                cal.set(Calendar.DAY_OF_MONTH, 31)
-                val end = DateUtils.getStartOfDay(cal.timeInMillis) + 86400000L - 1L
-                Pair(start, end)
+                val lastYear = curYear - 1
+                Pair(DateUtils.getStartOfMonth(lastYear, 1), DateUtils.getEndOfMonth(lastYear, 12))
             }
             LedgerDatePreset.SINCE_LAST_YEAR -> {
-                cal.timeInMillis = now
                 val curYear = cal.get(Calendar.YEAR)
-                cal.set(Calendar.YEAR, curYear - 1)
-                cal.set(Calendar.MONTH, Calendar.JANUARY)
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                val start = DateUtils.getStartOfDay(cal.timeInMillis)
-                Pair(start, now)
+                val lastYear = curYear - 1
+                Pair(DateUtils.getStartOfMonth(lastYear, 1), DateUtils.getEndOfMonth(curYear, 12))
             }
             LedgerDatePreset.CUSTOM -> Pair(customStartDateMs, customEndDateMs)
         }

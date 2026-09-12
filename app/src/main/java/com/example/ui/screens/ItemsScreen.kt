@@ -151,37 +151,29 @@ fun ItemsScreen(
     // Compute Date Bounds
     val (startEpochMs, endEpochMs) = remember(selectedPreset, customStartDateMs, customEndDateMs) {
         val now = System.currentTimeMillis()
-        val cal = Calendar.getInstance()
+        val cal = Calendar.getInstance().apply { timeInMillis = now }
         when (selectedPreset) {
             ItemDateFilterPreset.ALL_TIME -> Pair(0L, Long.MAX_VALUE)
             ItemDateFilterPreset.THIS_MONTH -> {
-                cal.timeInMillis = now
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                Pair(cal.timeInMillis, now)
+                val year = cal.get(Calendar.YEAR)
+                val month = cal.get(Calendar.MONTH) + 1
+                Pair(DateUtils.getStartOfMonth(year, month), DateUtils.getEndOfMonth(year, month))
             }
             ItemDateFilterPreset.LAST_MONTH -> {
-                cal.timeInMillis = now
                 cal.set(Calendar.DAY_OF_MONTH, 1)
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                val thisMonthStart = cal.timeInMillis
                 cal.add(Calendar.MONTH, -1)
-                Pair(cal.timeInMillis, thisMonthStart - 1L)
+                val prevYear = cal.get(Calendar.YEAR)
+                val prevMonth = cal.get(Calendar.MONTH) + 1
+                Pair(DateUtils.getStartOfMonth(prevYear, prevMonth), DateUtils.getEndOfMonth(prevYear, prevMonth))
             }
             ItemDateFilterPreset.THIS_YEAR -> {
-                cal.timeInMillis = now
-                cal.set(Calendar.MONTH, Calendar.JANUARY)
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                Pair(cal.timeInMillis, now)
+                val year = cal.get(Calendar.YEAR)
+                Pair(DateUtils.getStartOfMonth(year, 1), DateUtils.getEndOfMonth(year, 12))
             }
-            ItemDateFilterPreset.LAST_30_DAYS -> Pair(now - (30L * 24L * 60L * 60L * 1000L), now)
+            ItemDateFilterPreset.LAST_30_DAYS -> {
+                val endOfToday = DateUtils.getStartOfDay(now) + 86400000L - 1L
+                Pair(now - (30L * 24L * 60L * 60L * 1000L), endOfToday)
+            }
             ItemDateFilterPreset.CUSTOM -> Pair(customStartDateMs, customEndDateMs)
         }
     }

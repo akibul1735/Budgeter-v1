@@ -438,12 +438,26 @@ fun AddEditTransactionSheet(
             ?: subCategoriesForSelectedGroup.first().id
     }
 
-    val selectedCategory = remember(categories, selectedCategoryId) {
-        categories.firstOrNull { it.id == selectedCategoryId }
+    val resolvedChildCat: Category? = remember(categories, selectedCategoryId, selectedSubCategoryId) {
+        val sub = if (selectedSubCategoryId != null) categories.firstOrNull { it.id == selectedSubCategoryId } else null
+        val cat = if (selectedCategoryId != null) categories.firstOrNull { it.id == selectedCategoryId } else null
+        when {
+            sub != null -> sub
+            cat != null && cat.parentId != null -> cat
+            else -> null
+        }
     }
-    val selectedSubCategory = remember(categories, selectedSubCategoryId) {
-        categories.firstOrNull { it.id == selectedSubCategoryId }
+
+    val resolvedParentCat: Category? = remember(categories, selectedCategoryId, resolvedChildCat) {
+        if (resolvedChildCat != null && resolvedChildCat.parentId != null) {
+            categories.firstOrNull { it.id == resolvedChildCat.parentId }
+        } else if (selectedCategoryId != null) {
+            categories.firstOrNull { it.id == selectedCategoryId && it.parentId == null }
+        } else null
     }
+
+    val selectedCategory = resolvedParentCat ?: (if (selectedCategoryId != null) categories.firstOrNull { it.id == selectedCategoryId } else null)
+    val selectedSubCategory = resolvedChildCat
 
     val selectedCreditAccount = remember(accounts, creditAccountId) {
         accounts.firstOrNull { it.id == creditAccountId }
@@ -592,6 +606,58 @@ fun AddEditTransactionSheet(
         TransactionType.TRANSFER -> SolidPrimaryContainer
     }
 
+    // Unified function to apply smart autofill from a matched previous transaction respecting user preferences
+    fun applyAutofillFromTransaction(matchedTx: Transaction) {
+        if (autofillConfig.autofillCategory && matchedTx.type != TransactionType.TRANSFER) {
+            txType = matchedTx.type
+            val targetCatId = matchedTx.subCategoryId ?: matchedTx.categoryId
+            val targetCat = categories.firstOrNull { it.id == targetCatId }
+            if (targetCat != null && targetCat.parentId != null) {
+                selectedCategoryId = targetCat.parentId
+                selectedSubCategoryId = targetCat.id
+            } else {
+                selectedCategoryId = matchedTx.categoryId
+                selectedSubCategoryId = matchedTx.subCategoryId
+            }
+        } else if (matchedTx.type == TransactionType.TRANSFER) {
+            txType = TransactionType.TRANSFER
+        }
+
+        if (autofillConfig.autofillAccount) {
+            when (matchedTx.type) {
+                TransactionType.EXPENSE -> {
+                    creditAccountId = matchedTx.creditAccountId
+                }
+                TransactionType.INCOME -> {
+                    debitAccountId = matchedTx.debitAccountId
+                }
+                TransactionType.TRANSFER -> {
+                    creditAccountId = matchedTx.creditAccountId
+                    debitAccountId = matchedTx.debitAccountId
+                }
+            }
+        }
+
+        if (autofillConfig.autofillAmount && Math.abs(matchedTx.amount) > 0) {
+            val absAmt = Math.abs(matchedTx.amount)
+            amount = absAmt
+            amountText = formatAmountInput(absAmt)
+            selectedSign = when (matchedTx.type) {
+                TransactionType.EXPENSE -> if (matchedTx.amount < 0.0) "+" else "−"
+                TransactionType.INCOME -> if (matchedTx.amount < 0.0) "−" else "+"
+                TransactionType.TRANSFER -> "⇄"
+            }
+        }
+
+        if (autofillConfig.autofillNotes && matchedTx.note.isNotBlank()) {
+            note = matchedTx.note
+        }
+
+        if (autofillConfig.autofillLabel && matchedTx.referenceNo.isNotBlank()) {
+            labelTag = matchedTx.referenceNo
+        }
+    }
+
     // Function to apply autofill when a payee suggestion is tapped
     fun onSelectPayeeSuggestion(suggestedPayee: String) {
         payee = suggestedPayee
@@ -600,39 +666,7 @@ fun AddEditTransactionSheet(
         }?.transaction
 
         if (latestMatch != null) {
-            txType = latestMatch.type
-            if (latestMatch.type != TransactionType.TRANSFER) {
-                selectedCategoryId = latestMatch.categoryId
-                selectedSubCategoryId = latestMatch.subCategoryId
-            }
-            when (latestMatch.type) {
-                TransactionType.EXPENSE -> {
-                    creditAccountId = latestMatch.creditAccountId
-                }
-                TransactionType.INCOME -> {
-                    debitAccountId = latestMatch.debitAccountId
-                }
-                TransactionType.TRANSFER -> {
-                    creditAccountId = latestMatch.creditAccountId
-                    debitAccountId = latestMatch.debitAccountId
-                }
-            }
-            if (Math.abs(latestMatch.amount) > 0) {
-                val absAmt = Math.abs(latestMatch.amount)
-                amount = absAmt
-                amountText = formatAmountInput(absAmt)
-                selectedSign = when (latestMatch.type) {
-                    TransactionType.EXPENSE -> if (latestMatch.amount < 0.0) "+" else "−"
-                    TransactionType.INCOME -> if (latestMatch.amount < 0.0) "−" else "+"
-                    TransactionType.TRANSFER -> "⇄"
-                }
-            }
-            if (latestMatch.note.isNotBlank()) {
-                note = latestMatch.note
-            }
-            if (latestMatch.referenceNo.isNotBlank()) {
-                labelTag = latestMatch.referenceNo
-            }
+            applyAutofillFromTransaction(latestMatch)
         }
     }
 
@@ -712,11 +746,11 @@ fun AddEditTransactionSheet(
             val finalAmount = if (isRevertExpense || isRevertIncome) -absAmt else absAmt
 
             val finalCategoryId = if (txType != TransactionType.TRANSFER) {
-                selectedCategoryId
+                resolvedParentCat?.id ?: resolvedChildCat?.parentId ?: selectedCategoryId
             } else null
 
             val finalSubCategoryId = if (txType != TransactionType.TRANSFER) {
-                selectedSubCategoryId
+                resolvedChildCat?.id ?: selectedSubCategoryId
             } else null
 
             val finalPayee = if (payee.isNotBlank()) {
@@ -1036,28 +1070,7 @@ fun AddEditTransactionSheet(
                                         txWithDetails.transaction.payeeOrPayer.trim().equals(it.trim(), ignoreCase = true)
                                     }?.transaction
                                     if (exactMatch != null) {
-                                        txType = exactMatch.type
-                                        if (exactMatch.type != TransactionType.TRANSFER) {
-                                            selectedCategoryId = exactMatch.categoryId
-                                            selectedSubCategoryId = exactMatch.subCategoryId
-                                        }
-                                        when (exactMatch.type) {
-                                            TransactionType.EXPENSE -> {
-                                                creditAccountId = exactMatch.creditAccountId
-                                            }
-                                            TransactionType.INCOME -> {
-                                                debitAccountId = exactMatch.debitAccountId
-                                            }
-                                            TransactionType.TRANSFER -> {
-                                                creditAccountId = exactMatch.creditAccountId
-                                                debitAccountId = exactMatch.debitAccountId
-                                            }
-                                        }
-                                        selectedSign = when (exactMatch.type) {
-                                            TransactionType.EXPENSE -> if (exactMatch.amount < 0.0) "+" else "−"
-                                            TransactionType.INCOME -> if (exactMatch.amount < 0.0) "−" else "+"
-                                            TransactionType.TRANSFER -> "⇄"
-                                        }
+                                        applyAutofillFromTransaction(exactMatch)
                                     }
                                 }
                             },
@@ -1608,15 +1621,22 @@ fun AddEditTransactionSheet(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             // Row A: Category (For Expense & Income)
                             if (txType != TransactionType.TRANSFER) {
-                                val catGroupName = selectedCategory?.localizedName(languageMode)
-                                val subCatName = selectedSubCategory?.localizedName(languageMode)
+                                val catGroupName = resolvedParentCat?.localizedName(languageMode)
+                                val subCatName = resolvedChildCat?.localizedName(languageMode)
                                 val (catTitle, catSub) = when {
-                                    catGroupName == null -> Pair(LanguageHelper.getString("select_category", languageMode), null)
-                                    subCatName != null && subCatName != catGroupName -> {
-                                        if (isDoubleLine) Pair(catGroupName, subCatName)
-                                        else Pair("$catGroupName > $subCatName", null)
+                                    resolvedParentCat == null && resolvedChildCat == null -> Pair(LanguageHelper.getString("select_category", languageMode), null)
+                                    resolvedParentCat != null && resolvedChildCat != null -> {
+                                        if (catGroupName.equals(subCatName, ignoreCase = true)) {
+                                            Pair(catGroupName!!, null)
+                                        } else if (isDoubleLine) {
+                                            Pair(catGroupName!!, subCatName!!)
+                                        } else {
+                                            Pair("$catGroupName > $subCatName", null)
+                                        }
                                     }
-                                    else -> Pair(catGroupName, null)
+                                    resolvedParentCat != null -> Pair(catGroupName!!, null)
+                                    resolvedChildCat != null -> Pair(subCatName!!, null)
+                                    else -> Pair(LanguageHelper.getString("select_category", languageMode), null)
                                 }
 
                                 OptionRowItem(
