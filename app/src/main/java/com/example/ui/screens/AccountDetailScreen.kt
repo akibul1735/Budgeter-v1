@@ -6,6 +6,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -148,9 +151,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.*
 import kotlinx.coroutines.launch
 
 enum class AccountDetailTab {
@@ -642,7 +643,8 @@ fun AccountDetailScreen(
                         accountTransactions = accountTransactions,
                         allAccounts = allAccounts,
                         allRelevantAccountIds = allRelevantAccountIds,
-                        languageMode = languageMode
+                        languageMode = languageMode,
+                        onSelectTab = { selectedTab = it }
                     )
                 }
             }
@@ -1436,12 +1438,14 @@ private fun AccountDetailChartTab(
     accountTransactions: List<TransactionWithDetails>,
     allAccounts: List<Account>,
     allRelevantAccountIds: Set<Long>,
-    languageMode: LanguageMode
+    languageMode: LanguageMode,
+    onSelectTab: (AccountDetailTab) -> Unit = {}
 ) {
     var visualType by remember { mutableStateOf(ChartVisualType.BAR) }
     var futureProjection by remember { mutableStateOf(false) }
     var selectedRange by remember { mutableStateOf(ChartDateRange.LAST_30_DAYS) }
     var selectedFrequency by remember { mutableStateOf(ChartFrequency.DAILY) }
+    var selectedPointIndex by remember { mutableStateOf<Int?>(null) }
 
     var expandedRangeDropdown by remember { mutableStateOf(false) }
     var expandedFreqDropdown by remember { mutableStateOf(false) }
@@ -1456,6 +1460,7 @@ private fun AccountDetailChartTab(
         selectedFrequency,
         futureProjection
     ) {
+        selectedPointIndex = null
         computeTimelinePoints(
             account = account,
             transactions = accountTransactions,
@@ -1495,8 +1500,102 @@ private fun AccountDetailChartTab(
                     BalanceTimelineChartCanvas(
                         points = chartPoints,
                         visualType = visualType,
-                        languageMode = languageMode
+                        languageMode = languageMode,
+                        selectedPointIndex = selectedPointIndex,
+                        onPointSelected = { selectedPointIndex = it }
                     )
+                }
+            }
+        }
+
+        // Clicked bar / point detail card
+        val selectedPoint = selectedPointIndex?.let { if (it in chartPoints.indices) chartPoints[it] else null }
+        if (selectedPoint != null) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = selectedPoint.dateLabel,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (selectedPoint.isProjected) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.tertiaryContainer
+                                ) {
+                                    Text(
+                                        text = "Projected",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Balance: ${LanguageHelper.formatCurrency(selectedPoint.balance, languageMode)}",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (selectedPoint.balance >= 0) SolidIncome else SolidExpense
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { onSelectTab(AccountDetailTab.TABLE) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
+                                    contentDescription = "View Table",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "View in Table",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = { selectedPointIndex = null },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -1720,6 +1819,25 @@ private fun AccountDetailChartTab(
     }
 }
 
+private fun calculateNiceScale(minVal: Double, rawMaxVal: Double, gridLinesCount: Int = 4): Triple<Double, Double, Double> {
+    val maxVal = if (rawMaxVal <= minVal) minVal + 100.0 else rawMaxVal * 1.10
+    val rawRange = max(1.0, maxVal - minVal)
+    val rawStep = rawRange / gridLinesCount
+    val exponent = floor(log10(rawStep))
+    val fraction = rawStep / 10.0.pow(exponent)
+    val niceFraction = when {
+        fraction <= 1.0 -> 1.0
+        fraction <= 2.0 -> 2.0
+        fraction <= 2.5 -> 2.5
+        fraction <= 5.0 -> 5.0
+        else -> 10.0
+    }
+    val niceStep = niceFraction * 10.0.pow(exponent)
+    val niceMin = floor(minVal / niceStep) * niceStep
+    val niceMax = niceMin + (gridLinesCount * niceStep)
+    return Triple(niceMin, niceMax, niceStep)
+}
+
 // -------------------------------------------------------------------------------------------------
 // CANVAS CHART (Faithful Emerald Bars & Axes in Screenshot 2)
 // -------------------------------------------------------------------------------------------------
@@ -1727,16 +1845,34 @@ private fun AccountDetailChartTab(
 private fun BalanceTimelineChartCanvas(
     points: List<BalancePoint>,
     visualType: ChartVisualType,
-    languageMode: LanguageMode
+    languageMode: LanguageMode,
+    selectedPointIndex: Int? = null,
+    onPointSelected: (Int?) -> Unit = {}
 ) {
-    val barColor = Color(0xFF10B981) // Emerald Green matching Screenshot 2
+    val barColor = Color(0xFF10B981) // Emerald Green
+    val selectedBarColor = Color(0xFF059669) // Darker vivid emerald for selected bar
     val projectedBarColor = Color(0xFF10B981).copy(alpha = 0.45f)
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     val textColor = MaterialTheme.colorScheme.outline
     val baselineColor = MaterialTheme.colorScheme.outline
     val textArgb = textColor.toArgb()
 
-    Canvas(modifier = Modifier.fillMaxSize()) {
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(points) {
+                detectTapGestures { offset ->
+                    val leftPadding = 50.dp.toPx()
+                    val chartWidth = size.width - leftPadding
+                    if (offset.x >= leftPadding && points.isNotEmpty()) {
+                        val count = points.size
+                        val stepX = chartWidth / count
+                        val clickedIndex = ((offset.x - leftPadding) / stepX).toInt().coerceIn(0, count - 1)
+                        onPointSelected(if (selectedPointIndex == clickedIndex) null else clickedIndex)
+                    }
+                }
+            }
+    ) {
         if (points.isEmpty()) return@Canvas
 
         val leftPadding = 50.dp.toPx()
@@ -1746,11 +1882,11 @@ private fun BalanceTimelineChartCanvas(
 
         val minVal = min(0.0, points.minOf { it.balance })
         val rawMaxVal = points.maxOf { it.balance }
-        val maxVal = if (rawMaxVal <= minVal) minVal + 100.0 else rawMaxVal * 1.15 // 15% headroom
-        val valRange = max(1.0, maxVal - minVal)
-
-        // Draw horizontal grid lines & Y-axis labels
         val gridLinesCount = 4
+        val (niceMin, niceMax, niceStep) = calculateNiceScale(minVal, rawMaxVal, gridLinesCount)
+        val valRange = max(1.0, niceMax - niceMin)
+
+        // Draw horizontal grid lines & Y-axis labels with rounded/whole numbers
         val paint = android.graphics.Paint().apply {
             color = textArgb
             textSize = 9.dp.toPx()
@@ -1761,7 +1897,7 @@ private fun BalanceTimelineChartCanvas(
         for (i in 0..gridLinesCount) {
             val ratio = i.toFloat() / gridLinesCount
             val y = chartHeight - (ratio * chartHeight)
-            val value = minVal + (ratio * valRange)
+            val value = niceMin + (i * niceStep)
 
             drawLine(
                 color = gridColor,
@@ -1771,7 +1907,8 @@ private fun BalanceTimelineChartCanvas(
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
             )
 
-            val label = String.format(Locale.US, "%,.0f", value)
+            // Rounded/whole numbers format (no unnecessary decimals)
+            val label = String.format(Locale.US, "%,d", value.toLong())
             drawContext.canvas.nativeCanvas.drawText(
                 label,
                 leftPadding - 8.dp.toPx(),
@@ -1781,7 +1918,7 @@ private fun BalanceTimelineChartCanvas(
         }
 
         // Draw Baseline (y = 0)
-        val baselineY = chartHeight - (((0.0 - minVal) / valRange).toFloat() * chartHeight)
+        val baselineY = chartHeight - (((0.0 - niceMin) / valRange).toFloat() * chartHeight)
         drawLine(
             color = baselineColor,
             start = Offset(leftPadding, baselineY),
@@ -1793,16 +1930,34 @@ private fun BalanceTimelineChartCanvas(
         val stepX = chartWidth / count
         val barWidth = min(stepX * 0.65f, 16.dp.toPx())
 
+        // If a point is selected, draw a subtle highlight column background
+        selectedPointIndex?.let { selIdx ->
+            if (selIdx in points.indices) {
+                val selCenterX = leftPadding + (selIdx * stepX) + (stepX / 2f)
+                drawRoundRect(
+                    color = barColor.copy(alpha = 0.12f),
+                    topLeft = Offset(selCenterX - (stepX / 2f), 0f),
+                    size = Size(stepX, chartHeight),
+                    cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                )
+            }
+        }
+
         // Draw Bars or Line
         if (visualType == ChartVisualType.BAR) {
             points.forEachIndexed { index, pt ->
                 val centerX = leftPadding + (index * stepX) + (stepX / 2f)
-                val ptRatio = ((pt.balance - minVal) / valRange).toFloat().coerceIn(0f, 1f)
+                val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
                 val barTopY = chartHeight - (ptRatio * chartHeight)
                 val barHeight = abs(baselineY - barTopY)
                 val topY = min(baselineY, barTopY)
 
-                val color = if (pt.isProjected) projectedBarColor else barColor
+                val isSelected = index == selectedPointIndex
+                val color = when {
+                    isSelected -> selectedBarColor
+                    pt.isProjected -> projectedBarColor
+                    else -> barColor
+                }
 
                 drawRoundRect(
                     color = color,
@@ -1810,6 +1965,15 @@ private fun BalanceTimelineChartCanvas(
                     size = Size(barWidth, max(barHeight, 2.dp.toPx())),
                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                 )
+
+                if (isSelected) {
+                    // Draw a pointer dot above the selected bar
+                    drawCircle(
+                        color = selectedBarColor,
+                        radius = 4.dp.toPx(),
+                        center = Offset(centerX, (topY - 6.dp.toPx()).coerceAtLeast(6.dp.toPx()))
+                    )
+                }
             }
         } else {
             // LINE CHART
@@ -1818,7 +1982,7 @@ private fun BalanceTimelineChartCanvas(
 
             points.forEachIndexed { index, pt ->
                 val x = leftPadding + (index * stepX) + (stepX / 2f)
-                val ptRatio = ((pt.balance - minVal) / valRange).toFloat().coerceIn(0f, 1f)
+                val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
                 val y = chartHeight - (ptRatio * chartHeight)
 
                 if (index == 0) {
@@ -1851,11 +2015,30 @@ private fun BalanceTimelineChartCanvas(
                 color = barColor,
                 style = Stroke(width = 2.5.dp.toPx())
             )
+
+            // Highlight circle for selected point on line
+            selectedPointIndex?.let { selIdx ->
+                if (selIdx in points.indices) {
+                    val x = leftPadding + (selIdx * stepX) + (stepX / 2f)
+                    val ptRatio = ((points[selIdx].balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
+                    val y = chartHeight - (ptRatio * chartHeight)
+                    drawCircle(
+                        color = selectedBarColor,
+                        radius = 6.dp.toPx(),
+                        center = Offset(x, y)
+                    )
+                    drawCircle(
+                        color = Color.White,
+                        radius = 3.dp.toPx(),
+                        center = Offset(x, y)
+                    )
+                }
+            }
         }
 
-        // Draw X-axis date labels (e.g. "08/14", "08/19", "08/24", Screenshot 2)
+        // Draw X-axis date labels (e.g. "08/14", "08/19", "08/24")
         val xLabelPaint = android.graphics.Paint().apply {
-            color = textColor.hashCode()
+            color = textArgb
             textSize = 9.dp.toPx()
             textAlign = android.graphics.Paint.Align.CENTER
             isAntiAlias = true
@@ -1863,7 +2046,7 @@ private fun BalanceTimelineChartCanvas(
 
         val stepLabelInterval = max(1, count / 7)
         points.forEachIndexed { index, pt ->
-            if (index % stepLabelInterval == 0 || index == count - 1) {
+            if (index % stepLabelInterval == 0 || index == count - 1 || index == selectedPointIndex) {
                 val x = leftPadding + (index * stepX) + (stepX / 2f)
                 val y = size.height - 8.dp.toPx()
 

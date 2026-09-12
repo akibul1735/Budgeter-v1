@@ -45,6 +45,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -104,9 +105,15 @@ fun TransactionDetailViewDialog(
     val isTransfer = tx.type == TransactionType.TRANSFER
 
     val amtColor = when {
-        isTransfer -> SolidPrimary
+        isTransfer -> Color(0xFF2563EB) // Royal Blue
         isIncome -> if (tx.amount >= 0) SolidIncome else SolidExpense
         else -> if (tx.amount >= 0) SolidExpense else SolidIncome
+    }
+
+    val headerBg = when {
+        isTransfer -> Color(0xFF2563EB).copy(alpha = 0.08f)
+        isIncome -> if (tx.amount >= 0) SolidIncome.copy(alpha = 0.08f) else SolidExpense.copy(alpha = 0.08f)
+        else -> if (tx.amount >= 0) SolidExpense.copy(alpha = 0.08f) else SolidIncome.copy(alpha = 0.08f)
     }
 
     val typeLabel = when (tx.type) {
@@ -119,12 +126,6 @@ fun TransactionDetailViewDialog(
         TransactionType.EXPENSE -> Icons.AutoMirrored.Filled.TrendingDown
         TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
         TransactionType.TRANSFER -> Icons.Default.SwapHoriz
-    }
-
-    val typeBg = when (tx.type) {
-        TransactionType.EXPENSE -> SolidExpenseContainer
-        TransactionType.INCOME -> SolidIncomeContainer
-        TransactionType.TRANSFER -> SolidPrimaryContainer
     }
 
     val sign = when {
@@ -146,328 +147,436 @@ fun TransactionDetailViewDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            shadowElevation = 10.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            tonalElevation = 8.dp,
+            shadowElevation = 14.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .widthIn(max = 480.dp)
+                .widthIn(max = 460.dp)
                 .padding(vertical = 24.dp)
                 .testTag("transaction_view_dialog")
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
-                // Top Row: Type Pill + Status + Close Button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Redesigned Top Header Bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(headerBg)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
                 ) {
-                    // Type Pill
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = typeBg,
-                        modifier = Modifier.padding(vertical = 2.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                imageVector = typeIcon,
-                                contentDescription = null,
-                                tint = amtColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = typeLabel,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = amtColor
-                            )
-                        }
-                    }
-
-                    // Status Badge if available
-                    if (tx.status != TransactionStatus.NONE) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(amtColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                if (tx.status == TransactionStatus.CLEARED || tx.status == TransactionStatus.RECONCILED) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                }
-                                val statusTitle = if (languageMode == LanguageMode.BANGLA) tx.status.titleBn else tx.status.titleEn
-                                Text(
-                                    text = statusTitle,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                Icon(
+                                    imageVector = typeIcon,
+                                    contentDescription = null,
+                                    tint = amtColor,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = typeLabel,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (tx.status != TransactionStatus.NONE) {
+                                    val statusTitle = if (languageMode == LanguageMode.BANGLA) tx.status.titleBn else tx.status.titleEn
+                                    Text(
+                                        text = statusTitle,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = amtColor
+                                    )
+                                }
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
-
-                    // Close Button
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Hero Amount Section
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                        .padding(vertical = 16.dp, horizontal = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "$sign${LanguageHelper.formatCurrency(kotlin.math.abs(tx.amount), languageMode)}",
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = amtColor,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    val formattedDateTime = "${DateUtils.formatDate(tx.dateEpochMs, languageMode)} • ${DateUtils.formatTime(tx.dateEpochMs, languageMode)}"
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarMonth,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = formattedDateTime,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Scrollable Details Body
+                // Scrollable Content
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    // 1. Payee / Title
-                    if (tx.payeeOrPayer.isNotBlank()) {
-                        DetailItemRow(
-                            icon = Icons.Default.Person,
-                            label = if (languageMode == LanguageMode.BANGLA) "পেয়ী / প্রাপক" else "Payee / Name",
-                            value = tx.payeeOrPayer
-                        )
-                    }
+                    // Hero Amount Display Card
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 18.dp, horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "$sign${LanguageHelper.formatCurrency(kotlin.math.abs(tx.amount), languageMode)}",
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = amtColor,
+                                textAlign = TextAlign.Center
+                            )
 
-                    // 2. Category & Subcategory
-                    if (item.category != null || item.subCategory != null) {
-                        val catName = item.category?.localizedName(languageMode) ?: ""
-                        val subName = item.subCategory?.localizedName(languageMode)
-                        val catDisplay = if (subName != null && subName != catName) "$catName  ➔  $subName" else catName
+                            if (tx.payeeOrPayer.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = tx.payeeOrPayer,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
 
-                        DetailItemRow(
-                            icon = IconHelper.getIconByName(item.category?.iconName ?: "Category"),
-                            label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
-                            value = catDisplay
-                        )
-                    }
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                    // 3. Account(s) with ⩓ / ⩔ Carets
-                    val accountDisplay = when (tx.type) {
-                        TransactionType.EXPENSE -> {
-                            val name = item.creditAccount?.localizedName(languageMode) ?: "-"
-                            val isLiab = item.creditAccount?.type == AccountType.LIABILITY
-                            // For Liability: expense/outflow increases debt -> ⩓
-                            val isInc = if (isLiab) (tx.amount >= 0) else (tx.amount < 0)
-                            val caret = if (isInc) "⩓" else "⩔"
-                            "$name  $caret"
-                        }
-                        TransactionType.INCOME -> {
-                            val name = item.debitAccount?.localizedName(languageMode) ?: "-"
-                            val isLiab = item.debitAccount?.type == AccountType.LIABILITY
-                            // For Liability: income/inflow decreases debt -> ⩔
-                            val isInc = if (isLiab) (tx.amount < 0) else (tx.amount >= 0)
-                            val caret = if (isInc) "⩓" else "⩔"
-                            "$name  $caret"
-                        }
-                        TransactionType.TRANSFER -> {
-                            val fromAcc = item.creditAccount
-                            val toAcc = item.debitAccount
-                            val from = fromAcc?.localizedName(languageMode) ?: "-"
-                            val to = toAcc?.localizedName(languageMode) ?: "-"
-                            val fromIsLiab = fromAcc?.type == AccountType.LIABILITY
-                            val toIsLiab = toAcc?.type == AccountType.LIABILITY
-                            val fromInc = if (fromIsLiab) (tx.amount >= 0) else (tx.amount < 0)
-                            val toInc = if (toIsLiab) (tx.amount < 0) else (tx.amount >= 0)
-                            val fromCaret = if (fromInc) "⩓" else "⩔"
-                            val toCaret = if (toInc) "⩓" else "⩔"
-                            "$from ($fromCaret)  ➔  $to ($toCaret)"
-                        }
-                    }
-
-                    val targetAccount = when (tx.type) {
-                        TransactionType.EXPENSE -> item.creditAccount
-                        TransactionType.INCOME -> item.debitAccount
-                        TransactionType.TRANSFER -> item.creditAccount ?: item.debitAccount
-                    }
-
-                    DetailItemRow(
-                        icon = Icons.Default.AccountBalance,
-                        label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
-                        value = accountDisplay,
-                        valueColor = if (onAccountClick != null && targetAccount != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                        onClick = if (onAccountClick != null && targetAccount != null) {
-                            { onAccountClick(targetAccount) }
-                        } else null
-                    )
-
-                    // 3b. Linked Transfer Fee Details
-                    if (linkedFeeItem != null) {
-                        val feeAcc = linkedFeeItem.creditAccount?.localizedName(languageMode) ?: ""
-                        val feeCat = linkedFeeItem.category?.localizedName(languageMode)
-                        val feeDisplay = buildString {
-                            append(LanguageHelper.formatCurrency(linkedFeeItem.transaction.amount, languageMode))
-                            if (feeAcc.isNotBlank()) append(" • $feeAcc")
-                            if (!feeCat.isNullOrBlank()) append(" • $feeCat")
-                        }
-                        DetailItemRow(
-                            icon = Icons.Default.SwapHoriz,
-                            label = if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার ফি" else "Transfer Fee",
-                            value = feeDisplay,
-                            valueColor = SolidExpense
-                        )
-                    }
-
-                    // 4. Labels / Tags
-                    if (tx.referenceNo.isNotBlank()) {
-                        val labelList = tx.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                        if (labelList.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            val formattedDateTime = "${DateUtils.formatDate(tx.dateEpochMs, languageMode)} • ${DateUtils.formatTime(tx.dateEpochMs, languageMode)}"
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Label,
+                                        imageVector = Icons.Default.CalendarMonth,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = formattedDateTime,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Structured Details Card
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp)
+                        ) {
+                            // Category & Subcategory Row
+                            if (item.category != null || item.subCategory != null) {
+                                val catName = item.category?.localizedName(languageMode) ?: ""
+                                val subName = item.subCategory?.localizedName(languageMode)
+                                val catDisplay = if (subName != null && subName != catName) "$catName › $subName" else catName
+
+                                DetailItemRow(
+                                    icon = IconHelper.getIconByName(item.category?.iconName ?: "Category"),
+                                    label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
+                                    value = catDisplay
+                                )
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                            }
+
+                            // Account Row
+                            if (isTransfer) {
+                                val fromAcc = item.creditAccount
+                                val toAcc = item.debitAccount
+                                val fromName = fromAcc?.localizedName(languageMode) ?: "-"
+                                val toName = toAcc?.localizedName(languageMode) ?: "-"
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                                ) {
                                     Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
+                                        text = if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার রুট" else "Transfer Route",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         fontWeight = FontWeight.Medium
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        labelList.forEach { lbl ->
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
-                                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable(enabled = onAccountClick != null && fromAcc != null) {
+                                                    fromAcc?.let { onAccountClick?.invoke(it) }
+                                                }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AccountBalance,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
-                                                    text = "#$lbl",
-                                                    fontSize = 11.sp,
+                                                    text = fromName,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.SemiBold,
-                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp)
+                                                .size(16.dp)
+                                        )
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable(enabled = onAccountClick != null && toAcc != null) {
+                                                    toAcc?.let { onAccountClick?.invoke(it) }
+                                                }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AccountBalance,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = toName,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
                                     }
                                 }
+                            } else {
+                                val targetAccount = if (isExpense) item.creditAccount else item.debitAccount
+                                val accName = targetAccount?.localizedName(languageMode) ?: "-"
+                                val isLiab = targetAccount?.type == AccountType.LIABILITY
+                                val isInc = if (isExpense) {
+                                    if (isLiab) (tx.amount >= 0) else (tx.amount < 0)
+                                } else {
+                                    if (isLiab) (tx.amount < 0) else (tx.amount >= 0)
+                                }
+                                val caret = if (isInc) "⩓" else "⩔"
+
+                                DetailItemRow(
+                                    icon = Icons.Default.AccountBalance,
+                                    label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
+                                    value = "$accName  $caret",
+                                    valueColor = if (onAccountClick != null && targetAccount != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    onClick = if (onAccountClick != null && targetAccount != null) {
+                                        { onAccountClick(targetAccount) }
+                                    } else null
+                                )
+                            }
+
+                            // Linked Transfer Fee
+                            if (linkedFeeItem != null) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                                val feeAcc = linkedFeeItem.creditAccount?.localizedName(languageMode) ?: ""
+                                val feeDisplay = buildString {
+                                    append(LanguageHelper.formatCurrency(linkedFeeItem.transaction.amount, languageMode))
+                                    if (feeAcc.isNotBlank()) append(" ($feeAcc)")
+                                }
+                                DetailItemRow(
+                                    icon = Icons.Default.SwapHoriz,
+                                    label = if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার ফি" else "Transfer Fee",
+                                    value = feeDisplay,
+                                    valueColor = SolidExpense
+                                )
+                            }
+
+                            // Labels / Tags
+                            if (tx.referenceNo.isNotBlank()) {
+                                val labelList = tx.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                                if (labelList.isNotEmpty()) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(34.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.Label,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            FlowRow(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                labelList.forEach { lbl ->
+                                                    Surface(
+                                                        shape = RoundedCornerShape(8.dp),
+                                                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                                    ) {
+                                                        Text(
+                                                            text = "#$lbl",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Notes
+                            if (tx.note.isNotBlank()) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                                DetailItemRow(
+                                    icon = Icons.AutoMirrored.Filled.Notes,
+                                    label = if (languageMode == LanguageMode.BANGLA) "নোট" else "Note",
+                                    value = tx.note
+                                )
+                            }
+
+                            // Attachments
+                            if (tx.attachmentUri.isNotBlank()) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                                DetailItemRow(
+                                    icon = Icons.Default.AttachFile,
+                                    label = if (languageMode == LanguageMode.BANGLA) "সংযুক্তি" else "Attachment",
+                                    value = if (languageMode == LanguageMode.BANGLA) "ফাইল সংযুক্ত রয়েছে" else "File attached"
+                                )
                             }
                         }
                     }
-
-                    // 5. Notes / Memo
-                    if (tx.note.isNotBlank()) {
-                        DetailItemRow(
-                            icon = Icons.AutoMirrored.Filled.Notes,
-                            label = if (languageMode == LanguageMode.BANGLA) "নোট" else "Note",
-                            value = tx.note
-                        )
-                    }
-
-                    // 6. Attachment indicator
-                    if (tx.attachmentUri.isNotBlank()) {
-                        DetailItemRow(
-                            icon = Icons.Default.AttachFile,
-                            label = if (languageMode == LanguageMode.BANGLA) "সংযুক্তি" else "Attachment",
-                            value = if (languageMode == LanguageMode.BANGLA) "ফাইল সংযুক্ত রয়েছে" else "File attached"
-                        )
-                    }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                // Redesigned Action Footer
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Bottom Actions: "Show Similar transactions" text button (left) and Edit button (right)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left: Show Similar Transactions Text Button
                     if (similarQuery.isNotBlank()) {
-                        TextButton(
+                        OutlinedButton(
                             onClick = {
                                 onShowSimilar(similarQuery)
                                 Toast.makeText(
@@ -476,17 +585,19 @@ fun TransactionDetailViewDialog(
                                     Toast.LENGTH_SHORT
                                 ).show()
                             },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             modifier = Modifier.testTag("show_similar_transactions_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FilterList,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "অনুরূপ লেনদেন দেখুন" else "Show Similar transactions",
-                                fontSize = 12.5.sp,
+                                text = if (languageMode == LanguageMode.BANGLA) "অনুরূপ লেনদেন" else "Show Similar",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -494,11 +605,8 @@ fun TransactionDetailViewDialog(
                         Spacer(modifier = Modifier.weight(1f))
                     }
 
-                    // Bottom Right: Edit Button
                     Button(
-                        onClick = {
-                            onEdit(tx)
-                        },
+                        onClick = { onEdit(tx) },
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -509,11 +617,11 @@ fun TransactionDetailViewDialog(
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit",
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "সম্পাদনা" else "Edit",
+                            text = if (languageMode == LanguageMode.BANGLA) "সম্পাদনা করুন" else "Edit",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -535,23 +643,22 @@ private fun DetailItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 4.dp, horizontal = if (onClick != null) 4.dp else 0.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(34.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(17.dp)
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
@@ -562,11 +669,20 @@ private fun DetailItemRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 fontWeight = FontWeight.Medium
             )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = value,
                 fontSize = 13.5.sp,
                 color = valueColor,
                 fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (onClick != null) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(14.dp)
             )
         }
     }

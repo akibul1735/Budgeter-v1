@@ -4,8 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -41,6 +44,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,8 +57,7 @@ import com.example.util.LanguageHelper
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.abs
-import kotlin.math.max
+import kotlin.math.*
 
 enum class DailyPeriodFilter(val labelEn: String, val labelBn: String, val days: Int) {
     LAST_7_DAYS("7 Days", "৭ দিন", 7),
@@ -67,14 +70,12 @@ enum class DailyPeriodFilter(val labelEn: String, val labelBn: String, val days:
 enum class DailyGraphMode(val labelEn: String, val labelBn: String) {
     EXPENSE("Expense", "ব্যয়"),
     INCOME("Income", "আয়"),
-    NET_FLOW("Net Flow", "প্রবাহ"),
-    BOTH("Both", "উভয়")
+    NET_FLOW("Net Flow", "প্রবাহ")
 }
 
 enum class DailyBreakdownFilter(val labelEn: String, val labelBn: String) {
     ALL("All Days", "সব দিন"),
-    SPENT_ONLY("Spending Days", "ব্যয়ের দিন"),
-    ABOVE_AVG("Above Avg", "গড়ের বেশি"),
+    SPENT_ONLY("Spending Only", "ব্যয়ের দিন"),
     ZERO_SPEND("No-Spend", "ব্যয়হীন দিন")
 }
 
@@ -88,6 +89,7 @@ enum class DailyBreakdownSort(val labelEn: String, val labelBn: String) {
 data class DailySummaryItem(
     val dateEpochMs: Long,
     val dateNum: Int,
+    val monthShort: String,
     val dayOfWeekShort: String,
     val dayOfWeekFull: String,
     val fullDateString: String,
@@ -98,6 +100,41 @@ data class DailySummaryItem(
     val net: Double,
     val transactions: List<TransactionWithDetails>
 )
+
+/**
+ * Calculates a "nice" scale with whole/rounded tick numbers for the Y-axis.
+ */
+private fun calculateNiceScale(maxValue: Double, tickCount: Int = 3): List<Double> {
+    if (maxValue <= 0.0) return listOf(0.0, 50.0, 100.0)
+    val rawStep = maxValue / tickCount
+    val magnitude = 10.0.pow(floor(log10(rawStep)))
+    val normalized = rawStep / magnitude
+    val niceNormalized = when {
+        normalized <= 1.0 -> 1.0
+        normalized <= 2.0 -> 2.0
+        normalized <= 2.5 -> 2.5
+        normalized <= 5.0 -> 5.0
+        else -> 10.0
+    }
+    val niceStep = (niceNormalized * magnitude).coerceAtLeast(1.0)
+    val niceMax = ceil(maxValue / niceStep) * niceStep
+    val ticks = mutableListOf<Double>()
+    var current = 0.0
+    while (current <= niceMax + 0.001) {
+        ticks.add(current)
+        current += niceStep
+    }
+    return ticks
+}
+
+private fun formatRoundedAxisNumber(value: Double): String {
+    val rounded = value.roundToLong()
+    return when {
+        rounded >= 1_000_000 -> "${rounded / 1_000_000}M"
+        rounded >= 1_000 -> "${rounded / 1_000}k"
+        else -> "$rounded"
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +152,7 @@ fun DailySummaryDetailDialog(
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
+    // 1. Filter Options State
     var selectedPeriod by remember { mutableStateOf(DailyPeriodFilter.THIS_MONTH) }
     var periodOffset by remember { mutableStateOf(0) }
     var graphMode by remember { mutableStateOf(DailyGraphMode.EXPENSE) }
@@ -123,7 +161,7 @@ fun DailySummaryDetailDialog(
     var searchQuery by remember { mutableStateOf("") }
     var showSortMenu by remember { mutableStateOf(false) }
 
-    // Selected day for interactive chart inspection & focus
+    // Clickable Chart Selection State
     var selectedDayKey by remember {
         mutableStateOf(
             if (initialSelectedDateEpoch != null) {
@@ -132,7 +170,7 @@ fun DailySummaryDetailDialog(
         )
     }
 
-    // Expanded accordion states for day rows
+    // Expandable states for table rows
     val expandedDayKeys = remember { mutableStateMapOf<String, Boolean>() }
 
     // Calculate start/end dates based on selectedPeriod and periodOffset
@@ -198,6 +236,7 @@ fun DailySummaryDetailDialog(
         val items = mutableListOf<DailySummaryItem>()
         val dayNameSdf = SimpleDateFormat("EEE", Locale.getDefault())
         val dayNameFullSdf = SimpleDateFormat("EEEE", Locale.getDefault())
+        val monthSdf = SimpleDateFormat("MMM", Locale.getDefault())
         val todayCal = Calendar.getInstance()
 
         val periodTxs = transactions.filter {
@@ -235,6 +274,7 @@ fun DailySummaryDetailDialog(
                 DailySummaryItem(
                     dateEpochMs = dStart,
                     dateNum = tempCal.get(Calendar.DAY_OF_MONTH),
+                    monthShort = monthSdf.format(Date(dStart)),
                     dayOfWeekShort = dayNameSdf.format(Date(dStart)),
                     dayOfWeekFull = dayNameFullSdf.format(Date(dStart)),
                     fullDateString = DateUtils.formatDate(dStart, languageMode),
@@ -253,18 +293,15 @@ fun DailySummaryDetailDialog(
         items
     }
 
-    // Performance Metrics Calculations
+    // 2. Key Statistics Calculations
     val totalPeriodExpense = remember(dayItems) { dayItems.sumOf { it.expense } }
     val totalPeriodIncome = remember(dayItems) { dayItems.sumOf { it.income } }
     val netCashflow = totalPeriodIncome - totalPeriodExpense
     val totalDaysCount = dayItems.size.coerceAtLeast(1)
     val dailyAvgExpense = totalPeriodExpense / totalDaysCount
-    val dailyAvgIncome = totalPeriodIncome / totalDaysCount
     val spentDaysCount = remember(dayItems) { dayItems.count { it.expense > 0 } }
     val zeroSpendDaysCount = remember(dayItems) { dayItems.count { it.expense == 0.0 } }
-    val spikeDaysCount = remember(dayItems, dailyAvgExpense) { dayItems.count { it.expense > dailyAvgExpense } }
     val peakExpenseDay = remember(dayItems) { dayItems.maxByOrNull { it.expense } }
-    val peakIncomeDay = remember(dayItems) { dayItems.maxByOrNull { it.income } }
     val totalTxCount = remember(dayItems) { dayItems.sumOf { it.transactions.size } }
 
     val savingsRate = remember(totalPeriodIncome, netCashflow) {
@@ -273,62 +310,13 @@ fun DailySummaryDetailDialog(
         } else if (totalPeriodExpense > 0) -100.0 else 0.0
     }
 
-    // Top categories distribution
-    val topCategories = remember(dayItems, languageMode) {
-        val expTxs = dayItems.flatMap { it.transactions }.filter { it.transaction.type == TransactionType.EXPENSE }
-        val totalExp = expTxs.sumOf { it.transaction.amount }
-        if (totalExp <= 0.0) {
-            emptyList()
-        } else {
-            expTxs.groupBy { it.category?.id ?: -1L }
-                .map { (catId, txs) ->
-                    val sample = txs.first()
-                    val catName = sample.category?.localizedName(languageMode)
-                        ?: sample.transaction.payeeOrPayer.ifBlank { "Other" }
-                    val catAmount = txs.sumOf { it.transaction.amount }
-                    val catPct = (catAmount / totalExp) * 100.0
-                    val catColor = sample.category?.let { cat ->
-                        runCatching { Color(android.graphics.Color.parseColor(cat.colorHex)) }.getOrDefault(SolidExpense)
-                    } ?: SolidExpense
-                    Triple(catName, catAmount to catPct, catColor)
-                }
-                .sortedByDescending { it.second.first }
-                .take(5)
-        }
-    }
-
-    // Weekday Spending Heatmap (Mon to Sun)
-    val weekdaySpendStats = remember(dayItems, languageMode) {
-        val cal = Calendar.getInstance()
-        val daysDefinition = listOf(
-            Calendar.MONDAY to ("Mon" to "সোম"),
-            Calendar.TUESDAY to ("Tue" to "মঙ্গল"),
-            Calendar.WEDNESDAY to ("Wed" to "বুধ"),
-            Calendar.THURSDAY to ("Thu" to "বৃহঃ"),
-            Calendar.FRIDAY to ("Fri" to "শুক্র"),
-            Calendar.SATURDAY to ("Sat" to "শনি"),
-            Calendar.SUNDAY to ("Sun" to "রবি")
-        )
-        daysDefinition.map { (dow, labels) ->
-            val matching = dayItems.filter {
-                cal.timeInMillis = it.dateEpochMs
-                cal.get(Calendar.DAY_OF_WEEK) == dow
-            }
-            val sum = matching.sumOf { it.expense }
-            val avg = if (matching.isNotEmpty()) sum / matching.size else 0.0
-            val label = if (languageMode == LanguageMode.BANGLA) labels.second else labels.first
-            Triple(label, avg, matching.size)
-        }
-    }
-
-    // Filtered & Sorted Day Items for the Accordion Breakdown
+    // Filtered & Sorted Day Items for Table View
     val displayedDayItems = remember(dayItems, breakdownFilter, breakdownSort, searchQuery) {
         var filtered = dayItems.asSequence()
 
         when (breakdownFilter) {
             DailyBreakdownFilter.ALL -> {}
             DailyBreakdownFilter.SPENT_ONLY -> filtered = filtered.filter { it.expense > 0 }
-            DailyBreakdownFilter.ABOVE_AVG -> filtered = filtered.filter { it.expense > dailyAvgExpense }
             DailyBreakdownFilter.ZERO_SPEND -> filtered = filtered.filter { it.expense == 0.0 }
         }
 
@@ -355,7 +343,7 @@ fun DailySummaryDetailDialog(
         }
     }
 
-    // Selected day focused item
+    // Focused day item for interactive click/inspector
     val focusedDayItem = remember(selectedDayKey, dayItems) {
         dayItems.find { it.fullDateString == selectedDayKey }
     }
@@ -373,7 +361,7 @@ fun DailySummaryDetailDialog(
             appendLine("💰 Net Flow: ${LanguageHelper.formatCurrency(netCashflow, languageMode)} (${String.format(Locale.US, "%.1f", savingsRate)}%)")
             appendLine("📈 Daily Average: ${LanguageHelper.formatCurrency(dailyAvgExpense, languageMode)}/day")
             if (peakExpenseDay != null && peakExpenseDay.expense > 0) {
-                appendLine("🏆 Peak Day: ${peakExpenseDay.fullDateString} (${LanguageHelper.formatCurrency(peakExpenseDay.expense, languageMode)})")
+                appendLine("🏆 Peak Spend Day: ${peakExpenseDay.fullDateString} (${LanguageHelper.formatCurrency(peakExpenseDay.expense, languageMode)})")
             }
             appendLine("🛡️ No-Spend Days: $zeroSpendDaysCount of $totalDaysCount days")
         }
@@ -425,7 +413,7 @@ fun DailySummaryDetailDialog(
                         Spacer(modifier = Modifier.width(6.dp))
                         Column {
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "দৈনিক সারসংক্ষেপ বিশ্লেষণ" else "Daily Summary Analytics",
+                                text = if (languageMode == LanguageMode.BANGLA) "দৈনিক সারসংক্ষেপ" else "Daily Summary",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -464,7 +452,7 @@ fun DailySummaryDetailDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
-                // Scrollable Content
+                // Scrollable Body organized into 4 Clean Sections
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -474,15 +462,15 @@ fun DailySummaryDetailDialog(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
                 ) {
-                    // Time Horizon Selector & Navigation Controls
-                    item(key = "period_controls") {
+                    // SECTION 1: Filter Options
+                    item(key = "section_filters") {
                         Card(
                             shape = RoundedCornerShape(18.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                // Horizontal Filter Chips
+                                // Horizontal Period Filter Chips
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -515,7 +503,7 @@ fun DailySummaryDetailDialog(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                // Period Step Navigator (< Date Range >)
+                                // Date Range Stepper Navigator (< Date Range >)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -549,7 +537,7 @@ fun DailySummaryDetailDialog(
                                                 imageVector = Icons.Default.CalendarToday,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(14.dp)
+                                                modifier = Modifier.size(13.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
@@ -571,7 +559,7 @@ fun DailySummaryDetailDialog(
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                             ) {
                                                 Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA) "বর্তমান" else "Current",
+                                                    text = if (languageMode == LanguageMode.BANGLA) "চলতি" else "Current",
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -599,8 +587,8 @@ fun DailySummaryDetailDialog(
                         }
                     }
 
-                    // Key Insights 2x2 Metric Grid
-                    item(key = "metric_grid") {
+                    // SECTION 2: Key Statistics (Scannable 2x2 Grid)
+                    item(key = "section_key_statistics") {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -610,11 +598,11 @@ fun DailySummaryDetailDialog(
                                 ModernInsightCard(
                                     title = LanguageHelper.getString("expense", languageMode),
                                     amount = totalPeriodExpense,
-                                    subtitle = "$totalTxCount txs in period",
+                                    subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক গড়: ${LanguageHelper.formatCurrency(dailyAvgExpense, languageMode)}" else "Daily Avg: ${LanguageHelper.formatCurrency(dailyAvgExpense, languageMode)}",
                                     badgeText = "-${LanguageHelper.formatCurrency(totalPeriodExpense, languageMode)}",
                                     icon = Icons.AutoMirrored.Filled.TrendingDown,
                                     accentColor = SolidExpense,
-                                    containerColor = SolidExpenseContainer.copy(alpha = 0.55f),
+                                    containerColor = SolidExpenseContainer.copy(alpha = 0.5f),
                                     languageMode = languageMode,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -623,11 +611,11 @@ fun DailySummaryDetailDialog(
                                 ModernInsightCard(
                                     title = LanguageHelper.getString("income", languageMode),
                                     amount = totalPeriodIncome,
-                                    subtitle = if (netCashflow >= 0) "+${LanguageHelper.formatCurrency(netCashflow, languageMode)} net" else "${LanguageHelper.formatCurrency(netCashflow, languageMode)} net",
+                                    subtitle = if (languageMode == LanguageMode.BANGLA) "$totalTxCount টি লেনদেন" else "$totalTxCount transactions",
                                     badgeText = "+${LanguageHelper.formatCurrency(totalPeriodIncome, languageMode)}",
                                     icon = Icons.AutoMirrored.Filled.TrendingUp,
                                     accentColor = SolidIncome,
-                                    containerColor = SolidIncomeContainer.copy(alpha = 0.55f),
+                                    containerColor = SolidIncomeContainer.copy(alpha = 0.5f),
                                     languageMode = languageMode,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -637,24 +625,11 @@ fun DailySummaryDetailDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                // Daily Average Expense
+                                // Net Cashflow Card
                                 ModernInsightCard(
-                                    title = if (languageMode == LanguageMode.BANGLA) "দৈনিক গড় ব্যয়" else "Daily Average",
-                                    amount = dailyAvgExpense,
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "মাসিক প্রক্ষেপণ: ${LanguageHelper.formatCurrency(dailyAvgExpense * 30, languageMode)}" else "30d est: ${LanguageHelper.formatCurrency(dailyAvgExpense * 30, languageMode)}",
-                                    badgeText = "${LanguageHelper.formatCurrency(dailyAvgExpense, languageMode)}/d",
-                                    icon = Icons.Default.Speed,
-                                    accentColor = SolidAmber,
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                    languageMode = languageMode,
-                                    modifier = Modifier.weight(1f)
-                                )
-
-                                // Net Flow & Savings Rate
-                                ModernInsightCard(
-                                    title = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় হার / নেট" else "Net Savings",
+                                    title = if (languageMode == LanguageMode.BANGLA) "নেট ক্যাশফ্লো" else "Net Cash Flow",
                                     amount = netCashflow,
-                                    subtitle = if (savingsRate >= 0) "${String.format(Locale.US, "%.1f", savingsRate)}% savings rate" else "Deficit period",
+                                    subtitle = if (savingsRate >= 0) "${String.format(Locale.US, "%.1f", savingsRate)}% ${if (languageMode == LanguageMode.BANGLA) "সঞ্চয় হার" else "savings rate"}" else if (languageMode == LanguageMode.BANGLA) "ঘাটতি সময়কাল" else "Deficit period",
                                     badgeText = if (netCashflow >= 0) "+${LanguageHelper.formatCurrency(netCashflow, languageMode)}" else LanguageHelper.formatCurrency(netCashflow, languageMode),
                                     icon = Icons.Default.AccountBalanceWallet,
                                     accentColor = if (netCashflow >= 0) SolidIncome else SolidExpense,
@@ -662,137 +637,93 @@ fun DailySummaryDetailDialog(
                                     languageMode = languageMode,
                                     modifier = Modifier.weight(1f)
                                 )
-                            }
-                        }
-                    }
 
-                    // Key Highlights Quick Badges Ribbon
-                    item(key = "highlights_ribbon") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (peakExpenseDay != null && peakExpenseDay.expense > 0) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                    modifier = Modifier.clickable {
-                                        selectedDayKey = peakExpenseDay.fullDateString
-                                    }
+                                // Highlights (Peak spend + Zero-spend count)
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(text = "🏆", fontSize = 13.sp)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Column {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) "সর্বোচ্চ ব্যয়ের দিন" else "Peak Spend Day",
-                                                fontSize = 10.sp,
+                                                text = if (languageMode == LanguageMode.BANGLA) "গুরুত্বপূর্ণ তথ্য" else "Summary Stats",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+                                            Icon(
+                                                imageVector = Icons.Default.Insights,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "$zeroSpendDaysCount দিন ব্যয়হীন" else "$zeroSpendDaysCount no-spend days",
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SolidIncome
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        if (peakExpenseDay != null && peakExpenseDay.expense > 0) {
                                             Text(
-                                                text = "${peakExpenseDay.dateNum} ${peakExpenseDay.dayOfWeekShort} • ${LanguageHelper.formatCurrency(peakExpenseDay.expense, languageMode)}",
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = SolidExpense
+                                                text = if (languageMode == LanguageMode.BANGLA) "সর্বোচ্চ: ${peakExpenseDay.dateNum} তারিখ (${LanguageHelper.formatCurrency(peakExpenseDay.expense, languageMode)})"
+                                                else "Peak: ${peakExpenseDay.monthShort} ${peakExpenseDay.dateNum} (${LanguageHelper.formatCurrency(peakExpenseDay.expense, languageMode)})",
+                                                fontSize = 10.sp,
+                                                color = SolidExpense,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        } else {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "$spentDaysCount দিন ব্যয় হয়েছে" else "$spentDaysCount spending days",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }
                                 }
                             }
-
-                            // No-Spend Days Badge
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                modifier = Modifier.clickable {
-                                    breakdownFilter = DailyBreakdownFilter.ZERO_SPEND
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(text = "🛡️", fontSize = 13.sp)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ব্যয়হীন দিন" else "Zero-Spend Days",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        val pctZero = if (totalDaysCount > 0) (zeroSpendDaysCount * 100) / totalDaysCount else 0
-                                        Text(
-                                            text = "$zeroSpendDaysCount days ($pctZero%)",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = SolidIncome
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Spikes above average badge
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                modifier = Modifier.clickable {
-                                    breakdownFilter = DailyBreakdownFilter.ABOVE_AVG
-                                }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(text = "📈", fontSize = 13.sp)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "গড়ের ঊর্ধ্বে দিন" else "Above-Avg Spikes",
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            text = "$spikeDaysCount days > avg",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            }
                         }
                     }
 
-                    // Modern Interactive Graph Card
-                    item(key = "interactive_graph") {
+                    // SECTION 3: Clickable Charts
+                    item(key = "section_clickable_chart") {
                         Card(
                             shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
-                                // Graph Mode Tabs Header
+                                // Chart Mode Tabs & Title
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "দৈনিক আর্থিক গতিধারা" else "Daily Flow Trend",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                                    Column {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "দৈনিক চার্ট" else "Daily Flow Chart",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "বিশদ তথ্যের জন্য বারে ট্যাপ করুন" else "Tap a bar to inspect details",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
 
-                                    // Mode Segmented Control
+                                    // Mode Control Chips (Expense | Income | Net Flow)
                                     Row(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(10.dp))
@@ -822,28 +753,26 @@ fun DailySummaryDetailDialog(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
 
-                                // Dynamic Canvas Chart
-                                val maxChartValue = remember(dayItems, graphMode) {
+                                // Calculate scale with rounded whole numbers for Y-axis
+                                val rawPeak = remember(dayItems, graphMode) {
                                     val peak = when (graphMode) {
                                         DailyGraphMode.EXPENSE -> dayItems.maxOfOrNull { it.expense } ?: 100.0
                                         DailyGraphMode.INCOME -> dayItems.maxOfOrNull { it.income } ?: 100.0
                                         DailyGraphMode.NET_FLOW -> dayItems.maxOfOrNull { abs(it.net) } ?: 100.0
-                                        DailyGraphMode.BOTH -> max(
-                                            dayItems.maxOfOrNull { it.expense } ?: 100.0,
-                                            dayItems.maxOfOrNull { it.income } ?: 100.0
-                                        )
                                     }
                                     peak.coerceAtLeast(100.0)
                                 }
-
+                                val niceTicks = remember(rawPeak) { calculateNiceScale(rawPeak, 3) }
+                                val chartMax = niceTicks.last()
                                 val isDark = isSystemInDarkTheme()
 
+                                // Canvas Chart with Clickability & Y-axis rounded numbers
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(190.dp)
+                                        .height(180.dp)
                                 ) {
                                     Canvas(
                                         modifier = Modifier
@@ -851,237 +780,182 @@ fun DailySummaryDetailDialog(
                                             .pointerInput(dayItems) {
                                                 detectTapGestures { offset ->
                                                     if (dayItems.isNotEmpty()) {
-                                                        val slotW = size.width / dayItems.size
-                                                        val idx = (offset.x / slotW).toInt().coerceIn(0, dayItems.size - 1)
-                                                        val clickedDay = dayItems[idx]
-                                                        selectedDayKey = if (selectedDayKey == clickedDay.fullDateString) null else clickedDay.fullDateString
+                                                        val yAxisWidth = 36.dp.toPx()
+                                                        val chartWidth = size.width - yAxisWidth
+                                                        if (offset.x >= yAxisWidth) {
+                                                            val barAreaX = offset.x - yAxisWidth
+                                                            val slotW = chartWidth / dayItems.size
+                                                            val idx = (barAreaX / slotW).toInt().coerceIn(0, dayItems.size - 1)
+                                                            val clickedDay = dayItems[idx]
+                                                            selectedDayKey = if (selectedDayKey == clickedDay.fullDateString) null else clickedDay.fullDateString
+                                                        }
                                                     }
                                                 }
                                             }
                                     ) {
-                                        val width = size.width
-                                        val height = size.height
-                                        val bottomAxisH = 26.dp.toPx()
-                                        val chartAreaH = height - bottomAxisH - 14.dp.toPx()
-                                        val count = dayItems.size.coerceAtLeast(1)
-                                        val slotW = width / count
-                                        val baselineY = height - bottomAxisH
+                                        val totalWidth = size.width
+                                        val totalHeight = size.height
+                                        val yAxisWidth = 36.dp.toPx()
+                                        val bottomAxisH = 24.dp.toPx()
+                                        val topPadding = 10.dp.toPx()
+                                        val chartAreaH = totalHeight - bottomAxisH - topPadding
+                                        val chartAreaW = totalWidth - yAxisWidth
+                                        val baselineY = totalHeight - bottomAxisH
 
-                                        // Draw subtle grid line for zero baseline
+                                        val count = dayItems.size.coerceAtLeast(1)
+                                        val slotW = chartAreaW / count
+
+                                        // Paints
+                                        val axisPaint = android.graphics.Paint().apply {
+                                            color = if (isDark) android.graphics.Color.GRAY else android.graphics.Color.DKGRAY
+                                            textSize = 9.sp.toPx()
+                                            textAlign = android.graphics.Paint.Align.RIGHT
+                                            isAntiAlias = true
+                                        }
+
+                                        val xLabelPaint = android.graphics.Paint().apply {
+                                            color = if (isDark) android.graphics.Color.LTGRAY else android.graphics.Color.GRAY
+                                            textSize = 8.5.sp.toPx()
+                                            textAlign = android.graphics.Paint.Align.CENTER
+                                            isAntiAlias = true
+                                        }
+
+                                        val selectedXLabelPaint = android.graphics.Paint().apply {
+                                            color = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+                                            textSize = 9.sp.toPx()
+                                            textAlign = android.graphics.Paint.Align.CENTER
+                                            isFakeBoldText = true
+                                            isAntiAlias = true
+                                        }
+
+                                        // 1. Draw horizontal grid lines & rounded Y-axis labels
+                                        niceTicks.forEach { tick ->
+                                            val ratio = (tick / chartMax).toFloat()
+                                            val y = baselineY - (ratio * chartAreaH)
+                                            // Grid line
+                                            drawLine(
+                                                color = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.07f),
+                                                start = Offset(yAxisWidth, y),
+                                                end = Offset(totalWidth, y),
+                                                strokeWidth = 1.dp.toPx()
+                                            )
+                                            // Y label
+                                            val labelStr = formatRoundedAxisNumber(tick)
+                                            drawContext.canvas.nativeCanvas.drawText(
+                                                labelStr,
+                                                yAxisWidth - 6.dp.toPx(),
+                                                y + 3.dp.toPx(),
+                                                axisPaint
+                                            )
+                                        }
+
+                                        // Baseline line
                                         drawLine(
-                                            color = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.15f),
-                                            start = Offset(0f, baselineY),
-                                            end = Offset(width, baselineY),
+                                            color = if (isDark) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.2f),
+                                            start = Offset(yAxisWidth, baselineY),
+                                            end = Offset(totalWidth, baselineY),
                                             strokeWidth = 1.dp.toPx()
                                         )
 
-                                        // Draw Average Line if Expense or Income mode
-                                        val avgToDraw = when (graphMode) {
-                                            DailyGraphMode.EXPENSE -> dailyAvgExpense
-                                            DailyGraphMode.INCOME -> dailyAvgIncome
-                                            else -> 0.0
-                                        }
-
-                                        if (avgToDraw > 0 && avgToDraw <= maxChartValue) {
-                                            val avgY = baselineY - (avgToDraw / maxChartValue * chartAreaH).toFloat()
-                                            drawLine(
-                                                color = SolidAmber.copy(alpha = 0.7f),
-                                                start = Offset(0f, avgY),
-                                                end = Offset(width, avgY),
-                                                strokeWidth = 1.5.dp.toPx(),
-                                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
-                                            )
-                                        }
-
-                                        val labelPaint = android.graphics.Paint().apply {
-                                            this.color = if (isDark) android.graphics.Color.LTGRAY else android.graphics.Color.GRAY
-                                            this.textSize = 9.sp.toPx()
-                                            this.textAlign = android.graphics.Paint.Align.CENTER
-                                            this.isAntiAlias = true
-                                        }
-
-                                        val selectedLabelPaint = android.graphics.Paint().apply {
-                                            this.color = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
-                                            this.textSize = 9.5.sp.toPx()
-                                            this.textAlign = android.graphics.Paint.Align.CENTER
-                                            this.isFakeBoldText = true
-                                            this.isAntiAlias = true
-                                        }
-
-                                        // Draw individual day bars
+                                        // 2. Draw Bars for Each Day
                                         dayItems.forEachIndexed { i, day ->
-                                            val centerX = slotW * i + slotW / 2f
+                                            val centerX = yAxisWidth + slotW * i + slotW / 2f
                                             val isSelected = selectedDayKey == day.fullDateString
-
-                                            // Draw X Axis date label
-                                            val p = if (isSelected) selectedLabelPaint else labelPaint
-                                            drawContext.canvas.nativeCanvas.drawText(
-                                                "${day.dateNum}",
-                                                centerX,
-                                                baselineY + 14.dp.toPx(),
-                                                p
-                                            )
 
                                             // Draw selection highlight background beam if selected
                                             if (isSelected) {
                                                 drawRoundRect(
-                                                    color = primaryColor.copy(alpha = 0.12f),
-                                                    topLeft = Offset(centerX - slotW / 2f + 1.dp.toPx(), 0f),
-                                                    size = Size(slotW - 2.dp.toPx(), height),
+                                                    color = primaryColor.copy(alpha = 0.16f),
+                                                    topLeft = Offset(centerX - slotW / 2f + 1.dp.toPx(), topPadding),
+                                                    size = Size(slotW - 2.dp.toPx(), chartAreaH + bottomAxisH),
                                                     cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
                                                 )
                                             }
 
-                                            when (graphMode) {
-                                                DailyGraphMode.EXPENSE -> {
-                                                    val expH = if (day.expense > 0) {
-                                                        (day.expense / maxChartValue * chartAreaH).toFloat().coerceAtLeast(3.dp.toPx())
-                                                    } else 0f
+                                            // Value and height based on graphMode
+                                            val value = when (graphMode) {
+                                                DailyGraphMode.EXPENSE -> day.expense
+                                                DailyGraphMode.INCOME -> day.income
+                                                DailyGraphMode.NET_FLOW -> abs(day.net)
+                                            }
 
-                                                    if (expH > 0) {
-                                                        val barW = (slotW * 0.52f).coerceIn(6.dp.toPx(), 28.dp.toPx())
-                                                        val barLeft = centerX - barW / 2f
-                                                        val barTop = baselineY - expH
+                                            if (value > 0) {
+                                                val barH = (value / chartMax * chartAreaH).toFloat().coerceAtLeast(3.dp.toPx())
+                                                val barW = (slotW * 0.58f).coerceIn(4.dp.toPx(), 22.dp.toPx())
+                                                val barLeft = centerX - barW / 2f
+                                                val barTop = baselineY - barH
 
-                                                        val barBrush = Brush.verticalGradient(
-                                                            colors = listOf(
-                                                                if (isSelected) SolidPrimary else SolidExpense,
-                                                                if (isSelected) SolidPrimary.copy(alpha = 0.7f) else SolidExpenseDark.copy(alpha = 0.75f)
-                                                            ),
-                                                            startY = barTop,
-                                                            endY = baselineY
-                                                        )
-
-                                                        drawRoundRect(
-                                                            brush = barBrush,
-                                                            topLeft = Offset(barLeft, barTop),
-                                                            size = Size(barW, expH),
-                                                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                                                        )
-                                                    }
+                                                val barColor = when (graphMode) {
+                                                    DailyGraphMode.EXPENSE -> if (isSelected) SolidPrimary else SolidExpense
+                                                    DailyGraphMode.INCOME -> if (isSelected) SolidPrimary else SolidIncome
+                                                    DailyGraphMode.NET_FLOW -> if (isSelected) SolidPrimary else if (day.net >= 0) SolidIncome else SolidExpense
                                                 }
 
-                                                DailyGraphMode.INCOME -> {
-                                                    val incH = if (day.income > 0) {
-                                                        (day.income / maxChartValue * chartAreaH).toFloat().coerceAtLeast(3.dp.toPx())
-                                                    } else 0f
+                                                drawRoundRect(
+                                                    color = barColor,
+                                                    topLeft = Offset(barLeft, barTop),
+                                                    size = Size(barW, barH),
+                                                    cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                                                )
+                                            }
 
-                                                    if (incH > 0) {
-                                                        val barW = (slotW * 0.52f).coerceIn(6.dp.toPx(), 28.dp.toPx())
-                                                        val barLeft = centerX - barW / 2f
-                                                        val barTop = baselineY - incH
+                                            // Draw X Axis label (draw every day if count <= 15, or every 2/3/5 days if many)
+                                            val shouldDrawXLabel = when {
+                                                count <= 14 -> true
+                                                count <= 21 -> i % 2 == 0 || isSelected
+                                                else -> i % 4 == 0 || i == count - 1 || isSelected
+                                            }
 
-                                                        val barBrush = Brush.verticalGradient(
-                                                            colors = listOf(
-                                                                if (isSelected) SolidPrimary else SolidIncome,
-                                                                if (isSelected) SolidPrimary.copy(alpha = 0.7f) else SolidIncomeDark.copy(alpha = 0.75f)
-                                                            ),
-                                                            startY = barTop,
-                                                            endY = baselineY
-                                                        )
-
-                                                        drawRoundRect(
-                                                            brush = barBrush,
-                                                            topLeft = Offset(barLeft, barTop),
-                                                            size = Size(barW, incH),
-                                                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                                                        )
-                                                    }
-                                                }
-
-                                                DailyGraphMode.NET_FLOW -> {
-                                                    val netH = if (day.net != 0.0) {
-                                                        (abs(day.net) / maxChartValue * chartAreaH).toFloat().coerceAtLeast(3.dp.toPx())
-                                                    } else 0f
-
-                                                    if (netH > 0) {
-                                                        val barW = (slotW * 0.52f).coerceIn(6.dp.toPx(), 28.dp.toPx())
-                                                        val barLeft = centerX - barW / 2f
-                                                        val barTop = baselineY - netH
-                                                        val barColor = if (day.net >= 0) SolidIncome else SolidExpense
-
-                                                        drawRoundRect(
-                                                            color = if (isSelected) SolidPrimary else barColor,
-                                                            topLeft = Offset(barLeft, barTop),
-                                                            size = Size(barW, netH),
-                                                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                                                        )
-                                                    }
-                                                }
-
-                                                DailyGraphMode.BOTH -> {
-                                                    val barW = (slotW * 0.32f).coerceIn(3.dp.toPx(), 14.dp.toPx())
-                                                    val gap = 1.5.dp.toPx()
-
-                                                    // Income (Left)
-                                                    if (day.income > 0) {
-                                                        val incH = (day.income / maxChartValue * chartAreaH).toFloat().coerceAtLeast(3.dp.toPx())
-                                                        drawRoundRect(
-                                                            color = if (isSelected) SolidPrimary else SolidIncome,
-                                                            topLeft = Offset(centerX - barW - gap / 2f, baselineY - incH),
-                                                            size = Size(barW, incH),
-                                                            cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
-                                                        )
-                                                    }
-
-                                                    // Expense (Right)
-                                                    if (day.expense > 0) {
-                                                        val expH = (day.expense / maxChartValue * chartAreaH).toFloat().coerceAtLeast(3.dp.toPx())
-                                                        drawRoundRect(
-                                                            color = if (isSelected) SolidPrimary else SolidExpense,
-                                                            topLeft = Offset(centerX + gap / 2f, baselineY - expH),
-                                                            size = Size(barW, expH),
-                                                            cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
-                                                        )
-                                                    }
-                                                }
+                                            if (shouldDrawXLabel) {
+                                                val p = if (isSelected) selectedXLabelPaint else xLabelPaint
+                                                drawContext.canvas.nativeCanvas.drawText(
+                                                    "${day.dateNum}",
+                                                    centerX,
+                                                    baselineY + 14.dp.toPx(),
+                                                    p
+                                                )
                                             }
                                         }
                                     }
                                 }
 
-                                // Legend & Average Indicator
+                                // Legend row
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (graphMode == DailyGraphMode.EXPENSE || graphMode == DailyGraphMode.BOTH) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(8.dp)
-                                                        .clip(CircleShape)
-                                                        .background(SolidExpense)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    when (graphMode) {
+                                                        DailyGraphMode.EXPENSE -> SolidExpense
+                                                        DailyGraphMode.INCOME -> SolidIncome
+                                                        DailyGraphMode.NET_FLOW -> SolidIncome
+                                                    }
                                                 )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(text = "Expense", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                        }
-                                        if (graphMode == DailyGraphMode.INCOME || graphMode == DailyGraphMode.BOTH) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(8.dp)
-                                                        .clip(CircleShape)
-                                                        .background(SolidIncome)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(text = "Income", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                        }
+                                        )
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) graphMode.labelBn else graphMode.labelEn,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
 
-                                    if (dailyAvgExpense > 0 && (graphMode == DailyGraphMode.EXPENSE || graphMode == DailyGraphMode.BOTH)) {
+                                    if (dailyAvgExpense > 0 && graphMode == DailyGraphMode.EXPENSE) {
                                         Text(
-                                            text = "Avg: ${LanguageHelper.formatCurrency(dailyAvgExpense, languageMode)}",
-                                            fontSize = 10.5.sp,
+                                            text = "${if (languageMode == LanguageMode.BANGLA) "গড়: " else "Avg: "}${LanguageHelper.formatCurrency(dailyAvgExpense, languageMode)}",
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = SolidAmber
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
@@ -1089,12 +963,12 @@ fun DailySummaryDetailDialog(
                         }
                     }
 
-                    // Selected Day Inspector Floating Card (Animated)
+                    // Tapped Day Detailed Inspector (Directly below chart)
                     if (focusedDayItem != null) {
-                        item(key = "selected_day_inspector") {
+                        item(key = "tapped_day_inspector") {
                             Card(
                                 shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
                                 border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
@@ -1107,13 +981,13 @@ fun DailySummaryDetailDialog(
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
                                                 color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(36.dp)
+                                                modifier = Modifier.size(34.dp)
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "${focusedDayItem.dateNum}",
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 15.sp,
+                                                        fontSize = 14.sp,
                                                         color = MaterialTheme.colorScheme.onPrimary
                                                     )
                                                 }
@@ -1127,7 +1001,7 @@ fun DailySummaryDetailDialog(
                                                     color = MaterialTheme.colorScheme.onSurface
                                                 )
                                                 Text(
-                                                    text = "${focusedDayItem.dayOfWeekFull} • ${focusedDayItem.transactions.size} transactions",
+                                                    text = "${focusedDayItem.dayOfWeekFull} • ${focusedDayItem.transactions.size} ${if (languageMode == LanguageMode.BANGLA) "টি লেনদেন" else "transactions"}",
                                                     fontSize = 11.sp,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -1154,29 +1028,41 @@ fun DailySummaryDetailDialog(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Column {
-                                            Text(text = "Expense", fontSize = 10.sp, color = SolidExpense)
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense",
+                                                fontSize = 10.sp,
+                                                color = SolidExpense
+                                            )
                                             Text(
                                                 text = "-${LanguageHelper.formatCurrency(focusedDayItem.expense, languageMode)}",
-                                                fontSize = 14.sp,
+                                                fontSize = 13.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = SolidExpense
                                             )
                                         }
                                         Column {
-                                            Text(text = "Income", fontSize = 10.sp, color = SolidIncome)
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "আয়" else "Income",
+                                                fontSize = 10.sp,
+                                                color = SolidIncome
+                                            )
                                             Text(
                                                 text = "+${LanguageHelper.formatCurrency(focusedDayItem.income, languageMode)}",
-                                                fontSize = 14.sp,
+                                                fontSize = 13.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = SolidIncome
                                             )
                                         }
                                         Column(horizontalAlignment = Alignment.End) {
-                                            Text(text = "Net Flow", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "নেট প্রবাহ" else "Net Flow",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                             val netColor = if (focusedDayItem.net >= 0) SolidIncome else SolidExpense
                                             Text(
                                                 text = if (focusedDayItem.net >= 0) "+${LanguageHelper.formatCurrency(focusedDayItem.net, languageMode)}" else LanguageHelper.formatCurrency(focusedDayItem.net, languageMode),
-                                                fontSize = 14.sp,
+                                                fontSize = 13.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = netColor
                                             )
@@ -1195,161 +1081,10 @@ fun DailySummaryDetailDialog(
                                             modifier = Modifier.align(Alignment.End),
                                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                         ) {
-                                            Text("Show Transactions Below", fontSize = 11.5.sp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Top Spending Categories Breakdown
-                    if (topCategories.isNotEmpty()) {
-                        item(key = "top_categories") {
-                            Card(
-                                shape = RoundedCornerShape(18.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "শীর্ষ ব্যয়ের খাতসমূহ" else "Top Expense Categories",
-                                            fontSize = 13.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "${topCategories.size} categories",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    topCategories.forEach { (catName, amountPair, catColor) ->
-                                        val (amount, pct) = amountPair
-                                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(8.dp)
-                                                            .clip(CircleShape)
-                                                            .background(catColor)
-                                                    )
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Text(
-                                                        text = catName,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MaterialTheme.colorScheme.onSurface,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = LanguageHelper.formatCurrency(amount, languageMode),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(
-                                                        text = "(${String.format(Locale.US, "%.0f", pct)}%)",
-                                                        fontSize = 10.5.sp,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                            Spacer(modifier = Modifier.height(3.dp))
-                                            LinearProgressIndicator(
-                                                progress = { (pct / 100f).toFloat().coerceIn(0f, 1f) },
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(5.dp)
-                                                    .clip(RoundedCornerShape(3.dp)),
-                                                color = catColor,
-                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Weekday Spending Heatmap (Pattern by day of week)
-                    item(key = "weekday_heatmap") {
-                        Card(
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "সপ্তাহের দিনভিত্তিক ব্যয়ের ধরন" else "Day-of-Week Spending Habit",
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-
-                                val maxWeekdayAvg = weekdaySpendStats.maxOfOrNull { it.second }?.coerceAtLeast(10.0) ?: 10.0
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Bottom
-                                ) {
-                                    weekdaySpendStats.forEach { (label, avg, count) ->
-                                        val heightRatio = (avg / maxWeekdayAvg).toFloat().coerceIn(0.06f, 1f)
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .height(60.dp)
-                                                    .width(16.dp),
-                                                contentAlignment = Alignment.BottomCenter
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxHeight(heightRatio)
-                                                        .fillMaxWidth()
-                                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                                        .background(
-                                                            if (avg >= maxWeekdayAvg * 0.85f && avg > 0) SolidExpense else SolidPrimary.copy(alpha = 0.7f)
-                                                        )
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(4.dp))
                                             Text(
-                                                text = label,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Text(
-                                                text = if (avg > 0) LanguageHelper.formatCurrency(avg, languageMode) else "-",
-                                                fontSize = 8.5.sp,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                text = if (languageMode == LanguageMode.BANGLA) "নিচের টেবিলে লেনদেন দেখুন" else "View in Table Below ↓",
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold
                                             )
                                         }
                                     }
@@ -1358,8 +1093,8 @@ fun DailySummaryDetailDialog(
                         }
                     }
 
-                    // Breakdown Filter Chips & Search Bar
-                    item(key = "breakdown_header") {
+                    // SECTION 4: Table View Header & Controls
+                    item(key = "section_table_header") {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1367,13 +1102,13 @@ fun DailySummaryDetailDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "দিনভিত্তিক লেনদেন বিবরণী" else "Day by Day Breakdown",
+                                    text = if (languageMode == LanguageMode.BANGLA) "দৈনিক হিসাবের টেবিল" else "Daily Summary Table",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
 
-                                // Sort Menu Trigger
+                                // Sort Selector
                                 Box {
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
@@ -1386,7 +1121,7 @@ fun DailySummaryDetailDialog(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.FilterList,
+                                                imageVector = Icons.Default.Sort,
                                                 contentDescription = "Sort",
                                                 modifier = Modifier.size(14.dp),
                                                 tint = MaterialTheme.colorScheme.primary
@@ -1422,7 +1157,7 @@ fun DailySummaryDetailDialog(
                                 }
                             }
 
-                            // Filter Chips Row
+                            // Table Filter Chips (All Days | Spending Only | No-Spend)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1448,7 +1183,7 @@ fun DailySummaryDetailDialog(
                                 }
                             }
 
-                            // Inline Search Bar
+                            // Table Search Bar
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
@@ -1482,12 +1217,58 @@ fun DailySummaryDetailDialog(
                                     .fillMaxWidth()
                                     .height(48.dp)
                             )
+
+                            // Table Column Headers Row
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "তারিখ" else "Date",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1.3f)
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidExpense,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "আয়" else "Income",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidIncome,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "নেট" else "Net",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    // Day Items List
+                    // SECTION 4 (Continued): Table Rows
                     if (displayedDayItems.isEmpty()) {
-                        item(key = "empty_breakdown") {
+                        item(key = "empty_table") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1495,7 +1276,7 @@ fun DailySummaryDetailDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "কোনো লেনদেন পাওয়া যায়নি" else "No transactions match this filter",
+                                    text = if (languageMode == LanguageMode.BANGLA) "কোনো তথ্য পাওয়া যায়নি" else "No entries found",
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1510,158 +1291,124 @@ fun DailySummaryDetailDialog(
                             val isExpanded = expandedDayKeys[day.fullDateString] == true || isSelectedOnChart
 
                             Card(
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelectedOnChart) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    containerColor = if (isSelectedOnChart) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                    else MaterialTheme.colorScheme.surface
                                 ),
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isSelectedOnChart) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                    if (isSelectedOnChart) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                                     else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .animateContentSize(animationSpec = tween(250))
+                                    .animateContentSize(animationSpec = tween(200))
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    // Header Row
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    // Row data
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
                                                 expandedDayKeys[day.fullDateString] = !isExpanded
                                                 selectedDayKey = day.fullDateString
-                                            },
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                            }
+                                            .padding(vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            // Date Circle Badge
+                                        // Date Column
+                                        Row(
+                                            modifier = Modifier.weight(1.3f),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             Surface(
-                                                shape = RoundedCornerShape(10.dp),
-                                                color = when {
-                                                    day.expense > dailyAvgExpense && day.expense > 0 -> SolidExpenseContainer.copy(alpha = 0.8f)
-                                                    day.expense == 0.0 -> SolidIncomeContainer.copy(alpha = 0.8f)
-                                                    else -> MaterialTheme.colorScheme.surface
-                                                },
-                                                border = BorderStroke(
-                                                    1.dp,
-                                                    when {
-                                                        day.expense > dailyAvgExpense && day.expense > 0 -> SolidExpense.copy(alpha = 0.4f)
-                                                        day.expense == 0.0 -> SolidIncome.copy(alpha = 0.4f)
-                                                        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                                    }
-                                                ),
-                                                modifier = Modifier.size(38.dp)
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = if (day.isToday) MaterialTheme.colorScheme.primary
+                                                else if (day.expense == 0.0) SolidIncome.copy(alpha = 0.15f)
+                                                else MaterialTheme.colorScheme.surfaceVariant,
+                                                modifier = Modifier.size(26.dp)
                                             ) {
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "${day.dateNum}",
-                                                        fontSize = 14.sp,
+                                                        fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = when {
-                                                            day.expense > dailyAvgExpense && day.expense > 0 -> SolidOnExpenseContainer
-                                                            day.expense == 0.0 -> SolidOnIncomeContainer
-                                                            else -> MaterialTheme.colorScheme.onSurface
-                                                        }
+                                                        color = if (day.isToday) MaterialTheme.colorScheme.onPrimary
+                                                        else if (day.expense == 0.0) SolidIncome
+                                                        else MaterialTheme.colorScheme.onSurface
                                                     )
                                                 }
                                             }
-
-                                            Spacer(modifier = Modifier.width(10.dp))
-
+                                            Spacer(modifier = Modifier.width(6.dp))
                                             Column {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = day.dayOfWeekShort,
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(
-                                                        text = day.fullDateString,
-                                                        fontSize = 11.5.sp,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                    if (day.isToday) {
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                        Surface(
-                                                            shape = RoundedCornerShape(4.dp),
-                                                            color = MaterialTheme.colorScheme.primary,
-                                                            modifier = Modifier.padding(horizontal = 2.dp)
-                                                        ) {
-                                                            Text(
-                                                                text = "TODAY",
-                                                                fontSize = 8.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
                                                 Text(
-                                                    text = "${day.transactions.size} transactions",
-                                                    fontSize = 10.5.sp,
-                                                    color = MaterialTheme.colorScheme.outline
+                                                    text = day.dayOfWeekShort,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (day.isWeekend) SolidExpense else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = "${day.transactions.size} txs",
+                                                    fontSize = 9.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
 
-                                        // Right side totals & chevron
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Column(horizontalAlignment = Alignment.End) {
-                                                if (day.expense > 0) {
-                                                    Text(
-                                                        text = "-${LanguageHelper.formatCurrency(day.expense, languageMode)}",
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = SolidExpense
-                                                    )
-                                                }
-                                                if (day.income > 0) {
-                                                    Text(
-                                                        text = "+${LanguageHelper.formatCurrency(day.income, languageMode)}",
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = SolidIncome
-                                                    )
-                                                }
-                                                if (day.expense == 0.0 && day.income == 0.0) {
-                                                    Text(
-                                                        text = "No spend",
-                                                        fontSize = 11.sp,
-                                                        color = MaterialTheme.colorScheme.outline
-                                                    )
-                                                }
-                                            }
+                                        // Expense Column
+                                        Text(
+                                            text = if (day.expense > 0) "-${LanguageHelper.formatCurrency(day.expense, languageMode)}" else "—",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (day.expense > 0) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (day.expense > 0) SolidExpense else MaterialTheme.colorScheme.outline,
+                                            textAlign = TextAlign.End,
+                                            modifier = Modifier.weight(1f)
+                                        )
 
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Icon(
-                                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
-                                            )
+                                        // Income Column
+                                        Text(
+                                            text = if (day.income > 0) "+${LanguageHelper.formatCurrency(day.income, languageMode)}" else "—",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (day.income > 0) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (day.income > 0) SolidIncome else MaterialTheme.colorScheme.outline,
+                                            textAlign = TextAlign.End,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        // Net Column
+                                        val netColor = when {
+                                            day.net > 0 -> SolidIncome
+                                            day.net < 0 -> SolidExpense
+                                            else -> MaterialTheme.colorScheme.outline
                                         }
+                                        Text(
+                                            text = when {
+                                                day.net > 0 -> "+${LanguageHelper.formatCurrency(day.net, languageMode)}"
+                                                day.net < 0 -> LanguageHelper.formatCurrency(day.net, languageMode)
+                                                else -> "—"
+                                            },
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = netColor,
+                                            textAlign = TextAlign.End,
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
 
-                                    // Expandable Transaction List for this day
+                                    // Inline transactions expander
                                     if (isExpanded && day.transactions.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                         Spacer(modifier = Modifier.height(6.dp))
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                        Spacer(modifier = Modifier.height(4.dp))
 
                                         day.transactions.forEach { txItem ->
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clip(RoundedCornerShape(6.dp))
                                                     .clickable { onTransactionClick?.invoke(txItem) }
-                                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                                    .padding(vertical = 5.dp, horizontal = 4.dp),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -1685,7 +1432,7 @@ fun DailySummaryDetailDialog(
                                                         Text(
                                                             text = txItem.category?.localizedName(languageMode)
                                                                 ?: txItem.transaction.payeeOrPayer.ifBlank { txItem.transaction.note }.ifBlank { "Transaction" },
-                                                            fontSize = 12.sp,
+                                                            fontSize = 11.5.sp,
                                                             fontWeight = FontWeight.SemiBold,
                                                             color = MaterialTheme.colorScheme.onSurface,
                                                             maxLines = 1,
@@ -1699,7 +1446,7 @@ fun DailySummaryDetailDialog(
                                                         if (txAccount != null) {
                                                             Text(
                                                                 text = txAccount.localizedName(languageMode),
-                                                                fontSize = 10.sp,
+                                                                fontSize = 9.5.sp,
                                                                 color = if (onAccountClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                 modifier = if (onAccountClick != null) Modifier.clickable { onAccountClick(txAccount) } else Modifier
                                                             )
@@ -1710,7 +1457,7 @@ fun DailySummaryDetailDialog(
                                                 Text(
                                                     text = (if (txItem.transaction.type == TransactionType.EXPENSE) "-" else "+") +
                                                             LanguageHelper.formatCurrency(txItem.transaction.amount, languageMode),
-                                                    fontSize = 12.5.sp,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = if (txItem.transaction.type == TransactionType.EXPENSE) SolidExpense else SolidIncome
                                                 )
@@ -1771,7 +1518,7 @@ private fun ModernInsightCard(
 
             Text(
                 text = LanguageHelper.formatCurrency(abs(amount), languageMode),
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )

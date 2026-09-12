@@ -149,6 +149,7 @@ enum class LedgerRowStyle {
 }
 
 enum class LedgerDatePreset(val displayName: String) {
+    LAST_12_MONTHS("Last 12 Months"),
     ALL_TIME("All Time"),
     TODAY("Today"),
     YESTERDAY("Yesterday"),
@@ -194,7 +195,7 @@ fun LedgerScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
     var showSearchField by remember { mutableStateOf(true) }
-    var selectedDatePreset by remember { mutableStateOf(LedgerDatePreset.THIS_MONTH) }
+    var selectedDatePreset by remember { mutableStateOf(LedgerDatePreset.LAST_12_MONTHS) }
     var minAmountFilter by remember { mutableDoubleStateOf(0.0) }
     var maxAmountFilter by remember { mutableDoubleStateOf(Double.MAX_VALUE) }
     var customStartDateMs by remember { mutableLongStateOf(0L) }
@@ -237,11 +238,60 @@ fun LedgerScreen(
         map
     }
 
+    // Historical running balances per account for each transaction so views reflect the actual effect at that time
+    val runningAccountBalances: Map<Pair<Long, Long>, Double> = remember(transactions, allAccounts) {
+        val chronological = transactions.sortedWith(
+            compareBy<TransactionWithDetails> { it.transaction.dateEpochMs }
+                .thenBy { it.transaction.id }
+        )
+        val balances = allAccounts.associate { acc ->
+            val init = if (acc.type == AccountType.LIABILITY) -acc.initialBalance else acc.initialBalance
+            acc.id to init
+        }.toMutableMap()
+
+        val map = mutableMapOf<Pair<Long, Long>, Double>()
+
+        chronological.forEach { item ->
+            val tx = item.transaction
+            val isVoid = tx.status == TransactionStatus.VOID
+            if (!isVoid) {
+                tx.creditAccountId?.let { credId ->
+                    val cur = balances.getOrDefault(credId, 0.0)
+                    val newBal = cur - tx.amount
+                    balances[credId] = newBal
+                    map[Pair(tx.id, credId)] = newBal
+                }
+                tx.debitAccountId?.let { debId ->
+                    val cur = balances.getOrDefault(debId, 0.0)
+                    val newBal = cur + tx.amount
+                    balances[debId] = newBal
+                    map[Pair(tx.id, debId)] = newBal
+                }
+            } else {
+                tx.creditAccountId?.let { credId ->
+                    map[Pair(tx.id, credId)] = balances.getOrDefault(credId, 0.0)
+                }
+                tx.debitAccountId?.let { debId ->
+                    map[Pair(tx.id, debId)] = balances.getOrDefault(debId, 0.0)
+                }
+            }
+        }
+        map
+    }
+
     // Compute Date Bounds
     val (startEpochMs, endEpochMs) = remember(selectedDatePreset, customStartDateMs, customEndDateMs) {
         val now = System.currentTimeMillis()
         val cal = Calendar.getInstance().apply { timeInMillis = now }
         when (selectedDatePreset) {
+            LedgerDatePreset.LAST_12_MONTHS -> {
+                cal.add(Calendar.MONTH, -12)
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                Pair(cal.timeInMillis, now)
+            }
             LedgerDatePreset.ALL_TIME -> Pair(0L, Long.MAX_VALUE)
             LedgerDatePreset.TODAY -> {
                 val start = DateUtils.getStartOfDay(now)
@@ -391,7 +441,7 @@ fun LedgerScreen(
         inc - exp
     }
 
-    val hasActiveFilters = selectedDatePreset != LedgerDatePreset.THIS_MONTH ||
+    val hasActiveFilters = selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS ||
             selectedTypeFilter != null ||
             minAmountFilter > 0.0 ||
             maxAmountFilter < Double.MAX_VALUE ||
@@ -412,7 +462,7 @@ fun LedgerScreen(
             val s = DateUtils.formatDate(customStartDateMs, languageMode)
             val e = DateUtils.formatDate(customEndDateMs, languageMode)
             parts.add("$s - $e")
-        } else if (selectedDatePreset != LedgerDatePreset.THIS_MONTH) {
+        } else if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) {
             parts.add(selectedDatePreset.displayName)
         }
 
@@ -820,7 +870,7 @@ fun LedgerScreen(
 
                                 TextButton(
                                     onClick = {
-                                        selectedDatePreset = LedgerDatePreset.THIS_MONTH
+                                        selectedDatePreset = LedgerDatePreset.LAST_12_MONTHS
                                         selectedTypeFilter = null
                                         minAmountFilter = 0.0
                                         maxAmountFilter = Double.MAX_VALUE
@@ -923,7 +973,7 @@ fun LedgerScreen(
 
                                     if (showSourceLeg) {
                                         val srcAccountName = item.creditAccount?.localizedName(languageMode) ?: "Source"
-                                        val srcBalance = tx.creditAccountId?.let { accountBalanceMap[it] }
+                                        val srcBalance = tx.creditAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
                                         val srcIsIncrease = tx.amount < 0
                                         val srcSign = if (srcIsIncrease) "+" else "−"
                                         val srcColor = if (srcIsIncrease) SolidIncome else SolidExpense
@@ -963,7 +1013,7 @@ fun LedgerScreen(
 
                                     if (showDestLeg) {
                                         val destAccountName = item.debitAccount?.localizedName(languageMode) ?: "Dest"
-                                        val destBalance = tx.debitAccountId?.let { accountBalanceMap[it] }
+                                        val destBalance = tx.debitAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
                                         val destIsIncrease = tx.amount >= 0
                                         val destSign = if (destIsIncrease) "+" else "−"
                                         val destColor = if (destIsIncrease) SolidIncome else SolidExpense
@@ -999,8 +1049,8 @@ fun LedgerScreen(
                                         else -> ""
                                     }
                                     val accBalance = when (tx.type) {
-                                        TransactionType.EXPENSE -> tx.creditAccountId?.let { accountBalanceMap[it] }
-                                        TransactionType.INCOME -> tx.debitAccountId?.let { accountBalanceMap[it] }
+                                        TransactionType.EXPENSE -> tx.creditAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
+                                        TransactionType.INCOME -> tx.debitAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
                                         else -> null
                                     }
 
@@ -1427,6 +1477,11 @@ fun AdvancedTransactionsFilterDialog(
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
+                            selected = tempPreset == LedgerDatePreset.LAST_12_MONTHS,
+                            onClick = { tempPreset = LedgerDatePreset.LAST_12_MONTHS },
+                            label = { Text("Last 12 Months", fontSize = 10.sp) }
+                        )
+                        FilterChip(
                             selected = tempPreset == LedgerDatePreset.ALL_TIME,
                             onClick = { tempPreset = LedgerDatePreset.ALL_TIME },
                             label = { Text("All Time", fontSize = 10.sp) }
@@ -1436,14 +1491,14 @@ fun AdvancedTransactionsFilterDialog(
                             onClick = { tempPreset = LedgerDatePreset.TODAY },
                             label = { Text("Today", fontSize = 10.sp) }
                         )
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.YESTERDAY,
                             onClick = { tempPreset = LedgerDatePreset.YESTERDAY },
                             label = { Text("Yesterday", fontSize = 10.sp) }
                         )
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.THIS_WEEK,
                             onClick = { tempPreset = LedgerDatePreset.THIS_WEEK },
@@ -1454,23 +1509,18 @@ fun AdvancedTransactionsFilterDialog(
                             onClick = { tempPreset = LedgerDatePreset.LAST_WEEK },
                             label = { Text("Last Week", fontSize = 10.sp) }
                         )
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.THIS_MONTH,
                             onClick = { tempPreset = LedgerDatePreset.THIS_MONTH },
                             label = { Text("This Month", fontSize = 10.sp) }
                         )
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.LAST_MONTH,
                             onClick = { tempPreset = LedgerDatePreset.LAST_MONTH },
                             label = { Text("Last Month", fontSize = 10.sp) }
-                        )
-                        FilterChip(
-                            selected = tempPreset == LedgerDatePreset.SINCE_LAST_YEAR,
-                            onClick = { tempPreset = LedgerDatePreset.SINCE_LAST_YEAR },
-                            label = { Text("Since Last Year", fontSize = 10.sp) }
                         )
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.CUSTOM,
