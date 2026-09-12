@@ -311,7 +311,8 @@ class BudgetRepository(
             val cr = creditSums[acc.id] ?: 0.0
             return when (acc.type) {
                 AccountType.ASSET, AccountType.EXPENSE -> acc.initialBalance + (dr - cr)
-                AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
+                AccountType.LIABILITY -> -(acc.initialBalance + (cr - dr))
+                AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
             }
         }
 
@@ -352,7 +353,7 @@ class BudgetRepository(
         for (item in accountsWithBal) {
             when (item.account.type) {
                 AccountType.ASSET -> totalAssets += item.currentBalance
-                AccountType.LIABILITY -> totalLiabilities += item.currentBalance
+                AccountType.LIABILITY -> totalLiabilities += Math.abs(item.currentBalance)
                 else -> {}
             }
         }

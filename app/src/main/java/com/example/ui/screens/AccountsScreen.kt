@@ -198,7 +198,7 @@ fun AccountsScreen(
         activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { it.currentBalance }
     }
     val actualTotalLiabilities = remember(activeAccounts) {
-        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { it.currentBalance }
+        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(it.currentBalance) }
     }
     val actualNetWorth = actualTotalAssets - actualTotalLiabilities
 
@@ -207,7 +207,7 @@ fun AccountsScreen(
         activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeEffectiveGroupBalance(it) }
     }
     val calculatedTotalLiabilities = remember(activeAccounts, accountCalcConfig) {
-        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { computeEffectiveGroupBalance(it) }
+        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(computeEffectiveGroupBalance(it)) }
     }
     val calculatedNetWorth = calculatedTotalAssets - calculatedTotalLiabilities
 

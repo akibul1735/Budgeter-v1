@@ -187,7 +187,8 @@ object BalanceSheetHelper {
             val cr = if (isBase) (baseCredits[acc.id] ?: 0.0) else (currCredits[acc.id] ?: 0.0)
             return when (acc.type) {
                 AccountType.ASSET, AccountType.EXPENSE -> acc.initialBalance + (dr - cr)
-                AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
+                AccountType.LIABILITY -> -(acc.initialBalance + (cr - dr))
+                AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
             }
         }
 
@@ -314,8 +315,8 @@ object BalanceSheetHelper {
         val totalAssetsBase = rawAssetGroups.sumOf { it.effectiveBaseBalance }
         val totalAssetsCurrent = rawAssetGroups.sumOf { it.effectiveCurrentBalance }
 
-        val totalLiabilitiesBase = rawLiabilityGroups.sumOf { it.effectiveBaseBalance }
-        val totalLiabilitiesCurrent = rawLiabilityGroups.sumOf { it.effectiveCurrentBalance }
+        val totalLiabilitiesBase = rawLiabilityGroups.sumOf { Math.abs(it.effectiveBaseBalance) }
+        val totalLiabilitiesCurrent = rawLiabilityGroups.sumOf { Math.abs(it.effectiveCurrentBalance) }
 
         val netWorthBase = totalAssetsBase - totalLiabilitiesBase
         val netWorthCurrent = totalAssetsCurrent - totalLiabilitiesCurrent

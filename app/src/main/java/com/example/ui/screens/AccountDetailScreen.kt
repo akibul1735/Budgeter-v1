@@ -283,7 +283,7 @@ fun AccountDetailScreen(
         val subAccountInitial = if (account.parentId == null) {
             allAccounts.filter { it.parentId == account.id }.sumOf { it.initialBalance }
         } else 0.0
-        val baseInitial = account.initialBalance + subAccountInitial
+        val baseInitial = if (account.type == AccountType.LIABILITY) -(account.initialBalance + subAccountInitial) else (account.initialBalance + subAccountInitial)
 
         val chronological = accountTransactions.sortedWith(
             compareBy<TransactionWithDetails> { it.transaction.dateEpochMs }
@@ -298,18 +298,10 @@ fun AccountDetailScreen(
             val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
             val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
 
-            if (account.type == AccountType.ASSET) {
-                if (isDebit && !isCredit) {
-                    currentRunning += tx.amount
-                } else if (isCredit && !isDebit) {
-                    currentRunning -= tx.amount
-                }
-            } else {
-                if (isCredit && !isDebit) {
-                    currentRunning += tx.amount
-                } else if (isDebit && !isCredit) {
-                    currentRunning -= tx.amount
-                }
+            if (isDebit && !isCredit) {
+                currentRunning += tx.amount
+            } else if (isCredit && !isDebit) {
+                currentRunning -= tx.amount
             }
             map[tx.id] = currentRunning
         }
@@ -1288,10 +1280,11 @@ private fun AccountDetailTableTab(
                         val tx = item.transaction
                         val isDebit = tx.debitAccountId == account.id
                         val isCredit = tx.creditAccountId == account.id
-                        val isIncrease = if (account.type == AccountType.ASSET) {
-                            if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
+                        val isIncrease = if (tx.type == TransactionType.TRANSFER) {
+                            val isSource = tx.creditAccountId == account.id
+                            if (isSource) tx.amount < 0 else tx.amount >= 0
                         } else {
-                            if (isCredit && !isDebit) tx.amount >= 0 else if (isDebit && !isCredit) tx.amount < 0 else false
+                            if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
                         }
                         if (isIncrease) dayInflow += abs(tx.amount) else dayOutflow += abs(tx.amount)
                     }
@@ -1364,11 +1357,7 @@ private fun AccountDetailTableTab(
                                     otherAcc?.localizedName(languageMode) ?: LanguageHelper.getString("transfer", languageMode)
                                 }
 
-                                val isIncrease = if (account.type == AccountType.LIABILITY || account.type == AccountType.EQUITY) {
-                                    if (isSource) tx.amount >= 0 else tx.amount < 0
-                                } else {
-                                    if (isSource) tx.amount < 0 else tx.amount >= 0
-                                }
+                                val isIncrease = if (isSource) tx.amount < 0 else tx.amount >= 0
                                 val overrideSign = if (isIncrease) "+" else "−"
                                 val overrideAmtColor = if (isIncrease) SolidIncome else SolidExpense
 
@@ -1397,11 +1386,7 @@ private fun AccountDetailTableTab(
                             } else {
                                 val isDebit = tx.debitAccountId == account.id
                                 val isCredit = tx.creditAccountId == account.id
-                                val isIncrease = if (account.type == AccountType.ASSET) {
-                                    if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
-                                } else {
-                                    if (isCredit && !isDebit) tx.amount >= 0 else if (isDebit && !isCredit) tx.amount < 0 else false
-                                }
+                                val isIncrease = if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
 
                                 val overrideSign = if (isIncrease) "+" else "−"
                                 val overrideAmtColor = if (isIncrease) SolidIncome else SolidExpense
@@ -1907,7 +1892,7 @@ private fun computeTimelinePoints(
     val subAccountInitial = if (account.parentId == null) {
         allAccounts.filter { it.parentId == account.id }.sumOf { it.initialBalance }
     } else 0.0
-    val baseInitial = account.initialBalance + subAccountInitial
+    val baseInitial = if (account.type == AccountType.LIABILITY) -(account.initialBalance + subAccountInitial) else (account.initialBalance + subAccountInitial)
 
     val chronological = transactions.sortedWith(
         compareBy<TransactionWithDetails> { it.transaction.dateEpochMs }
@@ -1953,13 +1938,8 @@ private fun computeTimelinePoints(
         val tx = chronological[txIdx].transaction
         val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
         val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
-        if (account.type == AccountType.ASSET) {
-            if (isDebit && !isCredit) runningBal += tx.amount
-            else if (isCredit && !isDebit) runningBal -= tx.amount
-        } else {
-            if (isCredit && !isDebit) runningBal += tx.amount
-            else if (isDebit && !isCredit) runningBal -= tx.amount
-        }
+        if (isDebit && !isCredit) runningBal += tx.amount
+        else if (isCredit && !isDebit) runningBal -= tx.amount
         txIdx++
     }
 
@@ -1970,13 +1950,8 @@ private fun computeTimelinePoints(
             val tx = chronological[txIdx].transaction
             val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
             val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
-            if (account.type == AccountType.ASSET) {
-                if (isDebit && !isCredit) runningBal += tx.amount
-                else if (isCredit && !isDebit) runningBal -= tx.amount
-            } else {
-                if (isCredit && !isDebit) runningBal += tx.amount
-                else if (isDebit && !isCredit) runningBal -= tx.amount
-            }
+            if (isDebit && !isCredit) runningBal += tx.amount
+            else if (isCredit && !isDebit) runningBal -= tx.amount
             txIdx++
         }
 

@@ -179,7 +179,8 @@ object AccountTimelineHelper {
             val cr = creditsPerPeriod[pIdx][acc.id] ?: 0.0
             return when (acc.type) {
                 AccountType.ASSET, AccountType.EXPENSE -> acc.initialBalance + (dr - cr)
-                AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
+                AccountType.LIABILITY -> -(acc.initialBalance + (cr - dr))
+                AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
             }
         }
 
@@ -236,7 +237,7 @@ object AccountTimelineHelper {
         }
 
         val totalLiabilitiesByPeriod = periods.indices.map { pIdx ->
-            liabilityGroups.sumOf { it.groupBalances[pIdx] }
+            liabilityGroups.sumOf { Math.abs(it.groupBalances[pIdx]) }
         }
 
         val netWorthByPeriod = periods.indices.map { pIdx ->

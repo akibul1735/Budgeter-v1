@@ -944,7 +944,7 @@ fun LedgerScreen(
                                     if (showSourceLeg) {
                                         val srcAccountName = item.creditAccount?.localizedName(languageMode) ?: "Source"
                                         val srcBalance = tx.creditAccountId?.let { accountBalanceMap[it] }
-                                        val srcIsIncrease = if (item.creditAccount?.type == AccountType.LIABILITY || item.creditAccount?.type == AccountType.EQUITY) (tx.amount >= 0) else (tx.amount < 0)
+                                        val srcIsIncrease = tx.amount < 0
                                         val srcSign = if (srcIsIncrease) "+" else "−"
                                         val srcColor = if (srcIsIncrease) SolidIncome else SolidExpense
 
@@ -984,7 +984,7 @@ fun LedgerScreen(
                                     if (showDestLeg) {
                                         val destAccountName = item.debitAccount?.localizedName(languageMode) ?: "Dest"
                                         val destBalance = tx.debitAccountId?.let { accountBalanceMap[it] }
-                                        val destIsIncrease = if (item.debitAccount?.type == AccountType.LIABILITY || item.debitAccount?.type == AccountType.EQUITY) (tx.amount < 0) else (tx.amount >= 0)
+                                        val destIsIncrease = tx.amount >= 0
                                         val destSign = if (destIsIncrease) "+" else "−"
                                         val destColor = if (destIsIncrease) SolidIncome else SolidExpense
 
@@ -1842,20 +1842,8 @@ internal fun TransactionRowItem(
     val isAccountIncrease = when {
         overrideSign == "+" -> true
         overrideSign == "−" -> false
-        tx.type == TransactionType.INCOME -> {
-            if (item.debitAccount?.type == AccountType.LIABILITY || item.debitAccount?.type == AccountType.EQUITY) {
-                tx.amount < 0
-            } else {
-                tx.amount >= 0
-            }
-        }
-        tx.type == TransactionType.EXPENSE -> {
-            if (item.creditAccount?.type == AccountType.LIABILITY || item.creditAccount?.type == AccountType.EQUITY) {
-                tx.amount >= 0
-            } else {
-                tx.amount < 0
-            }
-        }
+        tx.type == TransactionType.INCOME -> tx.amount >= 0
+        tx.type == TransactionType.EXPENSE -> tx.amount < 0
         else -> false
     }
     val accountCaret = if (isAccountIncrease) "⩓" else "⩔"

@@ -470,7 +470,8 @@ fun AddEditTransactionSheet(
             val cr = creditSums[acc.id] ?: 0.0
             val bal = when (acc.type) {
                 AccountType.ASSET, AccountType.EXPENSE -> acc.initialBalance + (dr - cr)
-                AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
+                AccountType.LIABILITY -> -(acc.initialBalance + (cr - dr))
+                AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
             }
             acc.id to bal
         }
@@ -519,18 +520,10 @@ fun AddEditTransactionSheet(
     ) {
         if (selectedCreditAccount != null) {
             when (txType) {
-                TransactionType.EXPENSE -> {
-                    when (selectedCreditAccount.type) {
-                        AccountType.ASSET, AccountType.EXPENSE -> creditAccountCurrentBalance - liveEffectiveAmount
-                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> creditAccountCurrentBalance + liveEffectiveAmount
-                    }
-                }
+                TransactionType.EXPENSE -> creditAccountCurrentBalance - liveEffectiveAmount
                 TransactionType.TRANSFER -> {
                     val feeDed = if (hasTransferFee && (transferFeeAccountId == null || transferFeeAccountId == selectedCreditAccount.id)) transferFeeAmount else 0.0
-                    when (selectedCreditAccount.type) {
-                        AccountType.ASSET, AccountType.EXPENSE -> creditAccountCurrentBalance - liveParsedAmount - feeDed
-                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> creditAccountCurrentBalance + liveParsedAmount + feeDed
-                    }
+                    creditAccountCurrentBalance - liveParsedAmount - feeDed
                 }
                 TransactionType.INCOME -> creditAccountCurrentBalance
             }
@@ -549,18 +542,8 @@ fun AddEditTransactionSheet(
     ) {
         if (selectedDebitAccount != null) {
             when (txType) {
-                TransactionType.INCOME -> {
-                    when (selectedDebitAccount.type) {
-                        AccountType.ASSET, AccountType.EXPENSE -> debitAccountCurrentBalance + liveEffectiveAmount
-                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> debitAccountCurrentBalance - liveEffectiveAmount
-                    }
-                }
-                TransactionType.TRANSFER -> {
-                    when (selectedDebitAccount.type) {
-                        AccountType.ASSET, AccountType.EXPENSE -> debitAccountCurrentBalance + liveParsedAmount
-                        AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> debitAccountCurrentBalance - liveParsedAmount
-                    }
-                }
+                TransactionType.INCOME -> debitAccountCurrentBalance + liveEffectiveAmount
+                TransactionType.TRANSFER -> debitAccountCurrentBalance + liveParsedAmount
                 TransactionType.EXPENSE -> debitAccountCurrentBalance
             }
         } else 0.0
@@ -1051,6 +1034,11 @@ fun AddEditTransactionSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(nameFocusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (!focusState.isFocused) {
+                                        showNameDropdown = false
+                                    }
+                                }
                                 .testTag("tx_payee_input"),
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Done
@@ -1895,10 +1883,7 @@ fun AddEditTransactionSheet(
                                                 feeAcc?.let { baseAccountBalances[it.id] ?: it.initialBalance } ?: 0.0
                                             }
                                             val feeAccProjBal = if (feeAcc != null) {
-                                                when (feeAcc.type) {
-                                                    AccountType.ASSET, AccountType.EXPENSE -> feeAccCurBal - (if (effectiveFeeAccId == creditAccountId) (liveParsedAmount + transferFeeAmount) else transferFeeAmount)
-                                                    AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> feeAccCurBal + (if (effectiveFeeAccId == creditAccountId) (liveParsedAmount + transferFeeAmount) else transferFeeAmount)
-                                                }
+                                                feeAccCurBal - (if (effectiveFeeAccId == creditAccountId) (liveParsedAmount + transferFeeAmount) else transferFeeAmount)
                                             } else 0.0
 
                                             OptionRowItem(

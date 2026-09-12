@@ -136,7 +136,7 @@ fun AccountTransactionsDetailDialog(
         val subAccountInitial = if (account.parentId == null) {
             allAccounts.filter { it.parentId == account.id }.sumOf { it.initialBalance }
         } else 0.0
-        val baseInitial = account.initialBalance + subAccountInitial
+        val baseInitial = if (account.type == AccountType.LIABILITY) -(account.initialBalance + subAccountInitial) else (account.initialBalance + subAccountInitial)
 
         val chronological = accountTransactions.sortedWith(
             compareBy<TransactionWithDetails> { it.transaction.dateEpochMs }
@@ -151,18 +151,10 @@ fun AccountTransactionsDetailDialog(
             val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
             val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
 
-            if (account.type == AccountType.ASSET) {
-                if (isDebit && !isCredit) {
-                    currentRunning += tx.amount
-                } else if (isCredit && !isDebit) {
-                    currentRunning -= tx.amount
-                }
-            } else {
-                if (isCredit && !isDebit) {
-                    currentRunning += tx.amount
-                } else if (isDebit && !isCredit) {
-                    currentRunning -= tx.amount
-                }
+            if (isDebit && !isCredit) {
+                currentRunning += tx.amount
+            } else if (isCredit && !isDebit) {
+                currentRunning -= tx.amount
             }
             map[tx.id] = currentRunning
         }
@@ -256,7 +248,7 @@ fun AccountTransactionsDetailDialog(
         val subAccountInitial = if (account.parentId == null) {
             allAccounts.filter { it.parentId == account.id }.sumOf { it.initialBalance }
         } else 0.0
-        val baseInitial = account.initialBalance + subAccountInitial
+        val baseInitial = if (account.type == AccountType.LIABILITY) -(account.initialBalance + subAccountInitial) else (account.initialBalance + subAccountInitial)
         if (accountTransactions.isEmpty()) {
             baseInitial
         } else {
@@ -282,13 +274,8 @@ fun AccountTransactionsDetailDialog(
                     val tx = item.transaction
                     val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
                     val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
-                    if (account.type == AccountType.ASSET) {
-                        if (isDebit && !isCredit) net += tx.amount
-                        else if (isCredit && !isDebit) net -= tx.amount
-                    } else {
-                        if (isDebit && !isCredit) net -= tx.amount
-                        else if (isCredit && !isDebit) net += tx.amount
-                    }
+                    if (isDebit && !isCredit) net += tx.amount
+                    else if (isCredit && !isDebit) net -= tx.amount
                 }
                 AccountDayGroup(
                     dayEpochMs = dayEpochMs,
@@ -783,11 +770,7 @@ fun AccountTransactionsDetailDialog(
                                                 )
                                             }
                                         } else {
-                                            val isIncrease = if (account.type == AccountType.ASSET) {
-                                                if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
-                                            } else {
-                                                if (isCredit && !isDebit) tx.amount >= 0 else if (isDebit && !isCredit) tx.amount < 0 else false
-                                            }
+                                            val isIncrease = if (isDebit && !isCredit) tx.amount >= 0 else if (isCredit && !isDebit) tx.amount < 0 else false
 
                                             val sign = if (isIncrease) "+" else "−"
                                             val amtColor = if (isIncrease) SolidIncome else SolidExpense
