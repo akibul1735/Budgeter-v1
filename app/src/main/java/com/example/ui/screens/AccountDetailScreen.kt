@@ -659,8 +659,7 @@ fun AccountDetailScreen(
             onConfirm = { targetBalance ->
                 val diff = targetBalance - currentEndingBalance
                 if (abs(diff) >= 0.01) {
-                    val isAsset = account.type == AccountType.ASSET
-                    val isIncome = if (isAsset) diff > 0 else diff < 0
+                    val isIncome = diff > 0
                     val amount = abs(diff)
 
                     val adjustmentTx = if (isIncome) {
@@ -2013,10 +2012,10 @@ private fun AccountReconcileBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isPositive by remember { mutableStateOf(latestBalance >= 0) }
-    var rawAmountText by remember { mutableStateOf(String.format(Locale.US, "%.2f", abs(latestBalance))) }
+    var rawAmountText by remember { mutableStateOf("") }
 
-    val parsedAmt = rawAmountText.toDoubleOrNull() ?: abs(latestBalance)
-    val targetBal = if (isPositive) abs(parsedAmt) else -abs(parsedAmt)
+    val parsedAmt = rawAmountText.toDoubleOrNull() ?: 0.0
+    val targetBal = if (rawAmountText.isBlank()) 0.0 else (if (isPositive) abs(parsedAmt) else -abs(parsedAmt))
     val diff = abs(targetBal - latestBalance)
 
     ModalBottomSheet(
@@ -2106,6 +2105,12 @@ private fun AccountReconcileBottomSheet(
                 OutlinedTextField(
                     value = rawAmountText,
                     onValueChange = { rawAmountText = it },
+                    placeholder = {
+                        Text(
+                            text = "0.00",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(24.dp),
@@ -2129,11 +2134,12 @@ private fun AccountReconcileBottomSheet(
             // Notice under amount when amount is changed (Image 2)
             if (diff >= 0.01) {
                 Spacer(modifier = Modifier.height(10.dp))
+                val isIncomeNotice = (targetBal - latestBalance) > 0
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) {
-                        "${LanguageHelper.formatCurrency(diff, languageMode)} পরিমাণের একটি সমন্বয় লেনদেন তৈরি করা হবে"
+                        "${LanguageHelper.formatCurrency(diff, languageMode)} পরিমাণের একটি ${if (isIncomeNotice) "আয়" else "ব্যয়"} সমন্বয় লেনদেন তৈরি করা হবে"
                     } else {
-                        "An adjustment transaction amounting to ${LanguageHelper.formatCurrency(diff, languageMode)} will be created"
+                        "An adjustment transaction (${if (isIncomeNotice) "Income" else "Expense"}) amounting to ${LanguageHelper.formatCurrency(diff, languageMode)} will be created"
                     },
                     fontSize = 13.5.sp,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -2194,8 +2200,8 @@ private fun AccountReconcileBottomSheet(
 
                 Button(
                     onClick = {
-                        val parsed = rawAmountText.toDoubleOrNull() ?: abs(latestBalance)
-                        val target = if (isPositive) parsed else -parsed
+                        val parsed = rawAmountText.toDoubleOrNull() ?: 0.0
+                        val target = if (rawAmountText.isBlank()) 0.0 else (if (isPositive) abs(parsed) else -abs(parsed))
                         onConfirm(target)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SolidIncome),

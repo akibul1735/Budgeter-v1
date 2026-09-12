@@ -125,6 +125,9 @@ import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
 import java.util.Calendar
 
+import com.example.util.TimelineViewOption
+import com.example.util.TimelineViewOptionsTabRow
+
 data class CategoryTimelineFilterState(
     val interval: CategoryTimelineInterval = CategoryTimelineInterval.PAST_12_MONTHS,
     val customPeriodsCount: Int = 12,
@@ -161,7 +164,8 @@ fun CategoryTimelineScreen(
 
     var filterState by remember { mutableStateOf(CategoryTimelineFilterState()) }
     var showFilterDialog by remember { mutableStateOf(false) }
-    var activeViewTab by remember { mutableStateOf(0) } // 0: All, 1: Expenses, 2: Income
+    var viewOption by remember { mutableStateOf(TimelineViewOption.ALL) } // All / Groups / Items
+    var dataTypeFilter by remember { mutableStateOf(0) } // 0: All, 1: Expenses, 2: Income
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -399,13 +403,53 @@ fun CategoryTimelineScreen(
             }
         }
 
-        // --- 2. Summary Metric Cards ---
+        // --- 2. Summary Metric Cards (Total Expenses | Total Income | Net Earnings) ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Total Expenses Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, SolidExpense.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(SolidExpense)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expenses",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = LanguageHelper.formatCurrency(timelineData.grandTotalExpense, languageMode),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SolidExpense,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${if (languageMode == LanguageMode.BANGLA) "গড়: " else "Avg: "}${LanguageHelper.formatCurrency(timelineData.avgExpensePerPeriod, languageMode)}",
+                        fontSize = 9.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             // Total Income Card
             Card(
                 modifier = Modifier.weight(1f),
@@ -446,47 +490,7 @@ fun CategoryTimelineScreen(
                 }
             }
 
-            // Total Expense Card
-            Card(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, SolidExpense.copy(alpha = 0.25f))
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(SolidExpense)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expense",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = LanguageHelper.formatCurrency(timelineData.grandTotalExpense, languageMode),
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SolidExpense,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "${if (languageMode == LanguageMode.BANGLA) "গড়: " else "Avg: "}${LanguageHelper.formatCurrency(timelineData.avgExpensePerPeriod, languageMode)}",
-                        fontSize = 9.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Net Savings Card
+            // Net Earnings Card
             val isNetPositive = timelineData.grandNetSavings >= 0
             val netColor = if (isNetPositive) SolidIncome else SolidExpense
             Card(
@@ -505,7 +509,7 @@ fun CategoryTimelineScreen(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "নেট উদ্বৃত্ত" else "Net Surplus",
+                            text = if (languageMode == LanguageMode.BANGLA) "নেট আয়" else "Net Earnings",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -529,7 +533,7 @@ fun CategoryTimelineScreen(
             }
         }
 
-        // --- 3. View Mode Tab Row & Expand/Collapse All ---
+        // --- 3. View Mode: Groups / Items / All & Category Type Filters ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -537,73 +541,74 @@ fun CategoryTimelineScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TabRow(
-                selectedTabIndex = activeViewTab,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(8.dp)),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                contentColor = SolidPrimary,
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[activeViewTab]),
-                        color = SolidPrimary
-                    )
-                }
-            ) {
-                val tabLabels = listOf(
-                    if (languageMode == LanguageMode.BANGLA) "সকল (${timelineData.expenseGroups.size + timelineData.incomeGroups.size})" else "All (${timelineData.expenseGroups.size + timelineData.incomeGroups.size})",
-                    if (languageMode == LanguageMode.BANGLA) "ব্যয় (${timelineData.expenseGroups.size})" else "Expenses (${timelineData.expenseGroups.size})",
-                    if (languageMode == LanguageMode.BANGLA) "আয় (${timelineData.incomeGroups.size})" else "Incomes (${timelineData.incomeGroups.size})"
-                )
-                tabLabels.forEachIndexed { idx, label ->
-                    Tab(
-                        selected = activeViewTab == idx,
-                        onClick = { activeViewTab = idx },
-                        text = {
-                            Text(
-                                text = label,
-                                fontSize = 11.sp,
-                                fontWeight = if (activeViewTab == idx) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                }
-            }
+            TimelineViewOptionsTabRow(
+                selectedOption = viewOption,
+                onOptionSelected = { viewOption = it },
+                languageMode = languageMode,
+                modifier = Modifier.weight(1f)
+            )
 
             Spacer(modifier = Modifier.width(6.dp))
 
-            // Expand All / Collapse All button
-            val allGroups = timelineData.expenseGroups + timelineData.incomeGroups
-            val areAllExpanded = allGroups.isNotEmpty() && allGroups.all { grp ->
-                val key = "${grp.type.name}_${grp.groupNameEn}"
-                expandedGroupMap[key] != false
-            }
+            // Expand All / Collapse All button (only shown when viewOption == ALL)
+            if (viewOption == TimelineViewOption.ALL) {
+                val allGroups = timelineData.expenseGroups + timelineData.incomeGroups
+                val areAllExpanded = allGroups.isNotEmpty() && allGroups.all { grp ->
+                    val key = "${grp.type.name}_${grp.groupNameEn}"
+                    expandedGroupMap[key] != false
+                }
 
-            IconButton(
-                onClick = {
-                    val targetState = !areAllExpanded
-                    allGroups.forEach { grp ->
-                        val key = "${grp.type.name}_${grp.groupNameEn}"
-                        expandedGroupMap[key] = targetState
-                    }
-                },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = if (areAllExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
-                    contentDescription = if (areAllExpanded) "Collapse All" else "Expand All",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
+                IconButton(
+                    onClick = {
+                        val targetState = !areAllExpanded
+                        allGroups.forEach { grp ->
+                            val key = "${grp.type.name}_${grp.groupNameEn}"
+                            expandedGroupMap[key] = targetState
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (areAllExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
+                        contentDescription = if (areAllExpanded) "Collapse All" else "Expand All",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        // Quick Category Type Filter Row (All, Expenses, Incomes)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val typeFilters = listOf(
+                0 to (if (languageMode == LanguageMode.BANGLA) "সকল প্রকার" else "All Types"),
+                1 to (if (languageMode == LanguageMode.BANGLA) "শুধু ব্যয় (${timelineData.expenseGroups.size})" else "Expenses Only (${timelineData.expenseGroups.size})"),
+                2 to (if (languageMode == LanguageMode.BANGLA) "শুধু আয় (${timelineData.incomeGroups.size})" else "Income Only (${timelineData.incomeGroups.size})")
+            )
+            typeFilters.forEach { (index, title) ->
+                FilterChip(
+                    selected = dataTypeFilter == index,
+                    onClick = { dataTypeFilter = index },
+                    label = { Text(title, fontSize = 11.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.primary
+                    )
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
         // --- 4. The Category Timeline Matrix Table ---
-        val displayedExpenseGroups = if (activeViewTab == 0 || activeViewTab == 1) timelineData.expenseGroups else emptyList()
-        val displayedIncomeGroups = if (activeViewTab == 0 || activeViewTab == 2) timelineData.incomeGroups else emptyList()
+        val displayedExpenseGroups = if (dataTypeFilter == 0 || dataTypeFilter == 1) timelineData.expenseGroups else emptyList()
+        val displayedIncomeGroups = if (dataTypeFilter == 0 || dataTypeFilter == 2) timelineData.incomeGroups else emptyList()
 
         if (displayedExpenseGroups.isEmpty() && displayedIncomeGroups.isEmpty()) {
             Box(
@@ -642,9 +647,10 @@ fun CategoryTimelineScreen(
                 expandedGroupMap = expandedGroupMap,
                 displayedExpenseGroups = displayedExpenseGroups,
                 displayedIncomeGroups = displayedIncomeGroups,
+                viewOption = viewOption,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
     }

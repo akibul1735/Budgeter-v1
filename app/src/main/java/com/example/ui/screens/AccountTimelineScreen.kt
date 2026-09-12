@@ -1,10 +1,12 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,16 +14,15 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -36,31 +37,28 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.activity.compose.BackHandler
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -70,6 +68,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -83,16 +82,18 @@ import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
-import com.example.ui.theme.SolidExpense
-import com.example.ui.theme.SolidIncome
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalSetTimelineActive
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidPrimary
+import com.example.util.AccountTimelineData
 import com.example.util.AccountTimelineHelper
 import com.example.util.AccountTimelineInterval
-import com.example.util.AccountTimelineData
 import com.example.util.LanguageHelper
-import com.example.util.PdfPrintHelper
 import com.example.util.TabExportHelper
+import com.example.util.TimelineViewOption
+import com.example.util.TimelineViewOptionsTabRow
 
 data class AccountTimelineFilterState(
     val interval: AccountTimelineInterval = AccountTimelineInterval.PAST_12_MONTHS,
@@ -128,13 +129,17 @@ fun AccountTimelineScreen(
     }
 
     var filterState by remember { mutableStateOf(AccountTimelineFilterState()) }
+    var viewOption by remember { mutableStateOf(TimelineViewOption.ALL) } // All / Groups / Items
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchActive by remember { mutableStateOf(false) }
+
     var showFilterDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
 
     // Expanded states for groups
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
-    val timelineData = remember(
+    val rawTimelineData = remember(
         accounts,
         transactions,
         filterState,
@@ -153,6 +158,46 @@ fun AccountTimelineScreen(
         )
     }
 
+    // Filter by search query if applicable
+    val timelineData = remember(rawTimelineData, searchQuery, languageMode) {
+        if (searchQuery.isBlank()) {
+            rawTimelineData
+        } else {
+            val q = searchQuery.trim()
+            val filteredAssetGroups = rawTimelineData.assetGroups.mapNotNull { grp ->
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.parentAccount.nameBn else grp.parentAccount.nameEn
+                val matchesGrp = grpName.contains(q, ignoreCase = true)
+                val filteredSubs = grp.subAccounts.filter { sub ->
+                    val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
+                    subName.contains(q, ignoreCase = true)
+                }
+                if (matchesGrp || filteredSubs.isNotEmpty()) {
+                    grp.copy(subAccounts = if (matchesGrp) grp.subAccounts else filteredSubs)
+                } else null
+            }
+            val filteredLiabilityGroups = rawTimelineData.liabilityGroups.mapNotNull { grp ->
+                val grpName = if (languageMode == LanguageMode.BANGLA) grp.parentAccount.nameBn else grp.parentAccount.nameEn
+                val matchesGrp = grpName.contains(q, ignoreCase = true)
+                val filteredSubs = grp.subAccounts.filter { sub ->
+                    val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
+                    subName.contains(q, ignoreCase = true)
+                }
+                if (matchesGrp || filteredSubs.isNotEmpty()) {
+                    grp.copy(subAccounts = if (matchesGrp) grp.subAccounts else filteredSubs)
+                } else null
+            }
+            rawTimelineData.copy(
+                assetGroups = filteredAssetGroups,
+                liabilityGroups = filteredLiabilityGroups
+            )
+        }
+    }
+
+    // Top Summary Cards: Total Assets | Total Liabilities | Net Worth
+    val latestAssets = timelineData.totalAssetsByPeriod.lastOrNull() ?: 0.0
+    val latestLiabilities = timelineData.totalLiabilitiesByPeriod.lastOrNull() ?: 0.0
+    val latestNetWorth = timelineData.netWorthByPeriod.lastOrNull() ?: 0.0
+
     val horizontalScrollState = rememberScrollState()
 
     Column(
@@ -161,175 +206,442 @@ fun AccountTimelineScreen(
             .background(MaterialTheme.colorScheme.background)
             .testTag("account_timeline_screen")
     ) {
-        // Top App Bar
+        // --- 1. Top App Bar ---
         Surface(
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 2.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("timeline_back_btn")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false)
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onSurface
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.testTag("timeline_back_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Column {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স শিট টাইমলাইন" else "Balance Sheet Timeline",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val periodSummaryText = if (timelineData.periods.isNotEmpty()) {
+                                val firstLbl = timelineData.periods.first().shortLabel
+                                val lastLbl = timelineData.periods.last().shortLabel
+                                "$firstLbl → $lastLbl (${timelineData.periods.size} ${if (languageMode == LanguageMode.BANGLA) "পিরিয়ড" else "periods"})"
+                            } else {
+                                if (languageMode == LanguageMode.BANGLA) filterState.interval.titleBn else filterState.interval.titleEn
+                            }
+                            Text(
+                                text = periodSummaryText,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    // Action Icons (Search, Help, Filter, Export)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        // Search Button
+                        IconButton(
+                            onClick = { isSearchActive = !isSearchActive },
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Help Button (?)
+                        IconButton(
+                            onClick = { showHelpDialog = true },
+                            modifier = Modifier.size(38.dp).testTag("timeline_help_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HelpOutline,
+                                contentDescription = "Help",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Filter Button
+                        IconButton(
+                            onClick = { showFilterDialog = true },
+                            modifier = Modifier.size(38.dp).testTag("timeline_filter_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Filter",
+                                tint = if (filterState.selectedAccountIds.isNotEmpty() || filterState.showHiddenAccounts || filterState.excludeZeroBalances)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Export Menu Button
+                        ExportMenuButton(
+                            languageMode = languageMode,
+                            onExport = { format ->
+                                TabExportHelper.exportTimeline(
+                                    context = context,
+                                    format = format,
+                                    timelineData = timelineData,
+                                    displayCurrency = filterState.displayCurrency,
+                                    languageMode = languageMode
+                                )
+                            }
                         )
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                }
+
+                // Search Input Box
+                AnimatedVisibility(visible = isSearchActive) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 4.dp),
+                        placeholder = {
+                            Text(
+                                if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্টের নাম দিয়ে খুঁজুন..." else "Search accounts...",
+                                fontSize = 12.sp
+                            )
+                        },
+                        singleLine = true,
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
+                }
+
+                // Interval Preset Filter Chips Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(top = 4.dp, bottom = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AccountTimelineInterval.values().forEach { interval ->
+                        val isSelected = filterState.interval == interval
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                filterState = filterState.copy(interval = interval)
+                            },
+                            label = {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) interval.titleBn else interval.titleEn,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // --- 2. Top Summary Card: Total Assets | Total Liabilities | Net Worth ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Total Assets Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, Color(0xFF2E7D32).copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF2E7D32)))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট সম্পদ" else "Total Assets",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "সময়ের সাথে অ্যাকাউন্টের ব্যালেন্স" else "Accounts Balances Over Time",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = LanguageHelper.formatCurrency(latestAssets, languageMode),
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color(0xFF2E7D32),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
 
-                // Action Icons (Help, Filter, Export with all options)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    // Help Button (?)
-                    IconButton(
-                        onClick = { showHelpDialog = true },
-                        modifier = Modifier.size(38.dp).testTag("timeline_help_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.HelpOutline,
-                            contentDescription = "Help",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            // Total Liabilities Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, Color(0xFFC62828).copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFC62828)))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট দায়" else "Total Liabilities",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = LanguageHelper.formatCurrency(latestLiabilities, languageMode),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFC62828),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
 
-                    // Filter Button
-                    IconButton(
-                        onClick = { showFilterDialog = true },
-                        modifier = Modifier.size(38.dp).testTag("timeline_filter_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = "Filter",
-                            tint = if (filterState.selectedAccountIds.isNotEmpty() || filterState.showHiddenAccounts || filterState.excludeZeroBalances)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant
+            // Net Worth Card
+            val isNetPositive = latestNetWorth >= 0
+            val netColor = if (isNetPositive) SolidIncome else SolidExpense
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SolidPrimary))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "নেট সম্পদ" else "Net Worth",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-
-                    // Export Menu Button (PDF, CSV, HTML, JSON)
-                    ExportMenuButton(
-                        languageMode = languageMode,
-                        onExport = { format ->
-                            TabExportHelper.exportTimeline(
-                                context = context,
-                                format = format,
-                                timelineData = timelineData,
-                                displayCurrency = filterState.displayCurrency,
-                                languageMode = languageMode
-                            )
-                        }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = LanguageHelper.formatCurrency(latestNetWorth, languageMode),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = netColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
         }
 
-        // Timeline Matrix Table with Frozen First Column (Account Names)
-        LazyColumn(
+        // --- 3. View Options Tab Row (Groups / Items / All) ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TimelineViewOptionsTabRow(
+                selectedOption = viewOption,
+                onOptionSelected = { viewOption = it },
+                languageMode = languageMode,
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            if (viewOption == TimelineViewOption.ALL) {
+                val allGroups = timelineData.assetGroups + timelineData.liabilityGroups
+                val areAllExpanded = allGroups.isNotEmpty() && allGroups.all { grp ->
+                    expandedMap[grp.parentAccount.id] != false
+                }
+
+                IconButton(
+                    onClick = {
+                        val targetState = !areAllExpanded
+                        allGroups.forEach { grp ->
+                            expandedMap[grp.parentAccount.id] = targetState
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (areAllExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
+                        contentDescription = if (areAllExpanded) "Collapse All" else "Expand All",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // --- 4. Timeline Matrix Table with Frozen First Column (Account Names) ---
+        Card(
             modifier = Modifier
                 .fillMaxSize()
-                .weight(1f)
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         ) {
-            // 1. Header Row (Dates)
-            item {
-                TimelineDateHeaderRow(
-                    periods = timelineData.periods,
-                    scrollState = horizontalScrollState,
-                    languageMode = languageMode
-                )
-            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // 1. Header Row (Dates)
+                item {
+                    TimelineDateHeaderRow(
+                        periods = timelineData.periods,
+                        scrollState = horizontalScrollState,
+                        languageMode = languageMode
+                    )
+                }
 
-            // 2. ASSETS Header Row
-            item {
-                TimelineSectionHeaderRow(
-                    title = if (languageMode == LanguageMode.BANGLA) "Assets (সম্পদ)" else "Assets",
-                    totals = timelineData.totalAssetsByPeriod,
-                    backgroundColor = Color(0xFFE8F5E9),
-                    textColor = Color(0xFF2E7D32),
-                    scrollState = horizontalScrollState,
-                    displayCurrency = filterState.displayCurrency,
-                    languageMode = languageMode
-                )
-            }
+                // 2. ASSETS Header Row
+                item {
+                    TimelineSectionHeaderRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "Assets (সম্পদ)" else "Assets",
+                        totals = timelineData.totalAssetsByPeriod,
+                        backgroundColor = Color(0xFFE8F5E9),
+                        textColor = Color(0xFF2E7D32),
+                        scrollState = horizontalScrollState,
+                        displayCurrency = filterState.displayCurrency,
+                        languageMode = languageMode
+                    )
+                }
 
-            // Asset Groups & Accounts
-            items(timelineData.assetGroups, key = { "asset_${it.parentAccount.id}" }) { group ->
-                val isExpanded = expandedMap[group.parentAccount.id] ?: true
-                TimelineGroupItem(
-                    group = group,
-                    isExpanded = isExpanded,
-                    scrollState = horizontalScrollState,
-                    displayCurrency = filterState.displayCurrency,
-                    languageMode = languageMode,
-                    onToggleExpand = {
-                        expandedMap[group.parentAccount.id] = !isExpanded
+                // Asset Groups & Accounts
+                if (viewOption == TimelineViewOption.ITEMS) {
+                    // Show all subaccounts directly
+                    val allAssetSubs = timelineData.assetGroups.flatMap { it.subAccounts }
+                    items(allAssetSubs, key = { "asset_sub_${it.account.id}" }) { sub ->
+                        TimelineSingleAccountRow(
+                            sub = sub,
+                            scrollState = horizontalScrollState,
+                            displayCurrency = filterState.displayCurrency,
+                            languageMode = languageMode
+                        )
                     }
-                )
-            }
-
-            // 3. LIABILITIES Header Row
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                TimelineSectionHeaderRow(
-                    title = if (languageMode == LanguageMode.BANGLA) "Liabilities (দায়)" else "Liabilities",
-                    totals = timelineData.totalLiabilitiesByPeriod,
-                    backgroundColor = Color(0xFFFFEBEE),
-                    textColor = Color(0xFFC62828),
-                    scrollState = horizontalScrollState,
-                    displayCurrency = filterState.displayCurrency,
-                    languageMode = languageMode
-                )
-            }
-
-            // Liability Groups & Accounts
-            items(timelineData.liabilityGroups, key = { "liability_${it.parentAccount.id}" }) { group ->
-                val isExpanded = expandedMap[group.parentAccount.id] ?: true
-                TimelineGroupItem(
-                    group = group,
-                    isExpanded = isExpanded,
-                    scrollState = horizontalScrollState,
-                    displayCurrency = filterState.displayCurrency,
-                    languageMode = languageMode,
-                    onToggleExpand = {
-                        expandedMap[group.parentAccount.id] = !isExpanded
+                } else {
+                    // GROUPS or ALL
+                    items(timelineData.assetGroups, key = { "asset_${it.parentAccount.id}" }) { group ->
+                        val isExpanded = expandedMap[group.parentAccount.id] != false
+                        TimelineGroupItem(
+                            group = group,
+                            isExpanded = isExpanded,
+                            viewOption = viewOption,
+                            scrollState = horizontalScrollState,
+                            displayCurrency = filterState.displayCurrency,
+                            languageMode = languageMode,
+                            onToggleExpand = {
+                                expandedMap[group.parentAccount.id] = !isExpanded
+                            }
+                        )
                     }
-                )
-            }
+                }
 
-            // 4. NET WORTH Summary Row
-            item {
-                Spacer(modifier = Modifier.height(12.dp))
-                TimelineNetWorthHeaderRow(
-                    totals = timelineData.netWorthByPeriod,
-                    scrollState = horizontalScrollState,
-                    displayCurrency = filterState.displayCurrency,
-                    languageMode = languageMode
-                )
-                Spacer(modifier = Modifier.height(32.dp))
+                // 3. LIABILITIES Header Row
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TimelineSectionHeaderRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "Liabilities (দায়)" else "Liabilities",
+                        totals = timelineData.totalLiabilitiesByPeriod,
+                        backgroundColor = Color(0xFFFFEBEE),
+                        textColor = Color(0xFFC62828),
+                        scrollState = horizontalScrollState,
+                        displayCurrency = filterState.displayCurrency,
+                        languageMode = languageMode
+                    )
+                }
+
+                // Liability Groups & Accounts
+                if (viewOption == TimelineViewOption.ITEMS) {
+                    val allLiabilitySubs = timelineData.liabilityGroups.flatMap { it.subAccounts }
+                    items(allLiabilitySubs, key = { "liability_sub_${it.account.id}" }) { sub ->
+                        TimelineSingleAccountRow(
+                            sub = sub,
+                            scrollState = horizontalScrollState,
+                            displayCurrency = filterState.displayCurrency,
+                            languageMode = languageMode
+                        )
+                    }
+                } else {
+                    // GROUPS or ALL
+                    items(timelineData.liabilityGroups, key = { "liability_${it.parentAccount.id}" }) { group ->
+                        val isExpanded = expandedMap[group.parentAccount.id] != false
+                        TimelineGroupItem(
+                            group = group,
+                            isExpanded = isExpanded,
+                            viewOption = viewOption,
+                            scrollState = horizontalScrollState,
+                            displayCurrency = filterState.displayCurrency,
+                            languageMode = languageMode,
+                            onToggleExpand = {
+                                expandedMap[group.parentAccount.id] = !isExpanded
+                            }
+                        )
+                    }
+                }
+
+                // 4. NET WORTH Summary Row
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TimelineNetWorthHeaderRow(
+                        totals = timelineData.netWorthByPeriod,
+                        scrollState = horizontalScrollState,
+                        displayCurrency = filterState.displayCurrency,
+                        languageMode = languageMode
+                    )
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
             }
         }
     }
@@ -483,6 +795,7 @@ private fun TimelineSectionHeaderRow(
 private fun TimelineGroupItem(
     group: com.example.util.TimelineGroup,
     isExpanded: Boolean,
+    viewOption: TimelineViewOption,
     scrollState: ScrollState,
     displayCurrency: Boolean,
     languageMode: LanguageMode,
@@ -497,7 +810,7 @@ private fun TimelineGroupItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(if (isExpanded) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                .clickable { onToggleExpand() }
+                .clickable(enabled = viewOption == TimelineViewOption.ALL) { onToggleExpand() }
                 .padding(vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -508,13 +821,15 @@ private fun TimelineGroupItem(
                     .width(155.dp)
                     .padding(start = 8.dp, end = 4.dp)
             ) {
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = typeColor,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(2.dp))
+                if (viewOption == TimelineViewOption.ALL) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = typeColor,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                }
                 Text(
                     text = groupName,
                     fontSize = 12.sp,
@@ -557,70 +872,87 @@ private fun TimelineGroupItem(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-        // Sub Accounts
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                group.subAccounts.forEach { sub ->
-                    val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surface)
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Frozen Left Column: Sub Account Name
-                        Box(
-                            modifier = Modifier
-                                .width(155.dp)
-                                .padding(start = 24.dp, end = 6.dp)
-                        ) {
-                            Text(
-                                text = subName,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        // Frozen Column Divider
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(16.dp)
-                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+        // Sub Accounts in ALL mode
+        if (viewOption == TimelineViewOption.ALL) {
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    group.subAccounts.forEach { sub ->
+                        TimelineSingleAccountRow(
+                            sub = sub,
+                            scrollState = scrollState,
+                            displayCurrency = displayCurrency,
+                            languageMode = languageMode
                         )
-
-                        // Horizontally Scrollable Sub-Account Values
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .horizontalScroll(scrollState),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            sub.balances.forEach { amount ->
-                                Text(
-                                    text = formatAmount(amount, displayCurrency, languageMode),
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.End,
-                                    modifier = Modifier
-                                        .width(115.dp)
-                                        .padding(end = 12.dp)
-                                )
-                            }
-                        }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                 }
             }
         }
     }
+}
+
+@Composable
+private fun TimelineSingleAccountRow(
+    sub: com.example.util.TimelineAccountRow,
+    scrollState: ScrollState,
+    displayCurrency: Boolean,
+    languageMode: LanguageMode
+) {
+    val subName = if (languageMode == LanguageMode.BANGLA) sub.account.nameBn else sub.account.nameEn
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Frozen Left Column: Sub Account Name
+        Box(
+            modifier = Modifier
+                .width(155.dp)
+                .padding(start = 20.dp, end = 6.dp)
+        ) {
+            Text(
+                text = subName,
+                fontSize = 11.5.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // Frozen Column Divider
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(16.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+        )
+
+        // Horizontally Scrollable Sub-Account Values
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(scrollState),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            sub.balances.forEach { amount ->
+                Text(
+                    text = formatAmount(amount, displayCurrency, languageMode),
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .width(115.dp)
+                        .padding(end = 12.dp)
+                )
+            }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
 }
 
 @Composable
@@ -729,9 +1061,9 @@ private fun TimelineHelpDialog(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA)
-                        "• ফিল্টার আইকন: সময়সীমা এবং অ্যাকাউন্ট বাছাই করুন।\n• প্রিন্ট আইকন: সম্পূর্ণ টাইমলাইন রিপোর্ট প্রিন্ট বা PDF আকারে সংরক্ষণ করুন।"
+                        "• ফিল্টার আইকন: সময়সীমা এবং অ্যাকাউন্ট বাছাই করুন।\n• এক্সপোর্ট: সম্পূর্ণ টাইমলাইন রিপোর্ট PDF, CSV, JSON আকারে সংরক্ষণ করুন।"
                     else
-                        "• Filter Icon: Customize time intervals, periods count, and account visibility.\n• Print/PDF Icon: Generate a high-resolution printable report or PDF document.",
+                        "• Filter Icon: Customize time intervals, periods count, and account visibility.\n• Export: Download report as PDF, CSV, or JSON.",
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

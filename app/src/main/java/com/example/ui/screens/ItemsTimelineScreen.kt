@@ -10,7 +10,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -30,17 +29,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -51,9 +50,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
@@ -62,13 +58,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -80,7 +76,6 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
-import com.example.util.ExportFormat
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalSetTimelineActive
 import com.example.ui.theme.SolidExpense
@@ -93,9 +88,8 @@ import com.example.util.CategoryTimelineSortOrder
 import com.example.util.DateUtils
 import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.example.util.TimelineViewOption
+import com.example.util.TimelineViewOptionsTabRow
 
 data class ItemTimelineRow(
     val itemName: String,
@@ -107,6 +101,14 @@ data class ItemTimelineRow(
     val trendDelta: Double = if (amountsByPeriod.size >= 2) amountsByPeriod.last() - amountsByPeriod[amountsByPeriod.size - 2] else 0.0,
     val count: Int,
     val transactions: List<TransactionWithDetails>
+)
+
+data class ItemTimelineCategoryGroup(
+    val categoryName: String,
+    val items: List<ItemTimelineRow>,
+    val amountsByPeriod: List<Double>,
+    val totalAmount: Double = amountsByPeriod.sum(),
+    val averageAmount: Double = if (amountsByPeriod.isNotEmpty()) totalAmount / amountsByPeriod.size else 0.0
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -137,14 +139,16 @@ fun ItemsTimelineScreen(
     var customEndDateMs by remember { mutableStateOf<Long?>(null) }
     var showCustomRangeDialog by remember { mutableStateOf(false) }
 
+    var viewOption by remember { mutableStateOf(TimelineViewOption.ALL) } // All / Groups / Items
     var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) } // null = All
     var selectedSortOrder by remember { mutableStateOf(CategoryTimelineSortOrder.AMOUNT_DESC) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
 
+    val expandedGroupMap = remember { mutableStateMapOf<String, Boolean>() }
     var selectedRowForDetails by remember { mutableStateOf<ItemTimelineRow?>(null) }
 
-    // Generate timeline periods (default 12 months)
+    // Generate timeline periods
     val periods = remember(selectedInterval, customStartDateMs, customEndDateMs, languageMode) {
         CategoryTimelineHelper.generatePeriods(
             interval = selectedInterval,
@@ -158,74 +162,110 @@ fun ItemsTimelineScreen(
     // Helper to extract item name from a transaction
     fun extractItemName(item: TransactionWithDetails): String {
         val tx = item.transaction
-        val payee = tx.payeeOrPayer.trim()
-        return if (payee.isNotBlank()) payee else (item.category?.nameEn ?: "Item")
+        return when {
+            tx.payeeOrPayer.isNotBlank() -> tx.payeeOrPayer.trim()
+            tx.note.isNotBlank() -> {
+                val firstLine = tx.note.lines().firstOrNull { it.isNotBlank() }?.trim() ?: ""
+                val cleanLine = firstLine.replace(Regex("#\\w+"), "").trim()
+                if (cleanLine.isNotBlank()) cleanLine else (item.category?.localizedName(languageMode) ?: if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "Transaction")
+            }
+            item.category != null -> item.category.localizedName(languageMode)
+            else -> if (languageMode == LanguageMode.BANGLA) "সাধারণ আইটেম" else "General Item"
+        }
     }
 
-    // Calculate timeline rows for each item
+    // Calculate individual item timeline rows
     val itemRows = remember(transactions, periods, selectedTypeFilter, searchQuery, selectedSortOrder) {
         if (periods.isEmpty()) return@remember emptyList()
 
-        val minTime = periods.minOf { it.startEpochMs }
-        val maxTime = periods.maxOf { it.endEpochMs }
+        val groupedByName = transactions.groupBy { extractItemName(it) }
 
-        // Filter transactions within overall timeline range and type
-        val eligibleTxs = transactions.filter { item ->
-            val tx = item.transaction
-            val withinDate = tx.dateEpochMs in minTime..maxTime
-            val withinType = selectedTypeFilter == null || tx.type == selectedTypeFilter
-            withinDate && withinType
-        }
+        val rows = groupedByName.mapNotNull { (rawName, txList) ->
+            val firstTx = txList.first()
+            val itemType = firstTx.transaction.type
 
-        // Map of item name -> all matching transactions
-        val itemTxsMap = mutableMapOf<String, MutableList<TransactionWithDetails>>()
-        for (item in eligibleTxs) {
-            val name = extractItemName(item)
-            itemTxsMap.getOrPut(name) { mutableListOf() }.add(item)
-        }
-
-        val rows = itemTxsMap.mapNotNull { (name, txList) ->
-            if (searchQuery.isNotBlank() && !name.contains(searchQuery, ignoreCase = true)) {
+            if (selectedTypeFilter != null && itemType != selectedTypeFilter) {
                 return@mapNotNull null
             }
 
-            val periodAmounts = periods.map { period ->
+            if (searchQuery.isNotBlank() && !rawName.contains(searchQuery, ignoreCase = true)) {
+                return@mapNotNull null
+            }
+
+            val categoryName = txList.mapNotNull { it.category?.localizedName(languageMode) }.firstOrNull()
+                ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Uncategorized")
+
+            val amounts = periods.map { period ->
                 txList.filter { it.transaction.dateEpochMs in period.startEpochMs..period.endEpochMs }
                     .sumOf { it.transaction.amount }
             }
 
-            val primaryType = txList.firstOrNull()?.transaction?.type ?: TransactionType.EXPENSE
-            val catName = txList.firstOrNull()?.category?.let { if (languageMode == LanguageMode.BANGLA) it.nameBn else it.nameEn }
+            val total = amounts.sum()
+            if (total == 0.0) return@mapNotNull null
 
             ItemTimelineRow(
-                itemName = name,
-                type = primaryType,
-                categoryName = catName,
-                amountsByPeriod = periodAmounts,
+                itemName = rawName,
+                type = itemType,
+                categoryName = categoryName,
+                amountsByPeriod = amounts,
+                totalAmount = total,
                 count = txList.size,
-                transactions = txList
+                transactions = txList.sortedByDescending { it.transaction.dateEpochMs }
             )
         }
 
-        // Apply sort
         when (selectedSortOrder) {
             CategoryTimelineSortOrder.AMOUNT_DESC -> rows.sortedByDescending { it.totalAmount }
             CategoryTimelineSortOrder.AMOUNT_ASC -> rows.sortedBy { it.totalAmount }
-            CategoryTimelineSortOrder.NAME_ASC -> rows.sortedBy { it.itemName.lowercase() }
-            CategoryTimelineSortOrder.DEFAULT -> rows.sortedByDescending { it.totalAmount }
+            CategoryTimelineSortOrder.NAME_ASC -> rows.sortedBy { it.itemName }
+            else -> rows.sortedByDescending { it.totalAmount }
         }
     }
 
-    // Period totals
-    val totalsByPeriod = remember(itemRows, periods.size) {
-        List(periods.size) { colIdx ->
-            itemRows.sumOf { it.amountsByPeriod.getOrElse(colIdx) { 0.0 } }
+    // Group items by category for GROUPS / ALL view options
+    val categoryGroups = remember(itemRows, periods) {
+        if (periods.isEmpty() || itemRows.isEmpty()) return@remember emptyList()
+
+        itemRows.groupBy { it.categoryName ?: (if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "Uncategorized") }
+            .map { (catName, itemsInCat) ->
+                val groupAmounts = periods.indices.map { pIdx ->
+                    itemsInCat.sumOf { it.amountsByPeriod.getOrElse(pIdx) { 0.0 } }
+                }
+                ItemTimelineCategoryGroup(
+                    categoryName = catName,
+                    items = itemsInCat,
+                    amountsByPeriod = groupAmounts,
+                    totalAmount = groupAmounts.sum()
+                )
+            }.sortedByDescending { it.totalAmount }
+    }
+
+    // Calculate Top Summary Card Totals: Total Expenses | Total Income | Net Earnings
+    val topTotals = remember(transactions, periods) {
+        if (periods.isEmpty()) {
+            Triple(0.0, 0.0, 0.0)
+        } else {
+            val minStart = periods.minOfOrNull { it.startEpochMs } ?: 0L
+            val maxEnd = periods.maxOfOrNull { it.endEpochMs } ?: Long.MAX_VALUE
+            val validTxs = transactions.filter { it.transaction.dateEpochMs in minStart..maxEnd }
+            val expenseTotal = validTxs.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
+            val incomeTotal = validTxs.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
+            val netEarnings = incomeTotal - expenseTotal
+            Triple(expenseTotal, incomeTotal, netEarnings)
         }
     }
-    val grandTotal = remember(totalsByPeriod) { totalsByPeriod.sum() }
-    val avgPerPeriod = remember(totalsByPeriod) {
-        if (totalsByPeriod.isNotEmpty()) grandTotal / totalsByPeriod.size else 0.0
+
+    val totalExpenses = topTotals.first
+    val totalIncome = topTotals.second
+    val netEarnings = topTotals.third
+
+    val totalsByPeriod = remember(itemRows, periods) {
+        periods.indices.map { pIdx ->
+            itemRows.sumOf { it.amountsByPeriod.getOrElse(pIdx) { 0.0 } }
+        }
     }
+    val grandTotal = totalsByPeriod.sum()
+    val avgPerPeriod = if (periods.isNotEmpty()) grandTotal / periods.size else 0.0
 
     val horizontalScrollState = rememberScrollState()
 
@@ -235,7 +275,7 @@ fun ItemsTimelineScreen(
             .background(MaterialTheme.colorScheme.background)
             .testTag("items_timeline_screen")
     ) {
-        // --- Header Bar ---
+        // --- 1. Top Header Bar ---
         Surface(
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 2.dp,
@@ -344,7 +384,7 @@ fun ItemsTimelineScreen(
                     )
                 }
 
-                // Filter Chips Row
+                // Date-Range Interval Preset Filter Chips Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -353,7 +393,6 @@ fun ItemsTimelineScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Interval Presets
                     listOf(
                         CategoryTimelineInterval.PAST_12_MONTHS,
                         CategoryTimelineInterval.PAST_6_MONTHS,
@@ -389,11 +428,11 @@ fun ItemsTimelineScreen(
 
                     VerticalDivider(modifier = Modifier.height(20.dp), color = MaterialTheme.colorScheme.outlineVariant)
 
-                    // Type Chips
+                    // Additional Type Filters: All, Expense, Income
                     FilterChip(
                         selected = selectedTypeFilter == null,
                         onClick = { selectedTypeFilter = null },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সব" else "All", fontSize = 11.sp) }
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সব প্রকার" else "All Types", fontSize = 11.sp) }
                     )
                     FilterChip(
                         selected = selectedTypeFilter == TransactionType.EXPENSE,
@@ -409,9 +448,152 @@ fun ItemsTimelineScreen(
             }
         }
 
+        // --- 2. Top Summary Card: Total Expenses | Total Income | Net Earnings ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Total Expenses Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, SolidExpense.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SolidExpense))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expenses",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = LanguageHelper.formatCurrency(totalExpenses, languageMode),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SolidExpense,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Total Income Card
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, SolidIncome.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SolidIncome))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Total Income",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = LanguageHelper.formatCurrency(totalIncome, languageMode),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SolidIncome,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Net Earnings Card
+            val isNetPositive = netEarnings >= 0
+            val netColor = if (isNetPositive) SolidIncome else SolidExpense
+            Card(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SolidPrimary))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "নেট আয়" else "Net Earnings",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = (if (isNetPositive) "+" else "") + LanguageHelper.formatCurrency(netEarnings, languageMode),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = netColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        // --- 3. View Options Tab Row (Groups / Items / All) ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TimelineViewOptionsTabRow(
+                selectedOption = viewOption,
+                onOptionSelected = { viewOption = it },
+                languageMode = languageMode,
+                modifier = Modifier.weight(1f)
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            if (viewOption == TimelineViewOption.ALL) {
+                val areAllExpanded = categoryGroups.isNotEmpty() && categoryGroups.all { grp ->
+                    expandedGroupMap[grp.categoryName] != false
+                }
+
+                IconButton(
+                    onClick = {
+                        val targetState = !areAllExpanded
+                        categoryGroups.forEach { grp ->
+                            expandedGroupMap[grp.categoryName] = targetState
+                        }
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (areAllExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
+                        contentDescription = if (areAllExpanded) "Collapse All" else "Expand All",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         // --- Custom Range Dialog ---
         if (showCustomRangeDialog) {
-            val startDatePickerState = rememberDatePickerState(initialSelectedDateMillis = customStartDateMs ?: System.currentTimeMillis() - 365L * 24 * 3600 * 1000)
+            val startDatePickerState = rememberDatePickerState(initialSelectedDateMillis = customStartDateMs ?: (System.currentTimeMillis() - 365L * 24 * 3600 * 1000))
             val endDatePickerState = rememberDatePickerState(initialSelectedDateMillis = customEndDateMs ?: System.currentTimeMillis())
             var pickerStep by remember { mutableIntStateOf(0) }
 
@@ -558,7 +740,7 @@ fun ItemsTimelineScreen(
             )
         }
 
-        // --- Table: Items and month data columns scroll together as ONE horizontal section ---
+        // --- Table with FROZEN FIRST COLUMN (Item/Group name) and scrollable periods ---
         if (itemRows.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -585,46 +767,48 @@ fun ItemsTimelineScreen(
             Card(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                // Unified Horizontally Scrollable Container for the entire table
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .horizontalScroll(horizontalScrollState)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxHeight()
-                    ) {
-                        // 1. Table Header
-                        item {
+                    // 1. Table Header (Frozen first column + horizontal scroll periods)
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Frozen First Column Header
+                            Box(
+                                modifier = Modifier
+                                    .width(155.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "আইটেম / গ্রুপ" else "Item / Group",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                            // Scrollable Period Headers
                             Row(
                                 modifier = Modifier
-                                    .height(40.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .horizontalScroll(horizontalScrollState),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Item Column Header
-                                Box(
-                                    modifier = Modifier
-                                        .width(160.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 8.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "আইটেম" else "Item",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                                // Period Column Headers
                                 periods.forEach { period ->
                                     Box(
                                         modifier = Modifier
@@ -695,156 +879,185 @@ fun ItemsTimelineScreen(
                                     )
                                 }
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
 
-                        // 2. Data Rows
+                    // 2. Data Rows according to ViewOption
+                    if (viewOption == TimelineViewOption.ITEMS) {
+                        // Directly render individual items
                         items(itemRows) { row ->
-                            Row(
-                                modifier = Modifier
-                                    .height(36.dp)
-                                    .clickable { selectedRowForDetails = row },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Item Name Cell
+                            ItemTableRow(
+                                row = row,
+                                horizontalScrollState = horizontalScrollState,
+                                languageMode = languageMode,
+                                isIndented = false,
+                                onClick = { selectedRowForDetails = row }
+                            )
+                        }
+                    } else {
+                        // GROUPS or ALL mode: render category groups
+                        categoryGroups.forEach { grp ->
+                            val isExpanded = expandedGroupMap[grp.categoryName] != false
+
+                            item {
                                 Row(
                                     modifier = Modifier
-                                        .width(160.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 8.dp),
+                                        .fillMaxWidth()
+                                        .height(38.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ShoppingBag,
-                                        contentDescription = null,
-                                        tint = if (row.type == TransactionType.INCOME) SolidIncome else SolidExpense,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = row.itemName,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                                // Period Values
-                                row.amountsByPeriod.forEach { amount ->
-                                    Box(
+                                    // Frozen Category Group Name
+                                    Row(
                                         modifier = Modifier
-                                            .width(92.dp)
+                                            .width(155.dp)
                                             .fillMaxHeight()
+                                            .clickable(enabled = viewOption == TimelineViewOption.ALL) {
+                                                expandedGroupMap[grp.categoryName] = !isExpanded
+                                            }
                                             .padding(horizontal = 6.dp),
-                                        contentAlignment = Alignment.CenterEnd
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        if (viewOption == TimelineViewOption.ALL) {
+                                            Icon(
+                                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                        }
                                         Text(
-                                            text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
-                                            fontSize = 10.5.sp,
-                                            fontWeight = if (amount > 0) FontWeight.SemiBold else FontWeight.Normal,
-                                            color = if (amount > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                                            maxLines = 1
+                                            text = grp.categoryName,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
-                                }
+                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-                                // Total Column
-                                Box(
-                                    modifier = Modifier
-                                        .width(98.dp)
-                                        .fillMaxHeight()
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f))
-                                        .padding(horizontal = 6.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(row.totalAmount, languageMode),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (row.type == TransactionType.INCOME) SolidIncome else SolidExpense,
-                                        maxLines = 1
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                                    // Scrollable period totals for group
+                                    Row(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .horizontalScroll(horizontalScrollState),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        grp.amountsByPeriod.forEach { amount ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(92.dp)
+                                                    .fillMaxHeight()
+                                                    .padding(horizontal = 6.dp),
+                                                contentAlignment = Alignment.CenterEnd
+                                            ) {
+                                                Text(
+                                                    text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SolidPrimary,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                                        }
 
-                                // Average Column
-                                Box(
-                                    modifier = Modifier
-                                        .width(92.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 6.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(row.averageAmount, languageMode),
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                                        // Total
+                                        Box(
+                                            modifier = Modifier
+                                                .width(98.dp)
+                                                .fillMaxHeight()
+                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
+                                                .padding(horizontal = 6.dp),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Text(
+                                                text = LanguageHelper.formatCurrency(grp.totalAmount, languageMode),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = SolidPrimary,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
 
-                                // Trend Column
-                                Box(
-                                    modifier = Modifier
-                                        .width(72.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 4.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (row.trendDelta > 0) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                            contentDescription = "Up",
-                                            tint = if (row.type == TransactionType.INCOME) SolidIncome else SolidExpense,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                    } else if (row.trendDelta < 0) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.TrendingDown,
-                                            contentDescription = "Down",
-                                            tint = if (row.type == TransactionType.INCOME) SolidExpense else SolidIncome,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                    } else {
-                                        Text("—", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                                        // Average
+                                        Box(
+                                            modifier = Modifier
+                                                .width(92.dp)
+                                                .fillMaxHeight()
+                                                .padding(horizontal = 6.dp),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Text(
+                                                text = LanguageHelper.formatCurrency(grp.averageAmount, languageMode),
+                                                fontSize = 10.5.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                                        Box(modifier = Modifier.width(72.dp))
                                     }
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            }
+
+                            // Sub-items if in ALL mode and expanded
+                            if (viewOption == TimelineViewOption.ALL && isExpanded) {
+                                items(grp.items) { row ->
+                                    ItemTableRow(
+                                        row = row,
+                                        horizontalScrollState = horizontalScrollState,
+                                        languageMode = languageMode,
+                                        isIndented = true,
+                                        onClick = { selectedRowForDetails = row }
+                                    )
                                 }
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
                         }
+                    }
 
-                        // 3. Summary Row (Totals)
-                        item {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+                    // 3. Grand Summary Row
+                    item {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                                .background(SolidPrimary.copy(alpha = 0.08f)),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Title Cell (Frozen)
+                            Box(
+                                modifier = Modifier
+                                    .width(155.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 8.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সর্বমোট" else "Grand Total",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = SolidPrimary
+                                )
+                            }
+                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                            // Period Totals (Scrollable)
                             Row(
                                 modifier = Modifier
-                                    .height(38.dp)
-                                    .background(SolidPrimary.copy(alpha = 0.08f)),
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .horizontalScroll(horizontalScrollState),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Title Cell
-                                Box(
-                                    modifier = Modifier
-                                        .width(160.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 8.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "সর্বমোট" else "Grand Total",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = SolidPrimary
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                                // Period Totals
                                 totalsByPeriod.forEach { periodSum ->
                                     Box(
                                         modifier = Modifier
@@ -909,4 +1122,139 @@ fun ItemsTimelineScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ItemTableRow(
+    row: ItemTimelineRow,
+    horizontalScrollState: androidx.compose.foundation.ScrollState,
+    languageMode: LanguageMode,
+    isIndented: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Item Name Cell (Frozen)
+        Row(
+            modifier = Modifier
+                .width(155.dp)
+                .fillMaxHeight()
+                .padding(start = if (isIndented) 16.dp else 8.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.ShoppingBag,
+                contentDescription = null,
+                tint = if (row.type == TransactionType.INCOME) SolidIncome else SolidExpense,
+                modifier = Modifier.size(13.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = row.itemName,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+        // Period Values (Scrollable)
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .horizontalScroll(horizontalScrollState),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            row.amountsByPeriod.forEach { amount ->
+                Box(
+                    modifier = Modifier
+                        .width(92.dp)
+                        .fillMaxHeight()
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Text(
+                        text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
+                        fontSize = 10.5.sp,
+                        fontWeight = if (amount > 0) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (amount > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                        maxLines = 1
+                    )
+                }
+                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+            }
+
+            // Total Column
+            Box(
+                modifier = Modifier
+                    .width(98.dp)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f))
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = LanguageHelper.formatCurrency(row.totalAmount, languageMode),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (row.type == TransactionType.INCOME) SolidIncome else SolidExpense,
+                    maxLines = 1
+                )
+            }
+            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+            // Average Column
+            Box(
+                modifier = Modifier
+                    .width(92.dp)
+                    .fillMaxHeight()
+                    .padding(horizontal = 6.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = LanguageHelper.formatCurrency(row.averageAmount, languageMode),
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+            // Trend Column
+            Box(
+                modifier = Modifier
+                    .width(72.dp)
+                    .fillMaxHeight()
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (row.trendDelta > 0) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                        contentDescription = "Up",
+                        tint = if (row.type == TransactionType.INCOME) SolidIncome else SolidExpense,
+                        modifier = Modifier.size(15.dp)
+                    )
+                } else if (row.trendDelta < 0) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                        contentDescription = "Down",
+                        tint = if (row.type == TransactionType.INCOME) SolidExpense else SolidIncome,
+                        modifier = Modifier.size(15.dp)
+                    )
+                } else {
+                    Text("—", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                }
+            }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
 }

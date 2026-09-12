@@ -1343,7 +1343,7 @@ private fun AppFab(
     currentView: AppView,
     onAddTransaction: () -> Unit
 ) {
-    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER, AppView.LABELS, AppView.ITEMS_SUMMARY, AppView.BALANCE_SHEET, AppView.REPORTS)) {
+    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER, AppView.LABELS, AppView.ITEMS_SUMMARY, AppView.REPORTS)) {
         FloatingActionButton(
             onClick = onAddTransaction,
             containerColor = MaterialTheme.colorScheme.primary,

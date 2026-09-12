@@ -40,15 +40,14 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
-import com.example.ui.theme.SolidPrimary
 import com.example.util.CategoryTimelineData
 import com.example.util.CategoryTimelineGroup
 import com.example.util.LanguageHelper
+import com.example.util.TimelineViewOption
 
 /**
- * Unified Budget Timeline Table where the Category column and all period data columns
- * scroll horizontally together as a single unified section, ensuring category rows and
- * monthly values are always aligned.
+ * Budget Timeline Table with frozen first column (Category/Group names) and
+ * synchronized horizontally scrollable period columns.
  */
 @Composable
 fun BudgetTimelineTable(
@@ -58,6 +57,7 @@ fun BudgetTimelineTable(
     expandedGroupMap: SnapshotStateMap<String, Boolean>,
     displayedExpenseGroups: List<CategoryTimelineGroup>,
     displayedIncomeGroups: List<CategoryTimelineGroup>,
+    viewOption: TimelineViewOption = TimelineViewOption.ALL,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -66,40 +66,43 @@ fun BudgetTimelineTable(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .horizontalScroll(horizontalScrollState)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxHeight()
-            ) {
-                // 1. Table Header
-                item {
+            // 1. Table Header (Frozen Category Col + Horizontally Scrollable Periods)
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Frozen Category Header Cell
+                    Box(
+                        modifier = Modifier
+                            .width(155.dp)
+                            .fillMaxHeight()
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                    // Period Column Headers
                     Row(
                         modifier = Modifier
-                            .height(40.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .horizontalScroll(horizontalScrollState),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Category Header Cell
-                        Box(
-                            modifier = Modifier
-                                .width(160.dp)
-                                .fillMaxHeight()
-                                .padding(horizontal = 8.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                        // Period Column Headers
                         timelineData.periods.forEach { period ->
                             Box(
                                 modifier = Modifier
@@ -153,58 +156,134 @@ fun BudgetTimelineTable(
                             )
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
 
-                // 2. Expenses Section
-                if (displayedExpenseGroups.isNotEmpty()) {
-                    item {
-                        Row(
+            // 2. Expenses Section
+            if (displayedExpenseGroups.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .background(SolidExpense.copy(alpha = 0.12f)),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(30.dp)
-                                .background(SolidExpense.copy(alpha = 0.12f)),
-                            verticalAlignment = Alignment.CenterVertically
+                                .width(155.dp)
+                                .fillMaxHeight()
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.CenterStart
                         ) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "📉 ব্যয়ের খাত" else "📉 Expenses",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SolidExpense,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                color = SolidExpense
                             )
                         }
-                        HorizontalDivider(color = SolidExpense.copy(alpha = 0.2f))
+                        VerticalDivider(color = SolidExpense.copy(alpha = 0.2f))
+
+                        // Expense Totals Row
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .horizontalScroll(horizontalScrollState),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            timelineData.totalExpenseByPeriod.forEach { amount ->
+                                Box(
+                                    modifier = Modifier
+                                        .width(92.dp)
+                                        .fillMaxHeight()
+                                        .padding(horizontal = 6.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidExpense,
+                                        maxLines = 1
+                                    )
+                                }
+                                VerticalDivider(color = SolidExpense.copy(alpha = 0.15f))
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(98.dp)
+                                    .fillMaxHeight()
+                                    .background(SolidExpense.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(timelineData.grandTotalExpense, languageMode),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = SolidExpense,
+                                    maxLines = 1
+                                )
+                            }
+                            VerticalDivider(color = SolidExpense.copy(alpha = 0.15f))
+
+                            Box(
+                                modifier = Modifier
+                                    .width(92.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(timelineData.avgExpensePerPeriod, languageMode),
+                                    fontSize = 10.5.sp,
+                                    color = SolidExpense,
+                                    maxLines = 1
+                                )
+                            }
+                        }
                     }
+                    HorizontalDivider(color = SolidExpense.copy(alpha = 0.2f))
+                }
 
-                    displayedExpenseGroups.forEach { grp ->
-                        val key = "${grp.type.name}_${grp.groupNameEn}"
-                        val isExpanded = expandedGroupMap[key] != false
+                displayedExpenseGroups.forEach { grp ->
+                    val key = "${grp.type.name}_${grp.groupNameEn}"
+                    val isExpanded = expandedGroupMap[key] != false
 
-                        // Group Parent Row
+                    // If in ALL or GROUPS mode, render group row
+                    if (viewOption == TimelineViewOption.ALL || viewOption == TimelineViewOption.GROUPS) {
                         item {
                             Row(
                                 modifier = Modifier
+                                    .fillMaxWidth()
                                     .height(38.dp)
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Category Name
+                                // Category Group Name (Frozen)
                                 Row(
                                     modifier = Modifier
-                                        .width(160.dp)
+                                        .width(155.dp)
                                         .fillMaxHeight()
-                                        .clickable { expandedGroupMap[key] = !isExpanded }
+                                        .clickable(enabled = viewOption == TimelineViewOption.ALL) {
+                                            expandedGroupMap[key] = !isExpanded
+                                        }
                                         .padding(horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
+                                    if (viewOption == TimelineViewOption.ALL) {
+                                        Icon(
+                                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                    }
                                     Text(
                                         text = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn,
                                         fontSize = 11.sp,
@@ -216,8 +295,53 @@ fun BudgetTimelineTable(
                                 }
                                 VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-                                // Period Values
-                                grp.groupAmountsByPeriod.forEach { amount ->
+                                // Period Values (Scrollable)
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .horizontalScroll(horizontalScrollState),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    grp.groupAmountsByPeriod.forEach { amount ->
+                                        Box(
+                                            modifier = Modifier
+                                                .width(92.dp)
+                                                .fillMaxHeight()
+                                                .padding(horizontal = 6.dp),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Text(
+                                                text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (amount > 0) SolidExpense else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                maxLines = 1
+                                            )
+                                        }
+                                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                                    }
+
+                                    // Total
+                                    Box(
+                                        modifier = Modifier
+                                            .width(98.dp)
+                                            .fillMaxHeight()
+                                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Text(
+                                            text = LanguageHelper.formatCurrency(grp.totalAmount, languageMode),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = SolidExpense,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                                    // Average
                                     Box(
                                         modifier = Modifier
                                             .width(92.dp)
@@ -226,87 +350,60 @@ fun BudgetTimelineTable(
                                         contentAlignment = Alignment.CenterEnd
                                     ) {
                                         Text(
-                                            text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (amount > 0) SolidExpense else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                            text = LanguageHelper.formatCurrency(grp.averageAmount, languageMode),
+                                            fontSize = 10.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1
                                         )
                                     }
-                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                                }
-
-                                // Total
-                                Box(
-                                    modifier = Modifier
-                                        .width(98.dp)
-                                        .fillMaxHeight()
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
-                                        .padding(horizontal = 6.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(grp.totalAmount, languageMode),
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = SolidExpense,
-                                        maxLines = 1
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                                // Average
-                                Box(
-                                    modifier = Modifier
-                                        .width(92.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 6.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(grp.averageAmount, languageMode),
-                                        fontSize = 10.5.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
                                 }
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                         }
+                    }
 
-                        // Subcategory Rows
-                        if (isExpanded) {
-                            items(grp.subCategories) { sub ->
+                    // Subcategory Rows (if ALL and expanded, or if ITEMS mode)
+                    if ((viewOption == TimelineViewOption.ALL && isExpanded) || viewOption == TimelineViewOption.ITEMS) {
+                        items(grp.subCategories) { sub ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(34.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Subcategory Name (Frozen)
                                 Row(
-                                    modifier = Modifier.height(34.dp),
+                                    modifier = Modifier
+                                        .width(155.dp)
+                                        .fillMaxHeight()
+                                        .padding(start = if (viewOption == TimelineViewOption.ALL) 16.dp else 8.dp, end = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Subcategory Name
-                                    Row(
-                                        modifier = Modifier
-                                            .width(160.dp)
-                                            .fillMaxHeight()
-                                            .padding(start = 18.dp, end = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "•",
-                                            fontSize = 12.sp,
-                                            color = SolidExpense,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = sub.category.localizedName(languageMode),
-                                            fontSize = 10.5.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+                                    Text(
+                                        text = "•",
+                                        fontSize = 12.sp,
+                                        color = SolidExpense,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = sub.category.localizedName(languageMode),
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
 
-                                    // Period Values
+                                // Period Values (Scrollable)
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .horizontalScroll(horizontalScrollState),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     sub.amountsByPeriod.forEach { amount ->
                                         Box(
                                             modifier = Modifier
@@ -359,61 +456,137 @@ fun BudgetTimelineTable(
                                         )
                                     }
                                 }
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
                             }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
                         }
                     }
                 }
+            }
 
-                // 3. Incomes Section
-                if (displayedIncomeGroups.isNotEmpty()) {
-                    item {
-                        Row(
+            // 3. Incomes Section
+            if (displayedIncomeGroups.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .background(SolidIncome.copy(alpha = 0.12f)),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(30.dp)
-                                .background(SolidIncome.copy(alpha = 0.12f)),
-                            verticalAlignment = Alignment.CenterVertically
+                                .width(155.dp)
+                                .fillMaxHeight()
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.CenterStart
                         ) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "📈 আয়ের খাত" else "📈 Incomes",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SolidIncome,
-                                modifier = Modifier.padding(horizontal = 8.dp)
+                                color = SolidIncome
                             )
                         }
-                        HorizontalDivider(color = SolidIncome.copy(alpha = 0.2f))
+                        VerticalDivider(color = SolidIncome.copy(alpha = 0.2f))
+
+                        // Income Totals Row
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .horizontalScroll(horizontalScrollState),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            timelineData.totalIncomeByPeriod.forEach { amount ->
+                                Box(
+                                    modifier = Modifier
+                                        .width(92.dp)
+                                        .fillMaxHeight()
+                                        .padding(horizontal = 6.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidIncome,
+                                        maxLines = 1
+                                    )
+                                }
+                                VerticalDivider(color = SolidIncome.copy(alpha = 0.15f))
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(98.dp)
+                                    .fillMaxHeight()
+                                    .background(SolidIncome.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(timelineData.grandTotalIncome, languageMode),
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = SolidIncome,
+                                    maxLines = 1
+                                )
+                            }
+                            VerticalDivider(color = SolidIncome.copy(alpha = 0.15f))
+
+                            Box(
+                                modifier = Modifier
+                                    .width(92.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(timelineData.avgIncomePerPeriod, languageMode),
+                                    fontSize = 10.5.sp,
+                                    color = SolidIncome,
+                                    maxLines = 1
+                                )
+                            }
+                        }
                     }
+                    HorizontalDivider(color = SolidIncome.copy(alpha = 0.2f))
+                }
 
-                    displayedIncomeGroups.forEach { grp ->
-                        val key = "${grp.type.name}_${grp.groupNameEn}"
-                        val isExpanded = expandedGroupMap[key] != false
+                displayedIncomeGroups.forEach { grp ->
+                    val key = "${grp.type.name}_${grp.groupNameEn}"
+                    val isExpanded = expandedGroupMap[key] != false
 
-                        // Group Parent Row
+                    // If in ALL or GROUPS mode, render group row
+                    if (viewOption == TimelineViewOption.ALL || viewOption == TimelineViewOption.GROUPS) {
                         item {
                             Row(
                                 modifier = Modifier
+                                    .fillMaxWidth()
                                     .height(38.dp)
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Category Name
+                                // Category Group Name (Frozen)
                                 Row(
                                     modifier = Modifier
-                                        .width(160.dp)
+                                        .width(155.dp)
                                         .fillMaxHeight()
-                                        .clickable { expandedGroupMap[key] = !isExpanded }
+                                        .clickable(enabled = viewOption == TimelineViewOption.ALL) {
+                                            expandedGroupMap[key] = !isExpanded
+                                        }
                                         .padding(horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
+                                    if (viewOption == TimelineViewOption.ALL) {
+                                        Icon(
+                                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                    }
                                     Text(
                                         text = if (languageMode == LanguageMode.BANGLA) grp.groupNameBn else grp.groupNameEn,
                                         fontSize = 11.sp,
@@ -425,8 +598,53 @@ fun BudgetTimelineTable(
                                 }
                                 VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-                                // Period Values
-                                grp.groupAmountsByPeriod.forEach { amount ->
+                                // Period Values (Scrollable)
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .horizontalScroll(horizontalScrollState),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    grp.groupAmountsByPeriod.forEach { amount ->
+                                        Box(
+                                            modifier = Modifier
+                                                .width(92.dp)
+                                                .fillMaxHeight()
+                                                .padding(horizontal = 6.dp),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Text(
+                                                text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (amount > 0) SolidIncome else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                                maxLines = 1
+                                            )
+                                        }
+                                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                                    }
+
+                                    // Total
+                                    Box(
+                                        modifier = Modifier
+                                            .width(98.dp)
+                                            .fillMaxHeight()
+                                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Text(
+                                            text = LanguageHelper.formatCurrency(grp.totalAmount, languageMode),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = SolidIncome,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                                    // Average
                                     Box(
                                         modifier = Modifier
                                             .width(92.dp)
@@ -435,87 +653,60 @@ fun BudgetTimelineTable(
                                         contentAlignment = Alignment.CenterEnd
                                     ) {
                                         Text(
-                                            text = if (amount > 0) LanguageHelper.formatCurrency(amount, languageMode) else "—",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (amount > 0) SolidIncome else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                            text = LanguageHelper.formatCurrency(grp.averageAmount, languageMode),
+                                            fontSize = 10.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1
                                         )
                                     }
-                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                                }
-
-                                // Total
-                                Box(
-                                    modifier = Modifier
-                                        .width(98.dp)
-                                        .fillMaxHeight()
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
-                                        .padding(horizontal = 6.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(grp.totalAmount, languageMode),
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = SolidIncome,
-                                        maxLines = 1
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                                // Average
-                                Box(
-                                    modifier = Modifier
-                                        .width(92.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 6.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(grp.averageAmount, languageMode),
-                                        fontSize = 10.5.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
                                 }
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                         }
+                    }
 
-                        // Subcategory Rows
-                        if (isExpanded) {
-                            items(grp.subCategories) { sub ->
+                    // Subcategory Rows (if ALL and expanded, or if ITEMS mode)
+                    if ((viewOption == TimelineViewOption.ALL && isExpanded) || viewOption == TimelineViewOption.ITEMS) {
+                        items(grp.subCategories) { sub ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(34.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Subcategory Name (Frozen)
                                 Row(
-                                    modifier = Modifier.height(34.dp),
+                                    modifier = Modifier
+                                        .width(155.dp)
+                                        .fillMaxHeight()
+                                        .padding(start = if (viewOption == TimelineViewOption.ALL) 16.dp else 8.dp, end = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Subcategory Name
-                                    Row(
-                                        modifier = Modifier
-                                            .width(160.dp)
-                                            .fillMaxHeight()
-                                            .padding(start = 18.dp, end = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "•",
-                                            fontSize = 12.sp,
-                                            color = SolidIncome,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = sub.category.localizedName(languageMode),
-                                            fontSize = 10.5.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+                                    Text(
+                                        text = "•",
+                                        fontSize = 12.sp,
+                                        color = SolidIncome,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = sub.category.localizedName(languageMode),
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
 
-                                    // Period Values
+                                // Period Values (Scrollable)
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .horizontalScroll(horizontalScrollState),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     sub.amountsByPeriod.forEach { amount ->
                                         Box(
                                             modifier = Modifier
@@ -568,119 +759,48 @@ fun BudgetTimelineTable(
                                         )
                                     }
                                 }
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
                             }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
                         }
                     }
                 }
+            }
 
-                // 4. Summary Rows (Total Income, Total Expense, Net Surplus)
-                item {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+            // 4. Summary Rows (Total Income, Total Expense, Net Earnings)
+            item {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 
-                    // Total Income Row
-                    Row(
+                // Total Expenses Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .background(SolidExpense.copy(alpha = 0.08f)),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
                         modifier = Modifier
-                            .height(36.dp)
-                            .background(SolidIncome.copy(alpha = 0.08f)),
-                        verticalAlignment = Alignment.CenterVertically
+                            .width(155.dp)
+                            .fillMaxHeight()
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .width(160.dp)
-                                .fillMaxHeight()
-                                .padding(horizontal = 8.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Total Income",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidIncome
-                            )
-                        }
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                        timelineData.totalIncomeByPeriod.forEach { amount ->
-                            Box(
-                                modifier = Modifier
-                                    .width(92.dp)
-                                    .fillMaxHeight()
-                                    .padding(horizontal = 6.dp),
-                                contentAlignment = Alignment.CenterEnd
-                            ) {
-                                Text(
-                                    text = LanguageHelper.formatCurrency(amount, languageMode),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SolidIncome,
-                                    maxLines = 1
-                                )
-                            }
-                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                        }
-
-                        // Grand Total Income
-                        Box(
-                            modifier = Modifier
-                                .width(98.dp)
-                                .fillMaxHeight()
-                                .background(SolidIncome.copy(alpha = 0.15f))
-                                .padding(horizontal = 6.dp),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            Text(
-                                text = LanguageHelper.formatCurrency(timelineData.grandTotalIncome, languageMode),
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = SolidIncome,
-                                maxLines = 1
-                            )
-                        }
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                        // Avg Income
-                        Box(
-                            modifier = Modifier
-                                .width(92.dp)
-                                .fillMaxHeight()
-                                .padding(horizontal = 6.dp),
-                            contentAlignment = Alignment.CenterEnd
-                        ) {
-                            Text(
-                                text = LanguageHelper.formatCurrency(timelineData.avgIncomePerPeriod, languageMode),
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidIncome,
-                                maxLines = 1
-                            )
-                        }
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expenses",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidExpense
+                        )
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
 
-                    // Total Expense Row
                     Row(
                         modifier = Modifier
-                            .height(36.dp)
-                            .background(SolidExpense.copy(alpha = 0.08f)),
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .horizontalScroll(horizontalScrollState),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .width(160.dp)
-                                .fillMaxHeight()
-                                .padding(horizontal = 8.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Total Expense",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SolidExpense
-                            )
-                        }
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
                         timelineData.totalExpenseByPeriod.forEach { amount ->
                             Box(
                                 modifier = Modifier
@@ -730,39 +850,46 @@ fun BudgetTimelineTable(
                             Text(
                                 text = LanguageHelper.formatCurrency(timelineData.avgExpensePerPeriod, languageMode),
                                 fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
                                 color = SolidExpense,
                                 maxLines = 1
                             )
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
 
-                    // Net Surplus Row
+                // Total Income Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .background(SolidIncome.copy(alpha = 0.08f)),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(155.dp)
+                            .fillMaxHeight()
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Total Income",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidIncome
+                        )
+                    }
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
                     Row(
                         modifier = Modifier
-                            .height(40.dp)
-                            .background(SolidPrimary.copy(alpha = 0.12f)),
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .horizontalScroll(horizontalScrollState),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .width(160.dp)
-                                .fillMaxHeight()
-                                .padding(horizontal = 8.dp),
-                            contentAlignment = Alignment.CenterStart
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "নেট উদ্বৃত্ত" else "Net Surplus",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = SolidPrimary
-                            )
-                        }
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-
-                        timelineData.netSavingsByPeriod.forEach { amount ->
-                            val isPos = amount >= 0
+                        timelineData.totalIncomeByPeriod.forEach { amount ->
                             Box(
                                 modifier = Modifier
                                     .width(92.dp)
@@ -771,38 +898,36 @@ fun BudgetTimelineTable(
                                 contentAlignment = Alignment.CenterEnd
                             ) {
                                 Text(
-                                    text = (if (isPos) "+" else "") + LanguageHelper.formatCurrency(amount, languageMode),
+                                    text = LanguageHelper.formatCurrency(amount, languageMode),
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = if (isPos) SolidIncome else SolidExpense,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SolidIncome,
                                     maxLines = 1
                                 )
                             }
                             VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                         }
 
-                        // Grand Net Surplus
-                        val isGrandPos = timelineData.grandNetSavings >= 0
+                        // Grand Total Income
                         Box(
                             modifier = Modifier
                                 .width(98.dp)
                                 .fillMaxHeight()
-                                .background(SolidPrimary.copy(alpha = 0.25f))
+                                .background(SolidIncome.copy(alpha = 0.15f))
                                 .padding(horizontal = 6.dp),
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = (if (isGrandPos) "+" else "") + LanguageHelper.formatCurrency(timelineData.grandNetSavings, languageMode),
-                                fontSize = 12.sp,
+                                text = LanguageHelper.formatCurrency(timelineData.grandTotalIncome, languageMode),
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = if (isGrandPos) SolidIncome else SolidExpense,
+                                color = SolidIncome,
                                 maxLines = 1
                             )
                         }
                         VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
 
-                        // Avg Net Surplus
-                        val isAvgPos = timelineData.avgNetSavingsPerPeriod >= 0
+                        // Avg Income
                         Box(
                             modifier = Modifier
                                 .width(92.dp)
@@ -811,10 +936,102 @@ fun BudgetTimelineTable(
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(
-                                text = (if (isAvgPos) "+" else "") + LanguageHelper.formatCurrency(timelineData.avgNetSavingsPerPeriod, languageMode),
+                                text = LanguageHelper.formatCurrency(timelineData.avgIncomePerPeriod, languageMode),
+                                fontSize = 10.5.sp,
+                                color = SolidIncome,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                // Net Earnings Row
+                val isNetPositive = timelineData.grandNetSavings >= 0
+                val netColor = if (isNetPositive) SolidIncome else SolidExpense
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .background(netColor.copy(alpha = 0.12f)),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(155.dp)
+                            .fillMaxHeight()
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "নেট আয় (Net Earnings)" else "Net Earnings",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = netColor
+                        )
+                    }
+                    VerticalDivider(color = netColor.copy(alpha = 0.3f))
+
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .horizontalScroll(horizontalScrollState),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        timelineData.netSavingsByPeriod.forEach { amount ->
+                            val isPos = amount >= 0
+                            val col = if (isPos) SolidIncome else SolidExpense
+                            Box(
+                                modifier = Modifier
+                                    .width(92.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 6.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Text(
+                                    text = (if (isPos && amount > 0) "+" else "") + LanguageHelper.formatCurrency(amount, languageMode),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = col,
+                                    maxLines = 1
+                                )
+                            }
+                            VerticalDivider(color = netColor.copy(alpha = 0.2f))
+                        }
+
+                        // Grand Net Earnings
+                        Box(
+                            modifier = Modifier
+                                .width(98.dp)
+                                .fillMaxHeight()
+                                .background(netColor.copy(alpha = 0.2f))
+                                .padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Text(
+                                text = (if (isNetPositive) "+" else "") + LanguageHelper.formatCurrency(timelineData.grandNetSavings, languageMode),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                color = netColor,
+                                maxLines = 1
+                            )
+                        }
+                        VerticalDivider(color = netColor.copy(alpha = 0.2f))
+
+                        // Avg Net Earnings
+                        Box(
+                            modifier = Modifier
+                                .width(92.dp)
+                                .fillMaxHeight()
+                                .padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Text(
+                                text = (if (timelineData.avgNetSavingsPerPeriod >= 0) "+" else "") + LanguageHelper.formatCurrency(timelineData.avgNetSavingsPerPeriod, languageMode),
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (isAvgPos) SolidIncome else SolidExpense,
+                                fontWeight = FontWeight.Bold,
+                                color = netColor,
                                 maxLines = 1
                             )
                         }
