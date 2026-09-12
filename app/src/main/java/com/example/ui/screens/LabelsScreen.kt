@@ -128,11 +128,11 @@ fun LabelsScreen(
     var showCustomEndPicker by remember { mutableStateOf(false) }
 
     if (showTimelineScreen) {
-        AccountTimelineScreen(
-            accounts = accounts,
-            transactions = transactions.map { it.transaction },
+        LabelsTimelineScreen(
+            transactions = transactions,
             languageMode = languageMode,
-            onBack = { showTimelineScreen = false }
+            onBack = { showTimelineScreen = false },
+            onTransactionClick = onTransactionClick
         )
         return
     }

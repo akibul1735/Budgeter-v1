@@ -60,7 +60,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +86,7 @@ import com.example.data.model.TransactionStatus
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.components.ExportMenuButton
+import com.example.ui.components.LocalSetTimelineActive
 import com.example.util.AccountTimelineHelper
 import com.example.util.AccountTimelineInterval
 import com.example.util.AccountTimelineData
@@ -110,6 +113,20 @@ fun AccountTimelineScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+
+    // Signal container to disable horizontal pager swipe when timeline is active
+    val setTimelineActive = LocalSetTimelineActive.current
+    DisposableEffect(Unit) {
+        setTimelineActive(true)
+        onDispose {
+            setTimelineActive(false)
+        }
+    }
+
+    BackHandler(enabled = true) {
+        onBack()
+    }
+
     var filterState by remember { mutableStateOf(AccountTimelineFilterState()) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }

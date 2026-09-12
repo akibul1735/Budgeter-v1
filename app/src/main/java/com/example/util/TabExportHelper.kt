@@ -2344,6 +2344,72 @@ object TabExportHelper {
         return sb.toString()
     }
 
+    fun shareTableAsFile(
+        context: Context,
+        format: ExportFormat,
+        title: String,
+        headers: List<String>,
+        rows: List<List<String>>
+    ) {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val cleanTitle = title.replace(Regex("[^a-zA-Z0-9_]"), "_")
+        when (format) {
+            ExportFormat.PDF -> {
+                val tableHtml = StringBuilder()
+                tableHtml.append("<table class=\"data-table\"><thead><tr>")
+                headers.forEach { h -> tableHtml.append("<th>").append(escapeHtml(h)).append("</th>") }
+                tableHtml.append("</tr></thead><tbody>")
+                rows.forEach { row ->
+                    tableHtml.append("<tr>")
+                    row.forEachIndexed { idx, cell ->
+                        val align = if (idx == 0) "left" else "right"
+                        tableHtml.append("<td style=\"text-align:$align;\">").append(escapeHtml(cell)).append("</td>")
+                    }
+                    tableHtml.append("</tr>")
+                }
+                tableHtml.append("</tbody></table>")
+                val fullHtml = buildBaseHtml(title, "Generated on ${SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date())}", tableHtml.toString())
+                PdfPrintHelper.printHtml(context, "${cleanTitle}_$timeStamp", fullHtml, isLandscape = true)
+            }
+            ExportFormat.CSV -> {
+                val sb = StringBuilder()
+                sb.append(headers.joinToString(",") { escapeCsv(it) }).append("\n")
+                rows.forEach { row ->
+                    sb.append(row.joinToString(",") { escapeCsv(it) }).append("\n")
+                }
+                shareFile(context, "${cleanTitle}_$timeStamp.csv", format.mimeType, sb.toString(), title)
+            }
+            ExportFormat.HTML -> {
+                val tableHtml = StringBuilder()
+                tableHtml.append("<table class=\"data-table\"><thead><tr>")
+                headers.forEach { h -> tableHtml.append("<th>").append(escapeHtml(h)).append("</th>") }
+                tableHtml.append("</tr></thead><tbody>")
+                rows.forEach { row ->
+                    tableHtml.append("<tr>")
+                    row.forEachIndexed { idx, cell ->
+                        val align = if (idx == 0) "left" else "right"
+                        tableHtml.append("<td style=\"text-align:$align;\">").append(escapeHtml(cell)).append("</td>")
+                    }
+                    tableHtml.append("</tr>")
+                }
+                tableHtml.append("</tbody></table>")
+                val fullHtml = buildBaseHtml(title, "Generated on ${SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date())}", tableHtml.toString())
+                shareFile(context, "${cleanTitle}_$timeStamp.html", format.mimeType, fullHtml, title)
+            }
+            ExportFormat.JSON -> {
+                val jsonArr = org.json.JSONArray()
+                rows.forEach { row ->
+                    val obj = org.json.JSONObject()
+                    headers.forEachIndexed { idx, h ->
+                        obj.put(h, row.getOrNull(idx) ?: "")
+                    }
+                    jsonArr.put(obj)
+                }
+                shareFile(context, "${cleanTitle}_$timeStamp.json", format.mimeType, jsonArr.toString(2), title)
+            }
+        }
+    }
+
     private fun escapeCsv(value: String): String {
         var str = value.replace("\"", "\"\"")
         if (str.contains(",") || str.contains("\n") || str.contains("\"")) {

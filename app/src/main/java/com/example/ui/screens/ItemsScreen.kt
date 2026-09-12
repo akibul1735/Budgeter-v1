@@ -139,11 +139,11 @@ fun ItemsScreen(
     var showCustomEndPicker by remember { mutableStateOf(false) }
 
     if (showTimelineScreen) {
-        AccountTimelineScreen(
-            accounts = accounts,
-            transactions = transactions.map { it.transaction },
+        ItemsTimelineScreen(
+            transactions = transactions,
             languageMode = languageMode,
-            onBack = { showTimelineScreen = false }
+            onBack = { showTimelineScreen = false },
+            onTransactionClick = onTransactionClick
         )
         return
     }

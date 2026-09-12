@@ -135,6 +135,7 @@ import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.AutoHidingHeaderContainer
 import com.example.ui.components.LanguageSelector
 import com.example.ui.components.LocalHeaderScrollState
+import com.example.ui.components.LocalSetTimelineActive
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.components.rememberHeaderScrollState
 import com.example.ui.dialogs.AccountTransactionsDetailDialog
@@ -274,6 +275,7 @@ fun MainAppContainer(
     val viewHistory = remember { mutableStateListOf(AppView.DASHBOARD) }
     var currentView by remember { mutableStateOf(AppView.DASHBOARD) }
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
+    var isTimelineActive by remember { mutableStateOf(false) }
 
     // Dialog control states
     var showAddTransactionSheet by remember { mutableStateOf(false) }
@@ -339,6 +341,7 @@ fun MainAppContainer(
 
     val selectView: (AppView) -> Unit = { targetView ->
         headerScrollState.show()
+        isTimelineActive = false
         if (currentView != targetView) {
             val tabIndex = visibleTabs.indexOfFirst { it.toAppView() == targetView }
             if (targetView == AppView.DASHBOARD) {
@@ -357,6 +360,7 @@ fun MainAppContainer(
     }
 
     val handleBackPress: () -> Unit = {
+        isTimelineActive = false
         when {
             showAddTransactionSheet -> {
                 showAddTransactionSheet = false
@@ -406,7 +410,10 @@ fun MainAppContainer(
     )
 
     // Window Width Adaptive Layout Container
-    CompositionLocalProvider(LocalHeaderScrollState provides headerScrollState) {
+    CompositionLocalProvider(
+        LocalHeaderScrollState provides headerScrollState,
+        LocalSetTimelineActive provides { active -> isTimelineActive = active }
+    ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val windowSizeClass = when {
                 maxWidth < 600.dp -> WindowSizeClassType.COMPACT
@@ -490,6 +497,7 @@ fun MainAppContainer(
                                     state = pagerState,
                                     key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
                                     beyondViewportPageCount = 1,
+                                    userScrollEnabled = !isTimelineActive,
                                     modifier = Modifier.fillMaxSize()
                                 ) { page ->
                                     val pageTab = visibleTabs.getOrNull(page)
