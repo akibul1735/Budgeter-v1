@@ -365,6 +365,21 @@ class DashboardPreferences private constructor(context: Context) {
         saveConfig(_config.value.copy(favoriteAccountIds = accountIds))
     }
 
+    fun addFavoriteAccount(accountId: Long) {
+        if (accountId <= 0L) return
+        val current = _config.value.favoriteAccountIds
+        if (accountId !in current) {
+            saveConfig(_config.value.copy(favoriteAccountIds = current + accountId))
+        }
+    }
+
+    fun addFavoriteAccounts(accountIds: Collection<Long>) {
+        val validIds = accountIds.filter { it > 0L }.toSet()
+        if (validIds.isEmpty()) return
+        val current = _config.value.favoriteAccountIds
+        saveConfig(_config.value.copy(favoriteAccountIds = current + validIds))
+    }
+
     fun toggleFavoriteAccount(accountId: Long) {
         val current = _config.value.favoriteAccountIds
         val newFavs = if (accountId in current) current - accountId else current + accountId

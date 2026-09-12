@@ -65,6 +65,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Account
+import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
@@ -310,18 +311,24 @@ fun TransactionDetailViewDialog(
                     val accountDisplay = when (tx.type) {
                         TransactionType.EXPENSE -> {
                             val name = item.creditAccount?.localizedName(languageMode) ?: "-"
-                            val caret = if (tx.amount >= 0) "⩔" else "⩓"
+                            val isInc = if (item.creditAccount?.type == AccountType.LIABILITY || item.creditAccount?.type == AccountType.EQUITY) (tx.amount >= 0) else (tx.amount < 0)
+                            val caret = if (isInc) "⩓" else "⩔"
                             "$name  $caret"
                         }
                         TransactionType.INCOME -> {
                             val name = item.debitAccount?.localizedName(languageMode) ?: "-"
-                            val caret = if (tx.amount >= 0) "⩓" else "⩔"
+                            val isInc = if (item.debitAccount?.type == AccountType.LIABILITY || item.debitAccount?.type == AccountType.EQUITY) (tx.amount < 0) else (tx.amount >= 0)
+                            val caret = if (isInc) "⩓" else "⩔"
                             "$name  $caret"
                         }
                         TransactionType.TRANSFER -> {
                             val from = item.creditAccount?.localizedName(languageMode) ?: "-"
                             val to = item.debitAccount?.localizedName(languageMode) ?: "-"
-                            "$from (⩔)  ➔  $to (⩓)"
+                            val fromInc = if (item.creditAccount?.type == AccountType.LIABILITY || item.creditAccount?.type == AccountType.EQUITY) (tx.amount >= 0) else (tx.amount < 0)
+                            val toInc = if (item.debitAccount?.type == AccountType.LIABILITY || item.debitAccount?.type == AccountType.EQUITY) (tx.amount < 0) else (tx.amount >= 0)
+                            val fromCaret = if (fromInc) "⩓" else "⩔"
+                            val toCaret = if (toInc) "⩓" else "⩔"
+                            "$from ($fromCaret)  ➔  $to ($toCaret)"
                         }
                     }
 

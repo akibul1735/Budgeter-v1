@@ -67,11 +67,23 @@ fun FavoriteAccountsSelectionDialog(
     var searchQuery by remember { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf(initialSelectedIds.toMutableSet()) }
 
-    val filteredAccounts = remember(allAccounts, searchQuery) {
+    val flatIndividualAccounts = remember(allAccounts) {
+        val list = mutableListOf<AccountWithBalance>()
+        for (item in allAccounts) {
+            if (item.subAccounts.isNotEmpty()) {
+                list.addAll(item.subAccounts)
+            } else {
+                list.add(item)
+            }
+        }
+        list
+    }
+
+    val filteredAccounts = remember(flatIndividualAccounts, searchQuery) {
         if (searchQuery.isBlank()) {
-            allAccounts
+            flatIndividualAccounts
         } else {
-            allAccounts.filter {
+            flatIndividualAccounts.filter {
                 it.account.nameEn.contains(searchQuery, ignoreCase = true) ||
                         it.account.nameBn.contains(searchQuery, ignoreCase = true)
             }
@@ -143,7 +155,7 @@ fun FavoriteAccountsSelectionDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TextButton(
-                        onClick = { selectedIds = allAccounts.map { it.account.id }.toMutableSet() },
+                        onClick = { selectedIds = flatIndividualAccounts.map { it.account.id }.toMutableSet() },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(LanguageHelper.getString("select_all", languageMode), fontSize = 12.sp)

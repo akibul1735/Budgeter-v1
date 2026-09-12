@@ -1339,8 +1339,13 @@ private fun AccountDetailTableTab(
                                     otherAcc?.localizedName(languageMode) ?: LanguageHelper.getString("transfer", languageMode)
                                 }
 
-                                val overrideSign = if (isSource) "−" else "+"
-                                val overrideAmtColor = if (isSource) SolidExpense else SolidIncome
+                                val isIncrease = if (account.type == AccountType.LIABILITY || account.type == AccountType.EQUITY) {
+                                    if (isSource) tx.amount >= 0 else tx.amount < 0
+                                } else {
+                                    if (isSource) tx.amount < 0 else tx.amount >= 0
+                                }
+                                val overrideSign = if (isIncrease) "+" else "−"
+                                val overrideAmtColor = if (isIncrease) SolidIncome else SolidExpense
 
                                 TransactionRowItem(
                                     item = item,

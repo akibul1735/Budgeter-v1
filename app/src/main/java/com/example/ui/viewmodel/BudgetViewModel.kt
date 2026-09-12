@@ -702,12 +702,16 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 activeRepo.updateTransaction(transaction)
             }
+            transaction.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
+            transaction.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
         }
     }
 
     fun updateTransactions(transactions: List<Transaction>) {
         viewModelScope.launch {
             activeRepo.updateTransactions(transactions)
+            val accIds = transactions.flatMap { listOfNotNull(it.debitAccountId, it.creditAccountId) }
+            dashboardPrefs.addFavoriteAccounts(accIds)
         }
     }
 

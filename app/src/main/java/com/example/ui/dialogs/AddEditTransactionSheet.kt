@@ -177,6 +177,7 @@ import com.example.ui.theme.SolidIncomeContainer
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidPrimaryContainer
 import com.example.ui.theme.SolidTransfer
+import com.example.util.AmountFormatPreferences
 import com.example.util.AutofillConfig
 import com.example.util.AutofillPreferences
 import com.example.util.DateUtils
@@ -215,6 +216,8 @@ fun AddEditTransactionSheet(
     val autofillConfig by autofillPrefs.config.collectAsState()
     val displayFormatPrefs = remember { DisplayFormatPreferences.getInstance(context) }
     val displayFormatConfig by displayFormatPrefs.config.collectAsStateWithLifecycle()
+    val amountFormatPrefs = remember { AmountFormatPreferences.getInstance(context) }
+    val amountFormatConfig by amountFormatPrefs.config.collectAsStateWithLifecycle()
     val transferFeePrefs = remember { TransferFeePreferences.getInstance(context) }
 
     LaunchedEffect(Unit) {
@@ -257,8 +260,14 @@ fun AddEditTransactionSheet(
     var amountText by remember {
         mutableStateOf(
             if (existingTransaction != null && Math.abs(existingTransaction.amount) > 0.0) {
-                val absAmt = Math.abs(existingTransaction.amount)
-                if (absAmt % 1.0 == 0.0) absAmt.toLong().toString() else absAmt.toString()
+                LanguageHelper.formatAmountNumber(
+                    value = Math.abs(existingTransaction.amount),
+                    mode = LanguageMode.ENGLISH,
+                    groupingSeparator = amountFormatConfig.effectiveGroupingSeparator,
+                    decimalSeparator = amountFormatConfig.effectiveDecimalSeparator,
+                    groupingStyle = amountFormatConfig.effectiveGroupingStyle,
+                    decimalPlaces = 2
+                )
             } else ""
         )
     }
@@ -467,8 +476,29 @@ fun AddEditTransactionSheet(
         }
     }
 
+    val formatAmountInput: (Double) -> String = { amt ->
+        if (amt <= 0.0) "" else {
+            LanguageHelper.formatAmountNumber(
+                value = amt,
+                mode = LanguageMode.ENGLISH,
+                groupingSeparator = amountFormatConfig.effectiveGroupingSeparator,
+                decimalSeparator = amountFormatConfig.effectiveDecimalSeparator,
+                groupingStyle = amountFormatConfig.effectiveGroupingStyle,
+                decimalPlaces = 2
+            )
+        }
+    }
+
+    val parseAmountInput: (String) -> Double = { text ->
+        val clean = text
+            .replace(amountFormatConfig.effectiveGroupingSeparator, "")
+            .replace(amountFormatConfig.effectiveDecimalSeparator, ".")
+            .filter { it.isDigit() || it == '.' }
+        clean.toDoubleOrNull() ?: 0.0
+    }
+
     // Live entered amount and signed calculations
-    val liveParsedAmount = amountText.toDoubleOrNull() ?: amount
+    val liveParsedAmount = parseAmountInput(amountText).let { if (it > 0.0) it else amount }
     val isLiveRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
     val isLiveRevertIncome = txType == TransactionType.INCOME && (selectedSign == "−" || selectedSign == "-")
     val liveEffectiveAmount = if (isLiveRevertExpense || isLiveRevertIncome) -liveParsedAmount else liveParsedAmount
@@ -586,35 +616,37 @@ fun AddEditTransactionSheet(
         }?.transaction
 
         if (latestMatch != null) {
-            if (autofillConfig.autofillCategory && latestMatch.categoryId != null) {
-                txType = latestMatch.type
+            txType = latestMatch.type
+            if (latestMatch.type != TransactionType.TRANSFER) {
                 selectedCategoryId = latestMatch.categoryId
                 selectedSubCategoryId = latestMatch.subCategoryId
             }
-            if (autofillConfig.autofillAccount) {
-                when (latestMatch.type) {
-                    TransactionType.EXPENSE -> creditAccountId = latestMatch.creditAccountId
-                    TransactionType.INCOME -> debitAccountId = latestMatch.debitAccountId
-                    TransactionType.TRANSFER -> {
-                        creditAccountId = latestMatch.creditAccountId
-                        debitAccountId = latestMatch.debitAccountId
-                    }
+            when (latestMatch.type) {
+                TransactionType.EXPENSE -> {
+                    creditAccountId = latestMatch.creditAccountId
+                }
+                TransactionType.INCOME -> {
+                    debitAccountId = latestMatch.debitAccountId
+                }
+                TransactionType.TRANSFER -> {
+                    creditAccountId = latestMatch.creditAccountId
+                    debitAccountId = latestMatch.debitAccountId
                 }
             }
-            if (autofillConfig.autofillAmount && Math.abs(latestMatch.amount) > 0) {
+            if (Math.abs(latestMatch.amount) > 0) {
                 val absAmt = Math.abs(latestMatch.amount)
                 amount = absAmt
-                amountText = if (absAmt % 1.0 == 0.0) absAmt.toLong().toString() else absAmt.toString()
+                amountText = formatAmountInput(absAmt)
                 selectedSign = when (latestMatch.type) {
                     TransactionType.EXPENSE -> if (latestMatch.amount < 0.0) "+" else "−"
                     TransactionType.INCOME -> if (latestMatch.amount < 0.0) "−" else "+"
                     TransactionType.TRANSFER -> "⇄"
                 }
             }
-            if (autofillConfig.autofillNotes && latestMatch.note.isNotBlank()) {
+            if (latestMatch.note.isNotBlank()) {
                 note = latestMatch.note
             }
-            if (autofillConfig.autofillLabel && latestMatch.referenceNo.isNotBlank()) {
+            if (latestMatch.referenceNo.isNotBlank()) {
                 labelTag = latestMatch.referenceNo
             }
         }
@@ -622,7 +654,7 @@ fun AddEditTransactionSheet(
 
     val executeSave: () -> Unit = {
         run {
-            val parsedAmt = amountText.toDoubleOrNull() ?: amount
+            val parsedAmt = parseAmountInput(amountText).let { if (it > 0.0) it else amount }
             val absAmt = Math.abs(parsedAmt)
             if (absAmt <= 0) {
                 Toast.makeText(
@@ -839,7 +871,7 @@ fun AddEditTransactionSheet(
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .clickable {
-                                        val parsedAmt = amountText.toDoubleOrNull() ?: amount
+                                        val parsedAmt = parseAmountInput(amountText).let { if (it > 0.0) it else amount }
                                         val absAmt = Math.abs(parsedAmt)
                                         if (absAmt > 0) {
                                             val isRevertExpense = txType == TransactionType.EXPENSE && selectedSign == "+"
@@ -1098,26 +1130,15 @@ fun AddEditTransactionSheet(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
+                                            Text(
+                                                text = suggestion,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.History,
-                                                    contentDescription = null,
-                                                    tint = SolidPrimary,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(10.dp))
-                                                Text(
-                                                    text = suggestion,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
+                                            )
                                             Icon(
                                                 imageVector = Icons.Default.NorthWest,
                                                 contentDescription = "Autofill",
@@ -1383,10 +1404,12 @@ fun AddEditTransactionSheet(
                                 BasicTextField(
                                     value = amountText,
                                     onValueChange = { input ->
-                                        val clean = input.filter { it.isDigit() || it == '.' }
-                                        if (clean.count { it == '.' } <= 1 && clean.length <= 12) {
+                                        val clean = input.filter {
+                                            it.isDigit() || it == '.' || it.toString() == amountFormatConfig.effectiveGroupingSeparator || it.toString() == amountFormatConfig.effectiveDecimalSeparator
+                                        }
+                                        if (clean.length <= 16) {
                                             amountText = clean
-                                            amount = clean.toDoubleOrNull() ?: 0.0
+                                            amount = parseAmountInput(clean)
                                         }
                                     },
                                     textStyle = TextStyle(
@@ -1403,7 +1426,14 @@ fun AddEditTransactionSheet(
                                         imeAction = ImeAction.Done
                                     ),
                                     keyboardActions = KeyboardActions(
-                                        onDone = { focusManager.clearFocus() }
+                                        onDone = {
+                                            focusManager.clearFocus()
+                                            val parsed = parseAmountInput(amountText)
+                                            if (parsed > 0.0) {
+                                                amount = parsed
+                                                amountText = formatAmountInput(parsed)
+                                            }
+                                        }
                                     ),
                                     singleLine = true,
                                     modifier = Modifier
@@ -1503,10 +1533,10 @@ fun AddEditTransactionSheet(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clickable {
-                                            val current = amountText.toDoubleOrNull() ?: 0.0
+                                            val current = parseAmountInput(amountText)
                                             val newAmount = current + preset
                                             amount = newAmount
-                                            amountText = if (newAmount % 1.0 == 0.0) newAmount.toLong().toString() else newAmount.toString()
+                                            amountText = formatAmountInput(newAmount)
                                         }
                                 ) {
                                     Box(
@@ -2494,7 +2524,7 @@ fun AddEditTransactionSheet(
             onValueConfirmed = { calculatedAmount ->
                 val absAmt = Math.abs(calculatedAmount)
                 amount = absAmt
-                amountText = if (absAmt % 1.0 == 0.0) absAmt.toLong().toString() else absAmt.toString()
+                amountText = formatAmountInput(absAmt)
                 if (calculatedAmount < 0.0) {
                     selectedSign = if (txType == TransactionType.EXPENSE) "+" else "−"
                 }
@@ -2511,7 +2541,7 @@ fun AddEditTransactionSheet(
             onValueConfirmed = { calculatedAmount ->
                 val absAmt = Math.abs(calculatedAmount)
                 transferFeeAmount = absAmt
-                transferFeeAmountText = if (absAmt % 1.0 == 0.0) absAmt.toLong().toString() else absAmt.toString()
+                transferFeeAmountText = formatAmountInput(absAmt)
                 showTransferFeeCalculator = false
             }
         )

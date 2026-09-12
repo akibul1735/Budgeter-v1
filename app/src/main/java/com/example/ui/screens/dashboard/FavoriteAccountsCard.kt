@@ -55,12 +55,24 @@ fun FavoriteAccountsCard(
     onOpenAccountPicker: () -> Unit,
     onAccountClick: (Account) -> Unit = {}
 ) {
-    val displayAccounts = remember(accountsWithBalances, favoriteAccountIds) {
+    val flatIndividualAccounts = remember(accountsWithBalances) {
+        val list = mutableListOf<AccountWithBalance>()
+        for (item in accountsWithBalances) {
+            if (item.subAccounts.isNotEmpty()) {
+                list.addAll(item.subAccounts)
+            } else {
+                list.add(item)
+            }
+        }
+        list
+    }
+
+    val displayAccounts = remember(flatIndividualAccounts, favoriteAccountIds) {
         if (favoriteAccountIds.isNotEmpty()) {
-            accountsWithBalances.filter { it.account.id in favoriteAccountIds }
+            flatIndividualAccounts.filter { it.account.id in favoriteAccountIds }
         } else {
             // Default to top 5 accounts if user hasn't selected yet
-            accountsWithBalances.take(5)
+            flatIndividualAccounts.take(5)
         }
     }
 
