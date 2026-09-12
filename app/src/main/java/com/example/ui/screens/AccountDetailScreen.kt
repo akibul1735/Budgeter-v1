@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,19 +39,30 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -217,6 +230,7 @@ fun AccountDetailScreen(
     onEditAccount: (Account) -> Unit,
     onSaveTransaction: (Transaction) -> Unit,
     onUpdateTransactions: (List<Transaction>) -> Unit,
+    onDeleteTransactions: (List<Transaction>) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -224,6 +238,16 @@ fun AccountDetailScreen(
     var filterState by remember { mutableStateOf(AccountDetailFilterState()) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showReconcileSheet by remember { mutableStateOf(false) }
+
+    // Multi-selection states (Image 1)
+    var selectedTxIds by remember { mutableStateOf(setOf<Long>()) }
+    var showBatchNameDialog by remember { mutableStateOf(false) }
+    var showBatchDateDialog by remember { mutableStateOf(false) }
+    var showBatchCategoryDialog by remember { mutableStateOf(false) }
+    var showBatchAccountDialog by remember { mutableStateOf(false) }
+    var showBatchAmountDialog by remember { mutableStateOf(false) }
+    var showBatchLabelDialog by remember { mutableStateOf(false) }
+    var showBatchDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     // State for single-transaction quick reconcile long-press
     var selectedTxForQuickAction by remember { mutableStateOf<TransactionWithDetails?>(null) }
@@ -391,36 +415,112 @@ fun AccountDetailScreen(
         if (languageMode == LanguageMode.BANGLA && account.nameBn.isNotBlank()) account.nameBn else account.nameEn
     }
 
+    // Calculate sum of selected transactions for top bar display (Image 1: e.g. -BDT 6,000.00)
+    val selectedAmountText = remember(selectedTxIds, displayedTransactions, account, allRelevantAccountIds, languageMode) {
+        if (selectedTxIds.isEmpty()) ""
+        else {
+            val selectedList = displayedTransactions.filter { selectedTxIds.contains(it.transaction.id) }
+            val totalNet = selectedList.sumOf { item ->
+                val tx = item.transaction
+                val isDebit = allRelevantAccountIds.contains(tx.debitAccountId)
+                val isCredit = allRelevantAccountIds.contains(tx.creditAccountId)
+                val sign = if (account.type == AccountType.ASSET) {
+                    if (isDebit && !isCredit) 1.0 else if (isCredit && !isDebit) -1.0 else 0.0
+                } else {
+                    if (isCredit && !isDebit) 1.0 else if (isDebit && !isCredit) -1.0 else 0.0
+                }
+                tx.amount * sign
+            }
+            val formatted = LanguageHelper.formatCurrency(abs(totalNet), languageMode)
+            when {
+                totalNet < 0 -> "-$formatted"
+                totalNet > 0 -> "+$formatted"
+                else -> formatted
+            }
+        }
+    }
+
+    // Back handler exits selection mode
+    BackHandler(enabled = selectedTxIds.isNotEmpty()) {
+        selectedTxIds = emptySet()
+    }
+
     Scaffold(
         modifier = modifier
             .fillMaxSize()
             .testTag("account_detail_screen"),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            AccountDetailTopAppBar(
-                accountName = accountName,
-                isFilterActive = filterState.isActive,
-                activeFilterCount = filterState.activeCount,
-                onBack = onDismiss,
-                onFilterClick = { showFilterDialog = true },
-                onPrintPdf = {
-                    val html = buildAccountStatementHtml(
-                        account = account,
-                        accountName = accountName,
-                        transactions = displayedTransactions,
-                        runningBalanceMap = runningBalanceMap,
-                        currentBalance = currentEndingBalance,
-                        filterState = filterState,
-                        languageMode = languageMode
-                    )
-                    PdfPrintHelper.printHtml(
-                        context = context,
-                        jobName = "Statement_${account.nameEn.replace(" ", "_")}",
-                        htmlContent = html,
-                        isLandscape = false
-                    )
-                }
-            )
+            if (selectedTxIds.isNotEmpty()) {
+                AccountDetailSelectionTopAppBar(
+                    selectedAmountText = selectedAmountText,
+                    onBack = { selectedTxIds = emptySet() },
+                    onSelectAll = {
+                        val displayedIds = displayedTransactions.map { it.transaction.id }.toSet()
+                        if (selectedTxIds.containsAll(displayedIds)) {
+                            selectedTxIds = emptySet()
+                        } else {
+                            selectedTxIds = displayedIds
+                        }
+                    },
+                    onDuplicate = {
+                        val toDuplicate = displayedTransactions.filter { selectedTxIds.contains(it.transaction.id) }
+                        toDuplicate.forEach { item ->
+                            val orig = item.transaction
+                            val copyTx = orig.copy(
+                                id = 0L,
+                                note = if (orig.note.isNotBlank()) "${orig.note} (Copy)" else "Copy",
+                                createdAt = System.currentTimeMillis()
+                            )
+                            onSaveTransaction(copyTx)
+                        }
+                        Toast.makeText(context, "Duplicated ${toDuplicate.size} transactions", Toast.LENGTH_SHORT).show()
+                        selectedTxIds = emptySet()
+                    },
+                    onChangeName = { showBatchNameDialog = true },
+                    onChangeDate = { showBatchDateDialog = true },
+                    onChangeCategory = { showBatchCategoryDialog = true },
+                    onChangeAccount = { showBatchAccountDialog = true },
+                    onChangeAmount = { showBatchAmountDialog = true },
+                    onAddLabel = { showBatchLabelDialog = true },
+                    onReconcile = {
+                        val toReconcile = displayedTransactions
+                            .filter { selectedTxIds.contains(it.transaction.id) }
+                            .map { it.transaction.copy(status = TransactionStatus.RECONCILED) }
+                        if (toReconcile.isNotEmpty()) {
+                            onUpdateTransactions(toReconcile)
+                            Toast.makeText(context, "Marked ${toReconcile.size} transactions as Reconciled", Toast.LENGTH_SHORT).show()
+                        }
+                        selectedTxIds = emptySet()
+                    },
+                    onDelete = { showBatchDeleteConfirmDialog = true }
+                )
+            } else {
+                AccountDetailTopAppBar(
+                    accountName = accountName,
+                    isFilterActive = filterState.isActive,
+                    activeFilterCount = filterState.activeCount,
+                    onBack = onDismiss,
+                    onFilterClick = { showFilterDialog = true },
+                    onPrintPdf = {
+                        val html = buildAccountStatementHtml(
+                            account = account,
+                            accountName = accountName,
+                            transactions = displayedTransactions,
+                            runningBalanceMap = runningBalanceMap,
+                            currentBalance = currentEndingBalance,
+                            filterState = filterState,
+                            languageMode = languageMode
+                        )
+                        PdfPrintHelper.printHtml(
+                            context = context,
+                            jobName = "Statement_${account.nameEn.replace(" ", "_")}",
+                            htmlContent = html,
+                            isLandscape = false
+                        )
+                    }
+                )
+            }
         },
         bottomBar = {
             AccountDetailBottomNavBar(
@@ -429,17 +529,19 @@ fun AccountDetailScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { onAddTransactionForAccount(account) },
-                containerColor = SolidIncome,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier
-                    .padding(bottom = 12.dp)
-                    .size(56.dp)
-                    .testTag("account_detail_fab_add")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(28.dp))
+            if (selectedTxIds.isEmpty()) {
+                FloatingActionButton(
+                    onClick = { onAddTransactionForAccount(account) },
+                    containerColor = SolidIncome,
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    modifier = Modifier
+                        .padding(bottom = 12.dp)
+                        .size(56.dp)
+                        .testTag("account_detail_fab_add")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(28.dp))
+                }
             }
         }
     ) { innerPadding ->
@@ -472,8 +574,15 @@ fun AccountDetailScreen(
                         transactions = displayedTransactions,
                         runningBalanceMap = runningBalanceMap,
                         languageMode = languageMode,
+                        selectedTxIds = selectedTxIds,
                         onEditTransaction = onEditTransaction,
-                        onTransactionLongClick = { selectedTxForQuickAction = it }
+                        onToggleSelectTransaction = { txId ->
+                            selectedTxIds = if (selectedTxIds.contains(txId)) {
+                                selectedTxIds - txId
+                            } else {
+                                selectedTxIds + txId
+                            }
+                        }
                     )
                 }
                 AccountDetailTab.CHART -> {
@@ -489,14 +598,14 @@ fun AccountDetailScreen(
         }
     }
 
-    // Reconcile Bottom Sheet (Screenshot 3)
+    // Reconcile Bottom Sheet (Screenshot 3 / Image 2)
     if (showReconcileSheet) {
         AccountReconcileBottomSheet(
             account = account,
             latestBalance = currentEndingBalance,
             languageMode = languageMode,
             onDismiss = { showReconcileSheet = false },
-            onConfirm = { targetBalance, setAllReconciled ->
+            onConfirm = { targetBalance ->
                 val diff = targetBalance - currentEndingBalance
                 if (abs(diff) >= 0.01) {
                     val isAsset = account.type == AccountType.ASSET
@@ -529,24 +638,173 @@ fun AccountDetailScreen(
                     onSaveTransaction(adjustmentTx)
                 }
 
-                if (setAllReconciled) {
-                    val toUpdate = accountTransactions.mapNotNull { item ->
-                        val tx = item.transaction
-                        if (tx.status != TransactionStatus.RECONCILED) {
-                            tx.copy(status = TransactionStatus.RECONCILED)
-                        } else null
-                    }
-                    if (toUpdate.isNotEmpty()) {
-                        onUpdateTransactions(toUpdate)
-                    }
-                }
-
                 Toast.makeText(
                     context,
-                    if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স সমন্বয় ও মিলকরণ সম্পন্ন হয়েছে" else "Account balance reconciled successfully",
+                    if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স সমন্বয় সম্পন্ন হয়েছে" else "Account balance reconciled successfully",
                     Toast.LENGTH_SHORT
                 ).show()
                 showReconcileSheet = false
+            }
+        )
+    }
+
+    // Date Picker for batch date change
+    if (showBatchDateDialog) {
+        val cal = Calendar.getInstance()
+        val firstSelected = displayedTransactions.firstOrNull { selectedTxIds.contains(it.transaction.id) }
+        if (firstSelected != null) {
+            cal.timeInMillis = firstSelected.transaction.dateEpochMs
+        }
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                val chosenCal = Calendar.getInstance()
+                chosenCal.set(year, month, dayOfMonth)
+                val newEpochMs = chosenCal.timeInMillis
+                val toUpdate = displayedTransactions
+                    .filter { selectedTxIds.contains(it.transaction.id) }
+                    .map { it.transaction.copy(dateEpochMs = newEpochMs) }
+                if (toUpdate.isNotEmpty()) {
+                    onUpdateTransactions(toUpdate)
+                    Toast.makeText(context, "Updated date for ${toUpdate.size} transactions", Toast.LENGTH_SHORT).show()
+                }
+                selectedTxIds = emptySet()
+                showBatchDateDialog = false
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).apply {
+            setOnDismissListener { showBatchDateDialog = false }
+            show()
+        }
+    }
+
+    // Batch Change Name Dialog
+    if (showBatchNameDialog) {
+        val firstItemName = displayedTransactions.firstOrNull { selectedTxIds.contains(it.transaction.id) }?.transaction?.payeeOrPayer ?: ""
+        BatchChangeNameDialog(
+            initialName = firstItemName,
+            onDismiss = { showBatchNameDialog = false },
+            onConfirm = { newName ->
+                val toUpdate = displayedTransactions
+                    .filter { selectedTxIds.contains(it.transaction.id) }
+                    .map { it.transaction.copy(payeeOrPayer = newName) }
+                if (toUpdate.isNotEmpty()) {
+                    onUpdateTransactions(toUpdate)
+                    Toast.makeText(context, "Updated name for ${toUpdate.size} transactions", Toast.LENGTH_SHORT).show()
+                }
+                selectedTxIds = emptySet()
+                showBatchNameDialog = false
+            }
+        )
+    }
+
+    // Batch Change Category Dialog
+    if (showBatchCategoryDialog) {
+        BatchChangeCategoryDialog(
+            allCategories = allCategories,
+            languageMode = languageMode,
+            onDismiss = { showBatchCategoryDialog = false },
+            onSelectCategory = { cat ->
+                val toUpdate = displayedTransactions
+                    .filter { selectedTxIds.contains(it.transaction.id) }
+                    .map { it.transaction.copy(categoryId = cat.id, subCategoryId = null) }
+                if (toUpdate.isNotEmpty()) {
+                    onUpdateTransactions(toUpdate)
+                    Toast.makeText(context, "Updated category for ${toUpdate.size} transactions", Toast.LENGTH_SHORT).show()
+                }
+                selectedTxIds = emptySet()
+                showBatchCategoryDialog = false
+            }
+        )
+    }
+
+    // Batch Change Account Dialog
+    if (showBatchAccountDialog) {
+        BatchChangeAccountDialog(
+            allAccounts = allAccounts,
+            languageMode = languageMode,
+            onDismiss = { showBatchAccountDialog = false },
+            onSelectAccount = { acc ->
+                val toUpdate = displayedTransactions
+                    .filter { selectedTxIds.contains(it.transaction.id) }
+                    .map { item ->
+                        val tx = item.transaction
+                        if (allRelevantAccountIds.contains(tx.debitAccountId)) {
+                            tx.copy(debitAccountId = acc.id)
+                        } else if (allRelevantAccountIds.contains(tx.creditAccountId)) {
+                            tx.copy(creditAccountId = acc.id)
+                        } else tx
+                    }
+                if (toUpdate.isNotEmpty()) {
+                    onUpdateTransactions(toUpdate)
+                    Toast.makeText(context, "Updated account for ${toUpdate.size} transactions", Toast.LENGTH_SHORT).show()
+                }
+                selectedTxIds = emptySet()
+                showBatchAccountDialog = false
+            }
+        )
+    }
+
+    // Batch Change Amount Dialog
+    if (showBatchAmountDialog) {
+        BatchChangeAmountDialog(
+            onDismiss = { showBatchAmountDialog = false },
+            onConfirm = { newAmount ->
+                val toUpdate = displayedTransactions
+                    .filter { selectedTxIds.contains(it.transaction.id) }
+                    .map { it.transaction.copy(amount = newAmount) }
+                if (toUpdate.isNotEmpty()) {
+                    onUpdateTransactions(toUpdate)
+                    Toast.makeText(context, "Updated amount for ${toUpdate.size} transactions", Toast.LENGTH_SHORT).show()
+                }
+                selectedTxIds = emptySet()
+                showBatchAmountDialog = false
+            }
+        )
+    }
+
+    // Batch Add Label Dialog
+    if (showBatchLabelDialog) {
+        BatchAddLabelDialog(
+            onDismiss = { showBatchLabelDialog = false },
+            onConfirm = { label ->
+                val cleanTag = "#" + label.trim().removePrefix("#")
+                val toUpdate = displayedTransactions
+                    .filter { selectedTxIds.contains(it.transaction.id) }
+                    .map { item ->
+                        val tx = item.transaction
+                        val updatedNote = if (tx.note.contains(cleanTag)) tx.note
+                        else if (tx.note.isBlank()) cleanTag
+                        else "${tx.note} $cleanTag"
+                        tx.copy(note = updatedNote)
+                    }
+                if (toUpdate.isNotEmpty()) {
+                    onUpdateTransactions(toUpdate)
+                    Toast.makeText(context, "Added label to ${toUpdate.size} transactions", Toast.LENGTH_SHORT).show()
+                }
+                selectedTxIds = emptySet()
+                showBatchLabelDialog = false
+            }
+        )
+    }
+
+    // Batch Delete Confirm Dialog
+    if (showBatchDeleteConfirmDialog) {
+        BatchDeleteConfirmDialog(
+            count = selectedTxIds.size,
+            onDismiss = { showBatchDeleteConfirmDialog = false },
+            onConfirm = {
+                val toDelete = displayedTransactions
+                    .filter { selectedTxIds.contains(it.transaction.id) }
+                    .map { it.transaction }
+                if (toDelete.isNotEmpty()) {
+                    onDeleteTransactions(toDelete)
+                    Toast.makeText(context, "Deleted ${toDelete.size} transactions", Toast.LENGTH_SHORT).show()
+                }
+                selectedTxIds = emptySet()
+                showBatchDeleteConfirmDialog = false
             }
         )
     }
@@ -894,7 +1152,7 @@ private fun AccountActiveFilterChips(
 }
 
 // -------------------------------------------------------------------------------------------------
-// TABLE TAB (Matching Screenshot 1)
+// TABLE TAB (Matching Screenshot 1 & Image 1 Selection)
 // -------------------------------------------------------------------------------------------------
 @Composable
 private fun AccountDetailTableTab(
@@ -902,8 +1160,9 @@ private fun AccountDetailTableTab(
     transactions: List<TransactionWithDetails>,
     runningBalanceMap: Map<Long, Double>,
     languageMode: LanguageMode,
+    selectedTxIds: Set<Long>,
     onEditTransaction: (Transaction) -> Unit,
-    onTransactionLongClick: (TransactionWithDetails) -> Unit
+    onToggleSelectTransaction: (Long) -> Unit
 ) {
     if (transactions.isEmpty()) {
         Box(
@@ -934,6 +1193,7 @@ private fun AccountDetailTableTab(
             }
         }
     } else {
+        val isSelectionMode = selectedTxIds.isNotEmpty()
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
@@ -941,14 +1201,28 @@ private fun AccountDetailTableTab(
             items(transactions, key = { it.transaction.id }) { item ->
                 val tx = item.transaction
                 val runningBal = runningBalanceMap[tx.id]
+                val isSelected = selectedTxIds.contains(tx.id)
 
                 AccountDetailTransactionRow(
                     account = account,
                     item = item,
                     runningBal = runningBal,
                     languageMode = languageMode,
-                    onClick = { onEditTransaction(tx) },
-                    onLongClick = { onTransactionLongClick(item) }
+                    isSelected = isSelected,
+                    isSelectionMode = isSelectionMode,
+                    onClick = {
+                        if (isSelectionMode) {
+                            onToggleSelectTransaction(tx.id)
+                        } else {
+                            onEditTransaction(tx)
+                        }
+                    },
+                    onLongClick = {
+                        onToggleSelectTransaction(tx.id)
+                    },
+                    onAvatarClick = {
+                        onToggleSelectTransaction(tx.id)
+                    }
                 )
             }
         }
@@ -956,7 +1230,7 @@ private fun AccountDetailTableTab(
 }
 
 // -------------------------------------------------------------------------------------------------
-// TRANSACTION ROW (Faithful to Screenshot 1 layout)
+// TRANSACTION ROW (Faithful to Screenshot 1 & Image 1 layout)
 // -------------------------------------------------------------------------------------------------
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -965,8 +1239,11 @@ private fun AccountDetailTransactionRow(
     item: TransactionWithDetails,
     runningBal: Double?,
     languageMode: LanguageMode,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onAvatarClick: () -> Unit
 ) {
     val tx = item.transaction
     val isDebit = tx.debitAccountId == account.id
@@ -985,14 +1262,22 @@ private fun AccountDetailTransactionRow(
     val sign = if (isIncrease) "+" else "−"
     val amtColor = if (isIncrease) SolidIncome else SolidExpense
 
-    // Category avatar color and icon
-    val catColor = remember(item.category) {
-        val hex = item.category?.colorHex
-        if (!hex.isNullOrBlank()) {
-            try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color(0xFFEA580C) }
-        } else Color(0xFFEA580C) // Warm orange default from screenshot
+    val isTransfer = tx.type == TransactionType.TRANSFER || (tx.debitAccountId != null && tx.creditAccountId != null)
+
+    // Category avatar color and icon (Image 1 uses blue #0288D1 for transfers)
+    val catColor = remember(item.category, isTransfer) {
+        if (isTransfer) {
+            Color(0xFF0288D1)
+        } else {
+            val hex = item.category?.colorHex
+            if (!hex.isNullOrBlank()) {
+                try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color(0xFFEA580C) }
+            } else Color(0xFFEA580C)
+        }
     }
-    val catIcon = IconHelper.getIconByName(item.category?.iconName ?: "")
+    val catIcon = remember(item.category, isTransfer) {
+        if (isTransfer) Icons.Default.SwapHoriz else IconHelper.getIconByName(item.category?.iconName ?: "")
+    }
 
     // Formatted date (e.g. "SEPTEMBER 11, 2026")
     val dateStr = remember(tx.dateEpochMs) {
@@ -1000,27 +1285,35 @@ private fun AccountDetailTransactionRow(
     }
 
     // Main title: Payee / Payer if available, else Category name, else Note
-    val title = remember(item) {
+    val title = remember(item, isTransfer) {
         when {
             tx.payeeOrPayer.isNotBlank() -> tx.payeeOrPayer
             item.category != null -> if (languageMode == LanguageMode.BANGLA && item.category.nameBn.isNotBlank()) item.category.nameBn else item.category.nameEn
+            isTransfer -> {
+                val otherAcc = if (isDebit) item.creditAccount else item.debitAccount
+                otherAcc?.let { if (languageMode == LanguageMode.BANGLA && it.nameBn.isNotBlank()) it.nameBn else it.nameEn } ?: "Transfer"
+            }
             tx.note.isNotBlank() -> tx.note
             else -> "Transaction"
         }
     }
 
     // Subtitle: Category/Subcategory or Note
-    val subtitle = remember(item) {
-        val catName = if (languageMode == LanguageMode.BANGLA && item.category?.nameBn?.isNotBlank() == true) {
-            item.category.nameBn
-        } else item.category?.nameEn ?: ""
+    val subtitle = remember(item, isTransfer) {
+        if (isTransfer) {
+            "(Transfer)"
+        } else {
+            val catName = if (languageMode == LanguageMode.BANGLA && item.category?.nameBn?.isNotBlank() == true) {
+                item.category.nameBn
+            } else item.category?.nameEn ?: ""
 
-        val subName = item.subCategory?.nameEn ?: ""
-        when {
-            catName.isNotBlank() && subName.isNotBlank() -> "$catName ($subName)"
-            catName.isNotBlank() -> catName
-            tx.note.isNotBlank() -> tx.note
-            else -> ""
+            val subName = item.subCategory?.nameEn ?: ""
+            when {
+                catName.isNotBlank() && subName.isNotBlank() -> "$catName ($subName)"
+                catName.isNotBlank() -> catName
+                tx.note.isNotBlank() -> tx.note
+                else -> ""
+            }
         }
     }
 
@@ -1028,9 +1321,13 @@ private fun AccountDetailTransactionRow(
         if (languageMode == LanguageMode.BANGLA && account.nameBn.isNotBlank()) account.nameBn else account.nameEn
     }
 
+    // Selection highlight background
+    val rowBg = if (isSelected) Color(0xFF0288D1).copy(alpha = 0.12f) else Color.Transparent
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .background(rowBg)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -1041,20 +1338,30 @@ private fun AccountDetailTransactionRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Circle Category Icon (Orange/Green circle as in screenshot)
+            // Left: Circle Avatar (Checkmark if selected, else Transfer/Category)
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(catColor),
+                    .background(if (isSelected) Color(0xFF0288D1) else catColor)
+                    .clickable(onClick = onAvatarClick),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = catIcon,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = catIcon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(14.dp))
@@ -1719,7 +2026,7 @@ private fun computeTimelinePoints(
 }
 
 // -------------------------------------------------------------------------------------------------
-// RECONCILE BOTTOM SHEET (Screenshot 3)
+// RECONCILE BOTTOM SHEET (Screenshot 3 / Image 2)
 // -------------------------------------------------------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1728,12 +2035,15 @@ private fun AccountReconcileBottomSheet(
     latestBalance: Double,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onConfirm: (targetBalance: Double, setAllReconciled: Boolean) -> Unit
+    onConfirm: (targetBalance: Double) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isPositive by remember { mutableStateOf(latestBalance >= 0) }
     var rawAmountText by remember { mutableStateOf(String.format(Locale.US, "%.2f", abs(latestBalance))) }
-    var setAllReconciled by remember { mutableStateOf(false) }
+
+    val parsedAmt = rawAmountText.toDoubleOrNull() ?: abs(latestBalance)
+    val targetBal = if (isPositive) abs(parsedAmt) else -abs(parsedAmt)
+    val diff = abs(targetBal - latestBalance)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1842,6 +2152,17 @@ private fun AccountReconcileBottomSheet(
                 )
             }
 
+            // Notice under amount when amount is changed (Image 2)
+            if (diff >= 0.01) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "An adjustment transaction amounting to ${LanguageHelper.formatCurrency(diff, languageMode)} will be created",
+                    fontSize = 13.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 18.sp
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
             // 3. Reconcile Section
@@ -1851,33 +2172,9 @@ private fun AccountReconcileBottomSheet(
                 fontWeight = FontWeight.SemiBold,
                 color = SolidIncome
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Checkbox: Set all transactions to Reconciled
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { setAllReconciled = !setAllReconciled }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = setAllReconciled,
-                    onCheckedChange = { setAllReconciled = it },
-                    colors = CheckboxDefaults.colors(checkedColor = SolidIncome),
-                    modifier = Modifier.testTag("reconcile_set_all_checkbox")
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Set all transactions to Reconciled",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Information note (Screenshot 3)
+            // Information note (Screenshot 3 / Image 2)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
@@ -1921,7 +2218,7 @@ private fun AccountReconcileBottomSheet(
                     onClick = {
                         val parsed = rawAmountText.toDoubleOrNull() ?: abs(latestBalance)
                         val target = if (isPositive) parsed else -parsed
-                        onConfirm(target, setAllReconciled)
+                        onConfirm(target)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SolidIncome),
                     shape = RoundedCornerShape(24.dp),
@@ -2493,4 +2790,419 @@ private fun buildAccountStatementHtml(
         </body>
         </html>
     """.trimIndent()
+}
+
+// -------------------------------------------------------------------------------------------------
+// SELECTION TOP APP BAR (Faithful to Image 1)
+// -------------------------------------------------------------------------------------------------
+@Composable
+private fun AccountDetailSelectionTopAppBar(
+    selectedAmountText: String,
+    onBack: () -> Unit,
+    onSelectAll: () -> Unit,
+    onDuplicate: () -> Unit,
+    onChangeName: () -> Unit,
+    onChangeDate: () -> Unit,
+    onChangeCategory: () -> Unit,
+    onChangeAccount: () -> Unit,
+    onChangeAmount: () -> Unit,
+    onAddLabel: () -> Unit,
+    onReconcile: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.testTag("account_selection_back_btn")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Clear selection",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Text(
+                text = selectedAmountText,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp)
+            )
+
+            IconButton(
+                onClick = onSelectAll,
+                modifier = Modifier.testTag("account_selection_select_all_btn")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SelectAll,
+                    contentDescription = "Select All",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            IconButton(
+                onClick = onDuplicate,
+                modifier = Modifier.testTag("account_selection_duplicate_btn")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = "Duplicate",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.testTag("account_selection_more_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More actions",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Change name") },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onChangeName()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Change date") },
+                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onChangeDate()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Change category") },
+                        leadingIcon = { Icon(Icons.Default.Category, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onChangeCategory()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Change account") },
+                        leadingIcon = { Icon(Icons.Default.AccountBalance, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onChangeAccount()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Change amount") },
+                        leadingIcon = { Icon(Icons.Default.AttachMoney, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onChangeAmount()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Add label") },
+                        leadingIcon = { Icon(Icons.Default.Label, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onAddLabel()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Reconcile") },
+                        leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onReconcile()
+                        }
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = {
+                            showMenu = false
+                            onDelete()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+// BATCH ACTION DIALOGS (Change Name, Category, Account, Amount, Label, Delete)
+// -------------------------------------------------------------------------------------------------
+@Composable
+private fun BatchChangeNameDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Change Name", fontWeight = FontWeight.Bold) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Payee / Description") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(name.trim()) },
+                colors = ButtonDefaults.buttonColors(containerColor = SolidIncome)
+            ) {
+                Text("Save", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun BatchChangeCategoryDialog(
+    allCategories: List<Category>,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSelectCategory: (Category) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Category", fontWeight = FontWeight.Bold) },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 350.dp)
+            ) {
+                items(allCategories, key = { it.id }) { cat ->
+                    val catName = if (languageMode == LanguageMode.BANGLA && cat.nameBn.isNotBlank()) cat.nameBn else cat.nameEn
+                    val catIcon = IconHelper.getIconByName(cat.iconName)
+                    val catColor = try {
+                        if (!cat.colorHex.isNullOrBlank()) Color(android.graphics.Color.parseColor(cat.colorHex)) else SolidIncome
+                    } catch (e: Exception) { SolidIncome }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectCategory(cat) }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(catColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(catIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(catName, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun BatchChangeAccountDialog(
+    allAccounts: List<Account>,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSelectAccount: (Account) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Account", fontWeight = FontWeight.Bold) },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 350.dp)
+            ) {
+                items(allAccounts, key = { it.id }) { acc ->
+                    val accName = if (languageMode == LanguageMode.BANGLA && acc.nameBn.isNotBlank()) acc.nameBn else acc.nameEn
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectAccount(acc) }
+                            .padding(vertical = 12.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.AccountBalanceWallet,
+                            contentDescription = null,
+                            tint = SolidIncome,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(accName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                            Text(acc.type.name, fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun BatchChangeAmountDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var amountText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Change Amount", fontWeight = FontWeight.Bold) },
+        text = {
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = { amountText = it },
+                label = { Text("New Amount") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                prefix = { Text("BDT ") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amt = amountText.toDoubleOrNull()
+                    if (amt != null && amt > 0) {
+                        onConfirm(amt)
+                    }
+                },
+                enabled = (amountText.toDoubleOrNull() ?: 0.0) > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = SolidIncome)
+            ) {
+                Text("Save", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun BatchAddLabelDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var labelText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Label", fontWeight = FontWeight.Bold) },
+        text = {
+            OutlinedTextField(
+                value = labelText,
+                onValueChange = { labelText = it },
+                label = { Text("Label (e.g. grocery, vacation)") },
+                singleLine = true,
+                prefix = { Text("#") },
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (labelText.isNotBlank()) {
+                        onConfirm(labelText.trim())
+                    }
+                },
+                enabled = labelText.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = SolidIncome)
+            ) {
+                Text("Add", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun BatchDeleteConfirmDialog(
+    count: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete Transactions", fontWeight = FontWeight.Bold) },
+        text = { Text("Are you sure you want to delete $count selected transactions? This cannot be undone.") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Delete", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

@@ -1152,7 +1152,8 @@ fun MainAppContainer(
                     showAddAccountDialog = true
                 },
                 onSaveTransaction = { tx -> viewModel.saveTransaction(tx) },
-                onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) }
+                onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) },
+                onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
             )
         }
     }
