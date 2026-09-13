@@ -161,4 +161,45 @@ class BudgetScreensTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithTag("budget_quick_action_fab").assertExists()
     }
+
+    @Test
+    fun testLedgerScreenFilteredTotalAmount() {
+        val cat = Category(id = 1, nameEn = "Donation", nameBn = "দান", iconName = "VolunteerActivism", colorHex = "#4CAF50", type = CategoryType.EXPENSE, parentId = null)
+        val acc = Account(id = 1, nameEn = "Cash", nameBn = "ক্যাশ", type = AccountType.ASSET)
+        val tx1 = Transaction(id = 1, amount = 20.0, payeeOrPayer = "Mosque Donation", type = TransactionType.EXPENSE, categoryId = 1, debitAccountId = null, creditAccountId = 1, dateEpochMs = System.currentTimeMillis())
+        val tx2 = Transaction(id = 2, amount = 50.0, payeeOrPayer = "Mosque Donation", type = TransactionType.EXPENSE, categoryId = 1, debitAccountId = null, creditAccountId = 1, dateEpochMs = System.currentTimeMillis())
+        val tx3 = Transaction(id = 3, amount = 50.0, payeeOrPayer = "Mosque Donation", type = TransactionType.EXPENSE, categoryId = 1, debitAccountId = null, creditAccountId = 1, dateEpochMs = System.currentTimeMillis())
+        val tx4 = Transaction(id = 4, amount = 50.0, payeeOrPayer = "Mosque Donation", type = TransactionType.EXPENSE, categoryId = 1, debitAccountId = null, creditAccountId = 1, dateEpochMs = System.currentTimeMillis())
+        val otherTx = Transaction(id = 5, amount = 500.0, payeeOrPayer = "Groceries", type = TransactionType.EXPENSE, categoryId = 1, debitAccountId = null, creditAccountId = 1, dateEpochMs = System.currentTimeMillis())
+
+        val txList = listOf(
+            TransactionWithDetails(tx1, null, acc, cat, null),
+            TransactionWithDetails(tx2, null, acc, cat, null),
+            TransactionWithDetails(tx3, null, acc, cat, null),
+            TransactionWithDetails(tx4, null, acc, cat, null),
+            TransactionWithDetails(otherTx, null, acc, cat, null)
+        )
+
+        composeTestRule.setContent {
+            com.example.ui.screens.LedgerScreen(
+                transactions = txList,
+                languageMode = LanguageMode.ENGLISH,
+                allCategories = listOf(cat),
+                allAccounts = listOf(acc),
+                accountsWithBalances = listOf(AccountWithBalance(acc, 1000.0)),
+                onAddTransactionClick = {},
+                onTransactionClick = {}
+            )
+        }
+
+        // Search for "Mosque Donation" (similar transactions view)
+        composeTestRule.onNodeWithTag("header_search_btn").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("header_search_input").performTextInput("Mosque Donation")
+        composeTestRule.waitForIdle()
+
+        // Verify the filtered total amount pill and amount text are displayed
+        composeTestRule.onNodeWithTag("filtered_total_amount_pill").assertExists()
+        composeTestRule.onNodeWithTag("filtered_total_amount_text").assertExists()
+    }
 }

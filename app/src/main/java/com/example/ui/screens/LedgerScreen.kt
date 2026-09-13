@@ -172,6 +172,18 @@ private data class DayGroupedTransactions(
     val dayNet: Double
 )
 
+private data class FilteredTotalsInfo(
+    val income: Double,
+    val expense: Double,
+    val transfer: Double,
+    val net: Double,
+    val count: Int,
+    val formattedTotal: String,
+    val textColor: Color,
+    val bgColor: Color,
+    val borderColor: Color
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LedgerScreen(
@@ -439,6 +451,134 @@ fun LedgerScreen(
         val inc = selectedTransactions.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
         val exp = selectedTransactions.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
         inc - exp
+    }
+
+    val filteredTotals = remember(filteredTransactions, selectedTypeFilter, languageMode) {
+        var totalInc = 0.0
+        var totalExp = 0.0
+        var totalTrans = 0.0
+        var nonVoidCount = 0
+
+        for (item in filteredTransactions) {
+            val tx = item.transaction
+            if (tx.status != TransactionStatus.VOID) {
+                nonVoidCount++
+                when (tx.type) {
+                    TransactionType.INCOME -> totalInc += tx.amount
+                    TransactionType.EXPENSE -> totalExp += tx.amount
+                    TransactionType.TRANSFER -> totalTrans += tx.amount
+                }
+            }
+        }
+
+        val net = totalInc - totalExp
+
+        when (selectedTypeFilter) {
+            TransactionType.EXPENSE -> {
+                val fmt = "-${LanguageHelper.formatCurrency(totalExp, languageMode)}"
+                FilteredTotalsInfo(
+                    income = totalInc,
+                    expense = totalExp,
+                    transfer = totalTrans,
+                    net = net,
+                    count = nonVoidCount,
+                    formattedTotal = fmt,
+                    textColor = SolidExpense,
+                    bgColor = SolidExpense.copy(alpha = 0.12f),
+                    borderColor = SolidExpense.copy(alpha = 0.35f)
+                )
+            }
+            TransactionType.INCOME -> {
+                val fmt = "+${LanguageHelper.formatCurrency(totalInc, languageMode)}"
+                FilteredTotalsInfo(
+                    income = totalInc,
+                    expense = totalExp,
+                    transfer = totalTrans,
+                    net = net,
+                    count = nonVoidCount,
+                    formattedTotal = fmt,
+                    textColor = SolidIncome,
+                    bgColor = SolidIncome.copy(alpha = 0.12f),
+                    borderColor = SolidIncome.copy(alpha = 0.35f)
+                )
+            }
+            TransactionType.TRANSFER -> {
+                val fmt = LanguageHelper.formatCurrency(totalTrans, languageMode)
+                FilteredTotalsInfo(
+                    income = totalInc,
+                    expense = totalExp,
+                    transfer = totalTrans,
+                    net = net,
+                    count = nonVoidCount,
+                    formattedTotal = fmt,
+                    textColor = SolidTransfer,
+                    bgColor = SolidTransfer.copy(alpha = 0.12f),
+                    borderColor = SolidTransfer.copy(alpha = 0.35f)
+                )
+            }
+            null -> {
+                when {
+                    totalInc == 0.0 && totalExp > 0.0 && totalTrans == 0.0 -> {
+                        val fmt = "-${LanguageHelper.formatCurrency(totalExp, languageMode)}"
+                        FilteredTotalsInfo(
+                            income = totalInc,
+                            expense = totalExp,
+                            transfer = totalTrans,
+                            net = net,
+                            count = nonVoidCount,
+                            formattedTotal = fmt,
+                            textColor = SolidExpense,
+                            bgColor = SolidExpense.copy(alpha = 0.12f),
+                            borderColor = SolidExpense.copy(alpha = 0.35f)
+                        )
+                    }
+                    totalExp == 0.0 && totalInc > 0.0 && totalTrans == 0.0 -> {
+                        val fmt = "+${LanguageHelper.formatCurrency(totalInc, languageMode)}"
+                        FilteredTotalsInfo(
+                            income = totalInc,
+                            expense = totalExp,
+                            transfer = totalTrans,
+                            net = net,
+                            count = nonVoidCount,
+                            formattedTotal = fmt,
+                            textColor = SolidIncome,
+                            bgColor = SolidIncome.copy(alpha = 0.12f),
+                            borderColor = SolidIncome.copy(alpha = 0.35f)
+                        )
+                    }
+                    totalExp == 0.0 && totalInc == 0.0 && totalTrans > 0.0 -> {
+                        val fmt = LanguageHelper.formatCurrency(totalTrans, languageMode)
+                        FilteredTotalsInfo(
+                            income = totalInc,
+                            expense = totalExp,
+                            transfer = totalTrans,
+                            net = net,
+                            count = nonVoidCount,
+                            formattedTotal = fmt,
+                            textColor = SolidTransfer,
+                            bgColor = SolidTransfer.copy(alpha = 0.12f),
+                            borderColor = SolidTransfer.copy(alpha = 0.35f)
+                        )
+                    }
+                    else -> {
+                        val sign = if (net > 0) "+" else if (net < 0) "-" else ""
+                        val fmt = "$sign${LanguageHelper.formatCurrency(kotlin.math.abs(net), languageMode)}"
+                        val color = if (net > 0) SolidIncome else if (net < 0) SolidExpense else SolidPrimary
+                        FilteredTotalsInfo(
+                            income = totalInc,
+                            expense = totalExp,
+                            transfer = totalTrans,
+                            net = net,
+                            count = nonVoidCount,
+                            formattedTotal = fmt,
+                            textColor = color,
+                            bgColor = color.copy(alpha = 0.12f),
+                            borderColor = color.copy(alpha = 0.35f)
+                        )
+                    }
+                }
+            }
+        }
     }
 
     val hasActiveFilters = selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS ||
@@ -819,70 +959,101 @@ fun LedgerScreen(
                             }
                         }
 
-                        // Active Filter Indicators bar
+                        // Active Filter Indicators bar with Total Amount (considering filter)
                         if (hasActiveFilters && !isSelectionMode) {
                             Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.weight(1f),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FilterAlt,
-                                        contentDescription = null,
-                                        tint = SolidPrimary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = buildString {
-                                            append("Filtered: ")
-                                            if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) append(selectedDatePreset.displayName)
-                                            if (selectedCategoryIdFilter != null) {
-                                                val cat = allCategories.firstOrNull { it.id == selectedCategoryIdFilter }
-                                                if (isNotEmpty()) append(", ")
-                                                append(cat?.nameEn ?: "Category")
-                                            }
-                                            if (selectedAccountIdFilter != null) {
-                                                val acc = allAccounts.firstOrNull { it.id == selectedAccountIdFilter }
-                                                if (isNotEmpty()) append(", ")
-                                                append(acc?.nameEn ?: "Account")
-                                            }
-                                            if (selectedLabelFilter != null) {
-                                                if (isNotEmpty()) append(", ")
-                                                append(selectedLabelFilter)
-                                            }
-                                            if (selectedStatusFilter != null) {
-                                                if (isNotEmpty()) append(", ")
-                                                append(selectedStatusFilter!!.name)
-                                            }
-                                        },
-                                        fontSize = 11.sp,
-                                        color = SolidPrimary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+                                    Row(
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.FilterAlt,
+                                            contentDescription = null,
+                                            tint = SolidPrimary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = buildString {
+                                                append(if (languageMode == LanguageMode.BANGLA) "ফিল্টার: " else "Filtered: ")
+                                                if (activeFilterSummary.isNotBlank()) {
+                                                    append(activeFilterSummary)
+                                                }
+                                            },
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = SolidPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
 
-                                TextButton(
-                                    onClick = {
-                                        selectedDatePreset = LedgerDatePreset.LAST_12_MONTHS
-                                        selectedTypeFilter = null
-                                        minAmountFilter = 0.0
-                                        maxAmountFilter = Double.MAX_VALUE
-                                        selectedCategoryIdFilter = null
-                                        selectedAccountIdFilter = null
-                                        selectedLabelFilter = null
-                                        selectedStatusFilter = null
-                                        searchQuery = ""
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                ) {
-                                    Text("Reset", fontSize = 11.sp, color = SolidExpense)
+                                    Spacer(modifier = Modifier.width(6.dp))
+
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = filteredTotals.bgColor,
+                                        border = BorderStroke(1.dp, filteredTotals.borderColor),
+                                        modifier = Modifier.testTag("filtered_total_amount_pill")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "মোট: " else "Total: ",
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = filteredTotals.textColor.copy(alpha = 0.85f)
+                                            )
+                                            Text(
+                                                text = filteredTotals.formattedTotal,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = filteredTotals.textColor,
+                                                modifier = Modifier.testTag("filtered_total_amount_text")
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(4.dp))
+
+                                    TextButton(
+                                        onClick = {
+                                            selectedDatePreset = LedgerDatePreset.LAST_12_MONTHS
+                                            selectedTypeFilter = null
+                                            minAmountFilter = 0.0
+                                            maxAmountFilter = Double.MAX_VALUE
+                                            selectedCategoryIdFilter = null
+                                            selectedAccountIdFilter = null
+                                            selectedLabelFilter = null
+                                            selectedStatusFilter = null
+                                            searchQuery = ""
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "রিসেট" else "Reset",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = SolidExpense
+                                        )
+                                    }
                                 }
                             }
                         }
