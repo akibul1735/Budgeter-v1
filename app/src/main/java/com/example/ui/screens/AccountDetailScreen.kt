@@ -1380,6 +1380,7 @@ private fun AccountDetailTableTab(
                                     overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
                                     overrideSign = overrideSign,
                                     overrideAmtColor = overrideAmtColor,
+                                    targetAccount = account,
                                     onClick = {
                                         if (isSelectionMode) {
                                             onToggleSelectTransaction(tx.id)
@@ -1408,6 +1409,7 @@ private fun AccountDetailTableTab(
                                     accountBalance = runningBal,
                                     overrideSign = overrideSign,
                                     overrideAmtColor = overrideAmtColor,
+                                    targetAccount = account,
                                     onClick = {
                                         if (isSelectionMode) {
                                             onToggleSelectTransaction(tx.id)

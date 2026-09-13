@@ -990,6 +990,7 @@ fun LedgerScreen(
                                             overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
                                             overrideSign = srcSign,
                                             overrideAmtColor = srcColor,
+                                            targetAccount = item.creditAccount,
                                             onClick = {
                                                 if (isSelectionMode) {
                                                     selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
@@ -1030,6 +1031,7 @@ fun LedgerScreen(
                                             overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
                                             overrideSign = destSign,
                                             overrideAmtColor = destColor,
+                                            targetAccount = item.debitAccount,
                                             onClick = {
                                                 if (isSelectionMode) {
                                                     selectedTransactionIds = if (isSelected) selectedTransactionIds - tx.id else selectedTransactionIds + tx.id
@@ -1053,6 +1055,11 @@ fun LedgerScreen(
                                         TransactionType.INCOME -> tx.debitAccountId?.let { runningAccountBalances[Pair(tx.id, it)] ?: accountBalanceMap[it] }
                                         else -> null
                                     }
+                                    val targetAcc = when (tx.type) {
+                                        TransactionType.EXPENSE -> item.creditAccount
+                                        TransactionType.INCOME -> item.debitAccount
+                                        else -> null
+                                    }
 
                                     TransactionRowItem(
                                         item = item,
@@ -1062,6 +1069,7 @@ fun LedgerScreen(
                                         isSelectionMode = isSelectionMode,
                                         accountName = accName,
                                         accountBalance = accBalance,
+                                        targetAccount = targetAcc,
                                         onClick = {
                                             if (isSelectionMode) {
                                                 selectedTransactionIds = if (isSelected) {
@@ -1810,6 +1818,7 @@ internal fun TransactionRowItem(
     overrideSubtitle: String? = null,
     overrideSign: String? = null,
     overrideAmtColor: Color? = null,
+    targetAccount: Account? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
@@ -1817,6 +1826,12 @@ internal fun TransactionRowItem(
     val context = androidx.compose.ui.platform.LocalContext.current
     val txPrefs = remember { TransactionPreferences.getInstance(context) }
     val txConfig by txPrefs.config.collectAsState()
+
+    val effectiveAccount = targetAccount ?: when (tx.type) {
+        TransactionType.EXPENSE -> item.creditAccount ?: item.debitAccount
+        TransactionType.INCOME -> item.debitAccount ?: item.creditAccount
+        TransactionType.TRANSFER -> if (overrideSign == "+") (item.debitAccount ?: item.creditAccount) else (item.creditAccount ?: item.debitAccount)
+    }
 
     val iconColor = when (tx.type) {
         TransactionType.EXPENSE -> SolidExpense
@@ -1870,13 +1885,15 @@ internal fun TransactionRowItem(
         TransactionType.TRANSFER -> LanguageHelper.getString("transfer", languageMode)
     }
 
-    val isAccountIncrease = when {
+    val baseIncrease = when {
         overrideSign == "+" -> true
         overrideSign == "−" -> false
         tx.type == TransactionType.INCOME -> tx.amount >= 0
         tx.type == TransactionType.EXPENSE -> tx.amount < 0
         else -> false
     }
+    val isLiability = effectiveAccount?.type == AccountType.LIABILITY
+    val isAccountIncrease = if (isLiability) !baseIncrease else baseIncrease
     val accountCaret = if (isAccountIncrease) "⩓" else "⩔"
 
     val rawAccountName = if (accountName != null) {
@@ -2155,11 +2172,7 @@ internal fun TransactionRowItem(
             } else ""
 
             if (accountLine.isNotBlank()) {
-                val accountForIcon = when (tx.type) {
-                    TransactionType.EXPENSE -> item.creditAccount ?: item.debitAccount
-                    TransactionType.INCOME -> item.debitAccount ?: item.creditAccount
-                    TransactionType.TRANSFER -> if (overrideSign == "+") (item.debitAccount ?: item.creditAccount) else (item.creditAccount ?: item.debitAccount)
-                }
+                val accountForIcon = effectiveAccount
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (txConfig.enableAccountIcons && accountForIcon != null) {
                         Icon(

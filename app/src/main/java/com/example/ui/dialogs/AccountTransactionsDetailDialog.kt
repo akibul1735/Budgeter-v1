@@ -737,6 +737,7 @@ fun AccountTransactionsDetailDialog(
                                                     overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
                                                     overrideSign = "−",
                                                     overrideAmtColor = SolidExpense,
+                                                    targetAccount = account,
                                                     onClick = { onEditTransaction(tx) }
                                                 )
                                             } else if (isTransferIn) {
@@ -751,6 +752,7 @@ fun AccountTransactionsDetailDialog(
                                                     overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
                                                     overrideSign = "+",
                                                     overrideAmtColor = SolidIncome,
+                                                    targetAccount = account,
                                                     onClick = { onEditTransaction(tx) }
                                                 )
                                             } else {
@@ -766,6 +768,7 @@ fun AccountTransactionsDetailDialog(
                                                     overrideSubtitle = "(${LanguageHelper.getString("transfer", languageMode)})",
                                                     overrideSign = "",
                                                     overrideAmtColor = SolidTransfer,
+                                                    targetAccount = account,
                                                     onClick = { onEditTransaction(tx) }
                                                 )
                                             }
@@ -784,6 +787,7 @@ fun AccountTransactionsDetailDialog(
                                                 accountBalance = runningBal,
                                                 overrideSign = sign.ifBlank { null },
                                                 overrideAmtColor = amtColor,
+                                                targetAccount = account,
                                                 onClick = { onEditTransaction(tx) }
                                             )
                                         }
