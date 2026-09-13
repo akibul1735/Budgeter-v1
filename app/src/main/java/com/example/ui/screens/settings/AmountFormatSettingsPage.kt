@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -202,12 +203,23 @@ fun AmountFormatSettingsPage(
 
             // 2. Common Format Suggestions Header
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = if (isBangla) "প্রস্তাবিত সাধারণ ফরম্যাটসমূহ" else "Common Format Suggestions",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isBangla) "প্রস্তাবিত সাধারণ ফরম্যাটসমূহ" else "Common Format Suggestions",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (isBangla) "বাম-ডানে সোয়াইপ করুন 👉" else "Swipe left-right 👉",
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
                 Text(
                     text = if (isBangla) "নিচের যেকোনো জনপ্রিয় ফরম্যাট সিলেক্ট করুন, এটি অ্যাপের সর্বত্র অনুসরণ করা হবে।"
                     else "Select a popular format below. It will be followed everywhere throughout the app.",
@@ -216,13 +228,18 @@ fun AmountFormatSettingsPage(
                 )
             }
 
-            // Presets Cards List
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Presets Cards List - Left Right Swipeable
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 AmountSeparatorPreset.entries.forEach { preset ->
                     val isSelected = amountFormatConfig.preset == preset
                     Card(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .width(260.dp)
                             .clickable {
                                 viewModel.setAmountFormatPreset(preset)
                             },
@@ -239,86 +256,88 @@ fun AmountFormatSettingsPage(
                             if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                         )
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
-                                    contentDescription = null,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(20.dp)
-                                )
-
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                     Text(
                                         text = if (isBangla) preset.titleBn else preset.titleEn,
                                         fontSize = 13.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
                                     )
+                                }
 
-                                    val subtitleText = when (preset) {
-                                        AmountSeparatorPreset.STANDARD_COMMA ->
-                                            if (isBangla) "হাজারের জন্য কমা (,), দশমিকের জন্য ডট (.)" else "Thousands separator (,), decimal dot (.)"
-                                        AmountSeparatorPreset.SOUTH_ASIAN_LAKH_CRORE ->
-                                            if (isBangla) "প্রথমে ৩ অঙ্ক, এরপর প্রতি ২ অঙ্কে কমা (১২,৩৪,৫৬৭)" else "First 3 digits, then every 2 digits (12,34,567)"
-                                        AmountSeparatorPreset.EUROPEAN_DOT ->
-                                            if (isBangla) "হাজারের জন্য ডট (.), দশমিকের জন্য কমা (,)" else "Thousands dot (.), decimal comma (,)"
-                                        AmountSeparatorPreset.SPACE_SEPARATOR ->
-                                            if (isBangla) "হাজারের জন্য স্পেস ( ), দশমিকের জন্য ডট (.)" else "Thousands space ( ), decimal dot (.)"
-                                        AmountSeparatorPreset.SWISS_APOSTROPHE ->
-                                            if (isBangla) "হাজারের জন্য অ্যাপোস্ট্রফি ('), দশমিকের জন্য ডট (.)" else "Thousands apostrophe ('), decimal dot (.)"
-                                        AmountSeparatorPreset.NO_SEPARATOR ->
-                                            if (isBangla) "কোনো কমা বা সেপারেটর ছাড়াই সংখ্যা" else "Continuous digits without thousands grouping"
-                                        AmountSeparatorPreset.CUSTOM ->
-                                            if (isBangla) "নিজের পছন্দমতো সেপারেটর ও গ্রুপিং নির্ধারণ করুন" else "Define custom separators and grouping style"
-                                    }
+                                // Sample Badge
+                                val sampleFormatted = if (preset == AmountSeparatorPreset.CUSTOM) {
+                                    LanguageHelper.formatAmountNumber(
+                                        value = 1234567.89,
+                                        mode = languageMode,
+                                        groupingSeparator = amountFormatConfig.customGroupingSeparator,
+                                        decimalSeparator = amountFormatConfig.customDecimalSeparator.ifBlank { "." },
+                                        groupingStyle = amountFormatConfig.customGroupingStyle,
+                                        decimalPlaces = 2
+                                    )
+                                } else {
+                                    if (isBangla) preset.exampleBn else preset.exampleEn
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                                ) {
                                     Text(
-                                        text = subtitleText,
+                                        text = sampleFormatted,
                                         fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                                     )
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // Sample Badge
-                            val sampleFormatted = if (preset == AmountSeparatorPreset.CUSTOM) {
-                                LanguageHelper.formatAmountNumber(
-                                    value = 1234567.89,
-                                    mode = languageMode,
-                                    groupingSeparator = amountFormatConfig.customGroupingSeparator,
-                                    decimalSeparator = amountFormatConfig.customDecimalSeparator.ifBlank { "." },
-                                    groupingStyle = amountFormatConfig.customGroupingStyle,
-                                    decimalPlaces = 2
-                                )
-                            } else {
-                                if (isBangla) preset.exampleBn else preset.exampleEn
+                            val subtitleText = when (preset) {
+                                AmountSeparatorPreset.STANDARD_COMMA ->
+                                    if (isBangla) "হাজারের জন্য কমা (,), দশমিকের জন্য ডট (.)" else "Thousands separator (,), decimal dot (.)"
+                                AmountSeparatorPreset.SOUTH_ASIAN_LAKH_CRORE ->
+                                    if (isBangla) "প্রথমে ৩ অঙ্ক, এরপর প্রতি ২ অঙ্কে কমা (১২,৩৪,৫৬৭)" else "First 3 digits, then every 2 digits (12,34,567)"
+                                AmountSeparatorPreset.EUROPEAN_DOT ->
+                                    if (isBangla) "হাজারের জন্য ডট (.), দশমিকের জন্য কমা (,)" else "Thousands dot (.), decimal comma (,)"
+                                AmountSeparatorPreset.SPACE_SEPARATOR ->
+                                    if (isBangla) "হাজারের জন্য স্পেস ( ), দশমিকের জন্য ডট (.)" else "Thousands space ( ), decimal dot (.)"
+                                AmountSeparatorPreset.SWISS_APOSTROPHE ->
+                                    if (isBangla) "হাজারের জন্য অ্যাপোস্ট্রফি ('), দশমিকের জন্য ডট (.)" else "Thousands apostrophe ('), decimal dot (.)"
+                                AmountSeparatorPreset.NO_SEPARATOR ->
+                                    if (isBangla) "কোনো কমা বা সেপারেটর ছাড়াই সংখ্যা" else "Continuous digits without thousands grouping"
+                                AmountSeparatorPreset.CUSTOM ->
+                                    if (isBangla) "নিজের পছন্দমতো সেপারেটর ও গ্রুপিং নির্ধারণ করুন" else "Define custom separators and grouping style"
                             }
-
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
-                            ) {
-                                Text(
-                                    text = sampleFormatted,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
+                            Text(
+                                text = subtitleText,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                lineHeight = 14.sp
+                            )
                         }
                     }
                 }
@@ -352,7 +371,7 @@ fun AmountFormatSettingsPage(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (isBangla) "🛠️ কাস্টম সেপারেটর কনফিগারেশন" else "🛠️ Custom Separator Configuration",
                                 fontSize = 13.sp,
@@ -368,6 +387,7 @@ fun AmountFormatSettingsPage(
                         }
 
                         if (!isCustomActive) {
+                            Spacer(modifier = Modifier.width(8.dp))
                             OutlinedButton(
                                 onClick = {
                                     viewModel.setCustomAmountFormat(
@@ -376,7 +396,8 @@ fun AmountFormatSettingsPage(
                                         groupingStyle = customStyleSelection
                                     )
                                 },
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Text(if (isBangla) "সক্রিয় করুন" else "Activate", fontSize = 11.sp)
                             }
@@ -561,7 +582,8 @@ fun AmountFormatSettingsPage(
                                     text = if (isBangla) style.titleBn else style.titleEn,
                                     fontSize = 12.sp,
                                     fontWeight = if (isStyleSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isStyleSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    color = if (isStyleSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }

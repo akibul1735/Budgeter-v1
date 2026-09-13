@@ -292,7 +292,7 @@ fun LedgerScreen(
     }
 
     // Compute Date Bounds
-    val (startEpochMs, endEpochMs) = remember(selectedDatePreset, customStartDateMs, customEndDateMs) {
+    val (startEpochMs, endEpochMs) = remember(selectedDatePreset, customStartDateMs, customEndDateMs, transactions) {
         val now = System.currentTimeMillis()
         val cal = Calendar.getInstance().apply { timeInMillis = now }
         when (selectedDatePreset) {
@@ -302,12 +302,12 @@ fun LedgerScreen(
                 cal.set(Calendar.MINUTE, 0)
                 cal.set(Calendar.SECOND, 0)
                 cal.set(Calendar.MILLISECOND, 0)
-                Pair(cal.timeInMillis, now)
+                Pair(cal.timeInMillis, DateUtils.getEndOfDay(now) + 86400000L * 365L)
             }
             LedgerDatePreset.ALL_TIME -> Pair(0L, Long.MAX_VALUE)
             LedgerDatePreset.TODAY -> {
                 val start = DateUtils.getStartOfDay(now)
-                Pair(start, start + 86400000L - 1L)
+                Pair(start, DateUtils.getEndOfDay(now))
             }
             LedgerDatePreset.YESTERDAY -> {
                 val todayStart = DateUtils.getStartOfDay(now)
@@ -317,7 +317,7 @@ fun LedgerScreen(
             LedgerDatePreset.THIS_WEEK -> {
                 cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
                 val start = DateUtils.getStartOfDay(cal.timeInMillis)
-                Pair(start, start + (7L * 86400000L) - 1L)
+                Pair(start, DateUtils.getEndOfDay(now) + (7L * 86400000L))
             }
             LedgerDatePreset.LAST_WEEK -> {
                 cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
@@ -358,7 +358,7 @@ fun LedgerScreen(
                 val lastYear = curYear - 1
                 Pair(DateUtils.getStartOfMonth(lastYear, 1), DateUtils.getEndOfMonth(curYear, 12))
             }
-            LedgerDatePreset.CUSTOM -> Pair(customStartDateMs, customEndDateMs)
+            LedgerDatePreset.CUSTOM -> Pair(customStartDateMs, DateUtils.getEndOfDay(customEndDateMs))
         }
     }
 

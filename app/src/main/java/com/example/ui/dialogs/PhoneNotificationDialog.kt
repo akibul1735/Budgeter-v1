@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -203,46 +204,55 @@ fun PhoneNotificationDialog(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Row(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Column {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                     Text(
                                         text = if (isBangla) "নোটিফিকেশন অনুমতি প্রয়োজন" else "Permission Required",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.error
                                     )
-                                    Text(
-                                        text = if (isBangla) "রিমাইন্ডার পেতে সিস্টেম পারমিশন দিন" else "Allow notification permission to receive alerts",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Button(
+                                    onClick = {
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(if (isBangla) "অনুমতি দিন" else "Allow", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
-                            Button(
-                                onClick = {
-                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                            ) {
-                                Text(if (isBangla) "অনুমতি দিন" else "Allow", fontSize = 12.sp)
-                            }
+                            Text(
+                                text = if (isBangla) "রিমাইন্ডার ও বিল সতর্কতা পেতে ডিভাইসের নোটিফিকেশন পারমিশন দিন" else "Allow notification permission to receive daily reminders & bill alerts",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -275,19 +285,21 @@ fun PhoneNotificationDialog(
                                     tint = if (notifConfig.isDailyReminderEnabled) SolidPrimary else MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.size(22.dp)
                                 )
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = if (isBangla) "দৈনিক হিসাব রিমাইন্ডার" else "Daily Expense Reminder",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
+                                        fontSize = 14.sp
                                     )
                                     Text(
                                         text = if (isBangla) "প্রতিদিন আয়-ব্যয় রেকর্ড করতে নোটিফিকেশন" else "Notify to remember recording daily transactions",
-                                        fontSize = 12.sp,
+                                        fontSize = 11.5.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
                             }
+
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             Switch(
                                 checked = notifConfig.isDailyReminderEnabled,
@@ -399,19 +411,21 @@ fun PhoneNotificationDialog(
                                     tint = if (notifConfig.isBillReminderEnabled) SolidPrimary else MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.size(22.dp)
                                 )
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = if (isBangla) "পৌনঃপুনিক বিল সতর্কতা" else "Recurring Bills Due Alerts",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
+                                        fontSize = 14.sp
                                     )
                                     Text(
                                         text = if (isBangla) "বিল পরিশোধের তারিখের আগে নোটিফিকেশন পান" else "Notify in advance before recurring bill due dates",
-                                        fontSize = 12.sp,
+                                        fontSize = 11.5.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
                             }
+
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             Switch(
                                 checked = notifConfig.isBillReminderEnabled,
@@ -454,7 +468,7 @@ fun PhoneNotificationDialog(
                                         onClick = {
                                             notifPrefs.updateConfig { it.copy(billReminderDaysInAdvance = days) }
                                         },
-                                        label = { Text(label, fontSize = 12.sp) },
+                                        label = { Text(label, fontSize = 11.5.sp) },
                                         leadingIcon = if (isSelected) {
                                             { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
                                         } else null,
@@ -488,14 +502,16 @@ fun PhoneNotificationDialog(
                             Text(
                                 text = if (isBangla) "নোটিফিকেশন পরীক্ষা করুন" else "Test Notification",
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
+                                fontSize = 13.5.sp
                             )
                             Text(
-                                text = if (isBangla) "তাত্ক্ষণিক একটি পরীক্ষামূলক নোটিফিকেশন পাঠান" else "Send an immediate test alert to verify delivery",
-                                fontSize = 12.sp,
+                                text = if (isBangla) "তাত্ক্ষণিক পরীক্ষামূলক নোটিফিকেশন পাঠান" else "Send an immediate test alert to verify delivery",
+                                fontSize = 11.5.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Button(
                             onClick = {
@@ -510,11 +526,13 @@ fun PhoneNotificationDialog(
                                     ).show()
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (isBangla) "টেস্ট করুন" else "Send Test", fontSize = 12.sp)
+                            Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (isBangla) "টেস্ট পাঠান" else "Send Test", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

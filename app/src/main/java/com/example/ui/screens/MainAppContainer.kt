@@ -356,7 +356,7 @@ fun MainAppContainer(
             currentView = targetView
             if (tabIndex >= 0 && pagerState.currentPage != tabIndex) {
                 scope.launch {
-                    pagerState.animateScrollToPage(tabIndex)
+                    pagerState.scrollToPage(tabIndex)
                 }
             }
         }
@@ -499,7 +499,7 @@ fun MainAppContainer(
                                 HorizontalPager(
                                     state = pagerState,
                                     key = { page -> visibleTabs.getOrNull(page)?.name ?: page },
-                                    beyondViewportPageCount = 1,
+                                    beyondViewportPageCount = 0,
                                     userScrollEnabled = !isTimelineActive,
                                     modifier = Modifier.fillMaxSize()
                                 ) { page ->
