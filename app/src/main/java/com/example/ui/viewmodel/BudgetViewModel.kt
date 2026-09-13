@@ -504,9 +504,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 updatedAt = System.currentTimeMillis()
             )
             activeRepo.saveMonthlyBudget(budget)
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -521,9 +518,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 isEnabled = isEnabled,
                 note = note
             )
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -535,18 +529,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 itemType = itemType,
                 itemId = itemId
             )
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
     fun saveMultipleMonthlyBudgets(budgets: List<MonthlyBudget>) {
         viewModelScope.launch {
             budgets.forEach { activeRepo.saveMonthlyBudget(it) }
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
-            }
         }
     }
 
@@ -2209,9 +2197,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     if (res.unsupportedCount > 0) append(", ${res.unsupportedCount} unsupported rows skipped")
                 }
                 _backupUiState.value = BackupUiState.Success(msg)
-                if (!_isDemoMode.value) {
-                    SyncManager.triggerInstantJsonSync(getApplication())
-                }
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("CSV Import failed: ${err.localizedMessage}")
             }
