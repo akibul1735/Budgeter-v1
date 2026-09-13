@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.zIndex
 import com.example.ui.theme.ThemePreferences
 import com.example.ui.theme.ThemeMode
@@ -58,6 +59,7 @@ import com.example.ui.theme.ThemePalette
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Sync
@@ -89,6 +91,7 @@ import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -1369,6 +1372,7 @@ private fun DrawerContent(
 ) {
     val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
     val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
+    val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
 
     val isCloudSyncConfigured = backupConfig.primaryAccount.isLinked || backupConfig.secondaryAccount.isLinked
     val effectiveLastSyncTime = if (isCloudSyncConfigured) {
@@ -1728,6 +1732,74 @@ private fun DrawerContent(
             onClick = { viewModel.triggerQuickSync() },
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+        )
+
+        // 6.5. Demo (Toggle on/off with separate isolated dataset)
+        NavigationDrawerItem(
+            label = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ডেমো" else "Demo",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (isDemoMode) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "চালু" else "ON",
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.tertiary,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (isDemoMode) {
+                                if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা • ব্যাকআপ হবে না" else "Sample data • No backup"
+                            } else {
+                                if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা দেখতে চালু করুন" else "Toggle on to explore"
+                            },
+                            fontSize = 10.5.sp,
+                            color = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Switch(
+                        checked = isDemoMode,
+                        onCheckedChange = { viewModel.setDemoMode(it) },
+                        modifier = Modifier
+                            .scale(0.8f)
+                            .testTag("drawer_demo_switch")
+                    )
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Science,
+                    contentDescription = "Demo Mode",
+                    tint = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
+                )
+            },
+            selected = isDemoMode,
+            onClick = { viewModel.setDemoMode(!isDemoMode) },
+            shape = RoundedCornerShape(10.dp),
+            colors = NavigationDrawerItemDefaults.colors(
+                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.28f),
+                unselectedContainerColor = Color.Transparent
+            ),
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+                .testTag("drawer_demo_item")
         )
 
         // 7. Trash

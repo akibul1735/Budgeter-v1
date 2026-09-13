@@ -1382,10 +1382,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     // Quick Sync
     fun triggerQuickSync() {
         viewModelScope.launch {
-            _backupUiState.value = BackupUiState.Loading
-            if (!_isDemoMode.value) {
-                SyncManager.triggerInstantJsonSync(getApplication())
+            if (_isDemoMode.value) {
+                _backupUiState.value = BackupUiState.Success("Sync disabled in Demo mode (demo data is never backed up)")
+                return@launch
             }
+            _backupUiState.value = BackupUiState.Loading
+            SyncManager.triggerInstantJsonSync(getApplication())
             val config = backupSettingsConfig.value
             val isAnyCloudLinked = config.primaryAccount.isLinked || config.secondaryAccount.isLinked
             if (isAnyCloudLinked) {
