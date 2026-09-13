@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -39,6 +40,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -115,7 +117,10 @@ fun AmountBreakdownDialog(
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onTransactionClick: ((Transaction) -> Unit)? = null,
-    onAccountClick: ((Account) -> Unit)? = null
+    onAccountClick: ((Account) -> Unit)? = null,
+    canGoBack: Boolean = false,
+    onBack: (() -> Unit)? = null,
+    onCloseAll: (() -> Unit)? = null
 ) {
     var selectedTab by remember {
         mutableIntStateOf(
@@ -124,7 +129,9 @@ fun AmountBreakdownDialog(
     }
 
     Dialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (onBack != null && canGoBack) onBack() else onDismiss()
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
@@ -154,6 +161,19 @@ fun AmountBreakdownDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
+                            if (canGoBack && onBack != null) {
+                                IconButton(
+                                    onClick = onBack,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
@@ -191,7 +211,9 @@ fun AmountBreakdownDialog(
                         }
 
                         IconButton(
-                            onClick = onDismiss,
+                            onClick = {
+                                if (onCloseAll != null) onCloseAll() else onDismiss()
+                            },
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
@@ -342,16 +364,39 @@ fun AmountBreakdownDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = if (canGoBack && onBack != null) Arrangement.SpaceBetween else Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (canGoBack && onBack != null) {
+                        OutlinedButton(
+                            onClick = onBack,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী" else "Back",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
                     Surface(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .clickable(onClick = onDismiss),
+                            .clickable {
+                                if (onCloseAll != null) onCloseAll() else onDismiss()
+                            },
                         color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ঠিক আছে" else "Close",
+                            text = if (languageMode == LanguageMode.BANGLA) "বন্ধ করুন" else "Close",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
