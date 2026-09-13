@@ -31,9 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Sort
@@ -118,6 +120,12 @@ enum class AccountSortFilter {
     NAME_ZA
 }
 
+enum class AccountActiveStatusFilter {
+    ALL,
+    ACTIVE_ONLY,
+    INACTIVE_ONLY
+}
+
 data class FlattenedAccountItem(
     val accountWithBalance: AccountWithBalance,
     val parentGroup: Account?,
@@ -148,6 +156,8 @@ fun AccountsScreen(
     var selectedTypeFilter by remember { mutableStateOf<AccountType?>(null) }
     var hierarchyFilter by remember { mutableStateOf(AccountViewHierarchyFilter.ALL) }
     var sortFilter by remember { mutableStateOf(AccountSortFilter.DEFAULT) }
+    var statusFilter by remember { mutableStateOf(AccountActiveStatusFilter.ALL) }
+    var excludeZeroBalance by remember { mutableStateOf(false) }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
     // State for Adjust Calculation Dialog
@@ -254,19 +264,85 @@ fun AccountsScreen(
         }
     }
 
-    val displayedActiveGroups = remember(activeAccounts, selectedTypeFilter, sortFilter, accountCalcConfig, allTransactions) {
-        val base = if (selectedTypeFilter == null) activeAccounts else activeAccounts.filter { it.account.type == selectedTypeFilter }
-        sortGroups(base)
+    // Helper to check if an account / sub-account has 0 balance
+    fun isZeroBalance(accWithBalance: AccountWithBalance, effectiveBal: Double): Boolean {
+        return Math.abs(accWithBalance.currentBalance) < 0.0001 && Math.abs(effectiveBal) < 0.0001
     }
 
-    val displayedInactiveGroups = remember(inactiveAccounts, selectedTypeFilter, sortFilter, accountCalcConfig, allTransactions) {
-        val base = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
-        sortGroups(base)
+    // Helper to filter zero balance in a list of groups
+    fun filterZeroBalanceGroups(groups: List<AccountWithBalance>): List<AccountWithBalance> {
+        if (!excludeZeroBalance) return groups
+        return groups.mapNotNull { group ->
+            if (group.subAccounts.isEmpty()) {
+                val effBal = computeEffectiveGroupBalance(group)
+                if (isZeroBalance(group, effBal)) null else group
+            } else {
+                val nonZeroSubs = group.subAccounts.filter { sub ->
+                    val effSubBal = computeEffectiveSubBalance(sub)
+                    !isZeroBalance(sub, effSubBal)
+                }
+                val groupEffBal = computeEffectiveGroupBalance(group)
+                val groupActualBal = computeActualGroupBalance(group)
+                val isGroupZero = Math.abs(groupActualBal) < 0.0001 && Math.abs(groupEffBal) < 0.0001
+                if (nonZeroSubs.isEmpty() && isGroupZero) {
+                    null
+                } else {
+                    group.copy(subAccounts = nonZeroSubs)
+                }
+            }
+        }
+    }
+
+    val displayedActiveGroups = remember(
+        activeAccounts,
+        selectedTypeFilter,
+        sortFilter,
+        statusFilter,
+        excludeZeroBalance,
+        accountCalcConfig,
+        allTransactions
+    ) {
+        if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
+            emptyList()
+        } else {
+            val base = if (selectedTypeFilter == null) activeAccounts else activeAccounts.filter { it.account.type == selectedTypeFilter }
+            val zeroFiltered = filterZeroBalanceGroups(base)
+            sortGroups(zeroFiltered)
+        }
+    }
+
+    val displayedInactiveGroups = remember(
+        inactiveAccounts,
+        selectedTypeFilter,
+        sortFilter,
+        statusFilter,
+        excludeZeroBalance,
+        accountCalcConfig,
+        allTransactions
+    ) {
+        if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
+            emptyList()
+        } else {
+            val base = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
+            val zeroFiltered = filterZeroBalanceGroups(base)
+            sortGroups(zeroFiltered)
+        }
     }
 
     // Excluded accounts view filter
-    val displayedExcludedGroups = remember(displayedActiveGroups, accountCalcConfig, sortFilter) {
-        displayedActiveGroups.mapNotNull { groupItem ->
+    val displayedExcludedGroups = remember(
+        displayedActiveGroups,
+        displayedInactiveGroups,
+        accountCalcConfig,
+        sortFilter,
+        statusFilter
+    ) {
+        val baseGroups = when (statusFilter) {
+            AccountActiveStatusFilter.ALL -> displayedActiveGroups + displayedInactiveGroups
+            AccountActiveStatusFilter.ACTIVE_ONLY -> displayedActiveGroups
+            AccountActiveStatusFilter.INACTIVE_ONLY -> displayedInactiveGroups
+        }
+        baseGroups.mapNotNull { groupItem ->
             val isGroupExcluded = !accountCalcConfig.isIncluded(groupItem.account.id)
             val excludedSubs = groupItem.subAccounts.filter { !accountCalcConfig.isIncluded(it.account.id) }
             if (isGroupExcluded) {
@@ -280,78 +356,114 @@ fun AccountsScreen(
     }
 
     // Flattened Accounts for ONLY_ACCOUNTS mode
-    val flattenedActiveAccounts = remember(activeAccounts, selectedTypeFilter, sortFilter, accountCalcConfig, allTransactions) {
-        val items = mutableListOf<FlattenedAccountItem>()
-        val filteredGroups = if (selectedTypeFilter == null) activeAccounts else activeAccounts.filter { it.account.type == selectedTypeFilter }
-        for (group in filteredGroups) {
-            if (group.subAccounts.isEmpty()) {
-                items.add(
-                    FlattenedAccountItem(
-                        accountWithBalance = group,
-                        parentGroup = null,
-                        effectiveBalance = computeEffectiveGroupBalance(group),
-                        usageCount = accountUsageCount(group.account.id)
-                    )
-                )
-            } else {
-                val activeSubs = group.subAccounts.filter { it.account.isActive }
-                for (sub in activeSubs) {
-                    items.add(
-                        FlattenedAccountItem(
-                            accountWithBalance = sub,
-                            parentGroup = group.account,
-                            effectiveBalance = computeEffectiveSubBalance(sub),
-                            usageCount = accountUsageCount(sub.account.id)
+    val flattenedActiveAccounts = remember(
+        activeAccounts,
+        selectedTypeFilter,
+        sortFilter,
+        statusFilter,
+        excludeZeroBalance,
+        accountCalcConfig,
+        allTransactions
+    ) {
+        if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
+            emptyList()
+        } else {
+            val items = mutableListOf<FlattenedAccountItem>()
+            val filteredGroups = if (selectedTypeFilter == null) activeAccounts else activeAccounts.filter { it.account.type == selectedTypeFilter }
+            for (group in filteredGroups) {
+                if (group.subAccounts.isEmpty()) {
+                    val eff = computeEffectiveGroupBalance(group)
+                    if (!excludeZeroBalance || !isZeroBalance(group, eff)) {
+                        items.add(
+                            FlattenedAccountItem(
+                                accountWithBalance = group,
+                                parentGroup = null,
+                                effectiveBalance = eff,
+                                usageCount = accountUsageCount(group.account.id)
+                            )
                         )
-                    )
+                    }
+                } else {
+                    val activeSubs = group.subAccounts.filter { it.account.isActive }
+                    for (sub in activeSubs) {
+                        val eff = computeEffectiveSubBalance(sub)
+                        if (!excludeZeroBalance || !isZeroBalance(sub, eff)) {
+                            items.add(
+                                FlattenedAccountItem(
+                                    accountWithBalance = sub,
+                                    parentGroup = group.account,
+                                    effectiveBalance = eff,
+                                    usageCount = accountUsageCount(sub.account.id)
+                                )
+                            )
+                        }
+                    }
                 }
             }
-        }
-        when (sortFilter) {
-            AccountSortFilter.DEFAULT -> items
-            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> items.sortedByDescending { it.effectiveBalance }
-            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> items.sortedBy { it.effectiveBalance }
-            AccountSortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
-            AccountSortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
-            AccountSortFilter.NAME_AZ -> items.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-            AccountSortFilter.NAME_ZA -> items.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+            when (sortFilter) {
+                AccountSortFilter.DEFAULT -> items
+                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> items.sortedByDescending { it.effectiveBalance }
+                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> items.sortedBy { it.effectiveBalance }
+                AccountSortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
+                AccountSortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
+                AccountSortFilter.NAME_AZ -> items.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+                AccountSortFilter.NAME_ZA -> items.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+            }
         }
     }
 
-    val flattenedInactiveAccounts = remember(inactiveAccounts, selectedTypeFilter, sortFilter, accountCalcConfig, allTransactions) {
-        val items = mutableListOf<FlattenedAccountItem>()
-        val filteredGroups = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
-        for (group in filteredGroups) {
-            if (group.subAccounts.isEmpty()) {
-                items.add(
-                    FlattenedAccountItem(
-                        accountWithBalance = group,
-                        parentGroup = null,
-                        effectiveBalance = computeEffectiveGroupBalance(group),
-                        usageCount = accountUsageCount(group.account.id)
-                    )
-                )
-            } else {
-                for (sub in group.subAccounts) {
-                    items.add(
-                        FlattenedAccountItem(
-                            accountWithBalance = sub,
-                            parentGroup = group.account,
-                            effectiveBalance = computeEffectiveSubBalance(sub),
-                            usageCount = accountUsageCount(sub.account.id)
+    val flattenedInactiveAccounts = remember(
+        inactiveAccounts,
+        selectedTypeFilter,
+        sortFilter,
+        statusFilter,
+        excludeZeroBalance,
+        accountCalcConfig,
+        allTransactions
+    ) {
+        if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
+            emptyList()
+        } else {
+            val items = mutableListOf<FlattenedAccountItem>()
+            val filteredGroups = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
+            for (group in filteredGroups) {
+                if (group.subAccounts.isEmpty()) {
+                    val eff = computeEffectiveGroupBalance(group)
+                    if (!excludeZeroBalance || !isZeroBalance(group, eff)) {
+                        items.add(
+                            FlattenedAccountItem(
+                                accountWithBalance = group,
+                                parentGroup = null,
+                                effectiveBalance = eff,
+                                usageCount = accountUsageCount(group.account.id)
+                            )
                         )
-                    )
+                    }
+                } else {
+                    for (sub in group.subAccounts) {
+                        val eff = computeEffectiveSubBalance(sub)
+                        if (!excludeZeroBalance || !isZeroBalance(sub, eff)) {
+                            items.add(
+                                FlattenedAccountItem(
+                                    accountWithBalance = sub,
+                                    parentGroup = group.account,
+                                    effectiveBalance = eff,
+                                    usageCount = accountUsageCount(sub.account.id)
+                                )
+                            )
+                        }
+                    }
                 }
             }
-        }
-        when (sortFilter) {
-            AccountSortFilter.DEFAULT -> items
-            AccountSortFilter.AMOUNT_HIGH_TO_LOW -> items.sortedByDescending { it.effectiveBalance }
-            AccountSortFilter.AMOUNT_LOW_TO_HIGH -> items.sortedBy { it.effectiveBalance }
-            AccountSortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
-            AccountSortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
-            AccountSortFilter.NAME_AZ -> items.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-            AccountSortFilter.NAME_ZA -> items.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+            when (sortFilter) {
+                AccountSortFilter.DEFAULT -> items
+                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> items.sortedByDescending { it.effectiveBalance }
+                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> items.sortedBy { it.effectiveBalance }
+                AccountSortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
+                AccountSortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
+                AccountSortFilter.NAME_AZ -> items.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+                AccountSortFilter.NAME_ZA -> items.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+            }
         }
     }
 
@@ -735,10 +847,13 @@ fun AccountsScreen(
                                 // Mini Filter Button with Dropdown
                                 Box {
                                     var showFilterMenu by remember { mutableStateOf(false) }
+                                    val hasActiveFilters = sortFilter != AccountSortFilter.DEFAULT ||
+                                        statusFilter != AccountActiveStatusFilter.ALL ||
+                                        excludeZeroBalance
 
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (sortFilter != AccountSortFilter.DEFAULT) Color.White else Color.Black.copy(alpha = 0.22f),
+                                        color = if (hasActiveFilters) Color.White else Color.Black.copy(alpha = 0.22f),
                                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
@@ -751,16 +866,16 @@ fun AccountsScreen(
                                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Sort,
+                                                imageVector = Icons.Default.FilterList,
                                                 contentDescription = "Filter",
-                                                tint = if (sortFilter != AccountSortFilter.DEFAULT) SolidPrimary else Color.White,
+                                                tint = if (hasActiveFilters) SolidPrimary else Color.White,
                                                 modifier = Modifier.size(13.dp)
                                             )
                                             Text(
-                                                text = getSortFilterLabel(sortFilter, languageMode),
+                                                text = getFilterButtonLabel(sortFilter, statusFilter, excludeZeroBalance, languageMode),
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (sortFilter != AccountSortFilter.DEFAULT) SolidPrimary else Color.White
+                                                color = if (hasActiveFilters) SolidPrimary else Color.White
                                             )
                                         }
                                     }
@@ -769,22 +884,129 @@ fun AccountsScreen(
                                         expanded = showFilterMenu,
                                         onDismissRequest = { showFilterMenu = false }
                                     ) {
+                                        // 1. Exclude with 0 balance
+                                        DropdownMenuItem(
+                                            modifier = Modifier.testTag("filter_exclude_zero"),
+                                            text = {
+                                                Text(
+                                                    text = LanguageHelper.getString("exclude_zero_balance", languageMode),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (excludeZeroBalance) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (excludeZeroBalance) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                if (excludeZeroBalance) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                                } else {
+                                                    Spacer(modifier = Modifier.size(16.dp))
+                                                }
+                                            },
+                                            onClick = {
+                                                excludeZeroBalance = !excludeZeroBalance
+                                                showFilterMenu = false
+                                            }
+                                        )
+
+                                        // 2. Inactive only
+                                        DropdownMenuItem(
+                                            modifier = Modifier.testTag("filter_inactive_only"),
+                                            text = {
+                                                Text(
+                                                    text = LanguageHelper.getString("inactive_only", languageMode),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                                } else {
+                                                    Spacer(modifier = Modifier.size(16.dp))
+                                                }
+                                            },
+                                            onClick = {
+                                                statusFilter = if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.INACTIVE_ONLY
+                                                showFilterMenu = false
+                                            }
+                                        )
+
+                                        // 3. Active only
+                                        DropdownMenuItem(
+                                            modifier = Modifier.testTag("filter_active_only"),
+                                            text = {
+                                                Text(
+                                                    text = LanguageHelper.getString("active_only", languageMode),
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            },
+                                            leadingIcon = {
+                                                if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                                } else {
+                                                    Spacer(modifier = Modifier.size(16.dp))
+                                                }
+                                            },
+                                            onClick = {
+                                                statusFilter = if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) AccountActiveStatusFilter.ALL else AccountActiveStatusFilter.ACTIVE_ONLY
+                                                showFilterMenu = false
+                                            }
+                                        )
+
+                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                        // Sort options
                                         AccountSortFilter.values().forEach { filter ->
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
                                                         text = getSortFilterMenuLabel(filter, languageMode),
                                                         fontSize = 12.sp,
-                                                        fontWeight = if (sortFilter == filter) FontWeight.Bold else FontWeight.Normal
+                                                        fontWeight = if (sortFilter == filter) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (sortFilter == filter) SolidPrimary else MaterialTheme.colorScheme.onSurface
                                                     )
                                                 },
                                                 leadingIcon = {
                                                     if (sortFilter == filter) {
                                                         Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                                    } else {
+                                                        Spacer(modifier = Modifier.size(16.dp))
                                                     }
                                                 },
                                                 onClick = {
                                                     sortFilter = filter
+                                                    showFilterMenu = false
+                                                }
+                                            )
+                                        }
+
+                                        if (hasActiveFilters) {
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                            DropdownMenuItem(
+                                                modifier = Modifier.testTag("filter_clear_all"),
+                                                text = {
+                                                    Text(
+                                                        text = LanguageHelper.getString("clear_filters", languageMode),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = SlateText
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Clear,
+                                                        contentDescription = null,
+                                                        tint = SlateText,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                },
+                                                onClick = {
+                                                    statusFilter = AccountActiveStatusFilter.ALL
+                                                    excludeZeroBalance = false
+                                                    sortFilter = AccountSortFilter.DEFAULT
                                                     showFilterMenu = false
                                                 }
                                             )
@@ -856,7 +1078,7 @@ fun AccountsScreen(
                     // Flattened Accounts Mode
                     if (flattenedActiveAccounts.isEmpty() && flattenedInactiveAccounts.isEmpty()) {
                         item {
-                            EmptyAccountsCard(languageMode)
+                            EmptyAccountsCard(languageMode, statusFilter, excludeZeroBalance)
                         }
                     } else {
                         items(flattenedActiveAccounts, key = { "flat_${it.accountWithBalance.account.id}" }) { flatItem ->
@@ -898,7 +1120,7 @@ fun AccountsScreen(
                     val isOnlyGroups = hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS
                     if (displayedActiveGroups.isEmpty() && displayedInactiveGroups.isEmpty()) {
                         item {
-                            EmptyAccountsCard(languageMode)
+                            EmptyAccountsCard(languageMode, statusFilter, excludeZeroBalance)
                         }
                     } else {
                         items(displayedActiveGroups, key = { it.account.id }) { groupItem ->
@@ -1173,6 +1395,34 @@ private fun BottomFilterPill(
     }
 }
 
+private fun getFilterButtonLabel(
+    sortFilter: AccountSortFilter,
+    statusFilter: AccountActiveStatusFilter,
+    excludeZeroBalance: Boolean,
+    languageMode: LanguageMode
+): String {
+    val activeCount = (if (statusFilter != AccountActiveStatusFilter.ALL) 1 else 0) +
+        (if (excludeZeroBalance) 1 else 0) +
+        (if (sortFilter != AccountSortFilter.DEFAULT) 1 else 0)
+
+    if (activeCount == 0) {
+        return if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter"
+    }
+    if (activeCount > 1) {
+        return if (languageMode == LanguageMode.BANGLA) "ফিল্টার ($activeCount)" else "Filter ($activeCount)"
+    }
+    if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
+        return if (languageMode == LanguageMode.BANGLA) "সক্রিয়" else "Active"
+    }
+    if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
+        return if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয়" else "Inactive"
+    }
+    if (excludeZeroBalance) {
+        return if (languageMode == LanguageMode.BANGLA) "≠ ০ ব্যালেন্স" else "≠ 0 Balance"
+    }
+    return getSortFilterLabel(sortFilter, languageMode)
+}
+
 private fun getSortFilterLabel(filter: AccountSortFilter, languageMode: LanguageMode): String {
     return when (filter) {
         AccountSortFilter.DEFAULT -> if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter"
@@ -1198,9 +1448,25 @@ private fun getSortFilterMenuLabel(filter: AccountSortFilter, languageMode: Lang
 }
 
 @Composable
-private fun EmptyAccountsCard(languageMode: LanguageMode) {
+private fun EmptyAccountsCard(
+    languageMode: LanguageMode,
+    statusFilter: AccountActiveStatusFilter = AccountActiveStatusFilter.ALL,
+    excludeZeroBalance: Boolean = false
+) {
+    val message = when {
+        statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY ->
+            if (languageMode == LanguageMode.BANGLA) "কোনো নিষ্ক্রিয় অ্যাকাউন্ট নেই" else "No Inactive Accounts"
+        statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY ->
+            if (languageMode == LanguageMode.BANGLA) "কোনো সক্রিয় অ্যাকাউন্ট নেই" else "No Active Accounts"
+        excludeZeroBalance ->
+            if (languageMode == LanguageMode.BANGLA) "০ ব্যালেন্স ছাড়া কোনো অ্যাকাউন্ট নেই" else "No Accounts with Non-Zero Balance"
+        else -> LanguageHelper.getString("no_accounts", languageMode)
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("empty_accounts_card"),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
@@ -1211,7 +1477,7 @@ private fun EmptyAccountsCard(languageMode: LanguageMode) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = LanguageHelper.getString("no_accounts", languageMode),
+                text = message,
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.outline
             )
