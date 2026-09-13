@@ -637,7 +637,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val financialOverview: StateFlow<FinancialOverview> = _activeRepository
-        .flatMapLatest { it.financialOverview }
+        .flatMapLatest { it.getFinancialOverviewFlow(accountCalcConfig) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),

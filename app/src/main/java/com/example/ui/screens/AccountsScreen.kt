@@ -50,6 +50,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +78,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -102,6 +104,7 @@ private val SlateText = Color(0xFF64748B)
 enum class AccountViewHierarchyFilter {
     ALL,
     ONLY_GROUPS,
+    EXCLUDED,
     ONLY_ACCOUNTS
 }
 
@@ -200,12 +203,19 @@ fun AccountsScreen(
         return sumSubs + groupSetting.adjustmentAmount
     }
 
-    // Actual Totals (Unmodified)
+    // Helper to compute actual balance for an account/group (strictly active only)
+    fun computeActualGroupBalance(groupItem: AccountWithBalance): Double {
+        if (!groupItem.account.isActive) return 0.0
+        if (groupItem.subAccounts.isEmpty()) return groupItem.currentBalance
+        return groupItem.subAccounts.filter { it.account.isActive }.sumOf { it.currentBalance }
+    }
+
+    // Actual Totals (Unmodified active accounts)
     val actualTotalAssets = remember(activeAccounts) {
-        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { it.currentBalance }
+        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeActualGroupBalance(it) }
     }
     val actualTotalLiabilities = remember(activeAccounts) {
-        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(it.currentBalance) }
+        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(computeActualGroupBalance(it)) }
     }
     val actualNetWorth = actualTotalAssets - actualTotalLiabilities
 
@@ -252,6 +262,21 @@ fun AccountsScreen(
     val displayedInactiveGroups = remember(inactiveAccounts, selectedTypeFilter, sortFilter, accountCalcConfig, allTransactions) {
         val base = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
         sortGroups(base)
+    }
+
+    // Excluded accounts view filter
+    val displayedExcludedGroups = remember(displayedActiveGroups, accountCalcConfig, sortFilter) {
+        displayedActiveGroups.mapNotNull { groupItem ->
+            val isGroupExcluded = !accountCalcConfig.isIncluded(groupItem.account.id)
+            val excludedSubs = groupItem.subAccounts.filter { !accountCalcConfig.isIncluded(it.account.id) }
+            if (isGroupExcluded) {
+                groupItem
+            } else if (excludedSubs.isNotEmpty()) {
+                groupItem.copy(subAccounts = sortSubAccounts(excludedSubs))
+            } else {
+                null
+            }
+        }
     }
 
     // Flattened Accounts for ONLY_ACCOUNTS mode
@@ -461,27 +486,42 @@ fun AccountsScreen(
                         Column(
                             modifier = Modifier.padding(16.dp)
                         ) {
-                            // Top Row: Net Worth & Action Buttons (Status & Reset)
+                            // Top Row: Net Worth & Status Action Button
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.Top
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
-                                            else LanguageHelper.getString("net_worth", languageMode),
-                                            color = Color.White.copy(alpha = 0.9f),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        if (hasCustomizations) {
-                                            Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
+                                        else LanguageHelper.getString("net_worth", languageMode),
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(calculatedNetWorth, languageMode),
+                                        color = Color.White,
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    if (hasCustomizations) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Text(
+                                                text = "${LanguageHelper.getString("actual_net_worth", languageMode)}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
+                                                fontSize = 11.sp,
+                                                color = Color.White.copy(alpha = 0.75f)
+                                            )
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color.White.copy(alpha = 0.25f))
+                                                    .background(Color.White.copy(alpha = 0.22f))
                                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                                             ) {
                                                 Text(
@@ -493,26 +533,12 @@ fun AccountsScreen(
                                             }
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(calculatedNetWorth, languageMode),
-                                        color = Color.White,
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    if (hasCustomizations) {
-                                        Text(
-                                            text = "${LanguageHelper.getString("actual_net_worth", languageMode)}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
-                                            fontSize = 11.sp,
-                                            color = Color.White.copy(alpha = 0.75f)
-                                        )
-                                    }
                                 }
 
-                                // Status button and Reset button inside Net Worth Card
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                // Right Side: Status Mode Button and Reset Calculation Button below it
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     // Status Mode Button
                                     Surface(
@@ -525,7 +551,7 @@ fun AccountsScreen(
                                             .testTag("net_worth_status_btn")
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
@@ -545,7 +571,7 @@ fun AccountsScreen(
                                         }
                                     }
 
-                                    // Reset calculation button
+                                    // Reset calculation button placed directly below Status button
                                     if (hasCustomizations && onResetAllCalculations != null) {
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
@@ -554,13 +580,19 @@ fun AccountsScreen(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .clickable { showResetAllConfirmDialog = true }
+                                                .testTag("net_worth_reset_all_btn")
                                         ) {
                                             Row(
-                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 6.dp),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
-                                                Icon(Icons.Default.RestartAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                                Icon(
+                                                    imageVector = Icons.Default.RestartAlt,
+                                                    contentDescription = "Reset Calculations",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
                                                 Text(
                                                     text = LanguageHelper.getString("reset_calculation", languageMode),
                                                     fontSize = 10.sp,
@@ -670,7 +702,7 @@ fun AccountsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // View Scope Selector (All | Only Groups | Only Accounts)
+                                // View Scope Selector (All | Only Groups | Excluded | Only Accounts)
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
@@ -687,6 +719,11 @@ fun AccountsScreen(
                                         selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_GROUPS,
                                         label = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র গ্রুপ" else "Only Groups",
                                         onClick = { hierarchyFilter = AccountViewHierarchyFilter.ONLY_GROUPS }
+                                    )
+                                    ViewScopePill(
+                                        selected = hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED,
+                                        label = if (languageMode == LanguageMode.BANGLA) "বর্জিত" else "Excluded",
+                                        onClick = { hierarchyFilter = AccountViewHierarchyFilter.EXCLUDED }
                                     )
                                     ViewScopePill(
                                         selected = hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS,
@@ -752,6 +789,32 @@ fun AccountsScreen(
                                                 }
                                             )
                                         }
+
+                                        if (hasCustomizations && onResetAllCalculations != null) {
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = LanguageHelper.getString("reset_calculation", languageMode),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.error
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = Icons.Default.RestartAlt,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                },
+                                                onClick = {
+                                                    showFilterMenu = false
+                                                    showResetAllConfirmDialog = true
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -760,7 +823,36 @@ fun AccountsScreen(
                 }
 
                 // --- 2. Accounts List Based on Hierarchy Filter ---
-                if (hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS) {
+                if (hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED) {
+                    // Excluded Accounts Mode
+                    if (displayedExcludedGroups.isEmpty()) {
+                        item {
+                            EmptyExcludedCard(languageMode)
+                        }
+                    } else {
+                        items(displayedExcludedGroups, key = { "excl_${it.account.id}" }) { groupItem ->
+                            val sortedGroupItem = remember(groupItem, sortFilter) {
+                                groupItem.copy(subAccounts = sortSubAccounts(groupItem.subAccounts))
+                            }
+                            AccountGroupCard(
+                                groupItem = sortedGroupItem,
+                                accountCalcConfig = accountCalcConfig,
+                                effectiveBalance = computeEffectiveGroupBalance(groupItem),
+                                isEditMode = isEditMode,
+                                isExpanded = expandedMap[groupItem.account.id] ?: true,
+                                isOnlyGroupsView = false,
+                                languageMode = languageMode,
+                                onToggleExpand = { expandedMap[groupItem.account.id] = !(expandedMap[groupItem.account.id] ?: true) },
+                                onEditAccount = onEditAccountClick,
+                                onAccountClick = onAccountClick,
+                                onAddSubAccount = onAddSubAccountClick,
+                                onToggleActiveStatus = onToggleActiveStatus,
+                                onToggleIncludeStatus = onToggleIncludeStatus,
+                                onRequestAdjustCalculation = { acc, bal -> calcDialogTarget = Pair(acc, bal) }
+                            )
+                        }
+                    }
+                } else if (hierarchyFilter == AccountViewHierarchyFilter.ONLY_ACCOUNTS) {
                     // Flattened Accounts Mode
                     if (flattenedActiveAccounts.isEmpty() && flattenedInactiveAccounts.isEmpty()) {
                         item {
@@ -1122,6 +1214,45 @@ private fun EmptyAccountsCard(languageMode: LanguageMode) {
                 text = LanguageHelper.getString("no_accounts", languageMode),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyExcludedCard(languageMode: LanguageMode) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("empty_excluded_card"),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Visibility,
+                contentDescription = null,
+                tint = SolidIncome,
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = if (languageMode == LanguageMode.BANGLA) "কোনো বর্জিত অ্যাকাউন্ট নেই" else "No Excluded Accounts",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = if (languageMode == LanguageMode.BANGLA) "সব সক্রিয় অ্যাকাউন্ট নেট ওয়ার্থ ও হিসেবে অন্তর্ভুক্ত রয়েছে।" else "All active accounts are currently included in Net Worth and calculations.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline,
+                textAlign = TextAlign.Center
             )
         }
     }

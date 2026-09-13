@@ -341,19 +341,41 @@ class BudgetRepository(
         }
     }.flowOn(Dispatchers.Default)
 
-    val financialOverview: Flow<FinancialOverview> = combine(
+    fun getFinancialOverviewFlow(calcConfigFlow: Flow<com.example.util.AccountCalcConfig>): Flow<FinancialOverview> = combine(
         accountsWithBalances,
         allTransactions,
         allCategories,
-        allAccounts
-    ) { accountsWithBal, txs, categories, accounts ->
+        allAccounts,
+        calcConfigFlow
+    ) { accountsWithBal, txs, categories, accounts, calcConfig ->
         var totalAssets = 0.0
         var totalLiabilities = 0.0
 
         for (item in accountsWithBal) {
+            // Inactive parent accounts are NOT counted
+            if (!item.account.isActive) continue
+
+            // Excluded parent accounts are NOT counted
+            if (!calcConfig.isIncluded(item.account.id)) continue
+
+            val effectiveBalance: Double
+            if (item.subAccounts.isEmpty()) {
+                val adj = calcConfig.getAdjustment(item.account.id)
+                effectiveBalance = item.currentBalance + adj
+            } else {
+                val activeAndIncludedSubs = item.subAccounts.filter {
+                    it.account.isActive && calcConfig.isIncluded(it.account.id)
+                }
+                val subSum = activeAndIncludedSubs.sumOf {
+                    it.currentBalance + calcConfig.getAdjustment(it.account.id)
+                }
+                val adj = calcConfig.getAdjustment(item.account.id)
+                effectiveBalance = subSum + adj
+            }
+
             when (item.account.type) {
-                AccountType.ASSET -> totalAssets += item.currentBalance
-                AccountType.LIABILITY -> totalLiabilities += Math.abs(item.currentBalance)
+                AccountType.ASSET -> totalAssets += effectiveBalance
+                AccountType.LIABILITY -> totalLiabilities += Math.abs(effectiveBalance)
                 else -> {}
             }
         }
@@ -488,6 +510,8 @@ class BudgetRepository(
             hasBudgetConfigured = hasBudgetConfigured
         )
     }.flowOn(Dispatchers.Default)
+
+    val financialOverview: Flow<FinancialOverview> = getFinancialOverviewFlow(kotlinx.coroutines.flow.flowOf(com.example.util.AccountCalcConfig()))
 
     suspend fun insertAccount(account: Account): Long {
         val initialBal = if (account.parentId == null) 0.0 else account.initialBalance

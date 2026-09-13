@@ -447,22 +447,33 @@ fun AddEditTransactionSheet(
         }
     }
 
-    // Usable Accounts
+    // Usable Accounts (Strictly Active only, excluding inactive parents and children of inactive parents)
     val usableAccounts = remember(accounts) {
-        val activeList = accounts.filter { it.isActive }
+        val activeList = accounts.filter { acc ->
+            if (!acc.isActive) return@filter false
+            if (acc.parentId != null) {
+                val parent = accounts.firstOrNull { it.id == acc.parentId }
+                if (parent != null && !parent.isActive) return@filter false
+            }
+            true
+        }
         val parentsWithChildren = activeList.filter { it.parentId != null }.mapNotNull { it.parentId }.toSet()
         activeList.filter { it.id !in parentsWithChildren }
     }
 
-    // Auto-select default accounts if empty
+    // Auto-select default accounts if empty or inactive
     if (usableAccounts.isNotEmpty()) {
-        if (txType == TransactionType.EXPENSE && creditAccountId == null) {
+        val isCreditActive = accounts.firstOrNull { it.id == creditAccountId }?.isActive == true
+        val isDebitActive = accounts.firstOrNull { it.id == debitAccountId }?.isActive == true
+        if (txType == TransactionType.EXPENSE && (creditAccountId == null || !isCreditActive)) {
             creditAccountId = usableAccounts.firstOrNull()?.id
-        } else if (txType == TransactionType.INCOME && debitAccountId == null) {
+        } else if (txType == TransactionType.INCOME && (debitAccountId == null || !isDebitActive)) {
             debitAccountId = usableAccounts.firstOrNull()?.id
         } else if (txType == TransactionType.TRANSFER) {
-            if (creditAccountId == null) creditAccountId = usableAccounts.firstOrNull()?.id
-            if (debitAccountId == null && usableAccounts.size > 1) debitAccountId = usableAccounts.getOrNull(1)?.id
+            if (creditAccountId == null || !isCreditActive) creditAccountId = usableAccounts.firstOrNull()?.id
+            if ((debitAccountId == null || !isDebitActive) && usableAccounts.size > 1) {
+                debitAccountId = usableAccounts.firstOrNull { it.id != creditAccountId }?.id ?: usableAccounts.getOrNull(1)?.id
+            }
         }
     }
 
@@ -3839,7 +3850,7 @@ private fun AccountPickerModalDialog(
                             }
                         } else {
                             // Group accounts by parent account or account type
-                            val parentAccounts = allAccounts.filter { it.parentId == null }
+                            val parentAccounts = allAccounts.filter { it.parentId == null && it.isActive }
                             parentAccounts.forEach { parent ->
                                 val childAccounts = accounts.filter { it.parentId == parent.id }
                                 val groupItems = if (childAccounts.isNotEmpty()) {
