@@ -505,27 +505,27 @@ fun TransactionDetailViewDialog(
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
-                                                fontSize = 11.sp,
+                                                fontSize = 10.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                                 fontWeight = FontWeight.Medium
                                             )
-                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Spacer(modifier = Modifier.height(3.dp))
                                             FlowRow(
                                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
                                                 labelList.forEach { lbl ->
                                                     Surface(
-                                                        shape = RoundedCornerShape(8.dp),
+                                                        shape = RoundedCornerShape(6.dp),
                                                         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
                                                         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                                                     ) {
                                                         Text(
                                                             text = "#$lbl",
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.SemiBold,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Medium,
                                                             color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                         )
                                                     }
                                                 }
@@ -545,7 +545,9 @@ fun TransactionDetailViewDialog(
                                 DetailItemRow(
                                     icon = Icons.AutoMirrored.Filled.Notes,
                                     label = if (languageMode == LanguageMode.BANGLA) "নোট" else "Note",
-                                    value = tx.note
+                                    value = tx.note,
+                                    valueFontSize = 11.5.sp,
+                                    valueFontWeight = FontWeight.Normal
                                 )
                             }
 
@@ -638,6 +640,8 @@ private fun DetailItemRow(
     label: String,
     value: String,
     valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    valueFontSize: androidx.compose.ui.unit.TextUnit = 13.5.sp,
+    valueFontWeight: FontWeight = FontWeight.SemiBold,
     onClick: (() -> Unit)? = null
 ) {
     Row(
@@ -665,16 +669,16 @@ private fun DetailItemRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 fontWeight = FontWeight.Medium
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = value,
-                fontSize = 13.5.sp,
+                fontSize = valueFontSize,
                 color = valueColor,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = valueFontWeight
             )
         }
         if (onClick != null) {

@@ -38,8 +38,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -58,6 +61,13 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
+
+enum class DailyChartType(val labelEn: String, val labelBn: String) {
+    BAR("Bar", "বার"),
+    LINE("Line", "লাইন"),
+    AREA("Area", "এরিয়া"),
+    STEPPED("Stepped", "স্টেপড")
+}
 
 enum class DailyPeriodFilter(val labelEn: String, val labelBn: String, val days: Int) {
     LAST_7_DAYS("7 Days", "৭ দিন", 7),
@@ -153,9 +163,11 @@ fun DailySummaryDetailDialog(
     val listState = rememberLazyListState()
 
     // 1. Filter Options State
-    var selectedPeriod by remember { mutableStateOf(DailyPeriodFilter.THIS_MONTH) }
+    var selectedPeriod by remember { mutableStateOf(DailyPeriodFilter.LAST_14_DAYS) }
     var periodOffset by remember { mutableStateOf(0) }
     var graphMode by remember { mutableStateOf(DailyGraphMode.EXPENSE) }
+    var chartType by remember { mutableStateOf(DailyChartType.BAR) }
+    var showValuesOnBars by remember { mutableStateOf(true) }
     var breakdownFilter by remember { mutableStateOf(DailyBreakdownFilter.ALL) }
     var breakdownSort by remember { mutableStateOf(DailyBreakdownSort.NEWEST) }
     var searchQuery by remember { mutableStateOf("") }
@@ -753,7 +765,88 @@ fun DailySummaryDetailDialog(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Chart Settings Controls: Chart Types (Bar, Line, Area, Stepped) & Show Values on Bars Toggle
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Chart Type Selector
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                                            .padding(2.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        DailyChartType.values().forEach { type ->
+                                            val isSelected = chartType == type
+                                            val icon = when (type) {
+                                                DailyChartType.BAR -> Icons.Default.BarChart
+                                                DailyChartType.LINE -> Icons.Default.ShowChart
+                                                DailyChartType.AREA -> Icons.AutoMirrored.Filled.TrendingUp
+                                                DailyChartType.STEPPED -> Icons.Default.StackedBarChart
+                                            }
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                                    .clickable { chartType = type }
+                                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = icon,
+                                                        contentDescription = type.labelEn,
+                                                        modifier = Modifier.size(13.dp),
+                                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    Text(
+                                                        text = if (languageMode == LanguageMode.BANGLA) type.labelBn else type.labelEn,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Show Values on Bars Option Toggle
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (showValuesOnBars) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                        border = BorderStroke(0.5.dp, if (showValuesOnBars) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                        modifier = Modifier.clickable { showValuesOnBars = !showValuesOnBars }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (showValuesOnBars) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                contentDescription = null,
+                                                tint = if (showValuesOnBars) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "মান দেখান" else "Values",
+                                                fontSize = 10.sp,
+                                                fontWeight = if (showValuesOnBars) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (showValuesOnBars) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
 
                                 // Calculate scale with rounded whole numbers for Y-axis
                                 val rawPeak = remember(dayItems, graphMode) {
@@ -768,11 +861,11 @@ fun DailySummaryDetailDialog(
                                 val chartMax = niceTicks.last()
                                 val isDark = isSystemInDarkTheme()
 
-                                // Canvas Chart with Clickability & Y-axis rounded numbers
+                                // Canvas Chart with Clickability, multiple chart types, and show-values option
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(180.dp)
+                                        .height(190.dp)
                                 ) {
                                     Canvas(
                                         modifier = Modifier
@@ -797,7 +890,7 @@ fun DailySummaryDetailDialog(
                                         val totalHeight = size.height
                                         val yAxisWidth = 36.dp.toPx()
                                         val bottomAxisH = 24.dp.toPx()
-                                        val topPadding = 10.dp.toPx()
+                                        val topPadding = 14.dp.toPx()
                                         val chartAreaH = totalHeight - bottomAxisH - topPadding
                                         val chartAreaW = totalWidth - yAxisWidth
                                         val baselineY = totalHeight - bottomAxisH
@@ -823,6 +916,14 @@ fun DailySummaryDetailDialog(
                                         val selectedXLabelPaint = android.graphics.Paint().apply {
                                             color = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
                                             textSize = 9.sp.toPx()
+                                            textAlign = android.graphics.Paint.Align.CENTER
+                                            isFakeBoldText = true
+                                            isAntiAlias = true
+                                        }
+
+                                        val valueLabelPaint = android.graphics.Paint().apply {
+                                            color = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.DKGRAY
+                                            textSize = 7.5.sp.toPx()
                                             textAlign = android.graphics.Paint.Align.CENTER
                                             isFakeBoldText = true
                                             isAntiAlias = true
@@ -857,13 +958,26 @@ fun DailySummaryDetailDialog(
                                             strokeWidth = 1.dp.toPx()
                                         )
 
-                                        // 2. Draw Bars for Each Day
-                                        dayItems.forEachIndexed { i, day ->
-                                            val centerX = yAxisWidth + slotW * i + slotW / 2f
-                                            val isSelected = selectedDayKey == day.fullDateString
+                                        // 2. Pre-calculate values & points for each day
+                                        val dayValues = dayItems.map { day ->
+                                            when (graphMode) {
+                                                DailyGraphMode.EXPENSE -> day.expense
+                                                DailyGraphMode.INCOME -> day.income
+                                                DailyGraphMode.NET_FLOW -> abs(day.net)
+                                            }
+                                        }
 
-                                            // Draw selection highlight background beam if selected
-                                            if (isSelected) {
+                                        val dayPoints = dayValues.mapIndexed { i, value ->
+                                            val centerX = yAxisWidth + slotW * i + slotW / 2f
+                                            val ratio = (value / chartMax).toFloat().coerceIn(0f, 1f)
+                                            val y = baselineY - (ratio * chartAreaH)
+                                            Offset(centerX, y)
+                                        }
+
+                                        // Draw selection highlight background beam if any day is selected
+                                        dayItems.forEachIndexed { i, day ->
+                                            if (selectedDayKey == day.fullDateString) {
+                                                val centerX = yAxisWidth + slotW * i + slotW / 2f
                                                 drawRoundRect(
                                                     color = primaryColor.copy(alpha = 0.16f),
                                                     topLeft = Offset(centerX - slotW / 2f + 1.dp.toPx(), topPadding),
@@ -871,35 +985,181 @@ fun DailySummaryDetailDialog(
                                                     cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
                                                 )
                                             }
+                                        }
 
-                                            // Value and height based on graphMode
-                                            val value = when (graphMode) {
-                                                DailyGraphMode.EXPENSE -> day.expense
-                                                DailyGraphMode.INCOME -> day.income
-                                                DailyGraphMode.NET_FLOW -> abs(day.net)
-                                            }
+                                        val mainSeriesColor = when (graphMode) {
+                                            DailyGraphMode.EXPENSE -> SolidExpense
+                                            DailyGraphMode.INCOME -> SolidIncome
+                                            DailyGraphMode.NET_FLOW -> primaryColor
+                                        }
 
-                                            if (value > 0) {
-                                                val barH = (value / chartMax * chartAreaH).toFloat().coerceAtLeast(3.dp.toPx())
-                                                val barW = (slotW * 0.58f).coerceIn(4.dp.toPx(), 22.dp.toPx())
-                                                val barLeft = centerX - barW / 2f
-                                                val barTop = baselineY - barH
+                                        // 3. Render according to selected chartType
+                                        when (chartType) {
+                                            DailyChartType.BAR -> {
+                                                dayItems.forEachIndexed { i, day ->
+                                                    val pt = dayPoints[i]
+                                                    val value = dayValues[i]
+                                                    val isSelected = selectedDayKey == day.fullDateString
+                                                    val centerX = pt.x
 
-                                                val barColor = when (graphMode) {
-                                                    DailyGraphMode.EXPENSE -> if (isSelected) SolidPrimary else SolidExpense
-                                                    DailyGraphMode.INCOME -> if (isSelected) SolidPrimary else SolidIncome
-                                                    DailyGraphMode.NET_FLOW -> if (isSelected) SolidPrimary else if (day.net >= 0) SolidIncome else SolidExpense
+                                                    if (value > 0) {
+                                                        val barH = (baselineY - pt.y).coerceAtLeast(3.dp.toPx())
+                                                        val barW = (slotW * 0.58f).coerceIn(4.dp.toPx(), 22.dp.toPx())
+                                                        val barLeft = centerX - barW / 2f
+                                                        val barTop = baselineY - barH
+
+                                                        val barColor = when (graphMode) {
+                                                            DailyGraphMode.EXPENSE -> if (isSelected) SolidPrimary else SolidExpense
+                                                            DailyGraphMode.INCOME -> if (isSelected) SolidPrimary else SolidIncome
+                                                            DailyGraphMode.NET_FLOW -> if (isSelected) SolidPrimary else if (day.net >= 0) SolidIncome else SolidExpense
+                                                        }
+
+                                                        drawRoundRect(
+                                                            color = barColor,
+                                                            topLeft = Offset(barLeft, barTop),
+                                                            size = Size(barW, barH),
+                                                            cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                                                        )
+
+                                                        if (showValuesOnBars) {
+                                                            drawContext.canvas.nativeCanvas.drawText(
+                                                                formatRoundedAxisNumber(value),
+                                                                centerX,
+                                                                (barTop - 3.dp.toPx()).coerceAtLeast(topPadding + 2.dp.toPx()),
+                                                                valueLabelPaint
+                                                            )
+                                                        }
+                                                    }
                                                 }
-
-                                                drawRoundRect(
-                                                    color = barColor,
-                                                    topLeft = Offset(barLeft, barTop),
-                                                    size = Size(barW, barH),
-                                                    cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
-                                                )
                                             }
 
-                                            // Draw X Axis label (draw every day if count <= 15, or every 2/3/5 days if many)
+                                            DailyChartType.LINE, DailyChartType.AREA -> {
+                                                if (dayPoints.isNotEmpty()) {
+                                                    val linePath = Path()
+                                                    val fillPath = Path()
+
+                                                    dayPoints.forEachIndexed { i, pt ->
+                                                        if (i == 0) {
+                                                            linePath.moveTo(pt.x, pt.y)
+                                                            fillPath.moveTo(pt.x, baselineY)
+                                                            fillPath.lineTo(pt.x, pt.y)
+                                                        } else {
+                                                            linePath.lineTo(pt.x, pt.y)
+                                                            fillPath.lineTo(pt.x, pt.y)
+                                                        }
+                                                    }
+
+                                                    val lastPt = dayPoints.last()
+                                                    fillPath.lineTo(lastPt.x, baselineY)
+                                                    fillPath.close()
+
+                                                    if (chartType == DailyChartType.AREA) {
+                                                        drawPath(
+                                                            path = fillPath,
+                                                            brush = Brush.verticalGradient(
+                                                                colors = listOf(mainSeriesColor.copy(alpha = 0.35f), Color.Transparent),
+                                                                startY = topPadding,
+                                                                endY = baselineY
+                                                            )
+                                                        )
+                                                    }
+
+                                                    drawPath(
+                                                        path = linePath,
+                                                        color = mainSeriesColor,
+                                                        style = Stroke(width = 2.dp.toPx())
+                                                    )
+
+                                                    dayPoints.forEachIndexed { i, pt ->
+                                                        val isSelected = selectedDayKey == dayItems[i].fullDateString
+                                                        val value = dayValues[i]
+                                                        drawCircle(
+                                                            color = if (isSelected) SolidPrimary else mainSeriesColor,
+                                                            radius = if (isSelected) 4.5.dp.toPx() else 3.dp.toPx(),
+                                                            center = pt
+                                                        )
+                                                        if (isSelected) {
+                                                            drawCircle(
+                                                                color = Color.White,
+                                                                radius = 2.dp.toPx(),
+                                                                center = pt
+                                                            )
+                                                        }
+                                                        if (showValuesOnBars && value > 0) {
+                                                            drawContext.canvas.nativeCanvas.drawText(
+                                                                formatRoundedAxisNumber(value),
+                                                                pt.x,
+                                                                (pt.y - 5.dp.toPx()).coerceAtLeast(topPadding + 2.dp.toPx()),
+                                                                valueLabelPaint
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            DailyChartType.STEPPED -> {
+                                                if (dayPoints.isNotEmpty()) {
+                                                    val stepPath = Path()
+                                                    val fillPath = Path()
+
+                                                    val firstLeftX = dayPoints.first().x - slotW / 2f
+                                                    fillPath.moveTo(firstLeftX, baselineY)
+
+                                                    dayPoints.forEachIndexed { i, pt ->
+                                                        val leftX = pt.x - slotW / 2f
+                                                        val rightX = pt.x + slotW / 2f
+                                                        if (i == 0) {
+                                                            stepPath.moveTo(leftX, pt.y)
+                                                            stepPath.lineTo(rightX, pt.y)
+                                                            fillPath.lineTo(leftX, pt.y)
+                                                            fillPath.lineTo(rightX, pt.y)
+                                                        } else {
+                                                            stepPath.lineTo(leftX, pt.y)
+                                                            stepPath.lineTo(rightX, pt.y)
+                                                            fillPath.lineTo(leftX, pt.y)
+                                                            fillPath.lineTo(rightX, pt.y)
+                                                        }
+                                                    }
+
+                                                    val lastRightX = dayPoints.last().x + slotW / 2f
+                                                    fillPath.lineTo(lastRightX, baselineY)
+                                                    fillPath.close()
+
+                                                    drawPath(
+                                                        path = fillPath,
+                                                        brush = Brush.verticalGradient(
+                                                            colors = listOf(mainSeriesColor.copy(alpha = 0.3f), Color.Transparent),
+                                                            startY = topPadding,
+                                                            endY = baselineY
+                                                        )
+                                                    )
+
+                                                    drawPath(
+                                                        path = stepPath,
+                                                        color = mainSeriesColor,
+                                                        style = Stroke(width = 2.dp.toPx())
+                                                    )
+
+                                                    dayPoints.forEachIndexed { i, pt ->
+                                                        val value = dayValues[i]
+                                                        if (showValuesOnBars && value > 0) {
+                                                            drawContext.canvas.nativeCanvas.drawText(
+                                                                formatRoundedAxisNumber(value),
+                                                                pt.x,
+                                                                (pt.y - 4.dp.toPx()).coerceAtLeast(topPadding + 2.dp.toPx()),
+                                                                valueLabelPaint
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // 4. Draw X Axis labels
+                                        dayItems.forEachIndexed { i, day ->
+                                            val centerX = yAxisWidth + slotW * i + slotW / 2f
+                                            val isSelected = selectedDayKey == day.fullDateString
+
                                             val shouldDrawXLabel = when {
                                                 count <= 14 -> true
                                                 count <= 21 -> i % 2 == 0 || isSelected

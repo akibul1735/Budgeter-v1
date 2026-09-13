@@ -709,7 +709,7 @@ fun LedgerScreen(
                 showFilterButton = true,
                 isFilterActive = hasActiveFilters,
                 activeFilterCount = (if (selectedTypeFilter != null) 1 else 0) +
-                        (if (selectedDatePreset != LedgerDatePreset.ALL_TIME) 1 else 0) +
+                        (if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) 1 else 0) +
                         (if (selectedCategoryIdFilter != null) 1 else 0) +
                         (if (selectedAccountIdFilter != null) 1 else 0) +
                         (if (selectedLabelFilter != null) 1 else 0) +
@@ -841,7 +841,7 @@ fun LedgerScreen(
                                     Text(
                                         text = buildString {
                                             append("Filtered: ")
-                                            if (selectedDatePreset != LedgerDatePreset.ALL_TIME) append(selectedDatePreset.displayName)
+                                            if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) append(selectedDatePreset.displayName)
                                             if (selectedCategoryIdFilter != null) {
                                                 val cat = allCategories.firstOrNull { it.id == selectedCategoryIdFilter }
                                                 if (isNotEmpty()) append(", ")
@@ -1411,7 +1411,7 @@ fun AdvancedTransactionsFilterDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
                             onClick = {
-                                tempPreset = LedgerDatePreset.ALL_TIME
+                                tempPreset = LedgerDatePreset.LAST_12_MONTHS
                                 tempType = null
                                 tempMinStr = ""
                                 tempMaxStr = ""

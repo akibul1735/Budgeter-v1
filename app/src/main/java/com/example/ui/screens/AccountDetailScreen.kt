@@ -63,8 +63,11 @@ import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.StackedBarChart
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -161,6 +164,7 @@ enum class AccountDetailTab {
 
 enum class ChartDateRange(val labelEn: String, val labelBn: String) {
     LAST_7_DAYS("Last 7 Days", "বিগত ৭ দিন"),
+    LAST_14_DAYS("Last 14 Days", "বিগত ১৪ দিন"),
     LAST_30_DAYS("Last 30 Days", "বিগত ৩০ দিন"),
     THIS_MONTH("This Month", "চলতি মাস"),
     LAST_90_DAYS("Last 90 Days", "বিগত ৯০ দিন"),
@@ -174,9 +178,11 @@ enum class ChartFrequency(val labelEn: String, val labelBn: String) {
     MONTHLY("Monthly", "মাসিক")
 }
 
-enum class ChartVisualType {
-    BAR,
-    LINE
+enum class ChartVisualType(val labelEn: String, val labelBn: String) {
+    BAR("Bar", "বার"),
+    LINE("Line", "লাইন"),
+    AREA("Area", "এরিয়া"),
+    STEPPED("Stepped", "স্টেপড")
 }
 
 data class AccountDetailFilterState(
@@ -389,6 +395,7 @@ fun AccountDetailScreen(
             val cal = Calendar.getInstance()
             when (filterState.dateRange) {
                 ChartDateRange.LAST_7_DAYS -> if (txTime < now - (7L * 86400000L)) return@filter false
+                ChartDateRange.LAST_14_DAYS -> if (txTime < now - (14L * 86400000L)) return@filter false
                 ChartDateRange.LAST_30_DAYS -> if (txTime < now - (30L * 86400000L)) return@filter false
                 ChartDateRange.THIS_MONTH -> {
                     val startOfMonth = DateUtils.getStartOfMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
@@ -1443,7 +1450,8 @@ private fun AccountDetailChartTab(
 ) {
     var visualType by remember { mutableStateOf(ChartVisualType.BAR) }
     var futureProjection by remember { mutableStateOf(false) }
-    var selectedRange by remember { mutableStateOf(ChartDateRange.LAST_30_DAYS) }
+    var showValuesOnBars by remember { mutableStateOf(true) }
+    var selectedRange by remember { mutableStateOf(ChartDateRange.LAST_14_DAYS) }
     var selectedFrequency by remember { mutableStateOf(ChartFrequency.DAILY) }
     var selectedPointIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -1502,7 +1510,8 @@ private fun AccountDetailChartTab(
                         visualType = visualType,
                         languageMode = languageMode,
                         selectedPointIndex = selectedPointIndex,
-                        onPointSelected = { selectedPointIndex = it }
+                        onPointSelected = { selectedPointIndex = it },
+                        showValuesOnBars = showValuesOnBars
                     )
                 }
             }
@@ -1602,57 +1611,83 @@ private fun AccountDetailChartTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Chart Controls Row: Bar/Line Toggle + Future Projection Switch (Screenshot 2)
+        // Chart Controls Row: Chart Types (Bar, Line, Area, Stepped)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ChartVisualType.values().forEach { type ->
+                val isSelected = visualType == type
+                val icon = when (type) {
+                    ChartVisualType.BAR -> Icons.Default.BarChart
+                    ChartVisualType.LINE -> Icons.Default.ShowChart
+                    ChartVisualType.AREA -> Icons.AutoMirrored.Filled.TrendingUp
+                    ChartVisualType.STEPPED -> Icons.Default.StackedBarChart
+                }
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isSelected) SolidIncome else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { visualType = type }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = type.labelEn,
+                            tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) type.labelBn else type.labelEn,
+                            fontSize = 11.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Chart Settings Row: Show Values on Bars & Future Projection Switches
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Visual Type Toggle Buttons
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = if (visualType == ChartVisualType.BAR) SolidIncome else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clickable { visualType = ChartVisualType.BAR }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.BarChart,
-                            contentDescription = "Bar Chart",
-                            tint = if (visualType == ChartVisualType.BAR) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = CircleShape,
-                    color = if (visualType == ChartVisualType.LINE) SolidIncome else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clickable { visualType = ChartVisualType.LINE }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.ShowChart,
-                            contentDescription = "Line Chart",
-                            tint = if (visualType == ChartVisualType.LINE) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+            // Show Values on Bars Switch
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মান দেখান" else "Show Values",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Switch(
+                    checked = showValuesOnBars,
+                    onCheckedChange = { showValuesOnBars = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = SolidIncome
+                    ),
+                    modifier = Modifier.testTag("chart_show_values_switch")
+                )
             }
 
             // Future Projection Switch (Screenshot 2)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Future Projection",
-                    fontSize = 14.sp,
+                    text = if (languageMode == LanguageMode.BANGLA) "ভবিষ্যত অনুমান" else "Future Projection",
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -1838,6 +1873,17 @@ private fun calculateNiceScale(minVal: Double, rawMaxVal: Double, gridLinesCount
     return Triple(niceMin, niceMax, niceStep)
 }
 
+private fun formatCompactBalance(value: Double): String {
+    val rounded = value.toLong()
+    val absVal = abs(rounded)
+    val sign = if (rounded < 0) "-" else ""
+    return when {
+        absVal >= 1_000_000 -> "$sign${absVal / 1_000_000}M"
+        absVal >= 1_000 -> "$sign${absVal / 1_000}k"
+        else -> "$sign$absVal"
+    }
+}
+
 // -------------------------------------------------------------------------------------------------
 // CANVAS CHART (Faithful Emerald Bars & Axes in Screenshot 2)
 // -------------------------------------------------------------------------------------------------
@@ -1847,7 +1893,8 @@ private fun BalanceTimelineChartCanvas(
     visualType: ChartVisualType,
     languageMode: LanguageMode,
     selectedPointIndex: Int? = null,
-    onPointSelected: (Int?) -> Unit = {}
+    onPointSelected: (Int?) -> Unit = {},
+    showValuesOnBars: Boolean = false
 ) {
     val barColor = Color(0xFF10B981) // Emerald Green
     val selectedBarColor = Color(0xFF059669) // Darker vivid emerald for selected bar
@@ -1891,6 +1938,14 @@ private fun BalanceTimelineChartCanvas(
             color = textArgb
             textSize = 9.dp.toPx()
             textAlign = android.graphics.Paint.Align.RIGHT
+            isAntiAlias = true
+        }
+
+        val valueLabelPaint = android.graphics.Paint().apply {
+            color = textArgb
+            textSize = 8.dp.toPx()
+            textAlign = android.graphics.Paint.Align.CENTER
+            isFakeBoldText = true
             isAntiAlias = true
         }
 
@@ -1943,95 +1998,196 @@ private fun BalanceTimelineChartCanvas(
             }
         }
 
-        // Draw Bars or Line
-        if (visualType == ChartVisualType.BAR) {
-            points.forEachIndexed { index, pt ->
-                val centerX = leftPadding + (index * stepX) + (stepX / 2f)
-                val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
-                val barTopY = chartHeight - (ptRatio * chartHeight)
-                val barHeight = abs(baselineY - barTopY)
-                val topY = min(baselineY, barTopY)
+        // Draw according to selected visualType
+        when (visualType) {
+            ChartVisualType.BAR -> {
+                points.forEachIndexed { index, pt ->
+                    val centerX = leftPadding + (index * stepX) + (stepX / 2f)
+                    val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
+                    val barTopY = chartHeight - (ptRatio * chartHeight)
+                    val barHeight = abs(baselineY - barTopY)
+                    val topY = min(baselineY, barTopY)
 
-                val isSelected = index == selectedPointIndex
-                val color = when {
-                    isSelected -> selectedBarColor
-                    pt.isProjected -> projectedBarColor
-                    else -> barColor
-                }
+                    val isSelected = index == selectedPointIndex
+                    val color = when {
+                        isSelected -> selectedBarColor
+                        pt.isProjected -> projectedBarColor
+                        else -> barColor
+                    }
 
-                drawRoundRect(
-                    color = color,
-                    topLeft = Offset(centerX - (barWidth / 2f), topY),
-                    size = Size(barWidth, max(barHeight, 2.dp.toPx())),
-                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                )
-
-                if (isSelected) {
-                    // Draw a pointer dot above the selected bar
-                    drawCircle(
-                        color = selectedBarColor,
-                        radius = 4.dp.toPx(),
-                        center = Offset(centerX, (topY - 6.dp.toPx()).coerceAtLeast(6.dp.toPx()))
+                    drawRoundRect(
+                        color = color,
+                        topLeft = Offset(centerX - (barWidth / 2f), topY),
+                        size = Size(barWidth, max(barHeight, 2.dp.toPx())),
+                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                     )
+
+                    if (isSelected) {
+                        // Draw a pointer dot above the selected bar
+                        drawCircle(
+                            color = selectedBarColor,
+                            radius = 4.dp.toPx(),
+                            center = Offset(centerX, (topY - 6.dp.toPx()).coerceAtLeast(6.dp.toPx()))
+                        )
+                    }
+
+                    if (showValuesOnBars) {
+                        drawContext.canvas.nativeCanvas.drawText(
+                            formatCompactBalance(pt.balance),
+                            centerX,
+                            (topY - 4.dp.toPx()).coerceAtLeast(10.dp.toPx()),
+                            valueLabelPaint
+                        )
+                    }
                 }
             }
-        } else {
-            // LINE CHART
-            val path = Path()
-            val fillPath = Path()
 
-            points.forEachIndexed { index, pt ->
-                val x = leftPadding + (index * stepX) + (stepX / 2f)
-                val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
-                val y = chartHeight - (ptRatio * chartHeight)
+            ChartVisualType.LINE, ChartVisualType.AREA -> {
+                val path = Path()
+                val fillPath = Path()
 
-                if (index == 0) {
-                    path.moveTo(x, y)
-                    fillPath.moveTo(x, baselineY)
-                    fillPath.lineTo(x, y)
-                } else {
-                    path.lineTo(x, y)
-                    fillPath.lineTo(x, y)
-                }
-            }
-
-            val lastX = leftPadding + ((count - 1) * stepX) + (stepX / 2f)
-            fillPath.lineTo(lastX, baselineY)
-            fillPath.close()
-
-            // Area Gradient Fill
-            drawPath(
-                path = fillPath,
-                brush = Brush.verticalGradient(
-                    colors = listOf(barColor.copy(alpha = 0.35f), Color.Transparent),
-                    startY = 0f,
-                    endY = chartHeight
-                )
-            )
-
-            // Line Stroke
-            drawPath(
-                path = path,
-                color = barColor,
-                style = Stroke(width = 2.5.dp.toPx())
-            )
-
-            // Highlight circle for selected point on line
-            selectedPointIndex?.let { selIdx ->
-                if (selIdx in points.indices) {
-                    val x = leftPadding + (selIdx * stepX) + (stepX / 2f)
-                    val ptRatio = ((points[selIdx].balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
+                points.forEachIndexed { index, pt ->
+                    val x = leftPadding + (index * stepX) + (stepX / 2f)
+                    val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
                     val y = chartHeight - (ptRatio * chartHeight)
+
+                    if (index == 0) {
+                        path.moveTo(x, y)
+                        fillPath.moveTo(x, baselineY)
+                        fillPath.lineTo(x, y)
+                    } else {
+                        path.lineTo(x, y)
+                        fillPath.lineTo(x, y)
+                    }
+                }
+
+                val lastX = leftPadding + ((count - 1) * stepX) + (stepX / 2f)
+                fillPath.lineTo(lastX, baselineY)
+                fillPath.close()
+
+                if (visualType == ChartVisualType.AREA) {
+                    // Area Gradient Fill
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(barColor.copy(alpha = 0.35f), Color.Transparent),
+                            startY = 0f,
+                            endY = chartHeight
+                        )
+                    )
+                }
+
+                // Line Stroke
+                drawPath(
+                    path = path,
+                    color = barColor,
+                    style = Stroke(width = 2.5.dp.toPx())
+                )
+
+                // Point dots and values
+                points.forEachIndexed { index, pt ->
+                    val x = leftPadding + (index * stepX) + (stepX / 2f)
+                    val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
+                    val y = chartHeight - (ptRatio * chartHeight)
+
+                    val isSelected = index == selectedPointIndex
                     drawCircle(
-                        color = selectedBarColor,
-                        radius = 6.dp.toPx(),
+                        color = if (isSelected) selectedBarColor else barColor,
+                        radius = if (isSelected) 5.dp.toPx() else 3.dp.toPx(),
                         center = Offset(x, y)
                     )
-                    drawCircle(
-                        color = Color.White,
-                        radius = 3.dp.toPx(),
-                        center = Offset(x, y)
+                    if (isSelected) {
+                        drawCircle(
+                            color = Color.White,
+                            radius = 2.5.dp.toPx(),
+                            center = Offset(x, y)
+                        )
+                    }
+
+                    if (showValuesOnBars) {
+                        drawContext.canvas.nativeCanvas.drawText(
+                            formatCompactBalance(pt.balance),
+                            x,
+                            (y - 5.dp.toPx()).coerceAtLeast(10.dp.toPx()),
+                            valueLabelPaint
+                        )
+                    }
+                }
+            }
+
+            ChartVisualType.STEPPED -> {
+                val stepPath = Path()
+                val fillPath = Path()
+
+                val firstX = leftPadding + (stepX / 2f)
+                val firstLeft = firstX - (stepX / 2f)
+                fillPath.moveTo(firstLeft, baselineY)
+
+                points.forEachIndexed { index, pt ->
+                    val x = leftPadding + (index * stepX) + (stepX / 2f)
+                    val leftX = x - (stepX / 2f)
+                    val rightX = x + (stepX / 2f)
+                    val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
+                    val y = chartHeight - (ptRatio * chartHeight)
+
+                    if (index == 0) {
+                        stepPath.moveTo(leftX, y)
+                        stepPath.lineTo(rightX, y)
+                        fillPath.lineTo(leftX, y)
+                        fillPath.lineTo(rightX, y)
+                    } else {
+                        stepPath.lineTo(leftX, y)
+                        stepPath.lineTo(rightX, y)
+                        fillPath.lineTo(leftX, y)
+                        fillPath.lineTo(rightX, y)
+                    }
+                }
+
+                val lastRight = leftPadding + ((count - 1) * stepX) + stepX
+                fillPath.lineTo(lastRight, baselineY)
+                fillPath.close()
+
+                drawPath(
+                    path = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(barColor.copy(alpha = 0.3f), Color.Transparent),
+                        startY = 0f,
+                        endY = chartHeight
                     )
+                )
+
+                drawPath(
+                    path = stepPath,
+                    color = barColor,
+                    style = Stroke(width = 2.5.dp.toPx())
+                )
+
+                points.forEachIndexed { index, pt ->
+                    val x = leftPadding + (index * stepX) + (stepX / 2f)
+                    val ptRatio = ((pt.balance - niceMin) / valRange).toFloat().coerceIn(0f, 1f)
+                    val y = chartHeight - (ptRatio * chartHeight)
+
+                    if (index == selectedPointIndex) {
+                        drawCircle(
+                            color = selectedBarColor,
+                            radius = 5.dp.toPx(),
+                            center = Offset(x, y)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 2.5.dp.toPx(),
+                            center = Offset(x, y)
+                        )
+                    }
+
+                    if (showValuesOnBars) {
+                        drawContext.canvas.nativeCanvas.drawText(
+                            formatCompactBalance(pt.balance),
+                            x,
+                            (y - 5.dp.toPx()).coerceAtLeast(10.dp.toPx()),
+                            valueLabelPaint
+                        )
+                    }
                 }
             }
         }
@@ -2086,6 +2242,7 @@ private fun computeTimelinePoints(
 
     val startTimeMs = when (range) {
         ChartDateRange.LAST_7_DAYS -> now - (7L * 86400000L)
+        ChartDateRange.LAST_14_DAYS -> now - (14L * 86400000L)
         ChartDateRange.LAST_30_DAYS -> now - (30L * 86400000L)
         ChartDateRange.THIS_MONTH -> DateUtils.getStartOfMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
         ChartDateRange.LAST_90_DAYS -> now - (90L * 86400000L)
@@ -2158,6 +2315,7 @@ private fun computeTimelinePoints(
         var projBal = points.last().balance
         val projectionDaysCount = when (range) {
             ChartDateRange.LAST_7_DAYS -> 7
+            ChartDateRange.LAST_14_DAYS -> 14
             ChartDateRange.LAST_30_DAYS -> 15
             else -> 30
         }
