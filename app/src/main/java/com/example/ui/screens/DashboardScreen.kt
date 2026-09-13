@@ -644,23 +644,156 @@ fun DashboardScreen(
         )
     }
 
+    fun openRemainingExpensesBreakdown() {
+        val cal = Calendar.getInstance()
+        val currentMonth = cal.get(Calendar.MONTH)
+        val currentYear = cal.get(Calendar.YEAR)
+
+        val monthlyExpenseTxs = recentTransactions.filter {
+            if (it.transaction.type != TransactionType.EXPENSE) return@filter false
+            val txCal = Calendar.getInstance().apply { timeInMillis = it.transaction.dateEpochMs }
+            txCal.get(Calendar.MONTH) == currentMonth && txCal.get(Calendar.YEAR) == currentYear
+        }
+
+        val expenseCategories = allCategories.filter { it.type == CategoryType.EXPENSE }
+        val budgetMap = monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+
+        val expenseTxsByCat = mutableMapOf<Long, Double>()
+        val expenseTxsListByCat = mutableMapOf<Long, MutableList<TransactionWithDetails>>()
+
+        for (txItem in monthlyExpenseTxs) {
+            val catId = txItem.transaction.subCategoryId ?: txItem.transaction.categoryId
+            if (catId != null) {
+                expenseTxsByCat[catId] = (expenseTxsByCat[catId] ?: 0.0) + txItem.transaction.amount
+                expenseTxsListByCat.getOrPut(catId) { mutableListOf() }.add(txItem)
+            }
+        }
+
+        data class RemainingBudgetItem(
+            val categoryName: String,
+            val iconName: String?,
+            val budgetLimit: Double,
+            val actualSpent: Double,
+            val remainingAmount: Double,
+            val txs: List<TransactionWithDetails>
+        )
+
+        val remainingBudgetItems = mutableListOf<RemainingBudgetItem>()
+
+        val parentExpenseCatIdsWithChildren = expenseCategories
+            .filter { it.parentId != null }
+            .mapNotNull { it.parentId }
+            .toSet()
+
+        val activeBudgetedCategories = expenseCategories.filter {
+            it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id) || budgetMap.containsKey("EXPENSE_${it.id}")
+        }
+
+        for (cat in activeBudgetedCategories) {
+            val budgetEntry = budgetMap["EXPENSE_${cat.id}"]
+            val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
+            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val spent = expenseTxsByCat[cat.id] ?: 0.0
+            val catTxs = expenseTxsListByCat[cat.id] ?: emptyList()
+
+            if (budgetLimit > 0 && spent < budgetLimit) {
+                val remaining = budgetLimit - spent
+                remainingBudgetItems.add(
+                    RemainingBudgetItem(
+                        categoryName = cat.localizedName(languageMode),
+                        iconName = cat.iconName,
+                        budgetLimit = budgetLimit,
+                        actualSpent = spent,
+                        remainingAmount = remaining,
+                        txs = catTxs
+                    )
+                )
+            }
+        }
+
+        val sortedRemaining = remainingBudgetItems.sortedByDescending { it.remainingAmount }
+        val remainingSteps = mutableListOf<FormulaStep>()
+        for (item in sortedRemaining) {
+            val note = if (languageMode == LanguageMode.BANGLA)
+                "বাজেট: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | খরচ: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+            else
+                "Budget: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | Spent: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+
+            remainingSteps.add(
+                FormulaStep(
+                    label = item.categoryName,
+                    amount = item.remainingAmount,
+                    operator = "+",
+                    note = note
+                )
+            )
+        }
+
+        val breakdownItems = sortedRemaining.map { item ->
+            val note = if (languageMode == LanguageMode.BANGLA)
+                "বাজেট: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | খরচ: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+            else
+                "Budget: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | Spent: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+
+            BreakdownItem(
+                name = item.categoryName,
+                amount = item.remainingAmount,
+                percentage = if (overview.remainingExpenses > 0) (item.remainingAmount / overview.remainingExpenses) * 100.0 else 0.0,
+                iconName = item.iconName,
+                color = SolidPrimary,
+                count = item.txs.size,
+                note = note
+            )
+        }
+
+        val allRemainingTxs = sortedRemaining.flatMap { it.txs }.distinctBy { it.transaction.id }
+
+        val steps = if (remainingSteps.isNotEmpty()) {
+            remainingSteps + listOf(
+                FormulaStep(
+                    label = if (languageMode == LanguageMode.BANGLA) "মোট বাজেটের অবশিষ্ট" else "Total Budget Remaining",
+                    amount = overview.remainingExpenses,
+                    operator = "=",
+                    isHighlighted = true
+                )
+            )
+        } else {
+            listOf(
+                FormulaStep(
+                    label = if (languageMode == LanguageMode.BANGLA) "বাকি থাকা বাজেট" else "Remaining Expenses",
+                    amount = overview.remainingExpenses,
+                    operator = "=",
+                    isHighlighted = true
+                )
+            )
+        }
+
+        activeAmountDetail = AmountDetailInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "বাজেটের অবশিষ্ট খরচ" else "Remaining Budget Expenses",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি অনুযায়ী অবশিষ্ট বাজেট" else "Category-by-category remaining budget",
+            totalAmount = overview.remainingExpenses,
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "প্রতিটি ক্যাটাগরির জন্য পৃথকভাবে হিসাবকৃত (বাজেট সীমা − প্রকৃত খরচ, সর্বনিম্ন ০) অবশিষ্ট টাকার যোগফল।"
+            else
+                "Sum of remaining unspent balances across all active category budgets for this month (calculated individually per category).",
+            formulaSteps = steps,
+            relatedBreakdownItems = breakdownItems,
+            relatedTransactions = allRemainingTxs
+        )
+    }
+
     fun openExpendableBreakdown() {
         val steps = listOf(
             FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "উপলব্ধ অর্থ (মোট সম্পদ)" else "Available Money (Total Assets)",
-                amount = overview.availableMoney,
+                label = if (languageMode == LanguageMode.BANGLA) "নিট সম্পদ (সক্রিয় ও অন্তর্ভুক্ত)" else "Net Worth (Active & Included)",
+                amount = overview.netWorth,
                 operator = "+"
             ),
             FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "বাজেটকৃত মোট খরচ" else "Budgeted Expense Commitment",
-                amount = overview.totalExpenseBudget,
-                operator = "−"
-            ),
-            FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "বাজেট বহির্ভূত / অতিরিক্ত খরচ" else "Additional / Over-Budget Cost",
-                amount = overview.additionalCost,
+                label = if (languageMode == LanguageMode.BANGLA) "বাজেটের অবশিষ্ট খরচ" else "Remaining Budget Expenses",
+                amount = overview.remainingExpenses,
                 operator = "−",
-                onClick = { openAdditionalCostBreakdown() }
+                onClick = { openRemainingExpensesBreakdown() }
             ),
             FormulaStep(
                 label = if (languageMode == LanguageMode.BANGLA) "নিরাপদ খরচযোগ্য অর্থ" else "Safe Expendable Balance",
@@ -672,12 +805,12 @@ fun DashboardScreen(
 
         activeAmountDetail = AmountDetailInfo(
             title = if (languageMode == LanguageMode.BANGLA) "খরচযোগ্য অবশিষ্ট অর্থের হিসাব" else "Expendable Funds Formula",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "উপলব্ধ সম্পদ − (বাজেট + অতিরিক্ত খরচ)" else "Available Money − (Total Budget + Over-budget Cost)",
+            subtitle = if (languageMode == LanguageMode.BANGLA) "নিট সম্পদ − বাজেটের অবশিষ্ট খরচ" else "Net Worth − Remaining Budget",
             totalAmount = overview.expendable,
             formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                "খরচযোগ্য অর্থ হলো আপনার মোট উপলব্ধ তহবিল থেকে এই মাসের বাকি থাকা বাজেট ও অতিরিক্ত খরচ বাদ দেয়ার পর যে টাকা নিশ্চিন্তে খরচ করা যাবে।"
+                "খরচযোগ্য অর্থ হলো আপনার নিট সম্পদ (নিষ্ক্রিয় বা বাদ দেয়া অ্যাকাউন্ট ছাড়া) থেকে এই মাসের বিভিন্ন ক্যাটাগরির অবশিষ্ট বাজেট বাদ দেয়ার পর যে টাকা নিশ্চিন্তে খরচ করা যাবে।"
             else
-                "Expendable represents the safe disposable amount available right now without jeopardizing monthly budgeted commitments or entering a deficit.",
+                "Expendable = Net Worth (excluding inactive or excluded accounts) − Remaining Budget (calculated individually per category, then totaled).",
             formulaSteps = steps,
             relatedTransactions = recentTransactions,
             statusTag = if (overview.expendable >= 0) "Safe" else "Deficit"
@@ -712,39 +845,6 @@ fun DashboardScreen(
                 "এই মাসের প্রত্যাশিত বাকি আয় পাওয়া গেলে আপনার মোট কত টাকা খরচ করার সামর্থ্য থাকবে।"
             else
                 "Estimated safe disposable funds once all projected monthly income is collected.",
-            formulaSteps = steps,
-            relatedTransactions = recentTransactions
-        )
-    }
-
-    fun openRemainingExpensesBreakdown() {
-        val steps = listOf(
-            FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "মোট মাসিক বাজেট" else "Total Monthly Budget",
-                amount = overview.totalExpenseBudget,
-                operator = "+"
-            ),
-            FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "বাজেটের অন্তর্ভুক্ত খরচ" else "Budgeted Spending Used",
-                amount = (overview.totalExpenseBudget - overview.remainingExpenses).coerceAtLeast(0.0),
-                operator = "−"
-            ),
-            FormulaStep(
-                label = if (languageMode == LanguageMode.BANGLA) "বাকি থাকা বাজেট" else "Remaining Expenses",
-                amount = overview.remainingExpenses,
-                operator = "=",
-                isHighlighted = true
-            )
-        )
-
-        activeAmountDetail = AmountDetailInfo(
-            title = if (languageMode == LanguageMode.BANGLA) "বাজেটের অবশিষ্ট খরচ" else "Remaining Budget Expenses",
-            subtitle = if (languageMode == LanguageMode.BANGLA) "চলতি মাসে বাজেটের বাকি টাকা" else "Unspent budgeted allocations for this month",
-            totalAmount = overview.remainingExpenses,
-            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                "চলতি মাসে বিভিন্ন ক্যাটাগরিতে বরাদ্দকৃত বাজেটের মধ্যে যে টাকা এখনও খরচ করা বাকি আছে।"
-            else
-                "Sum of remaining unspent balances across all active category budgets for this month.",
             formulaSteps = steps,
             relatedTransactions = recentTransactions
         )
@@ -1887,22 +1987,17 @@ private fun RedesignedFinancialOverviewCard(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "• Available Money = Total Assets (${LanguageHelper.formatCurrency(overview.availableMoney, languageMode)})",
+                        text = "• Net Worth = ${LanguageHelper.formatCurrency(overview.netWorth, languageMode)}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "• Total Expense Budget = ${LanguageHelper.formatCurrency(overview.totalExpenseBudget, languageMode)}",
+                        text = "• Remaining Budget = ${LanguageHelper.formatCurrency(overview.remainingExpenses, languageMode)}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "• Additional / Over-Budget Cost = ${LanguageHelper.formatCurrency(overview.additionalCost, languageMode)}",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "• Expendable = ${LanguageHelper.formatCurrency(overview.availableMoney, languageMode)} − (${LanguageHelper.formatCurrency(overview.totalExpenseBudget, languageMode)} + ${LanguageHelper.formatCurrency(overview.additionalCost, languageMode)}) = ${LanguageHelper.formatCurrency(overview.expendable, languageMode)}",
+                        text = "• Expendable = ${LanguageHelper.formatCurrency(overview.netWorth, languageMode)} − ${LanguageHelper.formatCurrency(overview.remainingExpenses, languageMode)} = ${LanguageHelper.formatCurrency(overview.expendable, languageMode)}",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary

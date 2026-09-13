@@ -419,8 +419,25 @@ class BudgetRepository(
         val budgets = monthlyBudgetDao.getBudgetsForMonthSnapshot(currentYear, currentMonth)
         val budgetMap = budgets.associateBy { "${it.itemType}_${it.itemId}" }
 
-        val expenseCategories = categories.filter { it.type == CategoryType.EXPENSE && it.parentId != null }
-        val incomeCategories = categories.filter { it.type == CategoryType.INCOME && it.parentId != null }
+        val parentExpenseCatIdsWithChildren = categories
+            .filter { it.type == CategoryType.EXPENSE && it.parentId != null }
+            .mapNotNull { it.parentId }
+            .toSet()
+
+        val expenseCategories = categories.filter {
+            it.type == CategoryType.EXPENSE &&
+            (it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id) || budgetMap.containsKey("EXPENSE_${it.id}"))
+        }
+
+        val parentIncomeCatIdsWithChildren = categories
+            .filter { it.type == CategoryType.INCOME && it.parentId != null }
+            .mapNotNull { it.parentId }
+            .toSet()
+
+        val incomeCategories = categories.filter {
+            it.type == CategoryType.INCOME &&
+            (it.parentId != null || !parentIncomeCatIdsWithChildren.contains(it.id) || budgetMap.containsKey("INCOME_${it.id}"))
+        }
 
         var totalExpenseBudget = 0.0
         var totalRemainingExpenses = 0.0
@@ -458,25 +475,39 @@ class BudgetRepository(
         }
 
         var totalIncomeBudget = 0.0
+        var potentialIncome = 0.0
+        val incomeTxsByCat = mutableMapOf<Long, Double>()
+        for (tx in monthlyTxs.filter { it.type == TransactionType.INCOME }) {
+            val catId = tx.subCategoryId ?: tx.categoryId
+            if (catId != null) {
+                incomeTxsByCat[catId] = (incomeTxsByCat[catId] ?: 0.0) + tx.amount
+            }
+        }
+
         for (cat in incomeCategories) {
             val budgetEntry = budgetMap["INCOME_${cat.id}"]
             val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
             val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val received = incomeTxsByCat[cat.id] ?: 0.0
             if (budgetLimit > 0) {
                 totalIncomeBudget += budgetLimit
+                if (received < budgetLimit) {
+                    potentialIncome += (budgetLimit - received)
+                }
             }
         }
 
         val availableMoney = totalAssets
         val hasBudgetConfigured = totalExpenseBudget > 0 || budgets.isNotEmpty()
-        val totalCommittedExpenses = if (hasBudgetConfigured) {
-            totalExpenseBudget + totalAdditionalCost
+
+        // Expendable = Net worth (no inactive account, no excluded account) - budget remaining
+        // Budget remaining is calculated partly per category (sum of max(0, budgetLimit - spent))
+        val expendable = if (hasBudgetConfigured) {
+            netWorth - totalRemainingExpenses
         } else {
-            monthlyExpense
+            netWorth
         }
 
-        val expendable = availableMoney - totalCommittedExpenses
-        val potentialIncome = if (totalIncomeBudget > monthlyIncome) (totalIncomeBudget - monthlyIncome) else 0.0
         val expectedExpendable = expendable + potentialIncome
 
         var liabilitiesChange = 0.0

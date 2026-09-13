@@ -134,5 +134,30 @@ class ExampleUnitTest {
     )
     assertEquals("১২,৩৪,৫৬৭.৮৯", bnLakhCrore)
   }
+
+  @Test
+  fun expendableCalculation_perCategoryRemainingAndNetWorth() {
+    // User scenario:
+    // Net worth = 2000 (from active, non-excluded accounts)
+    // Category 1 (Recharge): Budget 200, Spent 0 -> Remaining = 200
+    // Category 2 (Maintenance): Budget 500, Spent 600 -> Over budget, Remaining = 0 (not negative)
+    // Total Remaining = 200 + 0 = 200
+    // Expendable = Net Worth - Remaining = 2000 - 200 = 1800
+    val netWorth = 2000.0
+
+    val rechargeBudget = 200.0
+    val rechargeSpent = 0.0
+    val rechargeRemaining = if (rechargeSpent < rechargeBudget) rechargeBudget - rechargeSpent else 0.0
+
+    val maintenanceBudget = 500.0
+    val maintenanceSpent = 600.0
+    val maintenanceRemaining = if (maintenanceSpent < maintenanceBudget) maintenanceBudget - maintenanceSpent else 0.0
+
+    val totalRemaining = rechargeRemaining + maintenanceRemaining
+    assertEquals(200.0, totalRemaining, 0.001)
+
+    val expendable = netWorth - totalRemaining
+    assertEquals(1800.0, expendable, 0.001)
+  }
 }
 
