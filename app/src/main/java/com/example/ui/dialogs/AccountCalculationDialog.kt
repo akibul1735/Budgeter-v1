@@ -79,6 +79,7 @@ fun AccountCalculationDialog(
 ) {
     var isIncluded by remember { mutableStateOf(currentSetting.isIncluded) }
     var adjustmentAmount by remember { mutableStateOf(currentSetting.adjustmentAmount) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
     
     // String representations for text fields
     val initialEffective = actualBalance + currentSetting.adjustmentAmount
@@ -479,7 +480,7 @@ fun AccountCalculationDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (!currentSetting.isIncluded || currentSetting.adjustmentAmount != 0.0) {
                     TextButton(
-                        onClick = { onReset() },
+                        onClick = { showResetConfirmDialog = true },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
                         Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -493,4 +494,50 @@ fun AccountCalculationDialog(
             }
         }
     )
+
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.RestartAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "হিসাব রিসেট নিশ্চিতকরণ" else "Confirm Reset Calculation",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA)
+                        "আপনি কি '${account.localizedName(languageMode)}' অ্যাকাউন্টের সকল ব্যালেন্স অ্যাডজাস্টমেন্ট ও অন্তর্ভুক্তি স্ট্যাটাস রিসেট করে স্বাভাবিক অবস্থায় ফিরিয়ে নিতে চান?"
+                    else
+                        "Are you sure you want to reset the calculation adjustments and inclusion status for '${account.localizedName(languageMode)}' back to default?",
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showResetConfirmDialog = false
+                        onReset()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "রিসেট করুন" else "Reset")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showResetConfirmDialog = false }) {
+                    Text(LanguageHelper.getString("cancel", languageMode))
+                }
+            }
+        )
+    }
 }

@@ -109,7 +109,9 @@ fun AccountDeleteConfirmDialog(
 ) {
     val isGroup = account.parentId == null
     val context = LocalContext.current
-    val requiresAuth = isGroup && securityConfig.requireAuthForGroupDeletion && (securityConfig.hasPin || securityConfig.isBiometricEnabled)
+    val hasSecurity = securityConfig.hasPin || securityConfig.isBiometricEnabled
+    val requiresAuth = isGroup && (securityConfig.requireAuthForGroupDeletion || hasSecurity)
+    var isAuthenticated by remember { mutableStateOf(!requiresAuth) }
 
     // Calculate affected account IDs
     val affectedAccountIds = remember(account, allAccounts) {
@@ -209,11 +211,12 @@ fun AccountDeleteConfirmDialog(
         if (securityConfig.isBiometricEnabled && context is FragmentActivity) {
             BiometricHelper.showBiometricPrompt(
                 activity = context,
-                title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট ডিলিট নিশ্চিতকরণ" else "Confirm Account Deletion",
-                subtitle = if (languageMode == LanguageMode.BANGLA) "ফিঙ্গারপ্রিন্ট দিয়ে যাচাই করুন: ${account.localizedName(languageMode)}" else "Verify fingerprint to delete: ${account.localizedName(languageMode)}",
+                title = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা যাচাইকরণ" else "Authentication Required",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ডিলিট করতে ফিঙ্গারপ্রিন্ট দিন: ${account.localizedName(languageMode)}" else "Verify fingerprint to delete group: ${account.localizedName(languageMode)}",
                 negativeButtonText = if (languageMode == LanguageMode.BANGLA) "পিন ব্যবহার করুন" else "Use PIN",
                 onSuccess = {
-                    executeDelete()
+                    isAuthenticated = true
+                    pinError = ""
                 },
                 onError = { _, err ->
                     pinError = err
@@ -223,9 +226,126 @@ fun AccountDeleteConfirmDialog(
     }
 
     LaunchedEffect(Unit) {
-        if (requiresAuth && securityConfig.isBiometricEnabled) {
+        if (requiresAuth && !isAuthenticated && securityConfig.isBiometricEnabled) {
             triggerBiometric()
         }
+    }
+
+    // Step 1: When deleting a group, require authentication first. Successful authentication must NOT delete immediately.
+    if (requiresAuth && !isAuthenticated) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(SolidPrimary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = SolidPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা যাচাইকরণ" else "Authentication Required",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "'${account.localizedName(languageMode)}' গ্রুপটি ডিলিট করতে এবং লেনদেন ডাটা সুরক্ষিত রাখতে প্রথমে আপনার পরিচয় যাচাই করুন।"
+                        else
+                            "To delete group '${account.localizedName(languageMode)}' and protect associated transaction data, please authenticate first.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (securityConfig.isBiometricEnabled) {
+                        OutlinedButton(
+                            onClick = { triggerBiometric() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = SolidPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ফিঙ্গারপ্রিন্ট দিয়ে যাচাই করুন" else "Verify with Fingerprint",
+                                color = SolidPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = inputPin,
+                        onValueChange = {
+                            inputPin = it
+                            pinError = ""
+                        },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "পিন / পাসওয়ার্ড" else "PIN / Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            if (onVerifyPin?.invoke(inputPin) == true) {
+                                isAuthenticated = true
+                                pinError = ""
+                            } else {
+                                pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন বা পাসওয়ার্ড!" else "Incorrect PIN or Password!"
+                            }
+                        }),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (pinError.isNotBlank()) {
+                        Text(
+                            text = pinError,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (onVerifyPin?.invoke(inputPin) == true) {
+                            isAuthenticated = true
+                            pinError = ""
+                        } else {
+                            pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন বা পাসওয়ার্ড!" else "Incorrect PIN or Password!"
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "যাচাই করুন ও এগিয়ে যান" else "Verify & Continue")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = onDismiss) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+        return
     }
 
     fun getAccountDisplayName(acc: Account?): String {
@@ -809,76 +929,23 @@ fun AccountDeleteConfirmDialog(
                         }
                     }
                 }
-
-                // Authentication for groups if required
-                if (requiresAuth) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "নিশ্চিত করতে পিন বা পাসওয়ার্ড দিন:" else "Enter PIN or Password to confirm:",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    OutlinedTextField(
-                        value = inputPin,
-                        onValueChange = {
-                            inputPin = it
-                            pinError = ""
-                        },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "পিন / পাসওয়ার্ড" else "PIN / Password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = {
-                            if (onVerifyPin?.invoke(inputPin) == true) {
-                                executeDelete()
-                            } else {
-                                pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
-                            }
-                        }),
-                        trailingIcon = {
-                            if (securityConfig.isBiometricEnabled) {
-                                IconButton(onClick = { triggerBiometric() }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Fingerprint,
-                                        contentDescription = "Fingerprint",
-                                        tint = SolidPrimary
-                                    )
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    if (pinError.isNotBlank()) {
-                        Text(
-                            text = pinError,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
             }
         },
         confirmButton = {
             val isMoveBlockedForGroup = isGroup && relatedTxCount > 0 && (candidateTargetAccounts.isEmpty() || selectedTargetAccountId == null)
             val isMoveDisabled = (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && selectedTargetAccountId == null) || isMoveBlockedForGroup
             Button(
-                onClick = {
-                    if (requiresAuth) {
-                        if (onVerifyPin?.invoke(inputPin) == true) {
-                            executeDelete()
-                        } else {
-                            pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
-                        }
-                    } else {
-                        executeDelete()
-                    }
-                },
+                onClick = { executeDelete() },
                 enabled = !isMoveDisabled,
                 colors = ButtonDefaults.buttonColors(containerColor = SolidExpense)
             ) {
-                Text(if (languageMode == LanguageMode.BANGLA) "ডিলিট করুন" else "Confirm Delete")
+                Text(
+                    text = if (isGroup && relatedTxCount > 0) {
+                        if (languageMode == LanguageMode.BANGLA) "লেনদেন স্থানান্তর ও গ্রুপ ডিলিট" else "Move Transactions & Delete Group"
+                    } else {
+                        if (languageMode == LanguageMode.BANGLA) "ডিলিট করুন" else "Confirm Delete"
+                    }
+                )
             }
         },
         dismissButton = {
@@ -905,7 +972,9 @@ fun CategoryDeleteConfirmDialog(
 ) {
     val isGroup = category.parentId == null
     val context = LocalContext.current
-    val requiresAuth = isGroup && securityConfig.requireAuthForGroupDeletion && (securityConfig.hasPin || securityConfig.isBiometricEnabled)
+    val hasSecurity = securityConfig.hasPin || securityConfig.isBiometricEnabled
+    val requiresAuth = isGroup && (securityConfig.requireAuthForGroupDeletion || hasSecurity)
+    var isAuthenticated by remember { mutableStateOf(!requiresAuth) }
 
     // Calculate affected category IDs
     val affectedCategoryIds = remember(category, allCategories) {
@@ -1005,11 +1074,12 @@ fun CategoryDeleteConfirmDialog(
         if (securityConfig.isBiometricEnabled && context is FragmentActivity) {
             BiometricHelper.showBiometricPrompt(
                 activity = context,
-                title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ডিলিট নিশ্চিতকরণ" else "Confirm Category Deletion",
-                subtitle = if (languageMode == LanguageMode.BANGLA) "ফিঙ্গারপ্রিন্ট দিয়ে যাচাই করুন: ${category.localizedName(languageMode)}" else "Verify fingerprint to delete: ${category.localizedName(languageMode)}",
+                title = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা যাচাইকরণ" else "Authentication Required",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ডিলিট করতে ফিঙ্গারপ্রিন্ট দিন: ${category.localizedName(languageMode)}" else "Verify fingerprint to delete group: ${category.localizedName(languageMode)}",
                 negativeButtonText = if (languageMode == LanguageMode.BANGLA) "পিন ব্যবহার করুন" else "Use PIN",
                 onSuccess = {
-                    executeDelete()
+                    isAuthenticated = true
+                    pinError = ""
                 },
                 onError = { _, err ->
                     pinError = err
@@ -1019,9 +1089,126 @@ fun CategoryDeleteConfirmDialog(
     }
 
     LaunchedEffect(Unit) {
-        if (requiresAuth && securityConfig.isBiometricEnabled) {
+        if (requiresAuth && !isAuthenticated && securityConfig.isBiometricEnabled) {
             triggerBiometric()
         }
+    }
+
+    // Step 1: When deleting a group, require authentication first. Successful authentication must NOT delete immediately.
+    if (requiresAuth && !isAuthenticated) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            icon = {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(SolidPrimary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = SolidPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা যাচাইকরণ" else "Authentication Required",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "'${category.localizedName(languageMode)}' গ্রুপটি ডিলিট করতে এবং লেনদেন ডাটা সুরক্ষিত রাখতে প্রথমে আপনার পরিচয় যাচাই করুন।"
+                        else
+                            "To delete group '${category.localizedName(languageMode)}' and protect associated transaction data, please authenticate first.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (securityConfig.isBiometricEnabled) {
+                        OutlinedButton(
+                            onClick = { triggerBiometric() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = SolidPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ফিঙ্গারপ্রিন্ট দিয়ে যাচাই করুন" else "Verify with Fingerprint",
+                                color = SolidPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = inputPin,
+                        onValueChange = {
+                            inputPin = it
+                            pinError = ""
+                        },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "পিন / পাসওয়ার্ড" else "PIN / Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            if (onVerifyPin?.invoke(inputPin) == true) {
+                                isAuthenticated = true
+                                pinError = ""
+                            } else {
+                                pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন বা পাসওয়ার্ড!" else "Incorrect PIN or Password!"
+                            }
+                        }),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (pinError.isNotBlank()) {
+                        Text(
+                            text = pinError,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (onVerifyPin?.invoke(inputPin) == true) {
+                            isAuthenticated = true
+                            pinError = ""
+                        } else {
+                            pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন বা পাসওয়ার্ড!" else "Incorrect PIN or Password!"
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "যাচাই করুন ও এগিয়ে যান" else "Verify & Continue")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = onDismiss) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+        return
     }
 
     fun getCategoryDisplayName(cat: Category?): String {
@@ -1605,76 +1792,23 @@ fun CategoryDeleteConfirmDialog(
                         }
                     }
                 }
-
-                // Authentication for groups if required
-                if (requiresAuth) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "নিশ্চিত করতে পিন বা পাসওয়ার্ড দিন:" else "Enter PIN or Password to confirm:",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    OutlinedTextField(
-                        value = inputPin,
-                        onValueChange = {
-                            inputPin = it
-                            pinError = ""
-                        },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "পিন / পাসওয়ার্ড" else "PIN / Password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = {
-                            if (onVerifyPin?.invoke(inputPin) == true) {
-                                executeDelete()
-                            } else {
-                                pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
-                            }
-                        }),
-                        trailingIcon = {
-                            if (securityConfig.isBiometricEnabled) {
-                                IconButton(onClick = { triggerBiometric() }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Fingerprint,
-                                        contentDescription = "Fingerprint",
-                                        tint = SolidPrimary
-                                    )
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    if (pinError.isNotBlank()) {
-                        Text(
-                            text = pinError,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
             }
         },
         confirmButton = {
             val isMoveBlockedForGroup = isGroup && relatedTxCount > 0 && (candidateTargetCategories.isEmpty() || selectedTargetCategoryId == null)
             val isMoveDisabled = (selectedAction == DeleteTransactionAction.MOVE_TO_ANOTHER && selectedTargetCategoryId == null) || isMoveBlockedForGroup
             Button(
-                onClick = {
-                    if (requiresAuth) {
-                        if (onVerifyPin?.invoke(inputPin) == true) {
-                            executeDelete()
-                        } else {
-                            pinError = if (languageMode == LanguageMode.BANGLA) "ভুল পিন!" else "Incorrect PIN!"
-                        }
-                    } else {
-                        executeDelete()
-                    }
-                },
+                onClick = { executeDelete() },
                 enabled = !isMoveDisabled,
                 colors = ButtonDefaults.buttonColors(containerColor = SolidExpense)
             ) {
-                Text(if (languageMode == LanguageMode.BANGLA) "ডিলিট করুন" else "Confirm Delete")
+                Text(
+                    text = if (isGroup && relatedTxCount > 0) {
+                        if (languageMode == LanguageMode.BANGLA) "লেনদেন স্থানান্তর ও গ্রুপ ডিলিট" else "Move Transactions & Delete Group"
+                    } else {
+                        if (languageMode == LanguageMode.BANGLA) "ডিলিট করুন" else "Confirm Delete"
+                    }
+                )
             }
         },
         dismissButton = {

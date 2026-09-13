@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +42,9 @@ import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -48,6 +53,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -143,6 +149,7 @@ fun AccountsScreen(
 
     // State for Adjust Calculation Dialog
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
+    var showResetAllConfirmDialog by remember { mutableStateOf(false) }
 
     // Usage Frequency Map from transactions
     val accountUsageMap = remember(allTransactions) {
@@ -374,6 +381,52 @@ fun AccountsScreen(
         )
     }
 
+    if (showResetAllConfirmDialog && onResetAllCalculations != null) {
+        AlertDialog(
+            onDismissRequest = { showResetAllConfirmDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.RestartAlt,
+                    contentDescription = null,
+                    tint = SolidPrimary,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "সকল হিসাব রিসেট নিশ্চিতকরণ" else "Confirm Reset All Calculations",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA)
+                        "আপনি কি সকল অ্যাকাউন্টের কাস্টম ব্যালেন্স অ্যাডজাস্টমেন্ট ও অন্তর্ভুক্তি স্ট্যাটাস রিসেট করে স্বাভাবিক অবস্থায় ফিরিয়ে নিতে চান?"
+                    else
+                        "Are you sure you want to reset all account balance customizations and inclusion settings back to default?",
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onResetAllCalculations()
+                        showResetAllConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "রিসেট করুন" else "Reset All")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showResetAllConfirmDialog = false }) {
+                    Text(LanguageHelper.getString("cancel", languageMode))
+                }
+            }
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -500,7 +553,7 @@ fun AccountsScreen(
                                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .clickable { onResetAllCalculations() }
+                                                .clickable { showResetAllConfirmDialog = true }
                                         ) {
                                             Row(
                                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 6.dp),
@@ -1099,6 +1152,7 @@ private fun InactiveHeader(count: Int) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SingleAccountCard(
     item: FlattenedAccountItem,
@@ -1186,8 +1240,9 @@ fun SingleAccountCard(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    FlowRow(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
@@ -1195,12 +1250,10 @@ fun SingleAccountCard(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (!acc.isActive) {
-                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Inactive",
                                 fontSize = 9.sp,
@@ -1213,7 +1266,6 @@ fun SingleAccountCard(
                             )
                         }
                         if (!isIncluded) {
-                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = LanguageHelper.getString("excluded", languageMode),
                                 fontSize = 9.sp,
@@ -1227,30 +1279,37 @@ fun SingleAccountCard(
                         }
                     }
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    FlowRow(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         if (item.parentGroup != null) {
                             Text(
                                 text = item.parentGroup.localizedName(languageMode),
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(text = "•", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                         }
                         Text(
                             text = if (acc.type == AccountType.ASSET) "Asset" else "Liability",
                             fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         if (item.usageCount > 0) {
                             Text(text = "•", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
                             Text(
                                 text = "${item.usageCount} ${if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "txns"}",
                                 fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -1321,6 +1380,7 @@ fun SingleAccountCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AccountGroupCard(
     groupItem: AccountWithBalance,
@@ -1414,8 +1474,9 @@ fun AccountGroupCard(
                     Spacer(modifier = Modifier.width(10.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        FlowRow(
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
@@ -1425,11 +1486,9 @@ fun AccountGroupCard(
                                 color = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 2,
                                 lineHeight = 17.sp,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
+                                overflow = TextOverflow.Ellipsis
                             )
                             if (!group.isActive) {
-                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Inactive",
                                     fontSize = 10.sp,
@@ -1442,7 +1501,6 @@ fun AccountGroupCard(
                                 )
                             }
                             if (!isIncluded) {
-                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = LanguageHelper.getString("excluded", languageMode),
                                     fontSize = 10.sp,
@@ -1456,27 +1514,35 @@ fun AccountGroupCard(
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        FlowRow(
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = if (group.type == AccountType.ASSET) "Assets Group" else "Liabilities Group",
                                 fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false
                             )
                             if (groupItem.subAccounts.isNotEmpty() && isOnlyGroupsView) {
-                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "• ${groupItem.subAccounts.size} accounts",
                                     fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.outline
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                             if (isAdjusted && isIncluded) {
-                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "• Adj: ${if (adjustment > 0) "+" else ""}${LanguageHelper.formatCurrency(adjustment, languageMode)}",
                                     fontSize = 10.sp,
                                     color = SolidPrimary,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
