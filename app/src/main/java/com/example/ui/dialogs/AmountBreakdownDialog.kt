@@ -136,7 +136,8 @@ fun AmountBreakdownDialog(
     onAccountClick: ((Account) -> Unit)? = null,
     canGoBack: Boolean = false,
     onBack: (() -> Unit)? = null,
-    onCloseAll: (() -> Unit)? = null
+    onCloseAll: (() -> Unit)? = null,
+    onTabChanged: ((Int) -> Unit)? = null
 ) {
     var selectedTab by remember {
         mutableIntStateOf(
@@ -256,7 +257,10 @@ fun AmountBreakdownDialog(
                             val tabTitle = if (languageMode == LanguageMode.BANGLA && tab.titleBn != null) tab.titleBn else tab.title
                             Tab(
                                 selected = isSelected,
-                                onClick = { selectedOverviewTabIndex = index },
+                                onClick = {
+                                    selectedOverviewTabIndex = index
+                                    onTabChanged?.invoke(index)
+                                },
                                 text = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
