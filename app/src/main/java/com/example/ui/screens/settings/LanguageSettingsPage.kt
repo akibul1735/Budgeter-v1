@@ -1,5 +1,9 @@
 package com.example.ui.screens.settings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,30 +22,55 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
 import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.viewmodel.BudgetViewModel
+import com.example.util.DateUtils
+import com.example.util.LanguageHelper
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageSettingsPage(
     viewModel: BudgetViewModel,
@@ -49,6 +78,7 @@ fun LanguageSettingsPage(
     onBack: () -> Unit
 ) {
     val isBangla = languageMode == LanguageMode.BANGLA
+    var showLanguagePickerSheet by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -56,7 +86,7 @@ fun LanguageSettingsPage(
             .testTag("language_settings_page")
     ) {
         AppTabHeader(
-            title = if (isBangla) "ভাষা পছন্দ" else "Language Preference",
+            title = if (isBangla) "ভাষা ও অনুবাদ" else "Language & Region",
             tabIcon = Icons.Default.Language,
             onBack = onBack,
             autoHideOnScroll = false
@@ -65,18 +95,183 @@ fun LanguageSettingsPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 14.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
-            // Info Card
+            // 1. Live Language Hero Preview Card
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "সক্রিয় ভাষা প্রদর্শন" else "Active Language Display",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = if (isBangla) "বাংলা (বাংলাদেশ)" else "English (United States)",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "৳ ৫৪,২৫০ • ০৭ সেপ্টেম্বর" else "৳ 54,250 • 07 September",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Translate,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = if (isBangla) "বাংলা" else "EN",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 2. Section: Language Selection
+            Text(
+                text = if (isBangla) "ভাষা কনফিগারেশন" else "Language Configuration",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            // Primary Selection Row (Opens Bottom Sheet)
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showLanguagePickerSheet = true }
+                    .testTag("app_language_row")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Translate,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "অ্যাপের প্রধান ভাষা" else "App Primary Language",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "বাংলা • বাংলা সংখ্যা ও স্থানীয় ক্যালেন্ডার" else "English • Western numerals & terminology",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Quick Direct Language Selector Cards
+            Text(
+                text = if (isBangla) "সরাসরি ভাষা পরিবর্তন করুন" else "Quick Switch Language",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            LanguageQuickSelectCard(
+                title = "English",
+                nativeName = "English (United States)",
+                description = if (isBangla) "স্ট্যান্ডার্ড ইংরেজি ইন্টারফেস ও বৈশ্বিক ফরম্যাট" else "Standard English interface, western numerals, and standard accounting notation.",
+                badgeText = "EN",
+                badgeColor = Color(0xFF1E88E5),
+                isSelected = languageMode == LanguageMode.ENGLISH,
+                onClick = { viewModel.setLanguageMode(LanguageMode.ENGLISH) }
+            )
+
+            LanguageQuickSelectCard(
+                title = "বাংলা",
+                nativeName = "বাংলা (বাংলাদেশ ও পশ্চিমবঙ্গ)",
+                description = if (isBangla) "সম্পূর্ণ বাংলা ইন্টারফেস, বাংলা সংখ্যা (১, ২, ৩), বাংলা ক্যালেন্ডার ও স্থানীয় অ্যাকাউন্টিং পরিভাষা।" else "Full Bengali interface, Bengali numerals, and localized accounting terms.",
+                badgeText = "বাং",
+                badgeColor = Color(0xFF00897B),
+                isSelected = languageMode == LanguageMode.BANGLA,
+                onClick = { viewModel.setLanguageMode(LanguageMode.BANGLA) }
+            )
+
+            // Section: Info Notice Card
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                 ),
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -88,120 +283,159 @@ fun LanguageSettingsPage(
                         imageVector = Icons.Default.Info,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                     Column {
                         Text(
-                            text = if (isBangla) "দ্বিভাষিক ইন্টারফেস" else "Bilingual Experience",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = if (isBangla)
-                                "বাজেটার সম্পূর্ণ বাংলা ও ইংরেজি সমর্থন করে। ভাষা পরিবর্তন করলে হিসাবের খাতা, ড্যাশবোর্ড, তারিখ ও সংখ্যার প্রদর্শন তৎক্ষণাৎ পরিবর্তিত হবে।"
-                            else
-                                "Budgeter seamlessly supports both English and Bangla. Changing your language updates charts, date formats, accounting terminology, and numeral displays in real time.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                            lineHeight = 17.sp
-                        )
-                    }
-                }
-            }
-
-            Text(
-                text = if (isBangla) "ভাষা নির্বাচন করুন" else "Select App Language",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            // English Option Card
-            LanguageSelectionCard(
-                title = "English",
-                nativeName = "English (United States)",
-                description = "Standard English interface with western numerals, global currency formatting, and standard accounting notation.",
-                badgeText = "EN",
-                badgeColor = Color(0xFF1E88E5),
-                isSelected = languageMode == LanguageMode.ENGLISH,
-                onClick = { viewModel.setLanguageMode(LanguageMode.ENGLISH) }
-            )
-
-            // Bangla Option Card
-            LanguageSelectionCard(
-                title = "বাংলা",
-                nativeName = "বাংলা (বাংলাদেশ ও পশ্চিমবঙ্গ)",
-                description = "সম্পূর্ণ বাংলা ইন্টারফেস, বাংলা সংখ্যা (১, ২, ৩), বাংলা ক্যালেন্ডার ও স্থানীয় অ্যাকাউন্টিং পরিভাষা।",
-                badgeText = "বাং",
-                badgeColor = Color(0xFF00897B),
-                isSelected = languageMode == LanguageMode.BANGLA,
-                onClick = { viewModel.setLanguageMode(LanguageMode.BANGLA) }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Numeral & Formatting Preview
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = if (isBangla) "সংখ্যা ও ফরম্যাট প্রিভিউ" else "Numerals & Formatting Preview",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = if (isBangla) "নমুনা পরিমাণ:" else "Sample Amount:",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        Text(
-                            text = if (isBangla) "৳ ৫৪,২৫০.০০" else "৳ 54,250.00",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = if (isBangla) "নমুনা তারিখ:" else "Sample Date:",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        Text(
-                            text = if (isBangla) "০৭ সেপ্টেম্বর ২০২৬" else "07 September 2026",
+                            text = if (isBangla) "দ্বিভাষিক রিয়েল-টাইম রূপান্তর" else "Real-time Bilingual Adaptation",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = if (isBangla)
+                                "বাজেটার অ্যাপে ভাষা পরিবর্তন করলে সমস্ত হিসাব-নিকাশ, ড্যাশবোর্ড পরিসংখ্যান, তারিখ ফরম্যাট ও সংখ্যা তাৎক্ষণিকভাবে আপডেট হয়।"
+                            else
+                                "Switching languages automatically recalculates and updates numerals, dates, charts, and accounting terms across all screens without reloading.",
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                            lineHeight = 16.sp
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+
+    // Modal Bottom Sheet for Language Selection
+    if (showLanguagePickerSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showLanguagePickerSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBangla) "অ্যাপের ভাষা নির্বাচন" else "Select App Language",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "যেকোনো একটি ভাষা বেছে নিন" else "Choose your preferred language",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = { showLanguagePickerSheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                // Language Choices in Sheet
+                val languages = listOf(
+                    Triple(LanguageMode.BANGLA, "বাংলা (Bengali)", "বাংলা সংখ্যা, স্থানীয় ক্যালেন্ডার ও পরিভাষা"),
+                    Triple(LanguageMode.ENGLISH, "English (US)", "Western numerals, global currency & formatting")
+                )
+
+                languages.forEach { (mode, title, subtitle) ->
+                    val isSelected = languageMode == mode
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setLanguageMode(mode)
+                                showLanguagePickerSheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (mode == LanguageMode.BANGLA) Color(0xFF00897B).copy(alpha = 0.15f) else Color(0xFF1E88E5).copy(alpha = 0.15f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = if (mode == LanguageMode.BANGLA) "বাং" else "EN",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (mode == LanguageMode.BANGLA) Color(0xFF00897B) else Color(0xFF1E88E5)
+                                        )
+                                    }
+                                }
+
+                                Column {
+                                    Text(
+                                        text = title,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = subtitle,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            Icon(
+                                imageVector = if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                                contentDescription = null,
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun LanguageSelectionCard(
+private fun LanguageQuickSelectCard(
     title: String,
     nativeName: String,
     description: String,
@@ -210,20 +444,20 @@ private fun LanguageSelectionCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
+    OutlinedCard(
         shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
-        tonalElevation = if (isSelected) 3.dp else 1.dp,
-        border = androidx.compose.foundation.BorderStroke(
-            width = if (isSelected) 2.dp else 1.dp,
-            color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -250,7 +484,7 @@ private fun LanguageSelectionCard(
                     Column {
                         Text(
                             text = title,
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -265,28 +499,35 @@ private fun LanguageSelectionCard(
                 if (isSelected) {
                     Surface(
                         shape = CircleShape,
-                        color = SolidPrimary,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.CheckCircle,
+                                imageVector = Icons.Default.Check,
                                 contentDescription = "Selected",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
                     }
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.RadioButtonUnchecked,
+                        contentDescription = "Unselected",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = description,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 17.sp
+                lineHeight = 16.sp
             )
         }
     }

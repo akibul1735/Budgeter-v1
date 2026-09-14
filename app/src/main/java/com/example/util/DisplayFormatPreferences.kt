@@ -45,7 +45,8 @@ data class DisplayFormatConfig(
     val dateFormatPattern: String = "dd MMM, yyyy",
     val customDateFormat: String = "",
     val firstDayOfWeek: Int = Calendar.SUNDAY,
-    val timeZoneId: String = "Asia/Dhaka"
+    val timeZoneId: String = "Asia/Dhaka",
+    val isTimeFormat12Hour: Boolean = true
 ) {
     val effectiveDateFormatPattern: String
         get() = if (dateFormatPattern == "CUSTOM" && customDateFormat.isNotBlank()) customDateFormat else if (dateFormatPattern == "CUSTOM") "dd MMM, yyyy" else dateFormatPattern
@@ -75,14 +76,21 @@ class DisplayFormatPreferences private constructor(context: Context) {
         val customDatePattern = prefs.getString(KEY_CUSTOM_DATE_FORMAT, "") ?: ""
         val firstDay = prefs.getInt(KEY_FIRST_DAY_OF_WEEK, Calendar.SUNDAY)
         val tzId = prefs.getString(KEY_TIMEZONE_ID, "Asia/Dhaka") ?: "Asia/Dhaka"
+        val is12Hr = prefs.getBoolean(KEY_TIME_FORMAT_12HR, true)
 
         return DisplayFormatConfig(
             itemDisplayFormat = format,
             dateFormatPattern = datePattern,
             customDateFormat = customDatePattern,
             firstDayOfWeek = firstDay,
-            timeZoneId = tzId
+            timeZoneId = tzId,
+            isTimeFormat12Hour = is12Hr
         )
+    }
+
+    fun setTimeFormat12Hour(is12Hour: Boolean) {
+        prefs.edit().putBoolean(KEY_TIME_FORMAT_12HR, is12Hour).apply()
+        _config.value = _config.value.copy(isTimeFormat12Hour = is12Hour)
     }
 
     fun setItemDisplayFormat(format: ItemDisplayFormat) {
@@ -151,6 +159,7 @@ class DisplayFormatPreferences private constructor(context: Context) {
         private const val KEY_CUSTOM_DATE_FORMAT = "key_custom_date_format_pattern"
         private const val KEY_FIRST_DAY_OF_WEEK = "key_first_day_of_week"
         private const val KEY_TIMEZONE_ID = "key_timezone_id"
+        private const val KEY_TIME_FORMAT_12HR = "key_time_format_12hr"
 
         @Volatile
         private var instance: DisplayFormatPreferences? = null

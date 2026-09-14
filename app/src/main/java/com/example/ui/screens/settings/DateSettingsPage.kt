@@ -1,13 +1,11 @@
 package com.example.ui.screens.settings
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,24 +15,39 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,22 +55,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
 import com.example.ui.components.AppTabHeader
-import com.example.ui.theme.SolidPrimary
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.DateFormatOption
 import com.example.util.DateUtils
-import com.example.util.DisplayFormatConfig
 import com.example.util.LanguageHelper
+import java.util.Calendar
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateSettingsPage(
     viewModel: BudgetViewModel,
@@ -67,7 +79,14 @@ fun DateSettingsPage(
     val displayFormatConfig by viewModel.displayFormatConfig.collectAsStateWithLifecycle()
     val isBangla = languageMode == LanguageMode.BANGLA
 
-    var customPatternInput by remember(displayFormatConfig) { mutableStateOf(displayFormatConfig.customDateFormat) }
+    var showDateFormatSheet by remember { mutableStateOf(false) }
+    var showFirstDaySheet by remember { mutableStateOf(false) }
+    var showCustomPatternCard by remember {
+        mutableStateOf(displayFormatConfig.dateFormatPattern == DateFormatOption.CUSTOM.pattern)
+    }
+    var customPatternInput by remember(displayFormatConfig) {
+        mutableStateOf(displayFormatConfig.customDateFormat)
+    }
 
     Column(
         modifier = Modifier
@@ -75,7 +94,7 @@ fun DateSettingsPage(
             .testTag("date_settings_page")
     ) {
         AppTabHeader(
-            title = if (isBangla) "তারিখ ও ক্যালেন্ডার" else "Date Settings",
+            title = if (isBangla) "তারিখ ও সময়" else "Date & Time Setup",
             tabIcon = Icons.Default.CalendarToday,
             onBack = onBack,
             autoHideOnScroll = false
@@ -86,15 +105,15 @@ fun DateSettingsPage(
                 .fillMaxSize()
                 .padding(horizontal = 14.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Spacer(modifier = Modifier.height(2.dp))
 
-            // Compact Live Preview Card
+            // 1. Live Preview Hero Card
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                border = androidx.compose.foundation.BorderStroke(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                border = BorderStroke(
                     1.dp,
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                 ),
@@ -103,72 +122,463 @@ fun DateSettingsPage(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isBangla) "লাইভ প্রিভিউ (আজকের তারিখ)" else "Live Date Preview (Today)",
-                            fontSize = 11.sp,
+                            text = if (isBangla) "লাইভ তারিখ ও সময় প্রিভিউ" else "Live Date & Time Preview",
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(3.dp))
                         Text(
                             text = DateUtils.formatDate(System.currentTimeMillis(), languageMode),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "প্যাটার্ন: ${displayFormatConfig.dateFormatPattern}" else "Pattern: ${displayFormatConfig.dateFormatPattern}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.surface,
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ) {
-                        Text(
-                            text = displayFormatConfig.dateFormatPattern,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = if (displayFormatConfig.firstDayOfWeek == Calendar.SATURDAY) {
+                                    if (isBangla) "শনিবার" else "Sat"
+                                } else if (displayFormatConfig.firstDayOfWeek == Calendar.SUNDAY) {
+                                    if (isBangla) "রবিবার" else "Sun"
+                                } else {
+                                    if (isBangla) "সোমবার" else "Mon"
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
 
-            // Compact Date Format Suggestions (Horizontal Left-Right Swipe Carousel)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // 2. Section: Date Configuration
+            Text(
+                text = if (isBangla) "তারিখ ও সময় কনফিগারেশন" else "Date & Time Configuration",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            // Date Format Option Row (Opens Modal Bottom Sheet)
+            val selectedOption = DateFormatOption.entries.find { it.pattern == displayFormatConfig.dateFormatPattern }
+            val currentFormatTitle = if (selectedOption != null) {
+                if (isBangla) selectedOption.titleBn else selectedOption.titleEn
+            } else {
+                if (isBangla) "কাস্টম ফরম্যাট" else "Custom Format"
+            }
+
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDateFormatSheet = true }
+                    .testTag("date_format_row")
             ) {
-                Text(
-                    text = if (isBangla) "তারিখ ফরম্যাট পছন্দ করুন" else "Select Date Format",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "তারিখ ফরম্যাট" else "Date Format",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "$currentFormatTitle • ${displayFormatConfig.dateFormatPattern}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // First Day of the Week Row (Opens Modal Bottom Sheet)
+            val firstDayTitle = when (displayFormatConfig.firstDayOfWeek) {
+                Calendar.SATURDAY -> if (isBangla) "শনিবার (বাংলাদেশ/মধ্যপ্রাচ্য স্ট্যান্ডার্ড)" else "Saturday (Bangladesh/Middle East)"
+                Calendar.SUNDAY -> if (isBangla) "রবিবার (আমেরিকান স্ট্যান্ডার্ড)" else "Sunday (Americas Standard)"
+                Calendar.MONDAY -> if (isBangla) "সোমবার (আন্তর্জাতিক/ইউরোপিয়ান)" else "Monday (ISO/European Standard)"
+                else -> if (isBangla) "শনিবার" else "Saturday"
+            }
+
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showFirstDaySheet = true }
+                    .testTag("first_day_of_week_row")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "সপ্তাহের প্রথম দিন" else "First Day of the Week",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = firstDayTitle,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // 12-Hour vs 24-Hour Switch Card
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.AccessTime,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "১২-ঘণ্টা সময় ফরম্যাট" else "12-Hour Time Format",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (displayFormatConfig.isTimeFormat12Hour) {
+                                if (isBangla) "সক্রিয় (০২:৩০ PM)" else "Active (02:30 PM)"
+                            } else {
+                                if (isBangla) "২৪-ঘণ্টা সক্রিয় (১৪:৩০)" else "24-Hour Active (14:30)"
+                            },
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    Switch(
+                        checked = displayFormatConfig.isTimeFormat12Hour,
+                        onCheckedChange = { viewModel.setTimeFormat12Hour(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    )
+                }
+            }
+
+            // Custom Pattern Editor Card
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showCustomPatternCard = !showCustomPatternCard }
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.EditCalendar,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isBangla) "কাস্টম তারিখ প্যাটার্ন" else "Custom Date Pattern",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (displayFormatConfig.dateFormatPattern == DateFormatOption.CUSTOM.pattern) {
+                                    if (isBangla) "সক্রিয় (${displayFormatConfig.customDateFormat})" else "Active (${displayFormatConfig.customDateFormat})"
+                                } else {
+                                    if (isBangla) "প্যাটার্ন তৈরি বা এডিট করুন" else "Build custom date format tokens"
+                                },
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Icon(
+                            imageVector = if (showCustomPatternCard) Icons.Default.Close else Icons.Default.Tune,
+                            contentDescription = "Toggle Custom Editor",
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    AnimatedVisibility(visible = showCustomPatternCard) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                            OutlinedTextField(
+                                value = customPatternInput,
+                                onValueChange = { customPatternInput = it },
+                                label = { Text(if (isBangla) "প্যাটার্ন (যেমন: dd MMMM yyyy)" else "Pattern (e.g. dd MMMM yyyy)", fontSize = 11.sp) },
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Text(
+                                text = if (isBangla)
+                                    "টোকেন গাইড: d (দিন), dd (০৭), ddd (রবি), dddd (রবিবার), MM (০৯), MMM (সেপ্টে), MMMM (সেপ্টেম্বর), yyyy (২০২৬)"
+                                else
+                                    "Tokens: d (day), dd (07), ddd (Sun), dddd (Sunday), MM (09), MMM (Sep), MMMM (September), yyyy (2026)",
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                lineHeight = 14.sp
+                            )
+
+                            Button(
+                                onClick = {
+                                    viewModel.setCustomDateFormat(customPatternInput)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isBangla) "কাস্টম প্যাটার্ন প্রয়োগ করুন" else "Apply Custom Pattern",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Reset Button
+            OutlinedButton(
+                onClick = {
+                    viewModel.setDateFormatPattern("dd MMMM yyyy")
+                    viewModel.setFirstDayOfWeek(Calendar.SATURDAY)
+                    viewModel.setTimeFormat12Hour(true)
+                },
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RestartAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(16.dp)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isBangla) "বামে-ডানে সোয়াইপ করুন ⇄" else "Swipe left-right ⇄",
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.outline
+                    text = if (isBangla) "ডিফল্ট তারিখ সেটিংসে রিসেট করুন" else "Reset to Default Date Settings",
+                    fontSize = 12.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
-            Row(
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+
+    // Modal Bottom Sheet: Date Format Picker
+    if (showDateFormatSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showDateFormatSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBangla) "তারিখ ফরম্যাট নির্বাচন" else "Select Date Format",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "অ্যাপে ব্যবহারের জন্য তারিখ শৈলী বেছে নিন" else "Choose date display style across the app",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = { showDateFormatSheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
                 DateFormatOption.entries.forEach { option ->
                     val isSelected = displayFormatConfig.dateFormatPattern == option.pattern
                     val title = if (isBangla) option.titleBn else option.titleEn
-                    val formattedSample = if (option == DateFormatOption.CUSTOM) {
+                    val sampleDate = if (option == DateFormatOption.CUSTOM) {
                         DateUtils.formatDate(System.currentTimeMillis(), languageMode)
                     } else {
                         try {
@@ -180,69 +590,64 @@ fun DateSettingsPage(
                         }
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                        border = androidx.compose.foundation.BorderStroke(
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
                             if (isSelected) 1.5.dp else 1.dp,
-                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                         ),
                         modifier = Modifier
-                            .width(180.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .clickable { viewModel.setDateFormatPattern(option.pattern) }
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setDateFormatPattern(option.pattern)
+                                showDateFormatSheet = false
+                            }
                     ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Text(
-                                    text = title,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                if (isSelected) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.primary
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Active",
-                                            tint = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier
-                                                .padding(2.dp)
-                                                .size(12.dp)
-                                        )
-                                    }
+
+                                Column {
+                                    Text(
+                                        text = title,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = sampleDate,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
                                 }
                             }
 
-                            // Large formatted preview
-                            Text(
-                                text = formattedSample,
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-
-                            // Pattern pill
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             ) {
                                 Text(
                                     text = option.pattern,
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.outline,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -251,259 +656,115 @@ fun DateSettingsPage(
                     }
                 }
             }
+        }
+    }
 
-            // Custom Pattern Editor (if custom is chosen)
-            if (displayFormatConfig.dateFormatPattern == DateFormatOption.CUSTOM.pattern) {
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+    // Modal Bottom Sheet: First Day of the Week Picker
+    if (showFirstDaySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFirstDaySheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                    Column {
                         Text(
-                            text = if (isBangla) "কাস্টম ফরম্যাট প্যাটার্ন" else "Custom Format Pattern",
-                            fontSize = 12.sp,
+                            text = if (isBangla) "সপ্তাহের প্রথম দিন নির্ধারণ" else "First Day of the Week",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        OutlinedTextField(
-                            value = customPatternInput,
-                            onValueChange = {
-                                customPatternInput = it
-                                viewModel.setCustomDateFormat(it)
-                            },
-                            label = { Text("Pattern (e.g. dddd, d MMMM yyyy)", fontSize = 10.sp) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
                         Text(
-                            text = "টোকেন: d (দিন), dd (০৭), ddd (রবি), dddd (রবিবার), MM (০৯), MMM (সেপ্টে), MMMM (সেপ্টেম্বর), yyyy (২০২৬)",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.outline,
-                            lineHeight = 13.sp
-                        )
-                    }
-                }
-            }
-
-            // Compact First Day of Week
-            Text(
-                text = if (isBangla) "সপ্তাহের প্রথম দিন" else "First Day of the Week",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                val days = listOf(
-                    Triple(java.util.Calendar.SUNDAY, "Sunday", "রবিবার"),
-                    Triple(java.util.Calendar.MONDAY, "Monday", "সোমবার"),
-                    Triple(java.util.Calendar.SATURDAY, "Saturday", "শনিবার")
-                )
-                days.forEach { (dayInt, nameEn, nameBn) ->
-                    val isSelected = displayFormatConfig.firstDayOfWeek == dayInt
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setFirstDayOfWeek(dayInt) },
-                        label = {
-                            Text(
-                                text = if (isBangla) nameBn else nameEn,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Timezone Settings Card
-            var showTimezoneDialog by remember { mutableStateOf(false) }
-
-            Text(
-                text = if (isBangla) "টাইমজোন (সময় অঞ্চল)" else "Timezone",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            val currentTzId = displayFormatConfig.timeZoneId
-            val currentTzName = when (currentTzId) {
-                "Asia/Dhaka" -> if (isBangla) "বাংলাদেশ / ঢাকা (GMT+6) [ডিফল্ট]" else "Bangladesh / Dhaka (GMT+6) [Default]"
-                "Asia/Kolkata" -> if (isBangla) "ভারত / কলকাতা (GMT+5:30)" else "India / Kolkata (GMT+5:30)"
-                "UTC" -> "UTC (GMT+0)"
-                "Asia/Dubai" -> if (isBangla) "দুবাই / সংযুক্ত আরব আমিরাত (GMT+4)" else "Dubai / UAE (GMT+4)"
-                "Asia/Singapore" -> if (isBangla) "সিঙ্গাপুর (GMT+8)" else "Singapore (GMT+8)"
-                "Asia/Tokyo" -> if (isBangla) "টোকিও / জাপান (GMT+9)" else "Tokyo / Japan (GMT+9)"
-                "Europe/London" -> if (isBangla) "লন্ডন / যুক্তরাজ্য (GMT+0/+1)" else "London / UK (GMT+0/+1)"
-                "America/New_York" -> if (isBangla) "নিউ ইয়র্ক / যুক্তরাষ্ট্র (GMT-5)" else "New York / US (GMT-5)"
-                "SYSTEM" -> if (isBangla) "সিস্টেম ডিফল্ট ডিভাইস টাইমজোন" else "System Default Timezone"
-                else -> currentTzId
-            }
-
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showTimezoneDialog = true }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = currentTzName,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (isBangla) "বর্তমান সময়: ${DateUtils.formatTime(System.currentTimeMillis(), languageMode)}" else "Current Time: ${DateUtils.formatTime(System.currentTimeMillis(), languageMode)}",
-                            fontSize = 11.sp,
+                            text = if (isBangla) "ক্যালেন্ডার ও সাপ্তাহিক হিসাবের শুরুর দিন" else "Determines start day for calendar views and weekly reports",
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Text(
-                            text = if (isBangla) "পরিবর্তন" else "Change",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    IconButton(onClick = { showFirstDaySheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
-            }
 
-            if (showTimezoneDialog) {
-                var searchQuery by remember { mutableStateOf("") }
-                val commonTimezones = listOf(
-                    "Asia/Dhaka" to if (isBangla) "বাংলাদেশ / ঢাকা (GMT+6) [ডিফল্ট]" else "Bangladesh / Dhaka (GMT+6) [Default]",
-                    "Asia/Kolkata" to if (isBangla) "ভারত / কলকাতা (GMT+5:30)" else "India / Kolkata (GMT+5:30)",
-                    "UTC" to "UTC (GMT+0)",
-                    "Asia/Dubai" to if (isBangla) "দুবাই / সংযুক্ত আরব আমিরাত (GMT+4)" else "Dubai / UAE (GMT+4)",
-                    "Asia/Singapore" to if (isBangla) "সিঙ্গাপুর (GMT+8)" else "Singapore (GMT+8)",
-                    "Asia/Tokyo" to if (isBangla) "টোকিও / জাপান (GMT+9)" else "Tokyo / Japan (GMT+9)",
-                    "Europe/London" to if (isBangla) "লন্ডন / যুক্তরাজ্য (GMT+0/+1)" else "London / UK (GMT+0/+1)",
-                    "America/New_York" to if (isBangla) "নিউ ইয়র্ক / যুক্তরাষ্ট্র (GMT-5)" else "New York / US (GMT-5)",
-                    "SYSTEM" to (if (isBangla) "সিস্টেম ডিফল্ট ডিভাইস টাইমজোন" else "System Device Timezone")
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                val days = listOf(
+                    Triple(Calendar.SATURDAY, if (isBangla) "শনিবার (Saturday)" else "Saturday", if (isBangla) "বাংলাদেশ ও মধ্যপ্রাচ্য" else "Standard for Bangladesh & Middle East"),
+                    Triple(Calendar.SUNDAY, if (isBangla) "রবিবার (Sunday)" else "Sunday", if (isBangla) "যুক্তরাষ্ট্র, কানাডা ও জাপান" else "Standard for US, Canada & Japan"),
+                    Triple(Calendar.MONDAY, if (isBangla) "সোমবার (Monday)" else "Monday", if (isBangla) "ইউরোপ ও আন্তর্জাতিক আইএসও" else "Standard for Europe & ISO standard")
                 )
 
-                val allAvailableIds = remember {
-                    java.util.TimeZone.getAvailableIDs().sorted()
-                }
+                days.forEach { (dayInt, title, desc) ->
+                    val isSelected = displayFormatConfig.firstDayOfWeek == dayInt
 
-                val filteredList = remember(searchQuery) {
-                    if (searchQuery.isBlank()) {
-                        commonTimezones
-                    } else {
-                        val fromCommon = commonTimezones.filter {
-                            it.first.contains(searchQuery, ignoreCase = true) || it.second.contains(searchQuery, ignoreCase = true)
-                        }
-                        val otherIds = allAvailableIds.filter {
-                            it.contains(searchQuery, ignoreCase = true) && commonTimezones.none { c -> c.first == it }
-                        }.map { it to it }
-                        (fromCommon + otherIds).take(40)
-                    }
-                }
-
-                androidx.compose.material3.AlertDialog(
-                    onDismissRequest = { showTimezoneDialog = false },
-                    title = {
-                        Text(
-                            text = if (isBangla) "টাইমজোন নির্বাচন করুন" else "Select Timezone",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    },
-                    text = {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedTextField(
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                label = { Text(if (isBangla) "টাইমজোন খুঁজুন..." else "Search timezone...", fontSize = 12.sp) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            androidx.compose.foundation.lazy.LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(260.dp)
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setFirstDayOfWeek(dayInt)
+                                showFirstDaySheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
-                                items(filteredList.size) { index ->
-                                    val (id, label) = filteredList[index]
-                                    val isSelected = currentTzId == id
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                viewModel.setTimeZoneId(id)
-                                                showTimezoneDialog = false
-                                            }
-                                            .padding(vertical = 10.dp, horizontal = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 13.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        if (isSelected) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Selected",
-                                                tint = SolidPrimary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = title,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = desc,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
                                 }
                             }
                         }
-                    },
-                    confirmButton = {},
-                    dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showTimezoneDialog = false }) {
-                            Text(if (isBangla) "বন্ধ করুন" else "Close")
-                        }
                     }
-                )
+                }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

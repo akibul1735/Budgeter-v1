@@ -219,6 +219,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         displayFormatPrefs.setTimeZoneId(zoneId)
     }
 
+    fun setTimeFormat12Hour(is12Hour: Boolean) {
+        displayFormatPrefs.setTimeFormat12Hour(is12Hour)
+    }
+
     fun setCurrency(currency: CurrencyItem) {
         currencyPrefs.setCurrency(currency)
     }

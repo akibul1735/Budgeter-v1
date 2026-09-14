@@ -1,5 +1,6 @@
 package com.example.ui.screens.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,25 +19,42 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +66,7 @@ import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.CalendarDisplayMode
 import com.example.util.DashboardConfig
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarSettingsPage(
     viewModel: BudgetViewModel,
@@ -57,13 +76,15 @@ fun CalendarSettingsPage(
     val dashboardConfig by viewModel.dashboardConfig.collectAsStateWithLifecycle()
     val isBangla = languageMode == LanguageMode.BANGLA
 
+    var showDisplayModeSheet by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .testTag("calendar_settings_page")
     ) {
         AppTabHeader(
-            title = if (isBangla) "ক্যালেন্ডার ও ডিসপ্লে" else "Calendar Settings",
+            title = if (isBangla) "ক্যালেন্ডার ও ডিসপ্লে" else "Calendar Matrix",
             tabIcon = Icons.Default.DateRange,
             onBack = onBack,
             autoHideOnScroll = false
@@ -72,41 +93,61 @@ fun CalendarSettingsPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 14.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
-            // Calendar Cell Preview Box
+            // 1. Live Calendar Day Cell Hero Preview Card
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                border = androidx.compose.foundation.BorderStroke(
+                border = BorderStroke(
                     1.dp,
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (isBangla) "ক্যালেন্ডার দিনের সেল প্রিভিউ" else "Calendar Day Cell Live Preview",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "ক্যালেন্ডার সেল লাইভ প্রিভিউ" else "Calendar Cell Live Preview",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = if (dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS) {
+                                if (isBangla) "ডট নির্দেশক মোড" else "Dot Indicators"
+                            } else {
+                                if (isBangla) "টাকার পরিমাণ মোড" else "Amount Badges"
+                            },
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "মাসিক ড্যাশবোর্ড ক্যালেন্ডারে সরাসরি প্রতিফলিত হবে" else "Rendered on Dashboard & Calendar matrix",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Mock Day Cell
+                    // Mock Day Tile
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surface,
-                        shadowElevation = 2.dp,
-                        modifier = Modifier.size(72.dp)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.size(68.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -154,198 +195,366 @@ fun CalendarSettingsPage(
                             }
                         }
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+            // 2. Section: Calendar Configuration
+            Text(
+                text = if (isBangla) "ক্যালেন্ডার কনফিগারেশন" else "Calendar Configuration",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-                    Text(
-                        text = if (isBangla) "মাসিক ড্যাশবোর্ড ও ক্যালেন্ডার ভিউতে এটি প্রতিফলিত হবে।" else "Applied directly to your Monthly Dashboard & Calendar Matrix.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+            // Display Mode Row (Opens Modal Bottom Sheet)
+            val currentModeTitle = if (dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS) {
+                if (isBangla) "ডট ইনডিকেটর (রঙিন বিন্দু)" else "Dot Indicators (Colored Dots)"
+            } else {
+                if (isBangla) "টাকার পরিমাণ ব্যাজ (সংখ্যা)" else "Amount Badges (Numeric Sums)"
+            }
+
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDisplayModeSheet = true }
+                    .testTag("calendar_display_mode_row")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS) Icons.Default.FiberManualRecord else Icons.Default.Numbers,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "দিনের নির্দেশক মোড" else "Day Indicator Mode",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = currentModeTitle,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            // Indicator Mode Selector
+            // Section: Data Types Visibility
             Text(
-                text = if (isBangla) "দিনের নির্দেশক মোড" else "Day Indicator Mode",
+                text = if (isBangla) "প্রদর্শিত লেনদেনের ধরন" else "Visible Transaction Types",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Dots Option
-                val isDotsSelected = dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isDotsSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isDotsSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            viewModel.setCalendarSettings(
-                                CalendarDisplayMode.DOTS,
-                                dashboardConfig.calendarShowIncome,
-                                dashboardConfig.calendarShowExpense
-                            )
-                        }
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Box(modifier = Modifier.size(8.dp).background(SolidIncome, CircleShape))
-                            Box(modifier = Modifier.size(8.dp).background(SolidExpense, CircleShape))
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (isBangla) "ডট ইনডিকেটর" else "Dots Indicator",
-                            fontSize = 12.sp,
-                            fontWeight = if (isDotsSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isDotsSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (isBangla) "রঙিন বিন্দু" else "Colored dots",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-
-                // Amounts Option
-                val isAmountsSelected = dashboardConfig.calendarDisplayMode == CalendarDisplayMode.AMOUNTS
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isAmountsSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isAmountsSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            viewModel.setCalendarSettings(
-                                CalendarDisplayMode.AMOUNTS,
-                                dashboardConfig.calendarShowIncome,
-                                dashboardConfig.calendarShowExpense
-                            )
-                        }
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Numbers,
-                            contentDescription = null,
-                            tint = if (isAmountsSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = if (isBangla) "টাকার পরিমাণ ব্যাজ" else "Amount Badges",
-                            fontSize = 12.sp,
-                            fontWeight = if (isAmountsSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isAmountsSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (isBangla) "সংখ্যার ব্যাজ" else "Numeric sums",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-            }
-
-            // Toggles for Income and Expense
-            Text(
-                text = if (isBangla) "প্রদর্শিত তথ্য নির্বাচন" else "Visible Data Types",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Surface(
+            // Show Income Toggle Card
+            OutlinedCard(
                 shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Show Income
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = SolidIncome.copy(alpha = 0.15f),
+                        modifier = Modifier.size(38.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(modifier = Modifier.size(10.dp).background(SolidIncome, CircleShape))
-                            Text(
-                                text = if (isBangla) "ক্যালেন্ডারে আয় দেখান" else "Show Income in Calendar",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
+                        Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(SolidIncome, CircleShape)
                             )
                         }
-                        Switch(
-                            checked = dashboardConfig.calendarShowIncome,
-                            onCheckedChange = {
-                                viewModel.setCalendarSettings(
-                                    dashboardConfig.calendarDisplayMode,
-                                    it,
-                                    dashboardConfig.calendarShowExpense
-                                )
-                            }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "ক্যালেন্ডারে আয় দেখান" else "Show Income in Calendar",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "সবুজ ডট বা আয়ের যোগফল প্রদর্শন" else "Display green dots / positive totals",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                    // Show Expense
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(modifier = Modifier.size(10.dp).background(SolidExpense, CircleShape))
-                            Text(
-                                text = if (isBangla) "ক্যালেন্ডারে খরচ দেখান" else "Show Expenses in Calendar",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
+                    Switch(
+                        checked = dashboardConfig.calendarShowIncome,
+                        onCheckedChange = {
+                            viewModel.setCalendarSettings(
+                                dashboardConfig.calendarDisplayMode,
+                                it,
+                                dashboardConfig.calendarShowExpense
                             )
-                        }
-                        Switch(
-                            checked = dashboardConfig.calendarShowExpense,
-                            onCheckedChange = {
-                                viewModel.setCalendarSettings(
-                                    dashboardConfig.calendarDisplayMode,
-                                    dashboardConfig.calendarShowIncome,
-                                    it
-                                )
-                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = SolidIncome,
+                            checkedTrackColor = SolidIncome.copy(alpha = 0.3f)
                         )
-                    }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            // Show Expense Toggle Card
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = SolidExpense.copy(alpha = 0.15f),
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .background(SolidExpense, CircleShape)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "ক্যালেন্ডারে খরচ দেখান" else "Show Expenses in Calendar",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "লাল ডট বা খরচের যোগফল প্রদর্শন" else "Display red dots / negative totals",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    Switch(
+                        checked = dashboardConfig.calendarShowExpense,
+                        onCheckedChange = {
+                            viewModel.setCalendarSettings(
+                                dashboardConfig.calendarDisplayMode,
+                                dashboardConfig.calendarShowIncome,
+                                it
+                            )
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = SolidExpense,
+                            checkedTrackColor = SolidExpense.copy(alpha = 0.3f)
+                        )
+                    )
+                }
+            }
+
+            // Reset Button
+            OutlinedButton(
+                onClick = {
+                    viewModel.setCalendarSettings(
+                        CalendarDisplayMode.DOTS,
+                        showIncome = true,
+                        showExpense = true
+                    )
+                },
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RestartAlt,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isBangla) "ডিফল্ট ক্যালেন্ডার সেটিংসে রিসেট করুন" else "Reset to Default Calendar Settings",
+                    fontSize = 12.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+
+    // Modal Bottom Sheet: Display Mode Picker
+    if (showDisplayModeSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showDisplayModeSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBangla) "ক্যালেন্ডার নির্দেশক মোড" else "Calendar Indicator Mode",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "তারিখের ঘরগুলোতে তথ্য কীভাবে প্রদর্শিত হবে" else "Choose how daily totals are visualized",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = { showDisplayModeSheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                val modes = listOf(
+                    Triple(
+                        CalendarDisplayMode.DOTS,
+                        if (isBangla) "ডট ইনডিকেটর (Dots)" else "Dot Indicators",
+                        if (isBangla) "আয়ের জন্য সবুজ ও খরচের জন্য লাল বিন্দু প্রদর্শন করে" else "Displays compact colored dots for daily activity"
+                    ),
+                    Triple(
+                        CalendarDisplayMode.AMOUNTS,
+                        if (isBangla) "টাকার পরিমাণ ব্যাজ (Amounts)" else "Amount Badges",
+                        if (isBangla) "প্রতিটি দিনের মোট টাকা সংখ্যায় সরাসরি প্রদর্শন করে" else "Displays abbreviated numeric totals (+৳5k / -৳2k)"
+                    )
+                )
+
+                modes.forEach { (mode, title, desc) ->
+                    val isSelected = dashboardConfig.calendarDisplayMode == mode
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setCalendarSettings(
+                                    mode,
+                                    dashboardConfig.calendarShowIncome,
+                                    dashboardConfig.calendarShowExpense
+                                )
+                                showDisplayModeSheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = title,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = desc,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

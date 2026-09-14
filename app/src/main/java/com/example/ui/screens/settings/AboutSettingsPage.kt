@@ -1,6 +1,6 @@
 package com.example.ui.screens.settings
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,11 +24,11 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,53 +66,53 @@ fun AboutSettingsPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 14.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
-            // App Emblem Hero Card
+            // 1. App Emblem Hero Preview Card
             Surface(
                 shape = RoundedCornerShape(18.dp),
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                border = androidx.compose.foundation.BorderStroke(
+                border = BorderStroke(
                     1.dp,
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Gold Coin Emblem
                     Surface(
                         shape = CircleShape,
                         color = Color(0xFFFFD700),
-                        shadowElevation = 4.dp,
-                        modifier = Modifier.size(64.dp)
+                        shadowElevation = 3.dp,
+                        modifier = Modifier.size(60.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = "৳",
-                                fontSize = 34.sp,
+                                fontSize = 32.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFF4A3800)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
                         text = "Budgeter",
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -127,7 +127,7 @@ fun AboutSettingsPage(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = if (isBangla)
@@ -142,79 +142,120 @@ fun AboutSettingsPage(
                 }
             }
 
-            // Key Highlights
+            // 2. Core Architectural Pillars
             Text(
-                text = if (isBangla) "প্রধান বৈশিষ্ট্য ও সুরক্ষাসমূহ" else "Core Architecture & Highlights",
+                text = if (isBangla) "অ্যাপ্লিকেশনের মূল বৈশিষ্ট্য ও স্তম্ভ" else "Core Engineering Pillars",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
 
-            HighlightItem(
-                icon = Icons.Default.AccountBalance,
-                title = if (isBangla) "ডাবল-এন্ট্রি লেজার নির্ভুলতা" else "Double-Entry Ledger Integrity",
-                description = if (isBangla)
-                    "প্রতিটি আয়ের বিপরীতে ক্রেডিট এবং খরচের বিপরীতে ডেবিট লেগ সংরক্ষিত হয়, যা শূন্য অমিল নিশ্চিত করে।"
-                else
-                    "Each entry maintains atomic debit and credit legs across accounts and categories, guaranteeing mathematical balance."
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AboutFeatureCard(
+                    icon = Icons.Default.AccountBalance,
+                    title = if (isBangla) "ডাবল-এন্ট্রি বুককিপিং" else "Double-Entry Accounting",
+                    desc = if (isBangla)
+                        "আন্তর্জাতিক মানদণ্ড অনুযায়ী প্রতিটি লেনদেন স্বয়ংক্রিয়ভাবে ক্রেডিট ও ডেবিট সমতা রক্ষা করে।"
+                    else
+                        "Strict debit/credit ledger maintaining 100% mathematical integrity across all balance sheets."
+                )
 
-            HighlightItem(
-                icon = Icons.Default.Shield,
-                title = if (isBangla) "১০০% অফলাইন ও নিরাপদ প্রাইভেসি" else "100% Offline & Private",
-                description = if (isBangla)
-                    "আপনার আর্থিক ডাটা সম্পূর্ণ আপনার ডিভাইসে সুরক্ষিত থাকে। কোনো বিজ্ঞাপন বা থার্ড-পার্টি ট্র্যাকিং নেই।"
-                else
-                    "All financial data is stored purely locally on your device in an encrypted SQLite Room database. No ads, no analytics tracking."
-            )
+                AboutFeatureCard(
+                    icon = Icons.Default.Shield,
+                    title = if (isBangla) "১০০% অফলাইন ও ডেটা নিরাপত্তা" else "100% Offline & Private",
+                    desc = if (isBangla)
+                        "কোনো ট্র্যাকিং বা বাণিজ্যিক বিজ্ঞাপনী সার্ভারে আপনার গোপনীয় আর্থিক ডাটা প্রেরিত হয় না।"
+                    else
+                        "Zero tracking, zero analytics telemetry. All data remains strictly on your device."
+                )
 
-            HighlightItem(
-                icon = Icons.Default.CloudDone,
-                title = if (isBangla) "গুগল ড্রাইভ ব্যাকআপ ও সিঙ্ক" else "Google Drive Sync & Backup",
-                description = if (isBangla)
-                    "আপনার ব্যক্তিগত গুগল ড্রাইভের সাথে নিরাপদ ক্লাউড ব্যাকআপ ও অটো-সিঙ্ক সুবিধা।"
-                else
-                    "Automated snapshot backups and seamless restoration directly to your private Google Drive AppData storage."
-            )
+                AboutFeatureCard(
+                    icon = Icons.Default.CloudDone,
+                    title = if (isBangla) "গুগল ড্রাইভ এনক্রিপ্টেড ব্যাকআপ" else "Google Drive Cloud Snapshots",
+                    desc = if (isBangla)
+                        "এক ক্লিকে আপনার ব্যক্তিগত ড্রাইভে ডাটাবেসের আর্কাইভ ব্যাকআপ রাখুন এবং যেকোনো সময় রিস্টোর করুন।"
+                    else
+                        "Seamless encrypted database sync and snapshot backups directly to your personal Google Drive."
+                )
 
-            HighlightItem(
-                icon = Icons.Default.Calculate,
-                title = if (isBangla) "ইন্টারেক্টিভ ক্যালকুলেটর" else "Live Interactive Calculator",
-                description = if (isBangla)
-                    "টাকা লেখার সময় সরাসরি লাইভ গণিত ও শতকরা বা ভ্যাট হিসাব করার সুবিধা।"
-                else
-                    "Built-in transaction keypad with live math evaluations and fast percentage breakdown shortcuts."
-            )
+                AboutFeatureCard(
+                    icon = Icons.Default.Calculate,
+                    title = if (isBangla) "স্মার্ট বাজেট ও ফাইন্যান্সিয়াল রিপোর্ট" else "Smart Budgeting & Analytics",
+                    desc = if (isBangla)
+                        "উন্নত গ্রাফিক্যাল অ্যানালিটিক্স, ক্যাটাগরি লিমিট ট্র্যাকিং এবং ক্যাশ ফ্লো পূর্বাভাস।"
+                    else
+                        "Advanced multi-period visual charts, expense envelope budgets, and real-time cashflow monitors."
+                )
+            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            // 3. Technical Specifications Card
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (isBangla) "প্রযুক্তিগত বিবরণ (Technical Specifications)" else "Technical Specifications",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    TechSpecRow(
+                        label = if (isBangla) "আর্কিটেকচার" else "Architecture",
+                        value = "Clean Architecture + MVVM"
+                    )
+                    TechSpecRow(
+                        label = if (isBangla) "ইউআই ফ্রেমওয়ার্ক" else "UI Framework",
+                        value = "Jetpack Compose (M3 Dynamic)"
+                    )
+                    TechSpecRow(
+                        label = if (isBangla) "ডাটাবেস ইঞ্জিন" else "Database Engine",
+                        value = "Android Room SQLite (Encrypted)"
+                    )
+                    TechSpecRow(
+                        label = if (isBangla) "রিলিজ কনফিগারেশন" else "Release Name",
+                        value = "Budgeter-release.apk"
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun HighlightItem(
+private fun AboutFeatureCard(
     icon: ImageVector,
     title: String,
-    description: String
+    desc: String
 ) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    OutlinedCard(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
         ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(38.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -229,18 +270,39 @@ private fun HighlightItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontSize = 13.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = description,
-                    fontSize = 11.sp,
+                    text = desc,
+                    fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.outline,
                     lineHeight = 16.sp
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TechSpecRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.5.sp,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Text(
+            text = value,
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
