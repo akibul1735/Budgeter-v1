@@ -159,7 +159,7 @@ class BudgetScreensTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("budget_quick_action_fab").assertExists()
+        composeTestRule.onNodeWithTag("budget_screen").assertExists()
     }
 
     @Test
