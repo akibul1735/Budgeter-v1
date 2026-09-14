@@ -43,6 +43,10 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.VerticalAlignTop
+import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -65,6 +69,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -165,6 +170,9 @@ enum class BudgetFrequency(val labelKey: String, val defaultLabel: String, val m
  */
 enum class BudgetFilterOption {
     ALL,
+    ONLY_GROUPS,
+    ONLY_CATEGORIES,
+    ACTIVE_3_MONTHS,
     FREQ_BUDGETED,
     FREQ_ACTIVE,
     BUDGETED_ONLY,
@@ -173,8 +181,12 @@ enum class BudgetFilterOption {
 
     fun getTitle(itemType: String, languageMode: LanguageMode): String {
         val isBn = languageMode == LanguageMode.BANGLA
+        val isAccount = itemType == "ASSET" || itemType == "LIABILITY"
         return when (this) {
             ALL -> if (isBn) "সব" else "All"
+            ONLY_GROUPS -> if (isBn) "শুধু গ্রুপ" else "Only Groups"
+            ONLY_CATEGORIES -> if (isAccount) (if (isBn) "শুধু একাউন্ট" else "Only Accounts") else (if (isBn) "শুধু ক্যাটাগরি" else "Only Categories")
+            ACTIVE_3_MONTHS -> if (isBn) "সক্রিয় (৩ মাস)" else "Active (3 Months)"
             FREQ_BUDGETED -> when (itemType) {
                 "ASSET", "LIABILITY" -> if (isBn) "নিয়মিত লক্ষ্য" else "Frequently Targeted"
                 else -> if (isBn) "নিয়মিত বাজেট" else "Frequently Budgeted"
@@ -268,6 +280,7 @@ data class EnhancedBudgetItem(
     val txCount: Int,
     val isFrequentlyBudgeted: Boolean,
     val isFrequentlyActive: Boolean,
+    val is3MonthsActive: Boolean = false,
     val suggestions: List<BudgetSuggestionOption>,
     val savedBudget: MonthlyBudget?
 )
@@ -293,6 +306,11 @@ fun BudgetScreen(
 ) {
     // Top Tabs: 0 -> BM Dashboard, 1 -> Expenses, 2 -> Incomes, 3 -> Assets, 4 -> Liabilities
     var selectedTab by remember { mutableIntStateOf(initialTab) }
+    var tabsAtTop by remember { mutableStateOf(true) }
+    var showTabSettingsMenu by remember { mutableStateOf(false) }
+    var showCopyPreviousConfirmDialog by remember { mutableStateOf(false) }
+    var showCopyPasteDialog by remember { mutableStateOf(false) }
+
     var globalExpenseFrequency by remember { mutableStateOf(BudgetFrequency.MONTHLY) }
     var globalIncomeFrequency by remember { mutableStateOf(BudgetFrequency.MONTHLY) }
     var showMonthYearPicker by remember { mutableStateOf(false) }
@@ -487,6 +505,22 @@ fun BudgetScreen(
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        bottomBar = {
+            if (!tabsAtTop) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    BudgetTabBar(
+                        selectedTab = selectedTab,
+                        tabLabels = tabLabels,
+                        onTabSelected = { selectedTab = it }
+                    )
+                }
+            }
+        },
         floatingActionButton = {
             if (selectedTab in 1..4) {
                 FloatingActionButton(
@@ -510,36 +544,220 @@ fun BudgetScreen(
                 .padding(innerPadding)
                 .testTag("budget_screen")
         ) {
-            // App Tab Header with Search and Refresh buttons
-            AppTabHeader(
-                title = if (languageMode == LanguageMode.BANGLA) "বাজেট মেকার" else "Budget Maker",
-                showCoinIcon = false,
-                onOpenDrawer = onOpenDrawer,
-                onBack = null,
-                actions = {
-                    IconButton(onClick = { isSearchActive = !isSearchActive }) {
-                        Icon(
-                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    IconButton(onClick = {
-                        searchQuery = ""
-                        selectedFilter = BudgetFilterOption.ALL
-                        selectedSort = BudgetSortOption.DEFAULT
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Suggestions & budgets refreshed")
+            // Top Bar with Month Name in Center Top Row and Settings on Right
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp,
+                shadowElevation = 1.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Left: Menu or Back
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (onBack != null) {
+                            IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = onOpenDrawer, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Menu",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                    }
+
+                    // Center: Month Selector Capsule (Top Row)
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                        modifier = Modifier.clip(RoundedCornerShape(20.dp))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.prevBudgetMonth() },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Previous Month",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { showMonthYearPicker = true }
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = DateUtils.formatMonthYear(selectedYear, selectedMonth, languageMode),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Icon(
+                                    Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { viewModel.nextBudgetMonth() },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next Month",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Right: Search, Copy/Paste, Settings (Tabs top/bottom), Refresh
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(1.dp)
+                    ) {
+                        IconButton(
+                            onClick = { isSearchActive = !isSearchActive },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showCopyPasteDialog = true },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy & Paste Budgets",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Box {
+                            IconButton(
+                                onClick = { showTabSettingsMenu = true },
+                                modifier = Modifier.size(34.dp).testTag("budget_tab_settings_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Tab Position Settings",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showTabSettingsMenu,
+                                onDismissRequest = { showTabSettingsMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ট্যাব উপরে দেখান" else "Tabs at Top",
+                                            fontWeight = if (tabsAtTop) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (tabsAtTop) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.VerticalAlignTop, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    },
+                                    trailingIcon = {
+                                        if (tabsAtTop) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        }
+                                    },
+                                    onClick = {
+                                        tabsAtTop = true
+                                        showTabSettingsMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ট্যাব নিচে দেখান" else "Tabs at Bottom",
+                                            fontWeight = if (!tabsAtTop) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (!tabsAtTop) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.VerticalAlignBottom, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    },
+                                    trailingIcon = {
+                                        if (!tabsAtTop) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        }
+                                    },
+                                    onClick = {
+                                        tabsAtTop = false
+                                        showTabSettingsMenu = false
+                                    }
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                searchQuery = ""
+                                selectedFilter = BudgetFilterOption.ALL
+                                selectedSort = BudgetSortOption.DEFAULT
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Suggestions & budgets refreshed")
+                                }
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
-            )
+            }
 
             // Animated Search Input Field
             AnimatedVisibility(
@@ -581,62 +799,18 @@ fun BudgetScreen(
                 }
             }
 
-            // Top Scrollable Tab Row: BM Dashboard. | Expenses. | Liabilities. | Incomes. | Assets.
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                ScrollableTabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    edgePadding = 12.dp,
-                    divider = {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                    },
-                    indicator = { tabPositions ->
-                        if (selectedTab in tabPositions.indices) {
-                            TabRowDefaults.SecondaryIndicator(
-                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                color = when (selectedTab) {
-                                    0 -> MaterialTheme.colorScheme.primary
-                                    1 -> SolidExpense
-                                    2 -> SolidIncome
-                                    3 -> SolidPrimary
-                                    4 -> AmberGold
-                                    else -> MaterialTheme.colorScheme.primary
-                                },
-                                height = 2.5.dp
-                            )
-                        }
-                    }
+            // If tabs are configured at Top, render TabRow here
+            if (tabsAtTop) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    tabLabels.forEachIndexed { index, label ->
-                        val isSelected = selectedTab == index
-                        val activeColor = when (index) {
-                            0 -> MaterialTheme.colorScheme.primary
-                            1 -> SolidExpense
-                            2 -> SolidIncome
-                            3 -> SolidPrimary
-                            4 -> AmberGold
-                            else -> MaterialTheme.colorScheme.primary
-                        }
-
-                        Tab(
-                            selected = isSelected,
-                            onClick = { selectedTab = index },
-                            text = {
-                                Text(
-                                    text = label,
-                                    fontSize = 13.5.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                                )
-                            },
-                            modifier = Modifier.testTag("budget_top_tab_$index")
-                        )
-                    }
+                    BudgetTabBar(
+                        selectedTab = selectedTab,
+                        tabLabels = tabLabels,
+                        onTabSelected = { selectedTab = it }
+                    )
                 }
             }
 
@@ -690,10 +864,7 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
-                            viewModel.copyBudgetsFromPreviousMonth()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Copied previous month's budgets")
-                            }
+                            showCopyPreviousConfirmDialog = true
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
@@ -735,10 +906,7 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
-                            viewModel.copyBudgetsFromPreviousMonth()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Copied previous month's budgets")
-                            }
+                            showCopyPreviousConfirmDialog = true
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
@@ -780,10 +948,7 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
-                            viewModel.copyBudgetsFromPreviousMonth()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Copied previous month's budgets")
-                            }
+                            showCopyPreviousConfirmDialog = true
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
@@ -825,10 +990,7 @@ fun BudgetScreen(
                         onNextMonth = { viewModel.nextBudgetMonth() },
                         onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
-                            viewModel.copyBudgetsFromPreviousMonth()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Copied previous month's budgets")
-                            }
+                            showCopyPreviousConfirmDialog = true
                         },
                         onItemClick = handleBudgetItemClick,
                         onSaveBudget = { item, amount, enabled ->
@@ -896,11 +1058,8 @@ fun BudgetScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                viewModel.copyBudgetsFromPreviousMonth()
                                 showQuickActionSheet = false
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Copied previous month's budgets")
-                                }
+                                showCopyPreviousConfirmDialog = true
                             }
                             .padding(12.dp)
                     ) {
@@ -909,6 +1068,26 @@ fun BudgetScreen(
                             Column {
                                 Text("Copy from Previous Month", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                                 Text("Duplicate all active categories and limits", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showQuickActionSheet = false
+                                showCopyPasteDialog = true
+                            }
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Column {
+                                Text("Copy & Paste Target Month", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text("Copy budgets between any past or future months", fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
                             }
                         }
                     }
@@ -938,6 +1117,336 @@ fun BudgetScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         OutlinedButton(onClick = { showQuickActionSheet = false }) {
                             Text("Close")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Confirmation Dialog for Copy from Previous Month
+    if (showCopyPreviousConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCopyPreviousConfirmDialog = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "আগের মাসের বাজেট কপি করবেন?" else "Copy from Previous Month?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                val prevCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedYear)
+                    set(Calendar.MONTH, selectedMonth - 1)
+                    add(Calendar.MONTH, -1)
+                }
+                val prevYear = prevCal.get(Calendar.YEAR)
+                val prevMonth = prevCal.get(Calendar.MONTH) + 1
+                val prevMonthStr = DateUtils.formatMonthYear(prevYear, prevMonth, languageMode)
+                val currentMonthStr = DateUtils.formatMonthYear(selectedYear, selectedMonth, languageMode)
+
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) {
+                        "$prevMonthStr এর সমস্ত সেট করা বাজেট $currentMonthStr এ কপি হয়ে প্রতিস্থাপিত হবে। আপনি কি নিশ্চিত?"
+                    } else {
+                        "All active budgets from $prevMonthStr will be copied and applied to $currentMonthStr. Are you sure you want to proceed?"
+                    },
+                    fontSize = 13.5.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.copyBudgetsFromPreviousMonth()
+                        showCopyPreviousConfirmDialog = false
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                if (languageMode == LanguageMode.BANGLA) "আগের মাসের বাজেট সফলভাবে কপি হয়েছে" else "Copied previous month's budgets successfully"
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "হ্যাঁ, কপি করুন" else "Yes, Copy")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCopyPreviousConfirmDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    // Copy & Paste Dialog for any Source/Target Months
+    if (showCopyPasteDialog) {
+        CopyPasteBudgetDialog(
+            currentYear = selectedYear,
+            currentMonth = selectedMonth,
+            languageMode = languageMode,
+            onDismiss = { showCopyPasteDialog = false },
+            onConfirm = { fromY, fromM, toY, toM ->
+                viewModel.copyBudgets(fromY, fromM, toY, toM)
+                showCopyPasteDialog = false
+                scope.launch {
+                    val fromStr = DateUtils.formatMonthYear(fromY, fromM, languageMode)
+                    val toStr = DateUtils.formatMonthYear(toY, toM, languageMode)
+                    snackbarHostState.showSnackbar(
+                        if (languageMode == LanguageMode.BANGLA) "$fromStr থেকে $toStr এ বাজেট কপি হয়েছে" else "Budgets copied from $fromStr to $toStr"
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun BudgetTabBar(
+    selectedTab: Int,
+    tabLabels: List<String>,
+    onTabSelected: (Int) -> Unit
+) {
+    ScrollableTabRow(
+        selectedTabIndex = selectedTab,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.primary,
+        edgePadding = 12.dp,
+        divider = {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+        },
+        indicator = { tabPositions ->
+            if (selectedTab in tabPositions.indices) {
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = when (selectedTab) {
+                        0 -> MaterialTheme.colorScheme.primary
+                        1 -> SolidExpense
+                        2 -> SolidIncome
+                        3 -> SolidPrimary
+                        4 -> AmberGold
+                        else -> MaterialTheme.colorScheme.primary
+                    },
+                    height = 2.5.dp
+                )
+            }
+        }
+    ) {
+        tabLabels.forEachIndexed { index, label ->
+            val isSelected = selectedTab == index
+            val activeColor = when (index) {
+                0 -> MaterialTheme.colorScheme.primary
+                1 -> SolidExpense
+                2 -> SolidIncome
+                3 -> SolidPrimary
+                4 -> AmberGold
+                else -> MaterialTheme.colorScheme.primary
+            }
+
+            Tab(
+                selected = isSelected,
+                onClick = { onTabSelected(index) },
+                text = {
+                    Text(
+                        text = label,
+                        fontSize = 13.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                    )
+                },
+                modifier = Modifier.testTag("budget_tab_$index")
+            )
+        }
+    }
+}
+
+@Composable
+private fun CopyPasteBudgetDialog(
+    currentYear: Int,
+    currentMonth: Int,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onConfirm: (fromYear: Int, fromMonth: Int, toYear: Int, toMonth: Int) -> Unit
+) {
+    var fromYear by remember { mutableIntStateOf(currentYear) }
+    var fromMonth by remember {
+        val prev = if (currentMonth > 1) currentMonth - 1 else 12
+        mutableIntStateOf(prev)
+    }
+    var toYear by remember { mutableIntStateOf(currentYear) }
+    var toMonth by remember { mutableIntStateOf(currentMonth) }
+    var showConfirmPrompt by remember { mutableStateOf(false) }
+
+    if (showConfirmPrompt) {
+        AlertDialog(
+            onDismissRequest = { showConfirmPrompt = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "কপি নিশ্চিত করুন" else "Confirm Budget Copy",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                val fromStr = DateUtils.formatMonthYear(fromYear, fromMonth, languageMode)
+                val toStr = DateUtils.formatMonthYear(toYear, toMonth, languageMode)
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) {
+                        "$fromStr এর বাজেট $toStr এ কপি এবং সংরক্ষণ করা হবে। এগিয়ে যেতে চান?"
+                    } else {
+                        "Budgets from $fromStr will overwrite existing targets for $toStr. Do you want to proceed?"
+                    },
+                    fontSize = 13.5.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showConfirmPrompt = false
+                        onConfirm(fromYear, fromMonth, toYear, toMonth)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "কপি ও সেভ" else "Confirm & Copy")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showConfirmPrompt = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    } else {
+        Dialog(onDismissRequest = onDismiss) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.ContentPaste,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "বাজেট কপি ও পেস্ট" else "Copy & Paste Budgets",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) {
+                            "একটি নির্দিষ্ট মাসের বাজেট অন্য যেকোনো (অতীত বা ভবিষ্যৎ) মাসে কপি করুন:"
+                        } else {
+                            "Select source month to copy from and target month to apply to:"
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider()
+
+                    // Source Month Selection
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "উৎস মাস (কপি হবে যেখান থেকে):" else "Source Month (Copy From):",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            IconButton(onClick = {
+                                if (fromMonth > 1) fromMonth-- else { fromMonth = 12; fromYear-- }
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev")
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = DateUtils.formatMonthYear(fromYear, fromMonth, languageMode),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 10.dp)
+                                )
+                            }
+                            IconButton(onClick = {
+                                if (fromMonth < 12) fromMonth++ else { fromMonth = 1; fromYear++ }
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next")
+                            }
+                        }
+                    }
+
+                    // Target Month Selection
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "টার্গেট মাস (যেখানে প্রয়োগ হবে):" else "Target Month (Paste To):",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            IconButton(onClick = {
+                                if (toMonth > 1) toMonth-- else { toMonth = 12; toYear-- }
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev")
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = DateUtils.formatMonthYear(toYear, toMonth, languageMode),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 10.dp)
+                                )
+                            }
+                            IconButton(onClick = {
+                                if (toMonth < 12) toMonth++ else { toMonth = 1; toYear++ }
+                            }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next")
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                    ) {
+                        OutlinedButton(onClick = onDismiss) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                        }
+                        Button(
+                            onClick = { showConfirmPrompt = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "কপি করুন" else "Copy Budgets")
                         }
                     }
                 }
@@ -1002,8 +1511,23 @@ private fun CategoriesBudgetEntryView(
         DateUtils.getEndOfMonth(selectedYear, selectedMonth)
     }
 
+    // 3 Months boundary for Active filter
+    val threeMonthsAgoMs = remember(selectedYear, selectedMonth) {
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, selectedYear)
+            set(Calendar.MONTH, selectedMonth - 1)
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            add(Calendar.MONTH, -2) // 3 months window
+        }
+        cal.timeInMillis
+    }
+
     // Build Enhanced items with pre-calculated insights, actuals, and suggestions
-    val enhancedItems = remember(items, monthlyBudgets, allTransactions, accountsWithBalances, selectedYear, selectedMonth) {
+    val enhancedItems = remember(items, monthlyBudgets, allTransactions, accountsWithBalances, selectedYear, selectedMonth, threeMonthsAgoMs) {
         items.map { item ->
             val saved = budgetMap["${item.itemType}_${item.id}"]
             val currentAmt = saved?.budgetedAmount ?: item.defaultLimit
@@ -1029,6 +1553,14 @@ private fun CategoriesBudgetEntryView(
                 actualAmt = currentMonthTxs.sumOf { it.transaction.amount }
                 txCount = itemTxs.size
             }
+
+            // Check transactions in last 3 months
+            val has3MonthsTx = allTransactions.any {
+                it.transaction.dateEpochMs in threeMonthsAgoMs..endOfMonthMs &&
+                (it.transaction.categoryId == item.id || it.transaction.subCategoryId == item.id ||
+                 it.transaction.debitAccountId == item.id || it.transaction.creditAccountId == item.id)
+            }
+            val is3MoActive = has3MonthsTx || (isAssetOrLiability && (actualAmt != 0.0 || txCount > 0))
 
             // Check if frequently budgeted in past months
             val pastBudgetCount = monthlyBudgets.count {
@@ -1057,6 +1589,7 @@ private fun CategoriesBudgetEntryView(
                 txCount = txCount,
                 isFrequentlyBudgeted = isFreqBudgeted,
                 isFrequentlyActive = isFreqActive,
+                is3MonthsActive = is3MoActive,
                 suggestions = suggestions,
                 savedBudget = saved
             )
@@ -1082,6 +1615,9 @@ private fun CategoriesBudgetEntryView(
         // 2. Filter Category Selection
         list = when (selectedFilter) {
             BudgetFilterOption.ALL -> list
+            BudgetFilterOption.ONLY_GROUPS -> list
+            BudgetFilterOption.ONLY_CATEGORIES -> list
+            BudgetFilterOption.ACTIVE_3_MONTHS -> list.filter { it.is3MonthsActive }
             BudgetFilterOption.FREQ_BUDGETED -> list.filter { it.isFrequentlyBudgeted }
             BudgetFilterOption.FREQ_ACTIVE -> list.filter { it.isFrequentlyActive }
             BudgetFilterOption.BUDGETED_ONLY -> list.filter { it.currentBudget > 0.0 }
@@ -1106,12 +1642,7 @@ private fun CategoriesBudgetEntryView(
 
     // Group items by parent group name
     val groupedItems = remember(filteredItems, selectedSort) {
-        if (selectedSort == BudgetSortOption.DEFAULT) {
-            filteredItems.groupBy { it.item.groupName }
-        } else {
-            // For custom sorts (e.g. Sort by Amount), keep group as flat or sorted
-            filteredItems.groupBy { it.item.groupName }
-        }
+        filteredItems.groupBy { it.item.groupName }
     }
 
     var showGlobalFreqDropdown by remember { mutableStateOf(false) }
@@ -1128,7 +1659,7 @@ private fun CategoriesBudgetEntryView(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Modern, Compact Header Card with Month Stepper, Frequency Pill, & Total
+        // Modern, Compact Header Card (Month is already in top row)
         Surface(
             tonalElevation = 2.dp,
             shadowElevation = 1.dp,
@@ -1141,106 +1672,7 @@ private fun CategoriesBudgetEntryView(
                     .padding(horizontal = 14.dp, vertical = 7.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Tier 1: Month Stepper & Quick Actions
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Month Switcher Capsule
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = sectionColor.copy(alpha = 0.10f),
-                        border = BorderStroke(1.dp, sectionColor.copy(alpha = 0.25f)),
-                        modifier = Modifier.clip(RoundedCornerShape(10.dp))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            IconButton(onClick = onPrevMonth, modifier = Modifier.size(28.dp)) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Previous Month",
-                                    tint = sectionColor,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable(onClick = onMonthClick)
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.CalendarMonth,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(15.dp),
-                                    tint = sectionColor
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = DateUtils.formatMonthYear(selectedYear, selectedMonth, languageMode),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.5.sp,
-                                    color = sectionColor,
-                                    maxLines = 1
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Icon(
-                                    Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = sectionColor
-                                )
-                            }
-
-                            IconButton(onClick = onNextMonth, modifier = Modifier.size(28.dp)) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Next Month",
-                                    tint = sectionColor,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Action Icons
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // Quick copy previous month
-                        IconButton(
-                            onClick = onCopyPrevious,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "Copy from Previous Month",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onShowHelp,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.HelpOutline,
-                                contentDescription = "Help Guide",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Tier 2: Frequency Selector Pill (Left) & Total Target Badge (Right)
+                // Tier 1: Frequency Selector / Target Balances (Left) & Total Target + Quick Actions (Right)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1300,36 +1732,66 @@ private fun CategoriesBudgetEntryView(
                         }
                     } else {
                         Text(
-                            text = "Target Balances",
-                            fontSize = 12.sp,
+                            text = if (languageMode == LanguageMode.BANGLA) "টার্গেট ব্যালেন্স" else "Target Balances",
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
                     }
 
-                    // Total Target Display
+                    // Total Target Display and Action Icons
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "Total:",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        Text(
-                            text = LanguageHelper.formatCurrency(displayedTotal, languageMode),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = sectionColor,
-                            maxLines = 1
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "মোট:" else "Total:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            Text(
+                                text = LanguageHelper.formatCurrency(displayedTotal, languageMode),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = sectionColor,
+                                maxLines = 1
+                            )
+                        }
+
+                        // Quick copy previous month
+                        IconButton(
+                            onClick = onCopyPrevious,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "Copy from Previous Month",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onShowHelp,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.HelpOutline,
+                                contentDescription = "Help Guide",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
 
-                // Tier 3: Filter & Sort Bar (Horizontal Chips & Sort Selector)
+                // Tier 2: Filter & Sort Bar (Horizontal Chips & Sort Selector)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1451,13 +1913,13 @@ private fun CategoriesBudgetEntryView(
                         modifier = Modifier.size(48.dp)
                     )
                     Text(
-                        text = "No categories match the active filter",
+                        text = if (languageMode == LanguageMode.BANGLA) "কোনো তথ্য পাওয়া যায়নি" else "No items match the active filter",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Try switching filters or clearing the search query",
+                        text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার পরিবর্তন করুন বা সার্চ মুছুন" else "Try switching filters or clearing the search query",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -1468,7 +1930,7 @@ private fun CategoriesBudgetEntryView(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = sectionColor)
                     ) {
-                        Text("Reset Filters")
+                        Text(if (languageMode == LanguageMode.BANGLA) "ফিল্টার রিসেট করুন" else "Reset Filters")
                     }
                 }
             }
@@ -1481,106 +1943,9 @@ private fun CategoriesBudgetEntryView(
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                groupedItems.forEach { (groupName, catEnhancedList) ->
-                    // Group Header Card: ➤ Group Name [ 1,000 ]
-                    item(key = "group_$groupName") {
-                        val allGroupEnabled = catEnhancedList.isNotEmpty() && catEnhancedList.all { it.isEnabled }
-
-                        val groupSelectedMonthlyTotal = catEnhancedList.filter { it.isEnabled }.sumOf { it.currentBudget }
-
-                        val displayedGroupTotal = if (isPeriodicFlow) {
-                            globalFrequency.fromMonthly(groupSelectedMonthlyTotal)
-                        } else {
-                            groupSelectedMonthlyTotal
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.50f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp, bottom = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Left: ➤ Arrow + Group Title + Count
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.weight(1f, fill = false)
-                                ) {
-                                    Text(
-                                        text = "➤",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = groupName,
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                // Right: Group Total Pill + Checkbox
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                        modifier = Modifier.padding(vertical = 1.dp)
-                                    ) {
-                                        Text(
-                                            text = formatCompactCurrency(displayedGroupTotal, languageMode),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                                            maxLines = 1
-                                        )
-                                    }
-
-                                    Checkbox(
-                                        checked = allGroupEnabled,
-                                        onCheckedChange = { _ ->
-                                            val newEnabledState = !allGroupEnabled
-                                            val updatedBudgets = catEnhancedList.map { item ->
-                                                MonthlyBudget(
-                                                    year = selectedYear,
-                                                    month = selectedMonth,
-                                                    itemType = item.item.itemType,
-                                                    itemId = item.item.id,
-                                                    budgetedAmount = item.currentBudget,
-                                                    isEnabled = newEnabledState,
-                                                    updatedAt = System.currentTimeMillis()
-                                                )
-                                            }
-                                            onSaveMultiple(updatedBudgets)
-                                        },
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = sectionColor,
-                                            uncheckedColor = MaterialTheme.colorScheme.outline
-                                        ),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Category Items
-                    items(catEnhancedList, key = { "item_${it.item.id}" }) { enhancedItem ->
+                if (selectedFilter == BudgetFilterOption.ONLY_CATEGORIES) {
+                    // Only Categories / Accounts view: flat list without group headers
+                    items(filteredItems, key = { "flat_item_${it.item.id}" }) { enhancedItem ->
                         BudgetItemRow(
                             enhancedItem = enhancedItem,
                             isPeriodicFlow = isPeriodicFlow,
@@ -1592,6 +1957,122 @@ private fun CategoriesBudgetEntryView(
                                 onSaveBudget(enhancedItem.item, amtMonthly, isEnabled)
                             }
                         )
+                    }
+                } else {
+                    groupedItems.forEach { (groupName, catEnhancedList) ->
+                        // Group Header Card: ➤ Group Name [ 1,000 ]
+                        item(key = "group_$groupName") {
+                            val allGroupEnabled = catEnhancedList.isNotEmpty() && catEnhancedList.all { it.isEnabled }
+
+                            val groupSelectedMonthlyTotal = catEnhancedList.filter { it.isEnabled }.sumOf { it.currentBudget }
+
+                            val displayedGroupTotal = if (isPeriodicFlow) {
+                                globalFrequency.fromMonthly(groupSelectedMonthlyTotal)
+                            } else {
+                                groupSelectedMonthlyTotal
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.50f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp, bottom = 2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Left: ➤ Arrow + Group Title + Count
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
+                                        Text(
+                                            text = "➤",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = groupName,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    // Right: Group Total Pill + Checkbox
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant,
+                                            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                            modifier = Modifier.padding(vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = formatCompactCurrency(displayedGroupTotal, languageMode),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                                maxLines = 1
+                                            )
+                                        }
+
+                                        Checkbox(
+                                            checked = allGroupEnabled,
+                                            onCheckedChange = { _ ->
+                                                val newEnabledState = !allGroupEnabled
+                                                val updatedBudgets = catEnhancedList.map { item ->
+                                                    MonthlyBudget(
+                                                        year = selectedYear,
+                                                        month = selectedMonth,
+                                                        itemType = item.item.itemType,
+                                                        itemId = item.item.id,
+                                                        budgetedAmount = item.currentBudget,
+                                                        isEnabled = newEnabledState,
+                                                        updatedAt = System.currentTimeMillis()
+                                                    )
+                                                }
+                                                onSaveMultiple(updatedBudgets)
+                                            },
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = sectionColor,
+                                                uncheckedColor = MaterialTheme.colorScheme.outline
+                                            ),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Category Items (unless ONLY_GROUPS filter is selected)
+                        if (selectedFilter != BudgetFilterOption.ONLY_GROUPS) {
+                            items(catEnhancedList, key = { "item_${it.item.id}" }) { enhancedItem ->
+                                BudgetItemRow(
+                                    enhancedItem = enhancedItem,
+                                    isPeriodicFlow = isPeriodicFlow,
+                                    globalFrequency = globalFrequency,
+                                    languageMode = languageMode,
+                                    sectionColor = sectionColor,
+                                    onItemClick = onItemClick,
+                                    onSaveBudget = { amtMonthly, isEnabled ->
+                                        onSaveBudget(enhancedItem.item, amtMonthly, isEnabled)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -2115,27 +2596,22 @@ private fun calculateSuggestionsForItem(
     var nextIndex = 0
 
     if (itemType == "ASSET" || itemType == "LIABILITY") {
-        // ASSETS & LIABILITIES: Balance Sheet Balance (Act), Previous Target (PB), Previous Activity (PE)
+        // ASSETS & LIABILITIES: Only show Actual Amount from balance sheet as suggestion
         if (balanceSheetBalance != 0.0) {
-            list.add(BudgetSuggestionOption(nextIndex++, balanceSheetBalance, "Actual Balance", "Act"))
+            list.add(BudgetSuggestionOption(nextIndex++, balanceSheetBalance, "Actual", "Actual"))
         }
-        if (prevBudgetAmt > 0.0) {
-            list.add(BudgetSuggestionOption(nextIndex++, prevBudgetAmt, "Previous Target", "PB"))
-        }
-        if (prevExpensedAmt > 0.0) {
-            list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Activity", "PE"))
-        }
-    } else {
-        // EXPENSES & INCOMES: Previous Month Budget (PB), Previous Month Expensed (PE), Category Default Limit (Limit)
-        if (prevBudgetAmt > 0.0) {
-            list.add(BudgetSuggestionOption(nextIndex++, prevBudgetAmt, "Previous Budget", "PB"))
-        }
-        if (prevExpensedAmt > 0.0) {
-            list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Expensed", "PE"))
-        }
-        if (defaultLimit > 0.0 && defaultLimit != prevBudgetAmt) {
-            list.add(BudgetSuggestionOption(nextIndex++, defaultLimit, "Default Limit", "Limit"))
-        }
+        return list
+    }
+
+    // EXPENSES & INCOMES: Previous Month Budget (PB), Previous Month Expensed (PE), Category Default Limit (Limit)
+    if (prevBudgetAmt > 0.0) {
+        list.add(BudgetSuggestionOption(nextIndex++, prevBudgetAmt, "Previous Budget", "PB"))
+    }
+    if (prevExpensedAmt > 0.0) {
+        list.add(BudgetSuggestionOption(nextIndex++, prevExpensedAmt, "Previous Expensed", "PE"))
+    }
+    if (defaultLimit > 0.0 && defaultLimit != prevBudgetAmt) {
+        list.add(BudgetSuggestionOption(nextIndex++, defaultLimit, "Default Limit", "Limit"))
     }
 
     // Only compute frequent amounts if REAL transactions exist!

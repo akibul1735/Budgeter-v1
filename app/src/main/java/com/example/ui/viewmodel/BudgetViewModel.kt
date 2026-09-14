@@ -603,6 +603,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun copyBudgets(fromYear: Int, fromMonth: Int, toYear: Int, toMonth: Int) {
+        viewModelScope.launch {
+            activeRepo.copyBudgets(
+                fromYear = fromYear,
+                fromMonth = fromMonth,
+                toYear = toYear,
+                toMonth = toMonth
+            )
+        }
+    }
+
     private val _languageMode = MutableStateFlow(loadLanguageMode())
     val languageMode: StateFlow<LanguageMode> = _languageMode.asStateFlow()
 
