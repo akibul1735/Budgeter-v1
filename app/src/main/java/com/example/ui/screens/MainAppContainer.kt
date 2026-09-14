@@ -1899,6 +1899,7 @@ private fun ScreenRouter(
         AppView.DASHBOARD -> DashboardScreen(
             overview = overview,
             accountsWithBalances = accountsWithBalances,
+            accountCalcConfig = accountCalcConfig,
             recentTransactions = transactionsWithDetails,
             allCategories = allCategories,
             monthlyBudgets = monthlyBudgets,

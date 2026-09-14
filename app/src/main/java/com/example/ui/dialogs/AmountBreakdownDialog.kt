@@ -75,6 +75,20 @@ import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 
+data class BreakdownTabInfo(
+    val title: String,
+    val titleBn: String? = null,
+    val totalAmount: Double,
+    val subtitle: String? = null,
+    val formulaExplanation: String? = null,
+    val formulaSteps: List<FormulaStep> = emptyList(),
+    val items: List<BreakdownItem> = emptyList(),
+    val transactions: List<TransactionWithDetails> = emptyList(),
+    val statusTag: String? = null,
+    val customBadgeColor: Color? = null,
+    val emptyMessage: String? = null
+)
+
 /**
  * Data model for describing how any amount in the app is calculated and what transactions compose it.
  */
@@ -88,7 +102,9 @@ data class AmountDetailInfo(
     val relatedBreakdownItems: List<BreakdownItem> = emptyList(),
     val isPositiveGood: Boolean = true,
     val statusTag: String? = null,
-    val customBadgeColor: Color? = null
+    val customBadgeColor: Color? = null,
+    val tabs: List<BreakdownTabInfo> = emptyList(),
+    val defaultTabIndex: Int = 0
 )
 
 data class FormulaStep(
@@ -126,6 +142,9 @@ fun AmountBreakdownDialog(
         mutableIntStateOf(
             if (info.formulaSteps.isNotEmpty() || info.formulaExplanation != null || info.relatedBreakdownItems.isNotEmpty()) 0 else 1
         )
+    }
+    var selectedOverviewTabIndex by remember(info) {
+        mutableIntStateOf(info.defaultTabIndex.coerceIn(0, (info.tabs.size - 1).coerceAtLeast(0)))
     }
 
     Dialog(
@@ -225,6 +244,66 @@ fun AmountBreakdownDialog(
                     }
                 }
 
+                // Sub-tabs (e.g. Calculated, Inactive, Excluded)
+                if (info.tabs.isNotEmpty()) {
+                    TabRow(
+                        selectedTabIndex = selectedOverviewTabIndex,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        info.tabs.forEachIndexed { index, tab ->
+                            val isSelected = selectedOverviewTabIndex == index
+                            val tabTitle = if (languageMode == LanguageMode.BANGLA && tab.titleBn != null) tab.titleBn else tab.title
+                            Tab(
+                                selected = isSelected,
+                                onClick = { selectedOverviewTabIndex = index },
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = tabTitle,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontSize = 12.5.sp
+                                        )
+                                        if (tab.items.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                            ) {
+                                                Text(
+                                                    text = "${tab.items.size}",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                val activeTabInfo = if (info.tabs.isNotEmpty()) {
+                    info.tabs.getOrNull(selectedOverviewTabIndex) ?: info.tabs.first()
+                } else null
+
+                val bannerAmount = activeTabInfo?.totalAmount ?: info.totalAmount
+                val bannerStatusTag = activeTabInfo?.statusTag ?: info.statusTag
+                val bannerBadgeColor = activeTabInfo?.customBadgeColor ?: info.customBadgeColor
+
+                val bannerLabel = if (activeTabInfo != null) {
+                    val tabTitle = if (languageMode == LanguageMode.BANGLA && activeTabInfo.titleBn != null) activeTabInfo.titleBn else activeTabInfo.title
+                    if (languageMode == LanguageMode.BANGLA) "$tabTitle পরিমাণ" else "$tabTitle Amount"
+                } else {
+                    if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত পরিমাণ" else "Total Calculated Amount"
+                }
+
                 // Amount Highlight Banner
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
@@ -237,7 +316,7 @@ fun AmountBreakdownDialog(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত পরিমাণ" else "Total Calculated Amount",
+                            text = bannerLabel,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -248,23 +327,23 @@ fun AmountBreakdownDialog(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = LanguageHelper.formatCurrency(info.totalAmount, languageMode),
+                                text = LanguageHelper.formatCurrency(bannerAmount, languageMode),
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = when {
-                                    info.customBadgeColor != null -> info.customBadgeColor
-                                    info.totalAmount < 0 -> SolidExpense
+                                    bannerBadgeColor != null -> bannerBadgeColor
+                                    bannerAmount < 0 -> SolidExpense
                                     else -> MaterialTheme.colorScheme.onSurface
                                 }
                             )
-                            if (!info.statusTag.isNullOrBlank()) {
+                            if (!bannerStatusTag.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = info.customBadgeColor ?: if (info.totalAmount >= 0) SolidIncome else SolidExpense
+                                    color = bannerBadgeColor ?: if (bannerAmount >= 0) SolidIncome else SolidExpense
                                 ) {
                                     Text(
-                                        text = info.statusTag,
+                                        text = bannerStatusTag,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
@@ -279,7 +358,7 @@ fun AmountBreakdownDialog(
                 val hasCalc = info.formulaSteps.isNotEmpty() || info.formulaExplanation != null || info.relatedBreakdownItems.isNotEmpty()
                 val hasTx = info.relatedTransactions.isNotEmpty()
 
-                if (hasCalc && hasTx) {
+                if (info.tabs.isEmpty() && hasCalc && hasTx) {
                     TabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -324,7 +403,14 @@ fun AmountBreakdownDialog(
                         .weight(1f)
                         .fillMaxWidth()
                 ) {
-                    if (selectedTab == 0 && hasCalc) {
+                    if (activeTabInfo != null) {
+                        TabbedBreakdownContentView(
+                            tab = activeTabInfo,
+                            languageMode = languageMode,
+                            onTransactionClick = onTransactionClick,
+                            onAccountClick = onAccountClick
+                        )
+                    } else if (selectedTab == 0 && hasCalc) {
                         CalculationBreakdownView(
                             info = info,
                             languageMode = languageMode
@@ -746,6 +832,327 @@ private fun TransactionsBreakdownView(
                                     LanguageHelper.formatCurrency(tx.amount, languageMode),
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.ExtraBold,
+                            color = typeColor
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabbedBreakdownContentView(
+    tab: BreakdownTabInfo,
+    languageMode: LanguageMode,
+    onTransactionClick: ((Transaction) -> Unit)? = null,
+    onAccountClick: ((Account) -> Unit)? = null
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (!tab.formulaExplanation.isNullOrBlank()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = tab.formulaExplanation,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        if (tab.formulaSteps.isNotEmpty()) {
+            item {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "ধাপে ধাপে হিসাব প্রক্রিয়া" else "Step-by-Step Breakdown",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            items(tab.formulaSteps) { step ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = step.onClick != null) {
+                            step.onClick?.invoke()
+                        },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (step.isHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = if (step.isHighlighted) BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.5f)) else null
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (step.operator == "=") SolidPrimary else MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = step.operator,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (step.operator == "=") Color.White else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = step.label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (step.isHighlighted) FontWeight.Bold else FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (!step.note.isNullOrBlank()) {
+                                    Text(
+                                        text = step.note,
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = LanguageHelper.formatCurrency(step.amount, languageMode),
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    step.operator == "−" -> SolidExpense
+                                    step.operator == "+" -> SolidIncome
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                            if (step.onClick != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (tab.items.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "তালিকাভুক্ত একাউন্টসমূহ" else "Contributing Accounts",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            items(tab.items) { item ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(enabled = item.onClick != null) {
+                            item.onClick?.invoke()
+                        },
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            if (item.iconName != null) {
+                                Icon(
+                                    imageVector = IconHelper.getIconByName(item.iconName),
+                                    contentDescription = null,
+                                    tint = item.color ?: MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                            }
+                            Column {
+                                Text(
+                                    text = item.name,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (!item.note.isNullOrBlank()) {
+                                    Text(
+                                        text = item.note,
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                if (item.count != null && item.count > 0) {
+                                    Text(
+                                        text = "${item.count} ${if (languageMode == LanguageMode.BANGLA) "টি এন্ট্রি" else "entries"}",
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(item.amount, languageMode),
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = item.color ?: MaterialTheme.colorScheme.onSurface
+                                )
+                                if (item.percentage != null) {
+                                    Text(
+                                        text = String.format("%.1f%%", item.percentage),
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                            if (item.onClick != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (tab.items.isEmpty() && tab.formulaSteps.isEmpty() && tab.transactions.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = tab.emptyMessage ?: if (languageMode == LanguageMode.BANGLA) "কোনো একাউন্ট পাওয়া যায়নি" else "No accounts found in this section.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        }
+
+        if (tab.transactions.isNotEmpty()) {
+            item {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "সম্পর্কিত লেনদেন (${tab.transactions.size})" else "Related Transactions (${tab.transactions.size})",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            items(tab.transactions) { txWithDetails ->
+                val tx = txWithDetails.transaction
+                val typeColor = when (tx.type) {
+                    TransactionType.EXPENSE -> SolidExpense
+                    TransactionType.INCOME -> SolidIncome
+                    TransactionType.TRANSFER -> SolidTransfer
+                }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(enabled = onTransactionClick != null) {
+                            onTransactionClick?.invoke(tx)
+                        },
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(typeColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = when (tx.type) {
+                                        TransactionType.EXPENSE -> Icons.AutoMirrored.Filled.TrendingDown
+                                        TransactionType.INCOME -> Icons.AutoMirrored.Filled.TrendingUp
+                                        TransactionType.TRANSFER -> Icons.Default.SwapHoriz
+                                    },
+                                    contentDescription = null,
+                                    tint = typeColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (tx.payeeOrPayer.isNotBlank()) tx.payeeOrPayer else txWithDetails.category?.nameEn ?: "Transaction",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = DateUtils.formatShortDate(tx.dateEpochMs, languageMode),
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                        Text(
+                            text = (if (tx.type == TransactionType.EXPENSE) "−" else if (tx.type == TransactionType.INCOME) "+" else "") +
+                                    LanguageHelper.formatCurrency(tx.amount, languageMode),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
                             color = typeColor
                         )
                     }

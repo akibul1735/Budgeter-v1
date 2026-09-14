@@ -153,9 +153,9 @@ import java.util.Date
 import java.util.Locale
 
 enum class DataManagementTab(val titleEn: String, val titleBn: String, val icon: ImageVector) {
-    ONLINE("Online Sync", "অনলাইন সিঙ্ক", Icons.Default.CloudUpload),
-    LOCAL("Local Backup", "লোকাল ব্যাকআপ", Icons.Default.Storage),
-    EXPORT_IMPORT("Export / Import", "এক্সপোর্ট / ইমপোর্ট", Icons.Default.SwapVert)
+    ONLINE("Online Sync", "অনলাইন সিঙ্ক", Icons.Default.CloudSync),
+    LOCAL("Local Storage", "লোকাল স্টোরেজ", Icons.Default.SdStorage),
+    EXPORT_IMPORT("Export Import", "এক্সপোর্ট / ইমপোর্ট", Icons.Default.SwapVert)
 }
 
 val SUPPORTED_CLOUD_PROVIDERS = listOf(
@@ -195,7 +195,7 @@ fun BackupSyncSettingsScreen(
 
     var isCloudTreeExpanded by remember { mutableStateOf(true) }
     var isLocalTreeExpanded by remember { mutableStateOf(true) }
-    var isMoreTreeExpanded by remember { mutableStateOf(false) }
+    var isMoreTreeExpanded by remember { mutableStateOf(true) }
 
     var isDrive1AdvancedExpanded by remember { mutableStateOf(false) }
     var isDrive2TreeExpanded by remember { mutableStateOf(false) }
@@ -401,6 +401,43 @@ fun BackupSyncSettingsScreen(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
+        var selectedManagementTab by remember { mutableStateOf(DataManagementTab.ONLINE) }
+
+        TabRow(
+            selectedTabIndex = selectedManagementTab.ordinal,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            DataManagementTab.values().forEach { tab ->
+                val isSelected = selectedManagementTab == tab
+                Tab(
+                    selected = isSelected,
+                    onClick = { selectedManagementTab = tab },
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) tab.titleBn else tab.titleEn,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                )
+            }
+        }
+
         // SCROLLABLE CONTENT BODY
         LazyColumn(
             modifier = Modifier
@@ -409,74 +446,76 @@ fun BackupSyncSettingsScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Quick Action: Scan for All Previous Backups across all drives and storage
-            item {
-                OutlinedCard(
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.outlinedCardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+            // Quick Action: Scan for All Previous Backups across all drives and storage (Available in Online Sync and Local Storage)
+            if (selectedManagementTab == DataManagementTab.ONLINE || selectedManagementTab == DataManagementTab.LOCAL) {
+                item {
+                    OutlinedCard(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                modifier = Modifier.size(36.dp)
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ব্যাকআপ খুঁজুন ও স্ক্যান করুন" else "Scan & Find Previous Backups",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA)
+                                            "ড্রাইভ ১, ড্রাইভ ২ এবং ডিভাইস স্টোরেজের সকল ব্যাকআপ খুঁজুন ও রিস্টোর/মার্জ করুন"
+                                        else
+                                            "Detect snapshots from Cloud Drives & Local Storage to Merge/Restore",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                        lineHeight = 14.sp
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
+                            Button(
+                                onClick = {
+                                    viewModel.scanForPreviousBackups()
+                                    showScanBackupsDialog = true
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "পূর্ববর্তী ব্যাকআপ খুঁজুন ও স্ক্যান করুন" else "Scan & Find Previous Backups",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA)
-                                        "ড্রাইভ ১, ড্রাইভ ২ এবং ডিভাইস স্টোরেজের সকল ব্যাকআপ খুঁজুন ও রিস্টোর/মার্জ করুন"
-                                    else
-                                        "Detect snapshots from Cloud Drives & Local Storage to Merge/Restore",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    lineHeight = 14.sp
+                                    text = if (languageMode == LanguageMode.BANGLA) "স্ক্যান" else "Scan",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
-                        }
-                        Button(
-                            onClick = {
-                                viewModel.scanForPreviousBackups()
-                                showScanBackupsDialog = true
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Icon(Icons.Default.CloudSync, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "স্ক্যান" else "Scan",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
                         }
                     }
                 }
@@ -550,24 +589,25 @@ fun BackupSyncSettingsScreen(
             }
 
             // =================================================================
-            // TREE SECTION 1: CLOUD & ONLINE SYNC (Common feature - Opened by default)
+            // SECTION 1: ONLINE SYNC
             // =================================================================
-            val primary = config.primaryAccount
-            val isGoogleDrive = primary.provider.equals("Google Drive", ignoreCase = true)
-            val isPrimaryLinked = if (isGoogleDrive) (signedInAccount != null || (primary.isLinked && primary.email.isNotBlank())) else (primary.isLinked && (primary.email.isNotBlank() || primary.accessToken.isNotBlank()))
-            val displayEmail = if (isGoogleDrive) (signedInAccount?.email ?: primary.email) else primary.email
-            val displayName = if (isGoogleDrive) (signedInAccount?.displayName ?: primary.displayName.ifEmpty { displayEmail }) else primary.displayName
+            if (selectedManagementTab == DataManagementTab.ONLINE) {
+                val primary = config.primaryAccount
+                val isGoogleDrive = primary.provider.equals("Google Drive", ignoreCase = true)
+                val isPrimaryLinked = if (isGoogleDrive) (signedInAccount != null || (primary.isLinked && primary.email.isNotBlank())) else (primary.isLinked && (primary.email.isNotBlank() || primary.accessToken.isNotBlank()))
+                val displayEmail = if (isGoogleDrive) (signedInAccount?.email ?: primary.email) else primary.email
+                val displayName = if (isGoogleDrive) (signedInAccount?.displayName ?: primary.displayName.ifEmpty { displayEmail }) else primary.displayName
 
-            item {
-                TreeSectionHeader(
-                    title = if (languageMode == LanguageMode.BANGLA) "১. ক্লাউড ও অনলাইন সিঙ্ক" else "1. Cloud & Online Sync",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ ও স্বয়ংক্রিয় ব্যাকআপ" else "Google Drive & automated cloud sync",
-                    icon = Icons.Default.CloudSync,
-                    isExpanded = isCloudTreeExpanded,
-                    onToggle = { isCloudTreeExpanded = !isCloudTreeExpanded },
-                    badgeText = if (isPrimaryLinked) (if (languageMode == LanguageMode.BANGLA) "সংযুক্ত" else "Connected") else (if (languageMode == LanguageMode.BANGLA) "অসংযুক্ত" else "Not Linked")
-                )
-            }
+                item {
+                    TreeSectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড ও অনলাইন সিঙ্ক" else "Cloud & Online Sync",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ ও ক্লাউড ব্যাকআপ সেটিংস" else "Google Drive & automated cloud sync",
+                        icon = Icons.Default.CloudSync,
+                        isExpanded = isCloudTreeExpanded,
+                        onToggle = { isCloudTreeExpanded = !isCloudTreeExpanded },
+                        badgeText = if (isPrimaryLinked) (if (languageMode == LanguageMode.BANGLA) "সংযুক্ত" else "Connected") else (if (languageMode == LanguageMode.BANGLA) "অসংযুক্ত" else "Not Linked")
+                    )
+                }
 
             if (isCloudTreeExpanded) {
                 // Primary Drive Account Connection Card (Common 1-tap Sync Now, account status)
@@ -914,22 +954,24 @@ fun BackupSyncSettingsScreen(
                     }
                 }
             }
+        }
 
-            // =================================================================
-            // TREE SECTION 2: DEVICE LOCAL BACKUP (Common feature - Opened by default)
-            // =================================================================
-            item {
-                TreeSectionHeader(
-                    title = if (languageMode == LanguageMode.BANGLA) "২. ডিভাইস লোকাল ব্যাকআপ" else "2. Device Local Backup",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "ফোন মেমোরি ও অফলাইন স্ন্যাপশট" else "Phone storage & offline snapshots",
-                    icon = Icons.Default.SdStorage,
-                    isExpanded = isLocalTreeExpanded,
-                    onToggle = { isLocalTreeExpanded = !isLocalTreeExpanded },
-                    badgeText = "${localBackups.size} " + (if (languageMode == LanguageMode.BANGLA) "টি ফাইল" else "Files")
-                )
-            }
+    // =================================================================
+    // SECTION 2: LOCAL STORAGE
+    // =================================================================
+    if (selectedManagementTab == DataManagementTab.LOCAL) {
+        item {
+            TreeSectionHeader(
+                title = if (languageMode == LanguageMode.BANGLA) "ডিভাইস লোকাল স্টোরেজ" else "Device Local Storage",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ফোন মেমোরি ও অফলাইন স্ন্যাপশট" else "Phone storage & offline snapshots",
+                icon = Icons.Default.SdStorage,
+                isExpanded = isLocalTreeExpanded,
+                onToggle = { isLocalTreeExpanded = !isLocalTreeExpanded },
+                badgeText = "${localBackups.size} " + (if (languageMode == LanguageMode.BANGLA) "টি ফাইল" else "Files")
+            )
+        }
 
-            if (isLocalTreeExpanded) {
+        if (isLocalTreeExpanded) {
                 // Action buttons: Create Local Backup & Restore From File (Common Opened Feature)
                 item {
                     Row(
@@ -1193,22 +1235,24 @@ fun BackupSyncSettingsScreen(
                     }
                 }
             }
+        }
 
-            // =================================================================
-            // TREE SECTION 3: MORE OPTIONS & ADVANCED (Hides to more by default)
-            // =================================================================
-            item {
-                TreeSectionHeader(
-                    title = if (languageMode == LanguageMode.BANGLA) "৩. আরো অপশন ও উন্নত সেটিংস" else "3. More Options & Advanced",
-                    subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা এক্সপোর্ট, ইম্পোর্ট ও ডেমো স্যান্ডবক্স" else "Data export, import & demo sandbox mode",
-                    icon = Icons.Default.Tune,
-                    isExpanded = isMoreTreeExpanded,
-                    onToggle = { isMoreTreeExpanded = !isMoreTreeExpanded },
-                    badgeText = if (isMoreTreeExpanded) (if (languageMode == LanguageMode.BANGLA) "খোলা" else "Open") else (if (languageMode == LanguageMode.BANGLA) "লুকায়িত" else "More...")
-                )
-            }
+    // =================================================================
+    // SECTION 3: EXPORT IMPORT
+    // =================================================================
+    if (selectedManagementTab == DataManagementTab.EXPORT_IMPORT) {
+        item {
+            TreeSectionHeader(
+                title = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট ও ইম্পোর্ট সেটিংস" else "Export & Import Settings",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা এক্সপোর্ট, ইম্পোর্ট ও ডেমো স্যান্ডবক্স" else "Data export, import & demo sandbox mode",
+                icon = Icons.Default.SwapVert,
+                isExpanded = isMoreTreeExpanded,
+                onToggle = { isMoreTreeExpanded = !isMoreTreeExpanded },
+                badgeText = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট / ইমপোর্ট" else "Export / Import"
+            )
+        }
 
-            if (isMoreTreeExpanded) {
+        if (isMoreTreeExpanded) {
                 // Tree Sub-branch 3.1: Data Export (CSV, Excel, JSON)
                 item {
                     TreeSubBranchCard(
@@ -1352,6 +1396,7 @@ fun BackupSyncSettingsScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
