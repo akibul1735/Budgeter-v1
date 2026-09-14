@@ -281,6 +281,7 @@ data class EnhancedBudgetItem(
     val isFrequentlyBudgeted: Boolean,
     val isFrequentlyActive: Boolean,
     val is3MonthsActive: Boolean = false,
+    val firstDayBalance: Double = 0.0,
     val suggestions: List<BudgetSuggestionOption>,
     val savedBudget: MonthlyBudget?
 )
@@ -520,22 +521,6 @@ fun BudgetScreen(
                     )
                 }
             }
-        },
-        floatingActionButton = {
-            if (selectedTab in 1..4) {
-                FloatingActionButton(
-                    onClick = { showQuickActionSheet = true },
-                    containerColor = BrandOrange,
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                    modifier = Modifier.testTag("budget_quick_action_fab")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AssignmentTurnedIn,
-                        contentDescription = "Budget Actions"
-                    )
-                }
-            }
         }
     ) { innerPadding ->
         Column(
@@ -544,216 +529,230 @@ fun BudgetScreen(
                 .padding(innerPadding)
                 .testTag("budget_screen")
         ) {
-            // Top Bar with Month Name in Center Top Row and Settings on Right
+            // Top Bar with Menu/Back and "Budget Maker" Label on First Row, and Settings on Right
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 2.dp,
                 shadowElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Left: Menu or Back
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (onBack != null) {
-                            IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        } else {
-                            IconButton(onClick = onOpenDrawer, modifier = Modifier.size(36.dp)) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Menu",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-
-                    // Center: Month Selector Capsule (Top Row)
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                        modifier = Modifier.clip(RoundedCornerShape(20.dp))
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // First Row: Menu/Back + "Budget Maker" Label (Left), Search + Settings (Right)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        // Left: Menu or Back and Budget Maker Title
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (onBack != null) {
+                                IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            } else {
+                                IconButton(onClick = onOpenDrawer, modifier = Modifier.size(36.dp)) {
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "Menu",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট মেকার" else "Budget Maker",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                        }
+
+                        // Right: Search and Settings (with Copy & Paste moved inside Settings)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             IconButton(
-                                onClick = { viewModel.prevBudgetMonth() },
-                                modifier = Modifier.size(28.dp)
+                                onClick = { isSearchActive = !isSearchActive },
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Previous Month",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(15.dp)
+                                    imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                                    contentDescription = "Search",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
 
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { showMonthYearPicker = true }
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.CalendarMonth,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(15.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = DateUtils.formatMonthYear(selectedYear, selectedMonth, languageMode),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.5.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Icon(
-                                    Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            Box {
+                                IconButton(
+                                    onClick = { showTabSettingsMenu = true },
+                                    modifier = Modifier.size(36.dp).testTag("budget_tab_settings_btn")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Settings",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
 
-                            IconButton(
-                                onClick = { viewModel.nextBudgetMonth() },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Next Month",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(15.dp)
-                                )
+                                DropdownMenu(
+                                    expanded = showTabSettingsMenu,
+                                    onDismissRequest = { showTabSettingsMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট কপি ও পেস্ট" else "Copy & Paste Budgets",
+                                                fontSize = 13.5.sp
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        },
+                                        onClick = {
+                                            showTabSettingsMenu = false
+                                            showCopyPasteDialog = true
+                                        }
+                                    )
+
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "ট্যাব উপরে দেখান" else "Tabs at Top",
+                                                fontWeight = if (tabsAtTop) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (tabsAtTop) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.VerticalAlignTop, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        },
+                                        trailingIcon = {
+                                            if (tabsAtTop) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                            }
+                                        },
+                                        onClick = {
+                                            tabsAtTop = true
+                                            showTabSettingsMenu = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "ট্যাব নিচে দেখান" else "Tabs at Bottom",
+                                                fontWeight = if (!tabsAtTop) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (!tabsAtTop) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.VerticalAlignBottom, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        },
+                                        trailingIcon = {
+                                            if (!tabsAtTop) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                            }
+                                        },
+                                        onClick = {
+                                            tabsAtTop = false
+                                            showTabSettingsMenu = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Right: Search, Copy/Paste, Settings (Tabs top/bottom), Refresh
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(1.dp)
+                    // Second Row: Month name and selector (under the top bar first row)
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        IconButton(
-                            onClick = { isSearchActive = !isSearchActive },
-                            modifier = Modifier.size(34.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                                contentDescription = "Search",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { showCopyPasteDialog = true },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ContentCopy,
-                                contentDescription = "Copy & Paste Budgets",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        Box {
-                            IconButton(
-                                onClick = { showTabSettingsMenu = true },
-                                modifier = Modifier.size(34.dp).testTag("budget_tab_settings_btn")
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                                modifier = Modifier.clip(RoundedCornerShape(20.dp))
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Tab Position Settings",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = showTabSettingsMenu,
-                                onDismissRequest = { showTabSettingsMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ট্যাব উপরে দেখান" else "Tabs at Top",
-                                            fontWeight = if (tabsAtTop) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (tabsAtTop) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = { viewModel.prevBudgetMonth() },
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                            contentDescription = "Previous Month",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
                                         )
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.VerticalAlignTop, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    },
-                                    trailingIcon = {
-                                        if (tabsAtTop) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                        }
-                                    },
-                                    onClick = {
-                                        tabsAtTop = true
-                                        showTabSettingsMenu = false
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ট্যাব নিচে দেখান" else "Tabs at Bottom",
-                                            fontWeight = if (!tabsAtTop) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (!tabsAtTop) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.VerticalAlignBottom, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    },
-                                    trailingIcon = {
-                                        if (!tabsAtTop) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                        }
-                                    },
-                                    onClick = {
-                                        tabsAtTop = false
-                                        showTabSettingsMenu = false
-                                    }
-                                )
-                            }
-                        }
 
-                        IconButton(
-                            onClick = {
-                                searchQuery = ""
-                                selectedFilter = BudgetFilterOption.ALL
-                                selectedSort = BudgetSortOption.DEFAULT
-                                scope.launch {
-                                    snackbarHostState.showSnackbar("Suggestions & budgets refreshed")
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { showMonthYearPicker = true }
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.CalendarMonth,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(15.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        Text(
+                                            text = DateUtils.formatMonthYear(selectedYear, selectedMonth, languageMode),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            maxLines = 1
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Icon(
+                                            Icons.Default.KeyboardArrowDown,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { viewModel.nextBudgetMonth() },
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "Next Month",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
-                            },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh",
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            }
                         }
                     }
                 }
@@ -845,6 +844,7 @@ fun BudgetScreen(
                         items = expenseItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        allAccounts = allAccounts,
                         accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
@@ -862,7 +862,6 @@ fun BudgetScreen(
                         onMonthClick = { showMonthYearPicker = true },
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
-                        onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
                             showCopyPreviousConfirmDialog = true
                         },
@@ -887,6 +886,7 @@ fun BudgetScreen(
                         items = incomeItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        allAccounts = allAccounts,
                         accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
@@ -904,7 +904,6 @@ fun BudgetScreen(
                         onMonthClick = { showMonthYearPicker = true },
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
-                        onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
                             showCopyPreviousConfirmDialog = true
                         },
@@ -929,6 +928,7 @@ fun BudgetScreen(
                         items = assetItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        allAccounts = allAccounts,
                         accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
@@ -946,7 +946,6 @@ fun BudgetScreen(
                         onMonthClick = { showMonthYearPicker = true },
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
-                        onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
                             showCopyPreviousConfirmDialog = true
                         },
@@ -971,6 +970,7 @@ fun BudgetScreen(
                         items = liabilityItems,
                         monthlyBudgets = monthlyBudgets,
                         allTransactions = transactionsWithDetails,
+                        allAccounts = allAccounts,
                         accountsWithBalances = accountsWithBalances,
                         selectedYear = selectedYear,
                         selectedMonth = selectedMonth,
@@ -988,7 +988,6 @@ fun BudgetScreen(
                         onMonthClick = { showMonthYearPicker = true },
                         onPrevMonth = { viewModel.prevBudgetMonth() },
                         onNextMonth = { viewModel.nextBudgetMonth() },
-                        onShowHelp = { showHelpDialog = true },
                         onCopyPrevious = {
                             showCopyPreviousConfirmDialog = true
                         },
@@ -1471,6 +1470,7 @@ private fun CategoriesBudgetEntryView(
     items: List<BudgetTargetItem>,
     monthlyBudgets: List<MonthlyBudget>,
     allTransactions: List<TransactionWithDetails>,
+    allAccounts: List<Account> = emptyList(),
     accountsWithBalances: List<AccountWithBalance> = emptyList(),
     selectedYear: Int,
     selectedMonth: Int,
@@ -1488,7 +1488,6 @@ private fun CategoriesBudgetEntryView(
     onMonthClick: () -> Unit,
     onPrevMonth: () -> Unit,
     onNextMonth: () -> Unit,
-    onShowHelp: () -> Unit,
     onCopyPrevious: () -> Unit,
     onItemClick: ((BudgetTargetItem) -> Unit)? = null,
     onSaveBudget: (BudgetTargetItem, Double, Boolean) -> Unit,
@@ -1498,9 +1497,16 @@ private fun CategoriesBudgetEntryView(
         monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
     }
 
-    // Account Balance Map from Balance Sheet
+    // Account Balance Map from Balance Sheet (includes parents and children)
     val accountBalanceMap = remember(accountsWithBalances) {
-        accountsWithBalances.associate { it.account.id to it.currentBalance }
+        val map = mutableMapOf<Long, Double>()
+        accountsWithBalances.forEach { parentWithBal ->
+            map[parentWithBal.account.id] = parentWithBal.currentBalance
+            parentWithBal.subAccounts.forEach { subWithBal ->
+                map[subWithBal.account.id] = subWithBal.currentBalance
+            }
+        }
+        map
     }
 
     // Calculate month boundary timestamps
@@ -1509,6 +1515,50 @@ private fun CategoriesBudgetEntryView(
     }
     val endOfMonthMs = remember(selectedYear, selectedMonth) {
         DateUtils.getEndOfMonth(selectedYear, selectedMonth)
+    }
+
+    // Month 1st day balance calculation map for all accounts
+    val firstDayBalanceMap = remember(allAccounts, allTransactions, startOfMonthMs) {
+        val startDebitSums = mutableMapOf<Long, Double>()
+        val startCreditSums = mutableMapOf<Long, Double>()
+        for (item in allTransactions) {
+            val tx = item.transaction
+            if (tx.dateEpochMs < startOfMonthMs) {
+                tx.debitAccountId?.let { id ->
+                    startDebitSums[id] = (startDebitSums[id] ?: 0.0) + tx.amount
+                }
+                tx.creditAccountId?.let { id ->
+                    startCreditSums[id] = (startCreditSums[id] ?: 0.0) + tx.amount
+                }
+            }
+        }
+
+        fun calcBalanceAtStart(acc: Account): Double {
+            val dr = startDebitSums[acc.id] ?: 0.0
+            val cr = startCreditSums[acc.id] ?: 0.0
+            return when (acc.type) {
+                AccountType.ASSET, AccountType.EXPENSE -> acc.initialBalance + (dr - cr)
+                AccountType.LIABILITY -> -(acc.initialBalance + (cr - dr))
+                AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
+            }
+        }
+
+        val subAccountMap = allAccounts.filter { it.parentId != null }.groupBy { it.parentId!! }
+        val map = mutableMapOf<Long, Double>()
+        for (acc in allAccounts) {
+            if (acc.parentId == null) {
+                val subs = subAccountMap[acc.id] ?: emptyList()
+                if (subs.isNotEmpty()) {
+                    val total = calcBalanceAtStart(acc) + subs.sumOf { calcBalanceAtStart(it) }
+                    map[acc.id] = total
+                } else {
+                    map[acc.id] = calcBalanceAtStart(acc)
+                }
+            } else {
+                map[acc.id] = calcBalanceAtStart(acc)
+            }
+        }
+        map
     }
 
     // 3 Months boundary for Active filter
@@ -1527,7 +1577,7 @@ private fun CategoriesBudgetEntryView(
     }
 
     // Build Enhanced items with pre-calculated insights, actuals, and suggestions
-    val enhancedItems = remember(items, monthlyBudgets, allTransactions, accountsWithBalances, selectedYear, selectedMonth, threeMonthsAgoMs) {
+    val enhancedItems = remember(items, monthlyBudgets, allTransactions, accountsWithBalances, firstDayBalanceMap, selectedYear, selectedMonth, threeMonthsAgoMs) {
         items.map { item ->
             val saved = budgetMap["${item.itemType}_${item.id}"]
             val currentAmt = saved?.budgetedAmount ?: item.defaultLimit
@@ -1535,15 +1585,18 @@ private fun CategoriesBudgetEntryView(
 
             val isAssetOrLiability = item.itemType == "ASSET" || item.itemType == "LIABILITY"
             val actualAmt: Double
+            val firstDayBal: Double
             val txCount: Int
 
             if (isAssetOrLiability) {
                 // For Assets & Liabilities, actual amount is the actual balance from the balance sheet
                 actualAmt = accountBalanceMap[item.id] ?: 0.0
+                firstDayBal = firstDayBalanceMap[item.id] ?: 0.0
                 txCount = allTransactions.count {
                     it.transaction.debitAccountId == item.id || it.transaction.creditAccountId == item.id
                 }
             } else {
+                firstDayBal = 0.0
                 // Calculate actual transactions for this specific item in current month
                 val itemTxs = allTransactions.filter {
                     it.transaction.categoryId == item.id || it.transaction.subCategoryId == item.id ||
@@ -1574,6 +1627,7 @@ private fun CategoriesBudgetEntryView(
                 itemType = item.itemType,
                 defaultLimit = item.defaultLimit,
                 balanceSheetBalance = if (isAssetOrLiability) actualAmt else 0.0,
+                firstDayBalance = if (isAssetOrLiability) firstDayBal else 0.0,
                 allTransactions = allTransactions,
                 selectedYear = selectedYear,
                 selectedMonth = selectedMonth,
@@ -1590,6 +1644,7 @@ private fun CategoriesBudgetEntryView(
                 isFrequentlyBudgeted = isFreqBudgeted,
                 isFrequentlyActive = isFreqActive,
                 is3MonthsActive = is3MoActive,
+                firstDayBalance = firstDayBal,
                 suggestions = suggestions,
                 savedBudget = saved
             )
@@ -1772,18 +1827,6 @@ private fun CategoriesBudgetEntryView(
                             Icon(
                                 Icons.Default.ContentCopy,
                                 contentDescription = "Copy from Previous Month",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onShowHelp,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.HelpOutline,
-                                contentDescription = "Help Guide",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -2268,13 +2311,19 @@ private fun BudgetItemRow(
                     }
                 }
                 "ASSET" -> buildString {
-                    append("Balance (BS)= ${formatCompactCurrency(actualSpent, languageMode)}")
+                    append("Actual= ${formatCompactCurrency(actualSpent, languageMode)}")
+                    if (enhancedItem.firstDayBalance != 0.0) {
+                        append(" • 1st Day= ${formatCompactCurrency(enhancedItem.firstDayBalance, languageMode)}")
+                    }
                     if (currentMonthlyAmt > 0) {
                         append(" • Target= ${formatCompactCurrency(currentMonthlyAmt, languageMode)}")
                     }
                 }
                 "LIABILITY" -> buildString {
-                    append("Debt (BS)= ${formatCompactCurrency(actualSpent, languageMode)}")
+                    append("Actual= ${formatCompactCurrency(actualSpent, languageMode)}")
+                    if (enhancedItem.firstDayBalance != 0.0) {
+                        append(" • 1st Day= ${formatCompactCurrency(enhancedItem.firstDayBalance, languageMode)}")
+                    }
                     if (currentMonthlyAmt > 0) {
                         append(" • Target= ${formatCompactCurrency(currentMonthlyAmt, languageMode)}")
                     }
@@ -2562,6 +2611,7 @@ private fun calculateSuggestionsForItem(
     itemType: String,
     defaultLimit: Double,
     balanceSheetBalance: Double = 0.0,
+    firstDayBalance: Double = 0.0,
     allTransactions: List<TransactionWithDetails>,
     selectedYear: Int,
     selectedMonth: Int,
@@ -2596,9 +2646,12 @@ private fun calculateSuggestionsForItem(
     var nextIndex = 0
 
     if (itemType == "ASSET" || itemType == "LIABILITY") {
-        // ASSETS & LIABILITIES: Only show Actual Amount from balance sheet as suggestion
+        // ASSETS & LIABILITIES: Show Actual Amount and 1st Day balance from balance sheet as suggestions
         if (balanceSheetBalance != 0.0) {
             list.add(BudgetSuggestionOption(nextIndex++, balanceSheetBalance, "Actual", "Actual"))
+        }
+        if (firstDayBalance != 0.0 && firstDayBalance != balanceSheetBalance) {
+            list.add(BudgetSuggestionOption(nextIndex++, firstDayBalance, "1st Day", "1st Day"))
         }
         return list
     }
