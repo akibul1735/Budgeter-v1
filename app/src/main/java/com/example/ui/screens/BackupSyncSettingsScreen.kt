@@ -2670,9 +2670,7 @@ private fun TreeSubBranchCard(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp)
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(
@@ -2689,18 +2687,20 @@ private fun TreeSubBranchCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "├─",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                    )
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
                         Text(text = subtitle, fontSize = 10.5.sp, color = MaterialTheme.colorScheme.outline, maxLines = 1)

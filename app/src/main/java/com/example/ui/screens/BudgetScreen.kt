@@ -261,7 +261,9 @@ data class BudgetTargetItem(
     val iconName: String,
     val colorHex: String,
     val itemType: String, // "EXPENSE", "INCOME", "ASSET", "LIABILITY"
-    val defaultLimit: Double = 0.0
+    val defaultLimit: Double = 0.0,
+    val groupIconName: String = "Category",
+    val groupColorHex: String = "#6B7280"
 )
 
 data class BudgetSuggestionOption(
@@ -372,7 +374,10 @@ fun BudgetScreen(
             it.type == CategoryType.EXPENSE && it.isActive &&
             (it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id))
         }.map { cat ->
-            val group = if (cat.parentId != null) parentCatMap[cat.parentId]?.nameEn ?: "Expenses" else "General Expenses"
+            val parent = if (cat.parentId != null) parentCatMap[cat.parentId] else null
+            val group = parent?.nameEn ?: "General Expenses"
+            val groupIcon = parent?.iconName ?: "Category"
+            val groupColor = parent?.colorHex ?: "#EA580C"
             BudgetTargetItem(
                 id = cat.id,
                 nameEn = cat.nameEn,
@@ -381,7 +386,9 @@ fun BudgetScreen(
                 iconName = cat.iconName,
                 colorHex = cat.colorHex,
                 itemType = "EXPENSE",
-                defaultLimit = cat.budgetLimit
+                defaultLimit = cat.budgetLimit,
+                groupIconName = groupIcon,
+                groupColorHex = groupColor
             )
         }
     }
@@ -392,7 +399,10 @@ fun BudgetScreen(
             it.type == AccountType.LIABILITY && it.isActive &&
             (it.parentId != null || !parentLiabilityAccIdsWithChildren.contains(it.id))
         }.map { acc ->
-            val group = if (acc.parentId != null) parentAccMap[acc.parentId]?.nameEn ?: "Liabilities" else "Loans & Liabilities"
+            val parent = if (acc.parentId != null) parentAccMap[acc.parentId] else null
+            val group = parent?.nameEn ?: "Loans & Liabilities"
+            val groupIcon = parent?.iconName ?: "AccountBalance"
+            val groupColor = parent?.colorHex ?: "#DC2626"
             BudgetTargetItem(
                 id = acc.id,
                 nameEn = acc.nameEn,
@@ -401,7 +411,9 @@ fun BudgetScreen(
                 iconName = acc.iconName,
                 colorHex = acc.colorHex,
                 itemType = "LIABILITY",
-                defaultLimit = 0.0
+                defaultLimit = 0.0,
+                groupIconName = groupIcon,
+                groupColorHex = groupColor
             )
         }
     }
@@ -412,7 +424,10 @@ fun BudgetScreen(
             it.type == CategoryType.INCOME && it.isActive &&
             (it.parentId != null || !parentIncomeCatIdsWithChildren.contains(it.id))
         }.map { cat ->
-            val group = if (cat.parentId != null) parentCatMap[cat.parentId]?.nameEn ?: "Incomes" else "General Incomes"
+            val parent = if (cat.parentId != null) parentCatMap[cat.parentId] else null
+            val group = parent?.nameEn ?: "General Incomes"
+            val groupIcon = parent?.iconName ?: "MonetizationOn"
+            val groupColor = parent?.colorHex ?: "#16A34A"
             BudgetTargetItem(
                 id = cat.id,
                 nameEn = cat.nameEn,
@@ -421,7 +436,9 @@ fun BudgetScreen(
                 iconName = cat.iconName,
                 colorHex = cat.colorHex,
                 itemType = "INCOME",
-                defaultLimit = cat.budgetLimit
+                defaultLimit = cat.budgetLimit,
+                groupIconName = groupIcon,
+                groupColorHex = groupColor
             )
         }
     }
@@ -432,7 +449,10 @@ fun BudgetScreen(
             it.type == AccountType.ASSET && it.isActive &&
             (it.parentId != null || !parentAssetAccIdsWithChildren.contains(it.id))
         }.map { acc ->
-            val group = if (acc.parentId != null) parentAccMap[acc.parentId]?.nameEn ?: "Accounts" else "Cash & Assets"
+            val parent = if (acc.parentId != null) parentAccMap[acc.parentId] else null
+            val group = parent?.nameEn ?: "Cash & Accounts"
+            val groupIcon = parent?.iconName ?: "AccountBalanceWallet"
+            val groupColor = parent?.colorHex ?: "#2563EB"
             BudgetTargetItem(
                 id = acc.id,
                 nameEn = acc.nameEn,
@@ -441,7 +461,9 @@ fun BudgetScreen(
                 iconName = acc.iconName,
                 colorHex = acc.colorHex,
                 itemType = "ASSET",
-                defaultLimit = 0.0
+                defaultLimit = 0.0,
+                groupIconName = groupIcon,
+                groupColorHex = groupColor
             )
         }
     }
@@ -450,10 +472,10 @@ fun BudgetScreen(
     fun calculateBudgetTotal(items: List<BudgetTargetItem>): Double {
         return items.sumOf { item ->
             val saved = budgetMap["${item.itemType}_${item.id}"]
-            if (saved != null) {
-                if (saved.isEnabled) saved.budgetedAmount else 0.0
+            if (saved != null && saved.isEnabled) {
+                saved.budgetedAmount
             } else {
-                item.defaultLimit
+                0.0
             }
         }
     }
@@ -545,27 +567,20 @@ fun BudgetScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Left: Menu or Back and Budget Maker Title
+                        // Left: Menu Button and Budget Maker Title
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            if (onBack != null) {
-                                IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "Back",
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            } else {
-                                IconButton(onClick = onOpenDrawer, modifier = Modifier.size(36.dp)) {
-                                    Icon(
-                                        imageVector = Icons.Default.Menu,
-                                        contentDescription = "Menu",
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                            IconButton(
+                                onClick = onOpenDrawer,
+                                modifier = Modifier.size(36.dp).testTag("budget_menu_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Menu",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
                             }
 
                             Text(
@@ -1581,7 +1596,7 @@ private fun CategoriesBudgetEntryView(
         items.map { item ->
             val saved = budgetMap["${item.itemType}_${item.id}"]
             val currentAmt = saved?.budgetedAmount ?: item.defaultLimit
-            val isEnabled = saved?.isEnabled ?: true
+            val isEnabled = saved?.isEnabled ?: false
 
             val isAssetOrLiability = item.itemType == "ASSET" || item.itemType == "LIABILITY"
             val actualAmt: Double
@@ -2015,6 +2030,10 @@ private fun CategoriesBudgetEntryView(
                                 groupSelectedMonthlyTotal
                             }
 
+                            val firstItem = catEnhancedList.firstOrNull()?.item
+                            val groupIcon = firstItem?.groupIconName ?: "Category"
+                            val groupColor = firstItem?.groupColorHex ?: "#6B7280"
+
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.50f),
@@ -2029,18 +2048,26 @@ private fun CategoriesBudgetEntryView(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Left: ➤ Arrow + Group Title + Count
+                                    // Left: Group Icon + Group Title + Count
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.weight(1f, fill = false)
                                     ) {
-                                        Text(
-                                            text = "➤",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = IconHelper.parseColorHex(groupColor).copy(alpha = 0.16f),
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                IconHelper.AppIcon(
+                                                    iconName = groupIcon,
+                                                    contentDescription = groupName,
+                                                    tint = IconHelper.parseColorHex(groupColor),
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+                                        }
                                         Text(
                                             text = groupName,
                                             fontSize = 13.5.sp,
@@ -2231,8 +2258,8 @@ private fun BudgetItemRow(
 
                     Text(
                         text = LanguageHelper.getLocalizedName(item.nameEn, item.nameBn, languageMode),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 14.sp,
                         color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -34,10 +35,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
@@ -58,6 +62,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -69,8 +74,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,6 +89,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -108,18 +116,6 @@ import com.example.util.CalendarDisplayMode
 import com.example.util.DateFormatOption
 import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
-
-enum class SettingsCategory(
-    val titleEn: String,
-    val titleBn: String,
-    val icon: ImageVector
-) {
-    LOCALIZATION("Localization", "ভাষা ও এলাকা", Icons.Default.Language),
-    APPEARANCE("Appearance & Display", "রূপরেখা ও প্রদর্শন", Icons.Default.Palette),
-    TRANSACTIONS("Transactions & Features", "লেনদেন ও ফিচার", Icons.Default.ReceiptLong),
-    SECURITY("Security & Data", "নিরাপত্তা ও ডাটা", Icons.Default.Security),
-    ABOUT("About & Support", "সম্পর্কে ও সহায়তা", Icons.Default.Info)
-}
 
 enum class SettingsSubPage {
     ROOT,
@@ -151,18 +147,13 @@ fun SettingsScreen(
     onOpenThemeFontSettings: () -> Unit = {},
     onOpenAutofillSettings: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
     var showSecurityAuthDialog by remember { mutableStateOf(false) }
-    var showSettingsMenu by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var feedbackText by remember { mutableStateOf("") }
     val rootListState = rememberLazyListState()
-
-    // Tree Expansion State: All 5 categories are expanded by default
-    var expandedBranches by remember {
-        mutableStateOf(SettingsCategory.entries.toSet())
-    }
-
-    // Horizontal category selection filter (null means "All Categories")
-    var selectedCategoryFilter by remember { mutableStateOf<SettingsCategory?>(null) }
 
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
@@ -207,184 +198,169 @@ fun SettingsScreen(
         )
     }
 
+    if (showFeedbackDialog) {
+        AlertDialog(
+            onDismissRequest = { showFeedbackDialog = false },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "মতামত ও পরামর্শ" else "Feedback & Bug Report",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "বাজেটার অ্যাপটি উন্নত করতে আপনার মতামত বা সমস্যার কথা লিখুন:"
+                        else
+                            "Tell us what you'd like improved or describe any issue you encountered:"
+                    )
+                    OutlinedTextField(
+                        value = feedbackText,
+                        onValueChange = { feedbackText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 6,
+                        placeholder = {
+                            Text(
+                                if (languageMode == LanguageMode.BANGLA) "আপনার মন্তব্য এখানে লিখুন..." else "Enter your feedback here..."
+                            )
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showFeedbackDialog = false
+                        feedbackText = ""
+                        Toast.makeText(
+                            context,
+                            if (languageMode == LanguageMode.BANGLA) "আপনার মতামতের জন্য ধন্যবাদ!" else "Thank you for your feedback!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "পাঠান" else "Submit")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFeedbackDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    if (showPrivacyDialog) {
+        AlertDialog(
+            onDismissRequest = { showPrivacyDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "গোপনীয়তা নীতি" else "Privacy Policy",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "১. বাজেটার সম্পূর্ণ অফলাইন-ফার্স্ট অ্যাপ্লিকেশন। আপনার সমস্ত আয়, ব্যয় ও অ্যাকাউন্টের ডাটা আপনার নিজের ফোনেই সংরক্ষিত থাকে।\n\n২. আমরা কোনো ট্র্যাকিং, থার্ড-পার্টি অ্যানালিটিক্স বা ক্লাউড সার্ভারে ডাটা পাঠাই না।\n\n৩. আপনি ব্যাকআপ নিলে তা শুধুমাত্র আপনার নিজস্ব লোকাল ফাইল বা আপনার নিজস্ব গুগল ড্রাইভ অ্যাকাউন্টে জমা হয়।"
+                        else
+                            "1. Budgeter is a 100% offline-first application. All financial entries, transactions, and account details remain securely on your device.\n\n2. We do not collect, track, or transmit your personal financial information to any third-party servers or analytics providers.\n\n3. Cloud backups are saved strictly into your own private Google Drive storage."
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPrivacyDialog = false }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "ঠিক আছে" else "Got it")
+                }
+            }
+        )
+    }
+
     when (currentSubPage) {
         SettingsSubPage.PAYMENT_SOURCES -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.TRANSACTIONS,
-                    currentSubPage = SettingsSubPage.PAYMENT_SOURCES,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                com.example.ui.screens.settings.PaymentSourcesSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            com.example.ui.screens.settings.PaymentSourcesSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.LANGUAGE -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.LOCALIZATION,
-                    currentSubPage = SettingsSubPage.LANGUAGE,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                LanguageSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            LanguageSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.CURRENCY -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.LOCALIZATION,
-                    currentSubPage = SettingsSubPage.CURRENCY,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                CurrencySettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            CurrencySettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.AMOUNT_FORMAT -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.LOCALIZATION,
-                    currentSubPage = SettingsSubPage.AMOUNT_FORMAT,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                com.example.ui.screens.settings.AmountFormatSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            com.example.ui.screens.settings.AmountFormatSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.DATE_TIME -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.LOCALIZATION,
-                    currentSubPage = SettingsSubPage.DATE_TIME,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                DateSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            DateSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.THEMES -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.APPEARANCE,
-                    currentSubPage = SettingsSubPage.THEMES,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                AppearanceSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            AppearanceSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.NAVIGATION_TABS -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.APPEARANCE,
-                    currentSubPage = SettingsSubPage.NAVIGATION_TABS,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                NavigationTabsSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            NavigationTabsSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.TRANSACTION_SETUP -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.TRANSACTIONS,
-                    currentSubPage = SettingsSubPage.TRANSACTION_SETUP,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                TransactionSetupSettingsPage(
-                    viewModel = viewModel,
-                    accounts = accounts,
-                    categories = categories,
-                    languageMode = languageMode,
-                    onNavigateToAutofill = { currentSubPage = SettingsSubPage.SMART_AUTOFILL },
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            TransactionSetupSettingsPage(
+                viewModel = viewModel,
+                accounts = accounts,
+                categories = categories,
+                languageMode = languageMode,
+                onNavigateToAutofill = { currentSubPage = SettingsSubPage.SMART_AUTOFILL },
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.SMART_AUTOFILL -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.TRANSACTIONS,
-                    currentSubPage = SettingsSubPage.SMART_AUTOFILL,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                SmartAutofillSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
-                )
-            }
+            SmartAutofillSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
+            )
         }
         SettingsSubPage.CALENDAR -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.APPEARANCE,
-                    currentSubPage = SettingsSubPage.CALENDAR,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                CalendarSettingsPage(
-                    viewModel = viewModel,
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            CalendarSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.NOTIFICATIONS -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.TRANSACTIONS,
-                    currentSubPage = SettingsSubPage.NOTIFICATIONS,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                NotificationSettingsPage(
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            NotificationSettingsPage(
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.SECURITY -> {
             SecuritySettingsPage(
@@ -406,43 +382,24 @@ fun SettingsScreen(
             )
         }
         SettingsSubPage.ABOUT -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.ABOUT,
-                    currentSubPage = SettingsSubPage.ABOUT,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                AboutSettingsPage(
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            AboutSettingsPage(
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.FAQ -> {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SettingsBreadcrumbBar(
-                    category = SettingsCategory.ABOUT,
-                    currentSubPage = SettingsSubPage.FAQ,
-                    languageMode = languageMode,
-                    onNavigateToRoot = { currentSubPage = SettingsSubPage.ROOT },
-                    onSelectSubPage = { currentSubPage = it }
-                )
-                FaqSettingsPage(
-                    languageMode = languageMode,
-                    onBack = { currentSubPage = SettingsSubPage.ROOT }
-                )
-            }
+            FaqSettingsPage(
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
         }
         SettingsSubPage.ROOT -> {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp)
                     .testTag("settings_screen")
             ) {
-                // Header with Menu Button, Icon, and title "Settings"
+                // Top App Header
                 AppTabHeader(
                     title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
                     tabIcon = Icons.Default.Settings,
@@ -460,933 +417,275 @@ fun SettingsScreen(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Box {
-                            IconButton(
-                                onClick = { showSettingsMenu = true },
-                                modifier = Modifier.testTag("settings_menu_button")
-                            ) {
-                                Icon(
-                                    Icons.Default.MoreVert,
-                                    contentDescription = "Settings Menu",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showSettingsMenu,
-                                onDismissRequest = { showSettingsMenu = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "প্রধান মেনু খুলুন" else "Open Navigation Menu") },
-                                    leadingIcon = { Icon(Icons.Default.Menu, contentDescription = null) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        onOpenDrawer()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "সব ক্যাটাগরি প্রসারিত করুন" else "Expand All Categories") },
-                                    leadingIcon = { Icon(Icons.Default.UnfoldMore, contentDescription = null) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        expandedBranches = SettingsCategory.entries.toSet()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "সব ক্যাটাগরি বন্ধ করুন" else "Collapse All Categories") },
-                                    leadingIcon = { Icon(Icons.Default.UnfoldLess, contentDescription = null) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        expandedBranches = emptySet()
-                                    }
-                                )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                                DropdownMenuItem(
-                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management & Sync") },
-                                    leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        onNavigateToBackupSync()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও ফিঙ্গারপ্রিন্ট" else "Security & App Lock") },
-                                    leadingIcon = { Icon(Icons.Default.Fingerprint, contentDescription = null) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        handleSecurityAccess()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe Data") },
-                                    leadingIcon = { Icon(Icons.Default.RestartAlt, contentDescription = null) },
-                                    onClick = {
-                                        showSettingsMenu = false
-                                        onNavigateToReset()
-                                    }
-                                )
-                            }
-                        }
                     }
                 )
 
-                // Root Header Card with Overview & Expand/Collapse Toggle (No ASCII symbols)
-                ModernSettingsOverviewCard(
-                    languageMode = languageMode,
-                    allExpanded = expandedBranches.size == SettingsCategory.entries.size,
-                    onToggleExpandAll = {
-                        expandedBranches = if (expandedBranches.size == SettingsCategory.entries.size) {
-                            emptySet()
-                        } else {
-                            SettingsCategory.entries.toSet()
-                        }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Left-Right Horizontal Category Swiping / Filter Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FilterChip(
-                        selected = selectedCategoryFilter == null,
-                        onClick = { selectedCategoryFilter = null },
-                        label = {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সকল সেটিংস" else "All Settings",
-                                fontSize = 12.sp,
-                                fontWeight = if (selectedCategoryFilter == null) FontWeight.Bold else FontWeight.Medium
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-
-                    SettingsCategory.entries.forEach { category ->
-                        val isSelected = selectedCategoryFilter == category
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                selectedCategoryFilter = if (isSelected) null else category
-                                if (!isSelected) {
-                                    expandedBranches = expandedBranches + category
-                                }
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = category.icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) category.titleBn else category.titleEn,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Hierarchical Settings List
+                // Clean flat settings list categorized by sections
                 LazyColumn(
                     state = rootListState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    contentPadding = PaddingValues(bottom = 32.dp)
                 ) {
                     // =========================================================================
-                    // 1. CATEGORY: Localization (ভাষা ও এলাকা)
+                    // 1. SECTION: LOCALIZATION
                     // =========================================================================
-                    if (selectedCategoryFilter == null || selectedCategoryFilter == SettingsCategory.LOCALIZATION) {
-                        item {
-                            val isExpanded = expandedBranches.contains(SettingsCategory.LOCALIZATION)
-
-                            ModernSettingsCategoryCard(
-                                category = SettingsCategory.LOCALIZATION,
-                                subtitle = if (languageMode == LanguageMode.BANGLA) "ভাষা, মুদ্রা, কমা সেপারেটর ও ক্যালেন্ডার" else "Language, Currency, Amount format & Dates",
-                                itemCount = 4,
-                                isExpanded = isExpanded,
-                                languageMode = languageMode,
-                                onToggle = {
-                                    expandedBranches = if (isExpanded) {
-                                        expandedBranches - SettingsCategory.LOCALIZATION
-                                    } else {
-                                        expandedBranches + SettingsCategory.LOCALIZATION
-                                    }
-                                }
-                            ) {
-                                // Child 1: Language Preference
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference",
-                                    subtitle = when (languageMode) {
-                                        LanguageMode.ENGLISH -> "English (United States)"
-                                        LanguageMode.BANGLA -> "বাংলা (বাংলাদেশ ও পশ্চিমবঙ্গ)"
-                                    },
-                                    icon = Icons.Default.Translate,
-                                    badgeText = if (languageMode == LanguageMode.BANGLA) "বাংলা" else "EN",
-                                    onClick = { currentSubPage = SettingsSubPage.LANGUAGE }
-                                )
-
-                                // Child 2: Currency Setup
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup",
-                                    subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol}) • ${if (languageMode == LanguageMode.BANGLA) currencyConfig.displayMode.titleBn else currencyConfig.displayMode.titleEn}",
-                                    icon = Icons.Default.CurrencyExchange,
-                                    badgeText = "${currencyConfig.activeSymbol} ${currencyConfig.activeCode}",
-                                    onClick = { currentSubPage = SettingsSubPage.CURRENCY }
-                                )
-
-                                // Child 3: Amount Format
-                                val presetTitle = if (languageMode == LanguageMode.BANGLA) amountFormatConfig.preset.titleBn else amountFormatConfig.preset.titleEn
-                                val sampleText = LanguageHelper.formatCurrency(1234567.89, languageMode)
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Comma Separator",
-                                    subtitle = "$presetTitle • $sampleText",
-                                    icon = Icons.Default.Numbers,
-                                    badgeText = "12,34,567",
-                                    onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
-                                )
-
-                                // Child 4: Date Settings
-                                val currentFormatOption = DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
-                                val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
-                                val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
-                                    java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
-                                    java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
-                                    else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
-                                }
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date Settings",
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "ফরম্যাট: $formatDisplay • প্রথম দিন: $firstDayName" else "Format: $formatDisplay • First day: $firstDayName",
-                                    icon = Icons.Default.CalendarToday,
-                                    badgeText = formatDisplay,
-                                    onClick = { currentSubPage = SettingsSubPage.DATE_TIME }
-                                )
-                            }
-                        }
-                    }
-
-                    // =========================================================================
-                    // 2. CATEGORY: Appearance & Display (রূপরেখা ও প্রদর্শন)
-                    // =========================================================================
-                    if (selectedCategoryFilter == null || selectedCategoryFilter == SettingsCategory.APPEARANCE) {
-                        item {
-                            val isExpanded = expandedBranches.contains(SettingsCategory.APPEARANCE)
-
-                            ModernSettingsCategoryCard(
-                                category = SettingsCategory.APPEARANCE,
-                                subtitle = if (languageMode == LanguageMode.BANGLA) "থিম, কালার, নেভিগেশন ও ক্যালেন্ডার" else "Themes, Colors, Navigation Tabs & Calendar",
-                                itemCount = 3,
-                                isExpanded = isExpanded,
-                                languageMode = languageMode,
-                                onToggle = {
-                                    expandedBranches = if (isExpanded) {
-                                        expandedBranches - SettingsCategory.APPEARANCE
-                                    } else {
-                                        expandedBranches + SettingsCategory.APPEARANCE
-                                    }
-                                }
-                            ) {
-                                // Child 1: Themes & Styling
-                                val fontTitle = if (languageMode == LanguageMode.BANGLA) themeConfig.fontPreset.titleBn else themeConfig.fontPreset.titleEn
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা কাস্টমাইজেশন" else "Themes & Appearance",
-                                    subtitle = "${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }} • ${themeConfig.activeThemeDisplayName} • $fontTitle",
-                                    icon = Icons.Default.Palette,
-                                    badgeText = themeConfig.activeThemeDisplayName,
-                                    onClick = { currentSubPage = SettingsSubPage.THEMES }
-                                )
-
-                                // Child 2: Navigation Tabs
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব কাস্টমাইজেশন" else "Navigation Tabs",
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "ট্যাব বারের অবস্থান, প্রদর্শন ও ক্রম পরিবর্তন" else "Tab position, visibility & custom ordering",
-                                    icon = Icons.Default.ViewCarousel,
-                                    badgeText = null,
-                                    onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
-                                )
-
-                                // Child 3: Calendar View
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার ও পরিসংখ্যান" else "Calendar View & Display",
-                                    subtitle = if (dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS)
-                                        "Indicator: Dots • Show Income & Expenses"
-                                    else
-                                        "Indicator: Amount Badges • Show Income & Expenses",
-                                    icon = Icons.Default.DateRange,
-                                    badgeText = if (dashboardConfig.calendarDisplayMode == CalendarDisplayMode.DOTS) "Dots" else "Badges",
-                                    onClick = { currentSubPage = SettingsSubPage.CALENDAR }
-                                )
-                            }
-                        }
-                    }
-
-                    // =========================================================================
-                    // 3. CATEGORY: Transactions & Features (লেনদেন ও ফিচার)
-                    // =========================================================================
-                    if (selectedCategoryFilter == null || selectedCategoryFilter == SettingsCategory.TRANSACTIONS) {
-                        item {
-                            val isExpanded = expandedBranches.contains(SettingsCategory.TRANSACTIONS)
-
-                            ModernSettingsCategoryCard(
-                                category = SettingsCategory.TRANSACTIONS,
-                                subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ, স্মার্ট অটোফিল ও রিমাইন্ডার" else "Input forms, Autofill, Payment sources & Alerts",
-                                itemCount = 4,
-                                isExpanded = isExpanded,
-                                languageMode = languageMode,
-                                onToggle = {
-                                    expandedBranches = if (isExpanded) {
-                                        expandedBranches - SettingsCategory.TRANSACTIONS
-                                    } else {
-                                        expandedBranches + SettingsCategory.TRANSACTIONS
-                                    }
-                                }
-                            ) {
-                                // Child 1: Transaction Setup
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
-                                    subtitle = if (displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES)
-                                        if (languageMode == LanguageMode.BANGLA) "দ্বি-লাইন প্রদর্শন • কাস্টম কনফিগারেশন" else "Double-Line Display • Custom Settings"
-                                    else
-                                        if (languageMode == LanguageMode.BANGLA) "একক-লাইন প্রদর্শন • কাস্টম কনফিগারেশন" else "Single-Line Display • Custom Settings",
-                                    icon = Icons.Default.AddCircleOutline,
-                                    badgeText = if (displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES) "2 Lines" else "1 Line",
-                                    onClick = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
-                                )
-
-                                // Child 2: Smart Autofill
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "স্মার্ট অটোফিল ও পরামর্শ" else "Smart Autofill & Suggestions",
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "স্বয়ংক্রিয় অ্যাকাউন্ট ও ক্যাটাগরি পরামর্শ" else "Smart category & account suggestions",
-                                    icon = Icons.Default.AutoAwesome,
-                                    badgeText = "AI Suggest",
-                                    onClick = { currentSubPage = SettingsSubPage.SMART_AUTOFILL }
-                                )
-
-                                // Child 3: Payment Sources
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স ও মাধ্যম" else "Payment Sources & Accounts",
-                                    subtitle = "${accounts.size} active sources (Cash, Bank, Wallets, Cards)",
-                                    icon = Icons.Default.MonetizationOn,
-                                    badgeText = "${accounts.size} Sources",
-                                    onClick = { currentSubPage = SettingsSubPage.PAYMENT_SOURCES }
-                                )
-
-                                // Child 4: Phone Notifications
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক হিসাব রিমাইন্ডার ও বিল সতর্কতা" else "Daily expense reminder & bill due alerts",
-                                    icon = Icons.Default.NotificationsNone,
-                                    badgeText = null,
-                                    onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
-                                )
-                            }
-                        }
-                    }
-
-                    // =========================================================================
-                    // 4. CATEGORY: Security & Data (নিরাপত্তা ও ডাটা)
-                    // =========================================================================
-                    if (selectedCategoryFilter == null || selectedCategoryFilter == SettingsCategory.SECURITY) {
-                        item {
-                            val isExpanded = expandedBranches.contains(SettingsCategory.SECURITY)
-
-                            ModernSettingsCategoryCard(
-                                category = SettingsCategory.SECURITY,
-                                subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সুরক্ষা, ব্যাকআপ সিঙ্ক ও ডাটা রিসেট" else "Password, Cloud Sync, Local Backup & Data Wipe",
-                                itemCount = 3,
-                                isExpanded = isExpanded,
-                                languageMode = languageMode,
-                                onToggle = {
-                                    expandedBranches = if (isExpanded) {
-                                        expandedBranches - SettingsCategory.SECURITY
-                                    } else {
-                                        expandedBranches + SettingsCategory.SECURITY
-                                    }
-                                }
-                            ) {
-                                // Child 1: Password & Fingerprint
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও বায়োমেট্রিক" else "Password and Fingerprint",
-                                    subtitle = if (securityConfig.isAppLockEnabled)
-                                        if (languageMode == LanguageMode.BANGLA) "অ্যাপ সুরক্ষা সক্রিয় • পিন ও বায়োমেট্রিক" else "App Lock Active • Protected with PIN & Biometrics"
-                                    else
-                                        if (languageMode == LanguageMode.BANGLA) "সুরক্ষা বন্ধ রয়েছে" else "App Lock Disabled",
-                                    icon = Icons.Default.Fingerprint,
-                                    badgeText = if (securityConfig.isAppLockEnabled) "Locked" else "Off",
-                                    onClick = { handleSecurityAccess() }
-                                )
-
-                                // Child 2: Data Management & Sync
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management & Sync",
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন ড্রাইভ, লোকাল ব্যাকআপ, এক্সপোর্ট ও ইমপোর্ট" else "Google Drive, Local Storage, CSV & JSON",
-                                    icon = Icons.Default.Storage,
-                                    badgeText = "Cloud & Local",
-                                    onClick = onNavigateToBackupSync
-                                )
-
-                                // Child 3: Reset & Wipe
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe Data",
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা, সেটিংস, অ্যাকাউন্ট বা ক্যাটাগরি রিসেট করুন" else "Reset data, settings, accounts, categories or wipe all",
-                                    icon = Icons.Default.RestartAlt,
-                                    badgeText = "Reset",
-                                    onClick = onNavigateToReset
-                                )
-                            }
-                        }
-                    }
-
-                    // =========================================================================
-                    // 5. CATEGORY: About & Support (সম্পর্কে ও সহায়তা)
-                    // =========================================================================
-                    if (selectedCategoryFilter == null || selectedCategoryFilter == SettingsCategory.ABOUT) {
-                        item {
-                            val isExpanded = expandedBranches.contains(SettingsCategory.ABOUT)
-
-                            ModernSettingsCategoryCard(
-                                category = SettingsCategory.ABOUT,
-                                subtitle = if (languageMode == LanguageMode.BANGLA) "অ্যাপ তথ্য, প্রাইভেসি, ইউজার গাইড ও সহায়তা" else "Version info, Offline privacy, FAQ & Documentation",
-                                itemCount = 2,
-                                isExpanded = isExpanded,
-                                languageMode = languageMode,
-                                onToggle = {
-                                    expandedBranches = if (isExpanded) {
-                                        expandedBranches - SettingsCategory.ABOUT
-                                    } else {
-                                        expandedBranches + SettingsCategory.ABOUT
-                                    }
-                                }
-                            ) {
-                                // Child 1: About Budgeter
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "বাজেটার সম্পর্কে" else "About Budgeter",
-                                    subtitle = "Version 3.6 • Offline-First Personal Finance",
-                                    icon = Icons.Default.Info,
-                                    badgeText = "v3.6",
-                                    onClick = { currentSubPage = SettingsSubPage.ABOUT }
-                                )
-
-                                // Child 2: FAQ & Support
-                                ModernSettingsChildRow(
-                                    title = if (languageMode == LanguageMode.BANGLA) "প্রশ্নোত্তর ও সহায়তা" else "FAQ & Support Guide",
-                                    subtitle = if (languageMode == LanguageMode.BANGLA) "ইউজার গাইড, প্রশ্নোত্তর ও ডাবল-এন্ট্রি নির্দেশিকা" else "User guide, FAQ & double-entry documentation",
-                                    icon = Icons.Default.HelpOutline,
-                                    badgeText = "Guide",
-                                    onClick = { currentSubPage = SettingsSubPage.FAQ }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Modern Root Header Card (without ASCII tree symbols)
- */
-@Composable
-private fun ModernSettingsOverviewCard(
-    languageMode: LanguageMode,
-    allExpanded: Boolean,
-    onToggleExpandAll: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(34.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
+                    item {
+                        SettingsSectionHeader(
+                            title = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন" else "LOCALIZATION"
                         )
                     }
-                }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "সেটিংস কনফিগারেশন" else "Settings Configuration",
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "৫টি প্রধান বিভাগ • ১৬টি কনফিগারেশন" else "5 Main Sections • 16 Configurable Options",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
 
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                modifier = Modifier.clickable { onToggleExpandAll() }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (allExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (allExpanded) {
-                            if (languageMode == LanguageMode.BANGLA) "সব বন্ধ" else "Collapse All"
-                        } else {
-                            if (languageMode == LanguageMode.BANGLA) "সব খুলুন" else "Expand All"
-                        },
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Modern Category Card with smooth Drop-Down accordion expansion (No ASCII symbols)
- */
-@Composable
-private fun ModernSettingsCategoryCard(
-    category: SettingsCategory,
-    subtitle: String,
-    itemCount: Int,
-    isExpanded: Boolean,
-    languageMode: LanguageMode,
-    onToggle: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    val chevronRotation by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f, label = "chevron")
-
-    OutlinedCard(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = if (isExpanded) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-        ),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize()
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Category Header Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggle() }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Category Icon
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = category.icon,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(19.dp)
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference",
+                            subtitle = when (languageMode) {
+                                LanguageMode.ENGLISH -> "English"
+                                LanguageMode.BANGLA -> "বাংলা"
+                            },
+                            icon = Icons.Default.Language,
+                            onClick = { currentSubPage = SettingsSubPage.LANGUAGE }
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Title and Subtitle
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) category.titleBn else category.titleEn,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
-                        ) {
-                            Text(
-                                text = "$itemCount",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Drop-down Chevron Indicator
-                IconButton(
-                    onClick = { onToggle() },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ExpandMore,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .rotate(chevronRotation)
-                    )
-                }
-            }
-
-            // Expanded Subcategory Items
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 14.dp, end = 14.dp, bottom = 12.dp, top = 2.dp),
-                    verticalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    content()
-                }
-            }
-        }
-    }
-}
-
-/**
- * Modern Redesigned Child / Subcategory Item
- * Clean card layout with left indentation, icon, bold title, descriptive subtitle, value badge and chevron arrow.
- */
-@Composable
-private fun ModernSettingsChildRow(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    badgeText: String?,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon in rounded surface
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                modifier = Modifier.size(32.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (subtitle.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(1.dp))
-                    Text(
-                        text = subtitle,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            // Value Badge if present
-            if (!badgeText.isNullOrBlank()) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Text(
-                        text = badgeText,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
-                modifier = Modifier.size(12.dp)
-            )
-        }
-    }
-}
-
-/**
- * Breadcrumb & Sibling Navigation Bar displayed at the top of settings sub-pages
- * Enables left-right horizontal switching between sibling items in the same branch
- */
-@Composable
-private fun SettingsBreadcrumbBar(
-    category: SettingsCategory,
-    currentSubPage: SettingsSubPage,
-    languageMode: LanguageMode,
-    onNavigateToRoot: () -> Unit,
-    onSelectSubPage: (SettingsSubPage) -> Unit
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 7.dp)
-        ) {
-            // Hierarchical Breadcrumb line
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Settings",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onNavigateToRoot() }
-                )
-                Text(
-                    text = "  ›  ",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) category.titleBn else category.titleEn,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Horizontal Sibling Chips for Left-Right horizontal switching
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                when (category) {
-                    SettingsCategory.LOCALIZATION -> {
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "ভাষা" else "Language",
-                            icon = Icons.Default.Translate,
-                            isSelected = currentSubPage == SettingsSubPage.LANGUAGE,
-                            onClick = { onSelectSubPage(SettingsSubPage.LANGUAGE) }
-                        )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "মুদ্রা" else "Currency",
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup",
+                            subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
                             icon = Icons.Default.CurrencyExchange,
-                            isSelected = currentSubPage == SettingsSubPage.CURRENCY,
-                            onClick = { onSelectSubPage(SettingsSubPage.CURRENCY) }
+                            onClick = { currentSubPage = SettingsSubPage.CURRENCY }
                         )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "কমা সেপারেটর" else "Amount Format",
-                            icon = Icons.Default.Numbers,
-                            isSelected = currentSubPage == SettingsSubPage.AMOUNT_FORMAT,
-                            onClick = { onSelectSubPage(SettingsSubPage.AMOUNT_FORMAT) }
-                        )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "তারিখ" else "Date Settings",
+                    }
+
+                    item {
+                        val currentFormatOption = DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
+                        val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
+                        val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
+                            java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
+                            java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
+                            else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
+                        }
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date Settings",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "$formatDisplay • প্রথম দিন $firstDayName" else "$formatDisplay • First day $firstDayName",
                             icon = Icons.Default.CalendarToday,
-                            isSelected = currentSubPage == SettingsSubPage.DATE_TIME,
-                            onClick = { onSelectSubPage(SettingsSubPage.DATE_TIME) }
+                            onClick = { currentSubPage = SettingsSubPage.DATE_TIME }
                         )
                     }
-                    SettingsCategory.APPEARANCE -> {
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "থিম" else "Themes",
+
+                    item {
+                        val presetTitle = if (languageMode == LanguageMode.BANGLA) amountFormatConfig.preset.titleBn else amountFormatConfig.preset.titleEn
+                        val sampleText = LanguageHelper.formatCurrency(1234567.89, languageMode)
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format",
+                            subtitle = "$presetTitle • $sampleText",
+                            icon = Icons.Default.Numbers,
+                            onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
+                        )
+                    }
+
+                    item {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    // =========================================================================
+                    // 2. SECTION: GENERAL
+                    // =========================================================================
+                    item {
+                        SettingsSectionHeader(
+                            title = if (languageMode == LanguageMode.BANGLA) "সাধারণ" else "GENERAL"
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা" else "Customize Appearance",
+                            subtitle = "${themeConfig.activeThemeDisplayName} • ${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }}",
                             icon = Icons.Default.Palette,
-                            isSelected = currentSubPage == SettingsSubPage.THEMES,
-                            onClick = { onSelectSubPage(SettingsSubPage.THEMES) }
-                        )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "ট্যাব বার" else "Tabs",
-                            icon = Icons.Default.ViewCarousel,
-                            isSelected = currentSubPage == SettingsSubPage.NAVIGATION_TABS,
-                            onClick = { onSelectSubPage(SettingsSubPage.NAVIGATION_TABS) }
-                        )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার" else "Calendar",
-                            icon = Icons.Default.DateRange,
-                            isSelected = currentSubPage == SettingsSubPage.CALENDAR,
-                            onClick = { onSelectSubPage(SettingsSubPage.CALENDAR) }
+                            onClick = { currentSubPage = SettingsSubPage.THEMES }
                         )
                     }
-                    SettingsCategory.TRANSACTIONS -> {
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা" else "Data Management",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "লোকাল ব্যাকআপ, এক্সপোর্ট ও ইমপোর্ট" else "Backup, Restore & Local Snapshots",
+                            icon = Icons.Default.Storage,
+                            onClick = onNavigateToBackupSync
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক" else "Online Sync",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ ও ক্লাউড অটো-সিঙ্ক" else "Google Drive auto-sync & cloud storage",
+                            icon = Icons.Default.CloudQueue,
+                            onClick = onNavigateToBackupSync
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম, দ্রুত লেনদেন ও প্রদর্শন" else "Default accounts, layout & autofill",
                             icon = Icons.Default.AddCircleOutline,
-                            isSelected = currentSubPage == SettingsSubPage.TRANSACTION_SETUP,
-                            onClick = { onSelectSubPage(SettingsSubPage.TRANSACTION_SETUP) }
+                            onClick = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
                         )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "অটোফিল" else "Autofill",
-                            icon = Icons.Default.AutoAwesome,
-                            isSelected = currentSubPage == SettingsSubPage.SMART_AUTOFILL,
-                            onClick = { onSelectSubPage(SettingsSubPage.SMART_AUTOFILL) }
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার" else "Calendar",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের ইনডিকেটর প্রদর্শন" else "Visual indicators & fiscal calendar",
+                            icon = Icons.Default.CalendarMonth,
+                            onClick = { currentSubPage = SettingsSubPage.CALENDAR }
                         )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স" else "Payment Sources",
-                            icon = Icons.Default.MonetizationOn,
-                            isSelected = currentSubPage == SettingsSubPage.PAYMENT_SOURCES,
-                            onClick = { onSelectSubPage(SettingsSubPage.PAYMENT_SOURCES) }
-                        )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "নোটিফিকেশন" else "Notifications",
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডার ও বিল অ্যালার্ট" else "Daily expense alarms & reminders",
                             icon = Icons.Default.NotificationsNone,
-                            isSelected = currentSubPage == SettingsSubPage.NOTIFICATIONS,
-                            onClick = { onSelectSubPage(SettingsSubPage.NOTIFICATIONS) }
+                            onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
                         )
                     }
-                    SettingsCategory.ABOUT -> {
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "বাজেটার তথ্য" else "About",
-                            icon = Icons.Default.Info,
-                            isSelected = currentSubPage == SettingsSubPage.ABOUT,
-                            onClick = { onSelectSubPage(SettingsSubPage.ABOUT) }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও ফিঙ্গারপ্রিন্ট" else "Password and Fingerprint",
+                            subtitle = if (securityConfig.isAppLockEnabled)
+                                (if (languageMode == LanguageMode.BANGLA) "অ্যাপ লক সক্রিয় রয়েছে" else "App lock enabled")
+                            else
+                                (if (languageMode == LanguageMode.BANGLA) "বায়োমেট্রিক ও পিন সুরক্ষা" else "Biometric authentication & PIN lock"),
+                            icon = Icons.Default.Fingerprint,
+                            onClick = { handleSecurityAccess() }
                         )
-                        SiblingChip(
-                            label = if (languageMode == LanguageMode.BANGLA) "প্রশ্নোত্তর" else "FAQ",
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব" else "Navigation Tabs",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
+                            icon = Icons.Default.ViewCarousel,
+                            onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                        )
+                    }
+
+                    item {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    // =========================================================================
+                    // 3. SECTION: ABOUT
+                    // =========================================================================
+                    item {
+                        SettingsSectionHeader(
+                            title = if (languageMode == LanguageMode.BANGLA) "সম্পর্কে" else "ABOUT"
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও প্রশ্নোত্তর" else "Support & FAQ",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ইউজার গাইড ও প্রশ্নোত্তর" else "User guide & frequently asked questions",
                             icon = Icons.Default.HelpOutline,
-                            isSelected = currentSubPage == SettingsSubPage.FAQ,
-                            onClick = { onSelectSubPage(SettingsSubPage.FAQ) }
+                            onClick = { currentSubPage = SettingsSubPage.FAQ }
                         )
                     }
-                    else -> {}
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "মতামত ও পরামর্শ" else "Feedback & Bug Report",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ডেভেলপারদের পরামর্শ ও মতামত জানান" else "Send suggestions to developers",
+                            icon = Icons.Default.Feedback,
+                            onClick = { showFeedbackDialog = true }
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "গোপনীয়তা নীতি" else "Privacy Policy",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "১০০% অফলাইন, আপনার ডাটা ফোনেই নিরাপদ" else "100% offline-first, your data stays on device",
+                            icon = Icons.Default.Security,
+                            onClick = { showPrivacyDialog = true }
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সংস্করণ" else "App Version",
+                            subtitle = "v1.0.0 (Budgeter Release)",
+                            icon = Icons.Default.Info,
+                            onClick = { currentSubPage = SettingsSubPage.ABOUT }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * Modern Clean Settings Item Row (Flat layout matching reference)
+ */
 @Composable
-private fun SiblingChip(
-    label: String,
+private fun ModernSettingsItemRow(
+    title: String,
+    subtitle: String? = null,
     icon: ImageVector,
-    isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-        ),
-        modifier = Modifier.clickable { onClick() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(13.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(20.dp))
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                text = title,
+                fontSize = 15.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
             )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 12.5.sp,
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
+}
+
+/**
+ * Section Header (Uppercase, colored, compact spacing)
+ */
+@Composable
+private fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp)
+    )
 }
