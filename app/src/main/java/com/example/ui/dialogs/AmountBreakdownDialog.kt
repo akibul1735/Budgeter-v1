@@ -500,6 +500,10 @@ private fun CalculationBreakdownView(
     info: AmountDetailInfo,
     languageMode: LanguageMode
 ) {
+    val sortedItems = remember(info.relatedBreakdownItems) {
+        info.relatedBreakdownItems.sortedByDescending { Math.abs(it.amount) }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -536,95 +540,7 @@ private fun CalculationBreakdownView(
             }
         }
 
-        if (info.formulaSteps.isNotEmpty()) {
-            item {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "ধাপে ধাপে হিসাব প্রক্রিয়া" else "Step-by-Step Breakdown",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            items(info.formulaSteps) { step ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = step.onClick != null) {
-                            step.onClick?.invoke()
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (step.isHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = if (step.isHighlighted) BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.5f)) else null
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (step.operator == "=") SolidPrimary else MaterialTheme.colorScheme.surface,
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = step.operator,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (step.operator == "=") Color.White else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = step.label,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (step.isHighlighted) FontWeight.Bold else FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                if (!step.note.isNullOrBlank()) {
-                                    Text(
-                                        text = step.note,
-                                        fontSize = 10.5.sp,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = LanguageHelper.formatCurrency(step.amount, languageMode),
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = when {
-                                    step.operator == "−" -> SolidExpense
-                                    step.operator == "+" -> SolidIncome
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                            if (step.onClick != null) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (info.relatedBreakdownItems.isNotEmpty()) {
+        if (sortedItems.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -635,7 +551,7 @@ private fun CalculationBreakdownView(
                 )
             }
 
-            items(info.relatedBreakdownItems) { item ->
+            items(sortedItems) { item ->
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -658,7 +574,7 @@ private fun CalculationBreakdownView(
                                 Icon(
                                     imageVector = IconHelper.getIconByName(item.iconName),
                                     contentDescription = null,
-                                    tint = item.color ?: MaterialTheme.colorScheme.primary,
+                                    tint = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.primary),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -693,7 +609,7 @@ private fun CalculationBreakdownView(
                                     text = LanguageHelper.formatCurrency(item.amount, languageMode),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = item.color ?: MaterialTheme.colorScheme.onSurface
+                                    color = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.onSurface)
                                 )
                                 if (item.percentage != null) {
                                     Text(
@@ -848,6 +764,10 @@ private fun TabbedBreakdownContentView(
     onTransactionClick: ((Transaction) -> Unit)? = null,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
+    val sortedItems = remember(tab.items) {
+        tab.items.sortedByDescending { Math.abs(it.amount) }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(14.dp),
@@ -884,104 +804,17 @@ private fun TabbedBreakdownContentView(
             }
         }
 
-        if (tab.formulaSteps.isNotEmpty()) {
-            item {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "ধাপে ধাপে হিসাব প্রক্রিয়া" else "Step-by-Step Breakdown",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            items(tab.formulaSteps) { step ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = step.onClick != null) {
-                            step.onClick?.invoke()
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (step.isHighlighted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = if (step.isHighlighted) BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.5f)) else null
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (step.operator == "=") SolidPrimary else MaterialTheme.colorScheme.surface,
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = step.operator,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (step.operator == "=") Color.White else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = step.label,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (step.isHighlighted) FontWeight.Bold else FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                if (!step.note.isNullOrBlank()) {
-                                    Text(
-                                        text = step.note,
-                                        fontSize = 10.5.sp,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = LanguageHelper.formatCurrency(step.amount, languageMode),
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = when {
-                                    step.operator == "−" -> SolidExpense
-                                    step.operator == "+" -> SolidIncome
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                            if (step.onClick != null) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (tab.items.isNotEmpty()) {
+        if (sortedItems.isNotEmpty()) {
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "তালিকাভুক্ত একাউন্টসমূহ" else "Contributing Accounts",
+                    text = if (languageMode == LanguageMode.BANGLA) "তালিকাভুক্ত উপাদানসমূহ" else "Contributing Components",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            items(tab.items) { item ->
+            items(sortedItems) { item ->
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1004,7 +837,7 @@ private fun TabbedBreakdownContentView(
                                 Icon(
                                     imageVector = IconHelper.getIconByName(item.iconName),
                                     contentDescription = null,
-                                    tint = item.color ?: MaterialTheme.colorScheme.primary,
+                                    tint = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.primary),
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
@@ -1039,7 +872,7 @@ private fun TabbedBreakdownContentView(
                                     text = LanguageHelper.formatCurrency(item.amount, languageMode),
                                     fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = item.color ?: MaterialTheme.colorScheme.onSurface
+                                    color = item.color ?: (if (item.amount < 0) SolidExpense else MaterialTheme.colorScheme.onSurface)
                                 )
                                 if (item.percentage != null) {
                                     Text(
@@ -1064,7 +897,7 @@ private fun TabbedBreakdownContentView(
             }
         }
 
-        if (tab.items.isEmpty() && tab.formulaSteps.isEmpty() && tab.transactions.isEmpty()) {
+        if (sortedItems.isEmpty() && tab.transactions.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
