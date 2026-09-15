@@ -202,4 +202,66 @@ class BudgetScreensTest {
         composeTestRule.onNodeWithTag("filtered_total_amount_pill").assertExists()
         composeTestRule.onNodeWithTag("filtered_total_amount_text").assertExists()
     }
+
+    @Test
+    fun testGroupRemainingCalculationMatchesUserRule() {
+        // User example:
+        // Group Budget: 20,000৳
+        // Total Actual Spent: 21,000৳
+        // Category 1 remaining: 1,000৳
+        // Category 2 remaining: 1,000৳
+        // Group Remaining: 2,000৳
+        // Rule: Group Remaining = SUM(all Category Remaining amounts)
+        val catParent = Category(id = 1, nameEn = "Living", nameBn = "জীবনযাপন", iconName = "Home", colorHex = "#2196F3", type = CategoryType.EXPENSE, parentId = null)
+        val cat1 = Category(id = 2, nameEn = "Groceries", nameBn = "মুদি", iconName = "ShoppingCart", colorHex = "#2196F3", type = CategoryType.EXPENSE, parentId = 1)
+        val cat2 = Category(id = 3, nameEn = "Utilities", nameBn = "ইউটিলিটি", iconName = "Bolt", colorHex = "#2196F3", type = CategoryType.EXPENSE, parentId = 1)
+        val cat3 = Category(id = 4, nameEn = "Dining", nameBn = "খাওয়া", iconName = "Restaurant", colorHex = "#2196F3", type = CategoryType.EXPENSE, parentId = 1)
+
+        // Cat 1: Budget 5,000, Spent 4,000 => Remaining 1,000
+        val item1 = com.example.ui.screens.CategoryBudgetTrackingItem(
+            category = cat1,
+            spentAmount = 4000.0,
+            budgetLimit = 5000.0,
+            isEnabled = true,
+            transactions = emptyList()
+        )
+        // Cat 2: Budget 5,000, Spent 4,000 => Remaining 1,000
+        val item2 = com.example.ui.screens.CategoryBudgetTrackingItem(
+            category = cat2,
+            spentAmount = 4000.0,
+            budgetLimit = 5000.0,
+            isEnabled = true,
+            transactions = emptyList()
+        )
+        // Cat 3: Budget 10,000, Spent 13,000 => Over budget by 3,000, Remaining = 0
+        val item3 = com.example.ui.screens.CategoryBudgetTrackingItem(
+            category = cat3,
+            spentAmount = 13000.0,
+            budgetLimit = 10000.0,
+            isEnabled = true,
+            transactions = emptyList()
+        )
+
+        val group = com.example.ui.screens.CategoryGroupBudgetTracking(
+            parentCategory = catParent,
+            groupNameEn = "Living",
+            groupNameBn = "জীবনযাপন",
+            items = listOf(item1, item2, item3)
+        )
+
+        // Total Group Budget = 20,000
+        assertEquals(20000.0, group.totalBudget, 0.001)
+        // Total Actual Spent = 21,000
+        assertEquals(21000.0, group.totalSpent, 0.001)
+        // Group is over budget overall
+        assertEquals(true, group.isOverBudget)
+
+        // Category-level remaining
+        assertEquals(1000.0, item1.remainingAmount, 0.001)
+        assertEquals(1000.0, item2.remainingAmount, 0.001)
+        assertEquals(0.0, item3.remainingAmount, 0.001)
+
+        // Group Remaining = SUM(all Category Remaining amounts) = 2,000৳
+        assertEquals(2000.0, group.remainingAmount, 0.001)
+    }
 }

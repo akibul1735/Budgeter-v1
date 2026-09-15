@@ -158,6 +158,8 @@ data class CategoryBudgetTrackingItem(
     val percentageInt: Int get() = if (budgetLimit > 0) ((spentAmount / budgetLimit) * 100).roundToInt() else 0
     val isOverBudget: Boolean get() = hasBudget && spentAmount > budgetLimit
     val diffAmount: Double get() = kotlin.math.abs(budgetLimit - spentAmount)
+    val remainingAmount: Double get() = if (hasBudget && spentAmount < budgetLimit) (budgetLimit - spentAmount) else 0.0
+    val overBudgetAmount: Double get() = if (hasBudget && spentAmount > budgetLimit) (spentAmount - budgetLimit) else 0.0
     val deltaSpent: Double get() = spentAmount - spentBaseAmount
     val deltaPercent: Double get() = if (spentBaseAmount > 0.0) ((spentAmount - spentBaseAmount) / spentBaseAmount) * 100.0 else 0.0
 }
@@ -177,6 +179,8 @@ data class CategoryGroupBudgetTracking(
     val percentageInt: Int get() = if (totalBudget > 0) ((totalSpent / totalBudget) * 100).roundToInt() else 0
     val isOverBudget: Boolean get() = hasBudget && totalSpent > totalBudget
     val diffAmount: Double get() = kotlin.math.abs(totalBudget - totalSpent)
+    val remainingAmount: Double get() = items.sumOf { it.remainingAmount }
+    val overBudgetAmount: Double get() = items.sumOf { it.overBudgetAmount }
     val deltaSpent: Double get() = totalSpent - totalSpentBase
     val deltaPercent: Double get() = if (totalSpentBase > 0.0) ((totalSpent - totalSpentBase) / totalSpentBase) * 100.0 else 0.0
 }
@@ -597,6 +601,9 @@ fun BudgetTrackingScreen(
     }
     val totalFlowBudget = remember(categoryGroups) {
         categoryGroups.sumOf { it.totalBudget }
+    }
+    val totalFlowRemaining = remember(categoryGroups) {
+        categoryGroups.sumOf { it.remainingAmount }
     }
     val overallPercentage = remember(totalFlowSpent, totalFlowBudget) {
         if (totalFlowBudget > 0) ((totalFlowSpent / totalFlowBudget) * 100).roundToInt() else 0
@@ -1099,16 +1106,20 @@ fun BudgetTrackingScreen(
                                 modifier = Modifier.weight(1f),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                val showPositiveRemaining = totalFlowRemaining > 0
+                                val metricColor = if (showPositiveRemaining) SolidIncome else if (isOverallOver) CrimsonPink else SolidIncome
                                 Text(
                                     text = if (totalFlowBudget > 0) {
-                                        if (isOverallOver) {
+                                        if (showPositiveRemaining) {
+                                            if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"
+                                        } else if (isOverallOver) {
                                             if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত" else "Over Budget"
                                         } else {
                                             if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট" else "Remaining"
                                         }
                                     } else "Difference",
                                     fontSize = 10.sp,
-                                    color = if (isOverallOver) CrimsonPink else SolidIncome,
+                                    color = metricColor,
                                     fontWeight = FontWeight.SemiBold,
                                     textAlign = TextAlign.Center,
                                     maxLines = 1
@@ -1116,19 +1127,31 @@ fun BudgetTrackingScreen(
                                 Spacer(modifier = Modifier.height(1.dp))
                                 Text(
                                     text = if (totalFlowBudget > 0) {
-                                        formatBudgetAmount(overallDiff, filterState, languageMode)
+                                        if (showPositiveRemaining) {
+                                            formatBudgetAmount(totalFlowRemaining, filterState, languageMode)
+                                        } else if (isOverallOver) {
+                                            formatBudgetAmount(overallDiff, filterState, languageMode)
+                                        } else {
+                                            formatBudgetAmount(0.0, filterState, languageMode)
+                                        }
                                     } else "-",
                                     fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isOverallOver) CrimsonPink else SolidIncome,
+                                    color = metricColor,
                                     textAlign = TextAlign.Center,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = if (isOverallOver) "Over limit" else "Under limit",
+                                    text = if (showPositiveRemaining && isOverallOver) {
+                                        if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরিতে অবশিষ্ট" else "In categories"
+                                    } else if (isOverallOver) {
+                                        if (languageMode == LanguageMode.BANGLA) "সীমা অতিক্রান্ত" else "Over limit"
+                                    } else {
+                                        if (languageMode == LanguageMode.BANGLA) "বাজেটের মধ্যে" else "Under limit"
+                                    },
                                     fontSize = 8.5.sp,
-                                    color = if (isOverallOver) CrimsonPink else SlateText,
+                                    color = if (showPositiveRemaining) SlateText else if (isOverallOver) CrimsonPink else SlateText,
                                     textAlign = TextAlign.Center,
                                     maxLines = 1
                                 )
@@ -1220,18 +1243,20 @@ fun BudgetTrackingScreen(
 
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isOverallOver) CrimsonPink.copy(alpha = 0.15f) else SolidIncome.copy(alpha = 0.15f),
+                                        color = if (totalFlowRemaining > 0) SolidIncome.copy(alpha = 0.15f) else if (isOverallOver) CrimsonPink.copy(alpha = 0.15f) else SolidIncome.copy(alpha = 0.15f),
                                         modifier = Modifier.padding(start = 2.dp)
                                     ) {
                                         Text(
-                                            text = if (isOverallOver) {
+                                            text = if (totalFlowRemaining > 0) {
+                                                "${formatBudgetAmount(totalFlowRemaining, filterState, languageMode, false)} left"
+                                            } else if (isOverallOver) {
                                                 "+${formatBudgetAmount(overallDiff, filterState, languageMode, false)}"
                                             } else {
-                                                "${formatBudgetAmount(overallDiff, filterState, languageMode, false)} left"
+                                                "${formatBudgetAmount(0.0, filterState, languageMode, false)} left"
                                             },
                                             fontSize = 9.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isOverallOver) CrimsonPink else SolidIncome,
+                                            color = if (totalFlowRemaining > 0) SolidIncome else if (isOverallOver) CrimsonPink else SolidIncome,
                                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                         )
                                     }
@@ -2388,17 +2413,19 @@ private fun CategoryGroupSection(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        val diffText = if (group.isOverBudget) {
+                        val diffText = if (group.remainingAmount > 0) {
+                            "${LanguageHelper.formatCurrency(group.remainingAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                        } else if (group.isOverBudget) {
                             "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
                         } else {
-                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                            "${LanguageHelper.formatCurrency(0.0, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
                         }
 
                         Text(
                             text = diffText,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (group.isOverBudget) CrimsonPink else SlateText
+                            color = if (group.remainingAmount > 0) SlateText else if (group.isOverBudget) CrimsonPink else SlateText
                         )
                     }
 
@@ -2600,7 +2627,7 @@ private fun CategoryRow(
                 val diffText = if (item.isOverBudget) {
                     "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
                 } else {
-                    "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} left from ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
+                    "${LanguageHelper.formatCurrency(item.remainingAmount, languageMode)} left from ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
                 }
 
                 Row(

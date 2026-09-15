@@ -325,7 +325,7 @@ object TabExportHelper {
             else "Budget Tracking Report ($periodLabel)"
         }
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val remaining = totalBudget - totalSpent
+        val remaining = groups.sumOf { it.remainingAmount }
         val netSavings = totalIncomeActual - totalExpenseActual
         val deltaSpent = totalSpent - totalSpentBase
         val deltaPercent = if (totalSpentBase > 0.001) (deltaSpent / totalSpentBase) * 100.0 else 0.0
@@ -467,7 +467,7 @@ object TabExportHelper {
                     val pctChange = if (Math.abs(item.spentBaseAmount) > 0.001) String.format(Locale.US, "%.1f%%", item.deltaPercent) else "-"
                     sb.append("${escapeCsv(groupName)},${escapeCsv(catName)},$budget,$spent,$baseSpent,$variance,$pctChange,${item.percentageInt}%\n")
                 } else {
-                    val remaining = String.format(Locale.US, "%.2f", item.budgetLimit - item.spentAmount)
+                    val remaining = String.format(Locale.US, "%.2f", item.remainingAmount)
                     sb.append("${escapeCsv(groupName)},${escapeCsv(catName)},$budget,$spent,$remaining,${item.percentageInt}%\n")
                 }
             }
@@ -638,13 +638,13 @@ object TabExportHelper {
 
             for (grp in groups) {
                 val grpName = LanguageHelper.getLocalizedName(grp.groupNameEn, grp.groupNameBn, languageMode)
-                val grpRem = grp.totalBudget - grp.totalSpent
+                val grpRem = grp.remainingAmount
                 sb.append("""
                     <tr class="group-row">
                         <td><strong>📁 $grpName</strong></td>
                         <td style="text-align: right; font-weight: bold;">৳ ${LanguageHelper.formatNumber(grp.totalBudget, languageMode)}</td>
                         <td style="text-align: right; font-weight: bold; color: #dc2626;">৳ ${LanguageHelper.formatNumber(grp.totalSpent, languageMode)}</td>
-                        <td style="text-align: right; font-weight: bold;" class="${if (grpRem >= 0) "text-success" else "text-danger"}">৳ ${LanguageHelper.formatNumber(grpRem, languageMode)}</td>
+                        <td style="text-align: right; font-weight: bold;" class="${if (grpRem > 0) "text-success" else if (grp.isOverBudget) "text-danger" else "text-muted"}">৳ ${LanguageHelper.formatNumber(grpRem, languageMode)}</td>
                         <td>
                             <div class="progress-container">
                                 <div class="progress-bar"><div class="progress-fill ${if (grp.percentageInt > 100) "fill-red" else if (grp.percentageInt > 85) "fill-amber" else "fill-green"}" style="width: ${grp.percentageInt.coerceAtMost(100)}%;"></div></div>
