@@ -98,6 +98,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -576,9 +577,7 @@ fun BudgetTrackingScreen(
         val mappedGroups = resultList.map { group ->
             val groupShare = if (totalGrandSpent > 0) (group.totalSpent / totalGrandSpent) * 100.0 else 0.0
             val updatedItems = group.items.map { item ->
-                val itemShare = if (group.items.size > 1 && group.totalSpent > 0) {
-                    (item.spentAmount / group.totalSpent) * 100.0
-                } else if (totalGrandSpent > 0) {
+                val itemShare = if (totalGrandSpent > 0) {
                     (item.spentAmount / totalGrandSpent) * 100.0
                 } else 0.0
                 item.copy(percentageShare = itemShare.coerceAtLeast(0.0))
@@ -2330,7 +2329,7 @@ private fun CategoryGroupSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onToggleExpand() }
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -2341,7 +2340,7 @@ private fun CategoryGroupSection(
             ) {
                 Text(
                     text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
-                    fontSize = 14.5.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
@@ -2351,16 +2350,37 @@ private fun CategoryGroupSection(
                 if (group.hasBudget) {
                     Text(
                         text = " · ${group.percentageInt}%",
-                        fontSize = 14.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (group.percentageShare >= 1.0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "${group.percentageShare.toInt()}% মোট" else "${group.percentageShare.toInt()}% of total",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = SlateText,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                 } else if (group.percentageShare > 0) {
                     Text(
-                        text = " · ${group.percentageShare.toInt()}%",
-                        fontSize = 13.5.sp,
+                        text = " · ",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "${group.percentageShare.toInt()}% মোট" else "${group.percentageShare.toInt()}% of total",
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = SlateText
                     )
                 }
 
@@ -2371,7 +2391,7 @@ private fun CategoryGroupSection(
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
                     tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                     modifier = Modifier
-                        .size(18.dp)
+                        .size(17.dp)
                         .rotate(if (isExpanded) 0f else -90f)
                 )
             }
@@ -2384,16 +2404,16 @@ private fun CategoryGroupSection(
                 ) {
                     Text(
                         text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = SlateText,
                         textAlign = TextAlign.End,
                         maxLines = 1
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                        fontSize = 13.5.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (group.totalSpent > 0) CrimsonPink else SlateText,
                         textAlign = TextAlign.End,
@@ -2407,14 +2427,14 @@ private fun CategoryGroupSection(
                 ) {
                     Text(
                         text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (group.hasBudget) {
                         Text(
                             text = " / ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}",
-                            fontSize = 13.5.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
                             color = SlateText
                         )
@@ -2453,6 +2473,7 @@ private fun CategoryGroupSection(
 /**
  * Individual Category Row matching the modern design in the uploaded screenshot:
  * - Rounded surface card (16dp corner radius, subtle border)
+ * - In Day mode: Off-white tinted background so cards stand out cleanly from screen background
  * - Left rounded-square icon badge with category-tinted background and crisp icon
  * - Center: Category name · Colored percentage (Green <85%, Amber 85-100%, Red >100%)
  * - Subtitle: Contextual / item / payee descriptors (e.g. "Rent, utilities", "Food and supplies")
@@ -2489,23 +2510,35 @@ private fun CategoryRow(
         getCategorySubtitle(item, groupNameEn, languageMode)
     }
 
-    val cardShape = RoundedCornerShape(16.dp)
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    val cardBgColor = if (isLight) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    val cardBorder = if (isLight) {
+        BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+    } else {
+        BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    }
+
+    val cardShape = RoundedCornerShape(14.dp)
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        color = cardBgColor,
         shape = cardShape,
-        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        shadowElevation = 1.dp,
+        border = cardBorder,
+        shadowElevation = if (isLight) 0.5.dp else 1.dp,
         tonalElevation = 0.5.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = 12.dp, vertical = 3.dp)
             .clip(cardShape)
             .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
             // Main Top Row: Left Icon Badge + Title/Subtitle + Right Amounts/Status
             Row(
@@ -2516,8 +2549,8 @@ private fun CategoryRow(
                 // Left Icon Badge
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(parsedColor.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -2525,11 +2558,11 @@ private fun CategoryRow(
                         imageVector = IconHelper.getIconByName(item.category.iconName),
                         contentDescription = null,
                         tint = parsedColor,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
 
                 // Middle Column: Category Name · Percentage + Subtitle
                 Column(
@@ -2540,7 +2573,7 @@ private fun CategoryRow(
                     ) {
                         Text(
                             text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
-                            fontSize = 15.sp,
+                            fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -2551,44 +2584,59 @@ private fun CategoryRow(
                         if (item.hasBudget) {
                             Text(
                                 text = " · ",
-                                fontSize = 14.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                             Text(
                                 text = "${item.percentageInt}%",
-                                fontSize = 14.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = percentColor
                             )
+                            if (item.percentageShare >= 1.0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "${item.percentageShare.toInt()}% মোট" else "${item.percentageShare.toInt()}% of total",
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = SlateText,
+                                        modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 0.5.dp)
+                                    )
+                                }
+                            }
                         } else if (item.percentageShare > 0) {
                             Text(
                                 text = " · ",
-                                fontSize = 14.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                             Text(
-                                text = "${item.percentageShare.toInt()}%",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = if (languageMode == LanguageMode.BANGLA) "${item.percentageShare.toInt()}% মোট" else "${item.percentageShare.toInt()}% of total",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = SlateText
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(1.dp))
 
                     Text(
                         text = subtitle,
-                        fontSize = 12.5.sp,
+                        fontSize = 11.5.sp,
                         color = SlateText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Right Column: Spent / Budget + Left/Over status
                 Column(
@@ -2601,15 +2649,15 @@ private fun CategoryRow(
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentBaseAmount, languageMode),
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 color = SlateText,
                                 textAlign = TextAlign.End,
                                 maxLines = 1
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                                fontSize = 14.5.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (item.spentAmount > 0) MaterialTheme.colorScheme.onSurface else SlateText,
                                 textAlign = TextAlign.End,
@@ -2623,7 +2671,7 @@ private fun CategoryRow(
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                                fontSize = 15.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.End,
@@ -2632,7 +2680,7 @@ private fun CategoryRow(
                             if (item.hasBudget) {
                                 Text(
                                     text = " / ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}",
-                                    fontSize = 13.5.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Normal,
                                     color = SlateText,
                                     textAlign = TextAlign.End,
@@ -2642,7 +2690,7 @@ private fun CategoryRow(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(1.dp))
 
                     if (item.hasBudget) {
                         val statusText = if (item.isOverBudget) {
@@ -2661,7 +2709,7 @@ private fun CategoryRow(
 
                         Text(
                             text = statusText,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = statusColor,
                             textAlign = TextAlign.End,
@@ -2670,7 +2718,7 @@ private fun CategoryRow(
                     } else {
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "বাজেট নেই" else "No budget",
-                            fontSize = 11.5.sp,
+                            fontSize = 11.sp,
                             color = SlateText,
                             textAlign = TextAlign.End,
                             maxLines = 1
@@ -2681,7 +2729,7 @@ private fun CategoryRow(
 
             // Bottom Progress Bar (matching screenshot horizontal bar)
             if (item.hasBudget) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 val clampedProgress = item.progressRatio.coerceIn(0f, 1f)
                 val barFillColor = when {
@@ -2693,16 +2741,16 @@ private fun CategoryRow(
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(5.5.dp)
-                        .clip(RoundedCornerShape(3.dp))
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(2.5.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                 ) {
                     if (clampedProgress > 0f) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(clampedProgress)
-                                .height(5.5.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                                .height(5.dp)
+                                .clip(RoundedCornerShape(2.5.dp))
                                 .background(barFillColor)
                         )
                     }
@@ -2860,16 +2908,26 @@ private fun CategoryTransactionsDetailDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Column {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "বাজেট: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}" else "Budget: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (item.percentageShare > 0) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "মোট খরচের ${item.percentageShare.toInt()}%" else "${item.percentageShare.toInt()}% of total expenses",
+                                        fontSize = 11.sp,
+                                        color = SlateText
+                                    )
+                                }
+                            }
                             Text(
-                                text = "Budget: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${item.percentageInt}% used",
-                                fontSize = 12.sp,
+                                text = if (languageMode == LanguageMode.BANGLA) "${item.percentageInt}% ব্যবহৃত" else "${item.percentageInt}% used",
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (item.isOverBudget) CrimsonPink else BrandBlueLight
                             )
