@@ -263,8 +263,9 @@ object GoogleDriveService {
         )
         val jsonContent = adapter.indent("  ").toJson(backupData)
 
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val syncFileName = "Budgeter_Backup_$timestamp.json"
+        val deviceName = bPrefs.getDeviceName().trim()
+        val sanitizedDevice = deviceName.replace(Regex("[^a-zA-Z0-9_-]"), "_").ifBlank { "Device" }
+        val syncFileName = "Budgeter_Sync_${sanitizedDevice}.json"
 
         var visibleFileId: String? = null
         var appDataFileId: String? = null
@@ -272,28 +273,28 @@ object GoogleDriveService {
         val uploadToVisible = folderType.contains("Visible", ignoreCase = true) || folderType.contains("Both", ignoreCase = true)
         val uploadToHidden = folderType.contains("Hidden", ignoreCase = true) || folderType.contains("Both", ignoreCase = true)
 
-        // 1. Upload to Visible "Budgeter" Folder & retain last 5
+        // 1. Online Sync to Visible "Budgeter" Folder (1 sync file per device, multiple if device changes)
         if (uploadToVisible) {
             val folderId = getOrCreateVisibleBudgeterFolder(accessToken)
             if (folderId != null) {
-                visibleFileId = uploadFile(accessToken, syncFileName, jsonContent, listOf(folderId))
-                pruneRollingBackups(
+                visibleFileId = uploadOrUpdateSyncFile(
                     accessToken = accessToken,
+                    fileName = syncFileName,
+                    jsonContent = jsonContent,
                     parentFolderId = folderId,
-                    isAppData = false,
-                    maxBackups = 5
+                    isAppData = false
                 )
             }
         }
 
-        // 2. Upload to Hidden "appDataFolder" & retain last 5
+        // 2. Online Sync to Hidden "appDataFolder" (1 sync file per device, multiple if device changes)
         if (uploadToHidden || (!uploadToVisible && !uploadToHidden)) {
-            appDataFileId = uploadFile(accessToken, syncFileName, jsonContent, listOf("appDataFolder"))
-            pruneRollingBackups(
+            appDataFileId = uploadOrUpdateSyncFile(
                 accessToken = accessToken,
+                fileName = syncFileName,
+                jsonContent = jsonContent,
                 parentFolderId = null,
-                isAppData = true,
-                maxBackups = 5
+                isAppData = true
             )
         }
 
@@ -304,6 +305,85 @@ object GoogleDriveService {
                 fileName = syncFileName
             )
         )
+    }
+
+    /**
+     * Uploads a new sync file or updates the existing sync file in place for the current device.
+     * If the user changes devices, the other device's sync file is retained.
+     */
+    private fun uploadOrUpdateSyncFile(
+        accessToken: String,
+        fileName: String,
+        jsonContent: String,
+        parentFolderId: String?,
+        isAppData: Boolean
+    ): String? {
+        try {
+            val spaceParam = if (isAppData) "appDataFolder" else "drive"
+            val query = if (isAppData) {
+                "name = '$fileName' and trashed = false"
+            } else {
+                val p = parentFolderId ?: "root"
+                "name = '$fileName' and '$p' in parents and trashed = false"
+            }
+            val queryUrl = "https://www.googleapis.com/drive/v3/files?q=${java.net.URLEncoder.encode(query, "UTF-8")}&spaces=$spaceParam&fields=files(id,name)"
+            val searchReq = Request.Builder()
+                .url(queryUrl)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            var existingFileId: String? = null
+            try {
+                httpClient.newCall(searchReq).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyStr = response.body?.string() ?: ""
+                        val resJson = JSONObject(bodyStr)
+                        val files = resJson.optJSONArray("files") ?: JSONArray()
+                        if (files.length() > 0) {
+                            existingFileId = files.getJSONObject(0).optString("id")
+                            // Clean up any extra duplicates from previous sessions
+                            for (i in 1 until files.length()) {
+                                val dupId = files.getJSONObject(i).optString("id")
+                                if (dupId.isNotBlank()) {
+                                    val delReq = Request.Builder()
+                                        .url("https://www.googleapis.com/drive/v3/files/$dupId")
+                                        .addHeader("Authorization", "Bearer $accessToken")
+                                        .delete()
+                                        .build()
+                                    try { httpClient.newCall(delReq).execute().close() } catch (_: Exception) {}
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            if (existingFileId != null && existingFileId.isNotBlank()) {
+                // Update file content in place (1 sync file updated per device)
+                val updateUrl = "https://www.googleapis.com/upload/drive/v3/files/$existingFileId?uploadType=media"
+                val mediaType = "application/json; charset=UTF-8".toMediaType()
+                val requestBody = jsonContent.toRequestBody(mediaType)
+                val updateReq = Request.Builder()
+                    .url(updateUrl)
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .patch(requestBody)
+                    .build()
+
+                httpClient.newCall(updateReq).execute().use { res ->
+                    if (res.isSuccessful) {
+                        return existingFileId
+                    }
+                }
+            }
+
+            // If no existing file found, upload new
+            val parents = if (isAppData) listOf("appDataFolder") else listOf(parentFolderId ?: "root")
+            return uploadFile(accessToken, fileName, jsonContent, parents)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
     }
 
     /**

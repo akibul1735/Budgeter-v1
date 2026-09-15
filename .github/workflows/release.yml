@@ -113,6 +113,8 @@ jobs:
             FALLBACK_APK=$(find app/build/outputs/apk -name "*release*.apk" | head -n 1)
             [ -n "$FALLBACK_APK" ] && cp "$FALLBACK_APK" build_output/Budgeter-release.apk
           fi
+          # Create source code zip archive (excluding build, .gradle, keystores, and credentials)
+          zip -r build_output/Budgeter-source-code.zip . -x "build/*" "app/build/*" ".gradle/*" "*.keystore*" ".env" "build_output/*"
           echo "Release artifacts ready:"
           ls -la build_output/
 
@@ -131,6 +133,7 @@ jobs:
           name: "Budgeter-release"
           files: |
             build_output/Budgeter-release.apk
+            build_output/Budgeter-source-code.zip
           generate_release_notes: true
           draft: false
           prerelease: false

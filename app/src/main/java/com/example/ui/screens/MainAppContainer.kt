@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
@@ -1812,6 +1813,15 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.TRASH) }
         )
 
+        // 8. Reset & Wipe
+        DrawerItemRow(
+            title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
+            icon = Icons.Default.DeleteSweep,
+            iconTint = SolidExpense,
+            isSelected = currentView == AppView.RESET,
+            onClick = { onSelectView(AppView.RESET) }
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -2200,6 +2210,7 @@ private fun ScreenRouter(
             viewModel = viewModel,
             languageMode = languageMode,
             backupUiState = backupUiState,
+            onNavigateToReset = { onNavigate(AppView.RESET) },
             onBack = onBack
         )
         AppView.SETTINGS -> SettingsScreen(

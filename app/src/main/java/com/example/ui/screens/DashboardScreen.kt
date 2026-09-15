@@ -1293,71 +1293,100 @@ fun DashboardScreen(
             )
         }
 
-        val sortedCostItems = costItems.sortedByDescending { Math.abs(it.excessAmount) }
+        val additionalCostItems = costItems.filter { !it.isOverBudget }.sortedByDescending { Math.abs(it.excessAmount) }
+        val overBudgetItems = costItems.filter { it.isOverBudget }.sortedByDescending { Math.abs(it.excessAmount) }
 
-        val breakdownItems = sortedCostItems.map { item ->
-            val note = if (item.isOverBudget) {
-                if (languageMode == LanguageMode.BANGLA)
-                    "বাজেট ছিল ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, খরচ হয়েছে ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
-                else
-                    "Budget was ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, spent ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
-            } else {
-                if (languageMode == LanguageMode.BANGLA)
-                    "বাজেট ছিল না, খরচ হয়েছে ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
-                else
-                    "No budget set, spent ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
-            }
+        val totalAdditional = additionalCostItems.sumOf { it.excessAmount }
+        val totalOverBudget = overBudgetItems.sumOf { it.excessAmount }
 
-            BreakdownItem(
-                name = item.categoryName + if (item.isOverBudget) " (Over Budget)" else " (Additional)",
-                amount = item.excessAmount,
-                percentage = if (overview.additionalCost > 0) (item.excessAmount / overview.additionalCost) * 100.0 else 0.0,
-                iconName = item.iconName,
-                color = SolidExpense,
-                count = item.txs.size,
-                note = note,
-                onClick = {
-                    showAmountDetail(
-                        AmountDetailInfo(
-                            title = item.categoryName,
-                            subtitle = if (item.isOverBudget) {
-                                if (languageMode == LanguageMode.BANGLA) "বাজেট অতিরিক্ত খরচ" else "Over-Budget Expenditure"
-                            } else {
-                                if (languageMode == LanguageMode.BANGLA) "বাজেটবিহীন অতিরিক্ত খরচ" else "Unbudgeted Additional Cost"
-                            },
-                            totalAmount = item.excessAmount,
-                            formulaExplanation = if (item.isOverBudget) {
-                                if (languageMode == LanguageMode.BANGLA)
-                                    "বাজেট সীমা ছিল ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, প্রকৃত খরচ ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}। বাজেট অতিক্রম: ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}।"
-                                else
-                                    "Monthly budget was ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, total spent is ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}. Excess amount is ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}."
-                            } else {
-                                if (languageMode == LanguageMode.BANGLA)
-                                    "এই ক্যাটাগরিতে কোনো মাসিক বাজেট নির্ধারিত ছিল না। মোট অতিরিক্ত খরচ: ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}।"
-                                else
-                                    "No monthly budget was assigned to this category. Total additional spent is ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}."
-                            },
-                            formulaSteps = emptyList(),
-                            relatedTransactions = item.txs,
-                            customBadgeColor = SolidExpense,
-                            statusTag = if (item.isOverBudget) "Over Budget" else "Additional"
-                        )
-                    )
+        fun mapToBreakdownItems(items: List<OverCostItem>, totalForTab: Double): List<BreakdownItem> {
+            return items.map { item ->
+                val note = if (item.isOverBudget) {
+                    if (languageMode == LanguageMode.BANGLA)
+                        "বাজেট ছিল ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, খরচ হয়েছে ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+                    else
+                        "Budget was ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, spent ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+                } else {
+                    if (languageMode == LanguageMode.BANGLA)
+                        "বাজেট ছিল না, খরচ হয়েছে ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+                    else
+                        "No budget set, spent ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
                 }
-            )
+
+                BreakdownItem(
+                    name = item.categoryName,
+                    amount = item.excessAmount,
+                    percentage = if (totalForTab > 0) (item.excessAmount / totalForTab) * 100.0 else 0.0,
+                    iconName = item.iconName,
+                    color = SolidExpense,
+                    count = item.txs.size,
+                    note = note,
+                    onClick = {
+                        showAmountDetail(
+                            AmountDetailInfo(
+                                title = item.categoryName,
+                                subtitle = if (item.isOverBudget) {
+                                    if (languageMode == LanguageMode.BANGLA) "বাজেট অতিরিক্ত খরচ" else "Over-Budget Expenditure"
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA) "বাজেটবিহীন অতিরিক্ত খরচ" else "Unbudgeted Additional Cost"
+                                },
+                                totalAmount = item.excessAmount,
+                                formulaExplanation = if (item.isOverBudget) {
+                                    if (languageMode == LanguageMode.BANGLA)
+                                        "বাজেট সীমা ছিল ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, প্রকৃত খরচ ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}। বাজেট অতিক্রম: ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}।"
+                                    else
+                                        "Monthly budget was ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}, total spent is ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}. Excess amount is ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}."
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA)
+                                        "এই ক্যাটাগরিতে কোনো মাসিক বাজেট নির্ধারিত ছিল না। মোট অতিরিক্ত খরচ: ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}।"
+                                    else
+                                        "No monthly budget was assigned to this category. Total additional spent is ${LanguageHelper.formatCurrency(item.excessAmount, languageMode)}."
+                                },
+                                formulaSteps = emptyList(),
+                                relatedTransactions = item.txs,
+                                customBadgeColor = SolidExpense,
+                                statusTag = if (item.isOverBudget) (if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Budget") else (if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত" else "Additional")
+                            )
+                        )
+                    }
+                )
+            }
         }
+
+        val additionalTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত খরচ" else "Additional Costs",
+            totalAmount = totalAdditional,
+            items = mapToBreakdownItems(additionalCostItems, totalAdditional),
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "যেসব খাতে এই মাসে কোনো বাজেট বরাদ্দ ছিল না, সেই খাতগুলোর মোট খরচ। বিস্তারিত লেনদেন দেখতে যেকোনো আইটেমে ট্যাপ করুন।"
+            else
+                "Expenditures in categories that have no monthly budget allocated. Tap any category to inspect contributing transactions.",
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "কোন বাজেটবিহীন অতিরিক্ত খরচ নেই" else "No unbudgeted additional costs recorded."
+        )
+
+        val overBudgetTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রান্ত" else "Over Budget",
+            totalAmount = totalOverBudget,
+            items = mapToBreakdownItems(overBudgetItems, totalOverBudget),
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "নির্ধারিত মাসিক বাজেট সীমার বেশি খরচের হিসাব। প্রতিটি খাতে বাজেট সীমা কত ছিল এবং কত টাকা অতিরিক্ত খরচ হয়েছে তা দেখতে ট্যাপ করুন।"
+            else
+                "Excess expenditures exceeding the assigned monthly category limits. Tap any category to inspect overspending transactions.",
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "কোন বাজেট অতিক্রান্ত খরচ নেই" else "No over-budget expenses recorded."
+        )
 
         showAmountDetail(
             AmountDetailInfo(
                 title = if (languageMode == LanguageMode.BANGLA) "অতিরিক্ত ও ওভার-বাজেট খরচ" else "Additional & Over-Budget Cost",
-                subtitle = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিক্রম ও বাজেটবিহীন খরচের হিসাব" else "Over-budget categories and unbudgeted expenditures",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "বাজেট অতিরিক্ত এবং বাজেটবিহীন খরচের হিসাব" else "Unbudgeted expenditures and budget limit overruns",
                 totalAmount = overview.additionalCost,
                 formulaExplanation = if (languageMode == LanguageMode.BANGLA)
-                    "এখানে নির্ধারিত মাসিক বাজেটের অতিরিক্ত খরচ (Over Budget) এবং যেসব খাতে কোনো বাজেট নির্ধারিত ছিল না সেইসব খরচের (Additional) বিস্তারিত দেখানো হয়েছে। প্রতিটি ক্যাটাগরির লেনদেন দেখতে ট্যাপ করুন।"
+                    "নির্ধারিত বাজেটের অতিরিক্ত খরচ এবং বাজেটবিহীন খাতের খরচের সমন্বিত হিসাব। আলাদা বিবরণ দেখতে উপরের ট্যাবগুলো ব্যবহার করুন।"
                 else
-                    "Breakdown of excess spending exceeding monthly category limits (Over Budget) and spending in unbudgeted categories (Additional). Tap any category to view its related transactions.",
+                    "Overview of excess spending beyond budget and expenditures with no budget set. Switch tabs above to see Additional Costs vs Over Budget.",
                 formulaSteps = emptyList(),
-                relatedBreakdownItems = breakdownItems,
+                tabs = listOf(additionalTab, overBudgetTab),
+                relatedBreakdownItems = emptyList(),
                 relatedTransactions = emptyList(),
                 customBadgeColor = if (overview.additionalCost > 0) SolidExpense else SolidIncome
             )

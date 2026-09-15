@@ -37,9 +37,11 @@ import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Fingerprint
@@ -511,7 +513,7 @@ fun SettingsScreen(
                     item {
                         ModernSettingsItemRow(
                             title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা" else "Data Management",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "লোকাল ব্যাকআপ, এক্সপোর্ট ও ইমপোর্ট" else "Backup, Restore & Local Snapshots",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক (ড্রাইভ ১, ২, কমন), লোকাল ও ব্যাকআপ" else "Online Sync (Drive 1, 2, Common), Local & Export",
                             icon = Icons.Default.Storage,
                             onClick = onNavigateToBackupSync
                         )
@@ -519,10 +521,10 @@ fun SettingsScreen(
 
                     item {
                         ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক" else "Online Sync",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ ও ক্লাউড অটো-সিঙ্ক" else "Google Drive auto-sync & cloud storage",
-                            icon = Icons.Default.CloudQueue,
-                            onClick = onNavigateToBackupSync
+                            title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম ও অ্যাকাউন্ট" else "Payment Sources",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট পেমেন্ট মাধ্যম ও সক্রিয় সোর্স অ্যাকাউন্ট" else "Source accounts, wallets & default payment methods",
+                            icon = Icons.Default.AccountBalanceWallet,
+                            onClick = { currentSubPage = SettingsSubPage.PAYMENT_SOURCES }
                         )
                     }
 
@@ -571,6 +573,15 @@ fun SettingsScreen(
                             subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
                             icon = Icons.Default.ViewCarousel,
                             onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন ডিলিট, সেটিংস রিসেট বা ফ্যাক্টরি ক্লিন স্টেট" else "Clear transactions or factory reset app",
+                            icon = Icons.Default.DeleteSweep,
+                            onClick = onNavigateToReset
                         )
                     }
 

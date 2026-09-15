@@ -283,15 +283,16 @@ object DropboxService {
             )
             val jsonContent = adapter.indent("  ").toJson(backupData)
 
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val fileName = "Budgeter_Backup_$timestamp.json"
+            val deviceName = bPrefs.getDeviceName().trim()
+            val sanitizedDevice = deviceName.replace(Regex("[^a-zA-Z0-9_-]"), "_").ifBlank { "Device" }
+            val fileName = "Budgeter_Sync_${sanitizedDevice}.json"
             val normalizedFolder = if (folderPath.startsWith("/")) folderPath.trimEnd('/') else "/${folderPath.trimEnd('/')}"
             val targetPath = "$normalizedFolder/$fileName"
 
             val apiArg = JSONObject().apply {
                 put("path", targetPath)
-                put("mode", "add")
-                put("autorename", true)
+                put("mode", "overwrite")
+                put("autorename", false)
                 put("mute", false)
             }.toString()
 
