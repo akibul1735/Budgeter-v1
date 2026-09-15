@@ -1411,7 +1411,7 @@ fun BudgetTrackingScreen(
                         ) { item ->
                             CategoryRow(
                                 item = item,
-                                isSubcategory = false,
+                                groupNameEn = "",
                                 showComparison = filterState.comparisonEnabled && baseRange != null,
                                 todayPaceRatio = todayPaceRatio,
                                 languageMode = languageMode,
@@ -2248,9 +2248,67 @@ private fun BudgetComparisonDatesCard(
     }
 }
 
+// Helper to provide clean, contextual subtitles for categories matching screenshot
+private fun getCategorySubtitle(
+    item: CategoryBudgetTrackingItem,
+    groupNameEn: String,
+    languageMode: LanguageMode
+): String {
+    // 1. Check transactions for descriptive notes, payee, or subcategory name
+    val descriptions = item.transactions.mapNotNull { tx ->
+        val payee = tx.transaction.payeeOrPayer.trim()
+        val note = tx.transaction.note.trim()
+        val subCatName = tx.subCategory?.nameEn?.trim() ?: ""
+        when {
+            subCatName.isNotBlank() -> subCatName
+            payee.isNotBlank() -> payee
+            note.isNotBlank() && !note.startsWith("#") -> note
+            else -> null
+        }
+    }.distinct().take(2)
+
+    if (descriptions.isNotEmpty()) {
+        return descriptions.joinToString(", ")
+    }
+
+    // 2. Intelligent contextual subtitles based on category name
+    val nameEnLower = item.category.nameEn.lowercase()
+    return when {
+        nameEnLower.contains("housing") || nameEnLower.contains("rent") ->
+            if (languageMode == LanguageMode.BANGLA) "বাড়ি ভাড়া, ইউটিলিটি" else "Rent, utilities"
+        nameEnLower.contains("grocer") || nameEnLower.contains("food") ->
+            if (languageMode == LanguageMode.BANGLA) "খাবার ও নিত্যপণ্য" else "Food and supplies"
+        nameEnLower.contains("transport") || nameEnLower.contains("vehicle") || nameEnLower.contains("fuel") || nameEnLower.contains("commute") ->
+            if (languageMode == LanguageMode.BANGLA) "জ্বালানি, যাতায়াত" else "Fuel, transit"
+        nameEnLower.contains("dining") || nameEnLower.contains("restaurant") || nameEnLower.contains("cafe") ->
+            if (languageMode == LanguageMode.BANGLA) "রেস্তোরাঁ ও ক্যাফে" else "Restaurants, cafes"
+        nameEnLower.contains("entertainment") || nameEnLower.contains("movie") || nameEnLower.contains("stream") ->
+            if (languageMode == LanguageMode.BANGLA) "সিনেমা, বিনোদন" else "Streaming, movies"
+        nameEnLower.contains("shopping") || nameEnLower.contains("cloth") || nameEnLower.contains("dress") ->
+            if (languageMode == LanguageMode.BANGLA) "পোশাক, অন্যান্য" else "Clothes, misc"
+        nameEnLower.contains("health") || nameEnLower.contains("med") || nameEnLower.contains("doctor") ->
+            if (languageMode == LanguageMode.BANGLA) "ওষুধ, ডাক্তার" else "Medicine, clinic"
+        nameEnLower.contains("bill") || nameEnLower.contains("utility") || nameEnLower.contains("electric") ->
+            if (languageMode == LanguageMode.BANGLA) "বিদ্যুৎ, গ্যাস বিল" else "Electricity, gas"
+        nameEnLower.contains("education") || nameEnLower.contains("fee") || nameEnLower.contains("tuition") ->
+            if (languageMode == LanguageMode.BANGLA) "টিউশন ও বই" else "Tuition, books"
+        nameEnLower.contains("salary") || nameEnLower.contains("wage") ->
+            if (languageMode == LanguageMode.BANGLA) "মাসিক বেতন" else "Monthly salary"
+        nameEnLower.contains("bonus") || nameEnLower.contains("gift") ->
+            if (languageMode == LanguageMode.BANGLA) "বোনাস ও উপহার" else "Bonus, gifts"
+        nameEnLower.contains("invest") || nameEnLower.contains("profit") ->
+            if (languageMode == LanguageMode.BANGLA) "লভ্যাংশ ও রিটার্ন" else "Dividends, return"
+        groupNameEn.isNotBlank() && !groupNameEn.equals("Others", ignoreCase = true) ->
+            groupNameEn
+        else ->
+            if (languageMode == LanguageMode.BANGLA) "নিয়মিত খরচ" else "Regular items"
+    }
+}
+
 /**
- * Category Group Section with Blue Chevron, Group Name, Total Spent,
- * optional Group-level progress bar, and collapsible child rows.
+ * Category Group Section matching the modern data layout in the attached screenshot:
+ * Header: Group Name · Percentage | Group Spent / Group Budget Limit
+ * Child rows: Individual rounded cards with category icon badge, name · %, subtitle, spent / budget, remaining/over, and sleek progress bar.
  */
 @Composable
 private fun CategoryGroupSection(
@@ -2262,224 +2320,130 @@ private fun CategoryGroupSection(
     onToggleExpand: () -> Unit,
     onCategoryClick: (CategoryBudgetTrackingItem) -> Unit
 ) {
-    val groupShape = RoundedCornerShape(14.dp)
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        shape = groupShape,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
-        shadowElevation = 2.dp,
-        tonalElevation = 1.dp,
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(groupShape)
+            .padding(bottom = 6.dp)
     ) {
-        Column(
+        // Group Header Row (e.g. "Essentials · 70%           $1,400 / $2,000")
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 2.dp)
+                .clickable { onToggleExpand() }
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Group Header Row
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggleExpand() }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            // Left: Group Title + Percentage (e.g. "Essentials · 70%")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Left: Blue Circle Chevron + Group Icon + Group Name
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f, fill = false)
-                        ) {
-                            // Blue circular chevron toggle
-                            Surface(
-                                shape = CircleShape,
-                                color = BrandBlueLight,
-                                modifier = Modifier.size(20.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                    tint = Color.White,
-                                    modifier = Modifier.padding(2.dp)
-                                )
-                            }
+                Text(
+                    text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
 
-                            Spacer(modifier = Modifier.width(8.dp))
+                if (group.hasBudget) {
+                    Text(
+                        text = " · ${group.percentageInt}%",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else if (group.percentageShare > 0) {
+                    Text(
+                        text = " · ${group.percentageShare.toInt()}%",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-                            // Group Indicating Icon Badge
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(BrandBlueLight.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
-                                    contentDescription = null,
-                                    tint = BrandBlueLight,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
+                Spacer(modifier = Modifier.width(4.dp))
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(if (isExpanded) 0f else -90f)
+                )
+            }
 
-                            Text(
-                                text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = BrandBlueLight,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            // % Share badge like Balance Sheet tab
-                            if (group.percentageShare > 0) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                ) {
-                                    Text(
-                                        text = "${group.percentageShare.toInt()}%",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Right: Group Total Spent Amount in straight right-aligned columns
-                        if (showComparison) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                Box(
-                                    modifier = Modifier.widthIn(min = 75.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = SlateText,
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Box(
-                                    modifier = Modifier.widthIn(min = 85.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (group.totalSpent > 0) CrimsonPink else SlateText,
-                                        textAlign = TextAlign.End,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        } else {
-                            Box(
-                                modifier = Modifier.widthIn(min = 85.dp),
-                                contentAlignment = Alignment.CenterEnd
-                            ) {
-                                Text(
-                                    text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (group.totalSpent > 0) CrimsonPink else SlateText,
-                                    textAlign = TextAlign.End,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-
-                    // If group has an overall budget, show group-level progress bar and stats
+            // Right: Group Total Spent / Total Budget (e.g. "$1,400 / $2,000")
+            if (showComparison) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SlateText,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (group.totalSpent > 0) CrimsonPink else SlateText,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
+                    )
+                }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     if (group.hasBudget) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${group.percentageInt}%",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            val diffText = if (group.remainingAmount > 0) {
-                                "${LanguageHelper.formatCurrency(group.remainingAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                            } else if (group.isOverBudget) {
-                                "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                            } else {
-                                "${LanguageHelper.formatCurrency(0.0, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                            }
-
-                            Text(
-                                text = diffText,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (group.remainingAmount > 0) SlateText else if (group.isOverBudget) CrimsonPink else SlateText
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        BudgetProgressBarWithTodayMarker(
-                            progressRatio = group.progressRatio,
-                            todayPaceRatio = todayPaceRatio,
-                            isOverBudget = group.isOverBudget,
-                            barHeight = 5.dp,
-                            modifier = Modifier.fillMaxWidth()
+                        Text(
+                            text = " / ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = SlateText
                         )
                     }
                 }
             }
+        }
 
-            // Collapsible Children Rows indented under the group name
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+        // Collapsible Children Rows (Individual modern cards)
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    group.items.forEach { item ->
-                        CategoryRow(
-                            item = item,
-                            isSubcategory = true,
-                            showComparison = showComparison,
-                            todayPaceRatio = todayPaceRatio,
-                            languageMode = languageMode,
-                            onClick = { onCategoryClick(item) }
-                        )
-                    }
+                group.items.forEach { item ->
+                    CategoryRow(
+                        item = item,
+                        groupNameEn = group.groupNameEn,
+                        showComparison = showComparison,
+                        todayPaceRatio = todayPaceRatio,
+                        languageMode = languageMode,
+                        onClick = { onCategoryClick(item) }
+                    )
                 }
             }
         }
@@ -2487,15 +2451,18 @@ private fun CategoryGroupSection(
 }
 
 /**
- * Individual Category Row matching screenshot:
- * Avatar icon (colored circle), category name, actual spent amount on right,
- * and if budgeted, % progress, remaining text, and progress bar with | TODAY marker.
- * Subcategories are indented slightly right of the group header.
+ * Individual Category Row matching the modern design in the uploaded screenshot:
+ * - Rounded surface card (16dp corner radius, subtle border)
+ * - Left rounded-square icon badge with category-tinted background and crisp icon
+ * - Center: Category name · Colored percentage (Green <85%, Amber 85-100%, Red >100%)
+ * - Subtitle: Contextual / item / payee descriptors (e.g. "Rent, utilities", "Food and supplies")
+ * - Right: Spent Amount / Budget Limit, and remaining/over status (e.g. "$100 left" in green, "$20 over" in red)
+ * - Bottom: Full-width rounded progress bar with color state matching budget utilization.
  */
 @Composable
 private fun CategoryRow(
     item: CategoryBudgetTrackingItem,
-    isSubcategory: Boolean = false,
+    groupNameEn: String = "",
     showComparison: Boolean,
     todayPaceRatio: Float,
     languageMode: LanguageMode,
@@ -2505,176 +2472,241 @@ private fun CategoryRow(
         try {
             IconHelper.parseColorHex(item.category.colorHex)
         } catch (_: Exception) {
-            Color(0xFFE91E63)
+            Color(0xFF3B82F6)
         }
     }
 
-    val rowShape = RoundedCornerShape(10.dp)
+    val percentColor = remember(item.hasBudget, item.isOverBudget, item.progressRatio) {
+        when {
+            !item.hasBudget -> SlateText
+            item.isOverBudget -> AlertRed
+            item.progressRatio >= 0.85f -> Color(0xFFF59E0B)
+            else -> Color(0xFF22C55E)
+        }
+    }
+
+    val subtitle = remember(item, groupNameEn, languageMode) {
+        getCategorySubtitle(item, groupNameEn, languageMode)
+    }
+
+    val cardShape = RoundedCornerShape(16.dp)
     Surface(
-        color = if (isSubcategory) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
-        shape = rowShape,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-        shadowElevation = 1.5.dp,
+        color = MaterialTheme.colorScheme.surface,
+        shape = cardShape,
+        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        shadowElevation = 1.dp,
         tonalElevation = 0.5.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                start = if (isSubcategory) 12.dp else 12.dp,
-                end = 12.dp,
-                top = 3.dp,
-                bottom = 3.dp
-            )
-            .clip(rowShape)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(cardShape)
             .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            // Main Line: Category Icon + Name + Percentage Badge + Spent Amount
+            // Main Top Row: Left Icon Badge + Title/Subtitle + Right Amounts/Status
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
+                // Left Icon Badge
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(parsedColor.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Circle Category Avatar
-                    Surface(
-                        shape = CircleShape,
-                        color = parsedColor,
-                        modifier = Modifier.size(28.dp)
+                    Icon(
+                        imageVector = IconHelper.getIconByName(item.category.iconName),
+                        contentDescription = null,
+                        tint = parsedColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Middle Column: Category Name · Percentage + Subtitle
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(item.category.iconName),
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(15.dp)
+                        Text(
+                            text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+
+                        if (item.hasBudget) {
+                            Text(
+                                text = " · ",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            Text(
+                                text = "${item.percentageInt}%",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = percentColor
+                            )
+                        } else if (item.percentageShare > 0) {
+                            Text(
+                                text = " · ",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            Text(
+                                text = "${item.percentageShare.toInt()}%",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
-                    // Category Name
                     Text(
-                        text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        text = subtitle,
+                        fontSize = 12.5.sp,
+                        color = SlateText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-
-                    // % Share badge like Balance Sheet tab
-                    if (item.percentageShare > 0) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        ) {
-                            Text(
-                                text = "${item.percentageShare.toInt()}%",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
                 }
 
-                // Spent Amount in straight right-aligned columns
-                if (showComparison) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Box(
-                            modifier = Modifier.widthIn(min = 75.dp),
-                            contentAlignment = Alignment.CenterEnd
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Right Column: Spent / Budget + Left/Over status
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
+                    if (showComparison) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentBaseAmount, languageMode),
-                                fontSize = 11.5.sp,
+                                fontSize = 12.sp,
                                 color = SlateText,
                                 textAlign = TextAlign.End,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 1
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (item.spentAmount > 0) MaterialTheme.colorScheme.onSurface else SlateText,
+                                textAlign = TextAlign.End,
+                                maxLines = 1
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Box(
-                            modifier = Modifier.widthIn(min = 85.dp),
-                            contentAlignment = Alignment.CenterEnd
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (item.spentAmount > 0) CrimsonPink else MaterialTheme.colorScheme.onSurface,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.End,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 1
                             )
+                            if (item.hasBudget) {
+                                Text(
+                                    text = " / ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = SlateText,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
-                } else {
-                    Box(
-                        modifier = Modifier.widthIn(min = 85.dp),
-                        contentAlignment = Alignment.CenterEnd
-                    ) {
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    if (item.hasBudget) {
+                        val statusText = if (item.isOverBudget) {
+                            if (languageMode == LanguageMode.BANGLA)
+                                "${LanguageHelper.formatCurrency(item.overBudgetAmount, languageMode)} বেশি"
+                            else
+                                "${LanguageHelper.formatCurrency(item.overBudgetAmount, languageMode)} over"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA)
+                                "${LanguageHelper.formatCurrency(item.remainingAmount, languageMode)} বাকি"
+                            else
+                                "${LanguageHelper.formatCurrency(item.remainingAmount, languageMode)} left"
+                        }
+
+                        val statusColor = if (item.isOverBudget) AlertRed else if (item.progressRatio >= 0.85f) Color(0xFFF59E0B) else Color(0xFF22C55E)
+
                         Text(
-                            text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                            fontSize = 14.sp,
+                            text = statusText,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (item.spentAmount > 0) CrimsonPink else MaterialTheme.colorScheme.onSurface,
+                            color = statusColor,
                             textAlign = TextAlign.End,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 1
+                        )
+                    } else {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "বাজেট নেই" else "No budget",
+                            fontSize = 11.5.sp,
+                            color = SlateText,
+                            textAlign = TextAlign.End,
+                            maxLines = 1
                         )
                     }
                 }
             }
 
-            // Budget Sub-row (if category has an active budget limit)
+            // Bottom Progress Bar (matching screenshot horizontal bar)
             if (item.hasBudget) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                val diffText = if (item.isOverBudget) {
-                    "${LanguageHelper.formatCurrency(item.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
-                } else {
-                    "${LanguageHelper.formatCurrency(item.remainingAmount, languageMode)} left from ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}"
+                val clampedProgress = item.progressRatio.coerceIn(0f, 1f)
+                val barFillColor = when {
+                    item.isOverBudget -> AlertRed
+                    item.progressRatio >= 0.85f -> Color(0xFFF59E0B)
+                    else -> Color(0xFF22C55E)
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                 ) {
-                    Text(
-                        text = diffText,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (item.isOverBudget) CrimsonPink else SlateText
-                    )
+                    if (clampedProgress > 0f) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(clampedProgress)
+                                .height(5.5.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(barFillColor)
+                        )
+                    }
                 }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                BudgetProgressBarWithTodayMarker(
-                    progressRatio = item.progressRatio,
-                    todayPaceRatio = todayPaceRatio,
-                    isOverBudget = item.isOverBudget,
-                    barHeight = 5.dp,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
     }

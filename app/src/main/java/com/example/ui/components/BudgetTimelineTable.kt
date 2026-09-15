@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -66,81 +67,41 @@ fun BudgetTimelineTable(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // 1. Table Header (Frozen Category Col + Horizontally Scrollable Periods)
-            item {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 1. Table Header (Frozen Category Col + Horizontally Scrollable Periods - Frozen vertically at top)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Frozen Category Header Cell
+                Box(
+                    modifier = Modifier
+                        .width(155.dp)
+                        .fillMaxHeight()
+                        .padding(horizontal = 8.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                // Period Column Headers
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .horizontalScroll(horizontalScrollState),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Frozen Category Header Cell
-                    Box(
-                        modifier = Modifier
-                            .width(155.dp)
-                            .fillMaxHeight()
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                    // Period Column Headers
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .horizontalScroll(horizontalScrollState),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        timelineData.periods.forEach { period ->
-                            Box(
-                                modifier = Modifier
-                                    .width(92.dp)
-                                    .fillMaxHeight()
-                                    .padding(horizontal = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = period.shortLabel,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                        }
-
-                        // Total Header
-                        Box(
-                            modifier = Modifier
-                                .width(98.dp)
-                                .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
-                                .padding(horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সর্বমোট" else "Total",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                        // Average Header
+                    timelineData.periods.forEach { period ->
                         Box(
                             modifier = Modifier
                                 .width(92.dp)
@@ -149,16 +110,58 @@ fun BudgetTimelineTable(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "গড়/মাস" else "Avg/Period",
+                                text = period.shortLabel,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
                             )
                         }
+                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    }
+
+                    // Total Header
+                    Box(
+                        modifier = Modifier
+                            .width(98.dp)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
+                            .padding(horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সর্বমোট" else "Total",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                    // Average Header
+                    Box(
+                        modifier = Modifier
+                            .width(92.dp)
+                            .fillMaxHeight()
+                            .padding(horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "গড়/মাস" else "Avg/Period",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
 
             // 2. Expenses Section
             if (displayedExpenseGroups.isNotEmpty()) {
@@ -1040,4 +1043,5 @@ fun BudgetTimelineTable(
             }
         }
     }
+}
 }

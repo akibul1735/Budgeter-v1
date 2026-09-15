@@ -376,6 +376,24 @@ fun AccountTimelineScreen(
                             )
                         )
                     }
+
+                    FilterChip(
+                        selected = filterState.excludeZeroBalances,
+                        onClick = {
+                            filterState = filterState.copy(excludeZeroBalances = !filterState.excludeZeroBalances)
+                        },
+                        label = {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "শূন্য লুকান" else "Hide 0",
+                                fontSize = 11.sp,
+                                fontWeight = if (filterState.excludeZeroBalances) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondary
+                        )
+                    )
                 }
             }
         }
@@ -533,19 +551,21 @@ fun AccountTimelineScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // 1. Header Row (Dates)
-                item {
-                    TimelineDateHeaderRow(
-                        periods = timelineData.periods,
-                        scrollState = horizontalScrollState,
-                        languageMode = languageMode
-                    )
-                }
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 1. Header Row (Dates) - Frozen vertically at top
+                TimelineDateHeaderRow(
+                    periods = timelineData.periods,
+                    scrollState = horizontalScrollState,
+                    languageMode = languageMode
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // 2. ASSETS Header Row
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    // 2. ASSETS Header Row
                 item {
                     TimelineSectionHeaderRow(
                         title = if (languageMode == LanguageMode.BANGLA) "Assets (সম্পদ)" else "Assets",
@@ -645,6 +665,7 @@ fun AccountTimelineScreen(
             }
         }
     }
+}
 
     // Help Dialog
     if (showHelpDialog) {

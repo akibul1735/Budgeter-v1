@@ -444,6 +444,24 @@ fun ItemsTimelineScreen(
                         onClick = { selectedTypeFilter = TransactionType.INCOME },
                         label = { Text(if (languageMode == LanguageMode.BANGLA) "আয়" else "Income", fontSize = 11.sp) }
                     )
+
+                    VerticalDivider(modifier = Modifier.height(20.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+                    FilterChip(
+                        selected = selectedSortOrder == CategoryTimelineSortOrder.AMOUNT_DESC,
+                        onClick = {
+                            selectedSortOrder = if (selectedSortOrder == CategoryTimelineSortOrder.AMOUNT_DESC) CategoryTimelineSortOrder.NAME_ASC else CategoryTimelineSortOrder.AMOUNT_DESC
+                        },
+                        label = {
+                            Text(
+                                text = if (selectedSortOrder == CategoryTimelineSortOrder.AMOUNT_DESC)
+                                    (if (languageMode == LanguageMode.BANGLA) "পরিমাণ অনুযায়ী (বড়→ছোট)" else "Sort: Highest")
+                                else
+                                    (if (languageMode == LanguageMode.BANGLA) "নাম অনুযায়ী (A→Z)" else "Sort: Name A-Z"),
+                                fontSize = 11.sp
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -772,81 +790,41 @@ fun ItemsTimelineScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // 1. Table Header (Frozen first column + horizontal scroll periods)
-                    item {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // 1. Table Header (Frozen first column + horizontal scroll periods - Frozen vertically at top)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Frozen First Column Header
+                        Box(
+                            modifier = Modifier
+                                .width(155.dp)
+                                .fillMaxHeight()
+                                .padding(horizontal = 8.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "আইটেম / গ্রুপ" else "Item / Group",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                        // Scrollable Period Headers
                         Row(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(40.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .horizontalScroll(horizontalScrollState),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Frozen First Column Header
-                            Box(
-                                modifier = Modifier
-                                    .width(155.dp)
-                                    .fillMaxHeight()
-                                    .padding(horizontal = 8.dp),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "আইটেম / গ্রুপ" else "Item / Group",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                            // Scrollable Period Headers
-                            Row(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .horizontalScroll(horizontalScrollState),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                periods.forEach { period ->
-                                    Box(
-                                        modifier = Modifier
-                                            .width(92.dp)
-                                            .fillMaxHeight()
-                                            .padding(horizontal = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = period.shortLabel,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-                                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                                }
-
-                                // Total Header
-                                Box(
-                                    modifier = Modifier
-                                        .width(98.dp)
-                                        .fillMaxHeight()
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
-                                        .padding(horizontal = 4.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "সর্বমোট" else "Total",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                                // Average Header
+                            periods.forEach { period ->
                                 Box(
                                     modifier = Modifier
                                         .width(92.dp)
@@ -855,33 +833,75 @@ fun ItemsTimelineScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "গড়/মাস" else "Avg/Period",
+                                        text = period.shortLabel,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                                 VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            }
 
-                                // Trend Header
-                                Box(
-                                    modifier = Modifier
-                                        .width(72.dp)
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 4.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "ট্রেন্ড" else "Trend",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            // Total Header
+                            Box(
+                                modifier = Modifier
+                                    .width(98.dp)
+                                    .fillMaxHeight()
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
+                                    .padding(horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সর্বমোট" else "Total",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                            // Average Header
+                            Box(
+                                modifier = Modifier
+                                    .width(92.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "গড়/মাস" else "Avg/Period",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                            // Trend Header
+                            Box(
+                                modifier = Modifier
+                                    .width(72.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "ট্রেন্ড" else "Trend",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
 
                     // 2. Data Rows according to ViewOption
                     if (viewOption == TimelineViewOption.ITEMS) {
@@ -1122,6 +1142,7 @@ fun ItemsTimelineScreen(
             }
         }
     }
+}
 }
 
 @Composable
