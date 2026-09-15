@@ -524,6 +524,25 @@ object LanguageHelper {
         "sort_frequency" to Trans("Frequency (Most Used)", "ব্যবহারের হার (সর্বাধিক)"),
         "sort_name" to Trans("Alphabetical (A → Z)", "বর্ণানুক্রমিক (A → Z)"),
         "filter" to Trans("Filter", "ফিল্টার"),
-        "sort" to Trans("Sort", "সাজান")
+        "sort" to Trans("Sort", "সাজান"),
+        "chart_donut" to Trans("Donut Chart", "ডোনাট চার্ট"),
+        "chart_pie" to Trans("Pie Chart", "পাই চার্ট"),
+        "chart_bar" to Trans("Vertical Bar", "উল্লম্ব বার"),
+        "chart_horizontal_bar" to Trans("Horizontal Bar", "অনুভূমিক বার"),
+        "chart_stacked_bar" to Trans("Stacked Bar", "স্ট্যাকড বার"),
+        "chart_line" to Trans("Line Chart", "লাইন চার্ট"),
+        "chart_area" to Trans("Area Chart", "এরিয়া চার্ট"),
+        "chart_stepped" to Trans("Stepped Chart", "স্টেপড চার্ট"),
+        "chart_spline" to Trans("Smooth Curve", "স্মুথ কার্ভ"),
+        "chart_budget_vs_actual" to Trans("Budget vs Actual", "বাজেট বনাম ব্যয়"),
+        "chart_candlestick" to Trans("High-Low Range", "উচ্চ-নিম্ন রেঞ্জ"),
+        "chart_group_dimension" to Trans("Dimension / Grouping", "গ্রুপিং মাত্রা"),
+        "dimension_overall" to Trans("Overall Flow", "সামগ্রিক প্রবাহ"),
+        "dimension_group" to Trans("By Category Group", "ক্যাটাগরি গ্রুপ অনুযায়ী"),
+        "dimension_category" to Trans("By Category", "ক্যাটাগরি অনুযায়ী"),
+        "dimension_account" to Trans("By Account", "হিসাব অনুযায়ী"),
+        "show_values" to Trans("Values on Bars", "বারের মান"),
+        "account_distribution" to Trans("Account Distribution", "হিসাবের বণ্টন"),
+        "assets_vs_liabilities" to Trans("Assets & Liabilities", "সম্পদ ও দায়")
     )
 }

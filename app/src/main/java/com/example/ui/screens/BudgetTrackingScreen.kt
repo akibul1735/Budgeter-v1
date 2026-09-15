@@ -179,8 +179,8 @@ data class CategoryGroupBudgetTracking(
     val percentageInt: Int get() = if (totalBudget > 0) ((totalSpent / totalBudget) * 100).roundToInt() else 0
     val isOverBudget: Boolean get() = hasBudget && totalSpent > totalBudget
     val diffAmount: Double get() = kotlin.math.abs(totalBudget - totalSpent)
-    val remainingAmount: Double get() = items.sumOf { it.remainingAmount }
-    val overBudgetAmount: Double get() = items.sumOf { it.overBudgetAmount }
+    val remainingAmount: Double get() = if (hasBudget && totalSpent < totalBudget) (totalBudget - totalSpent) else 0.0
+    val overBudgetAmount: Double get() = if (hasBudget && totalSpent > totalBudget) (totalSpent - totalBudget) else 0.0
     val deltaSpent: Double get() = totalSpent - totalSpentBase
     val deltaPercent: Double get() = if (totalSpentBase > 0.0) ((totalSpent - totalSpentBase) / totalSpentBase) * 100.0 else 0.0
 }

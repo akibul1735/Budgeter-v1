@@ -398,7 +398,7 @@ fun BudgetSummarySettingsDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Chart Shape (Donut vs Pie)
+                // Chart Shape
                 Text(
                     text = LanguageHelper.getString("chart_type", languageMode),
                     fontSize = 13.sp,
@@ -406,7 +406,7 @@ fun BudgetSummarySettingsDialog(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                BudgetChartShape.values().take(2).forEach { s ->
+                BudgetChartShape.values().forEach { s ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

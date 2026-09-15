@@ -110,7 +110,10 @@ enum class BudgetSummaryType(val labelEn: String, val labelBn: String) {
 enum class BudgetChartShape(val labelEn: String, val labelBn: String) {
     DONUT("Donut Chart", "ডোনাট চার্ট"),
     PIE("Pie Chart", "পাই চার্ট"),
-    BAR("Horizontal Bars", "অনুভূমিক বার");
+    BAR("Horizontal Bars", "অনুভূমিক বার"),
+    VERTICAL_BAR("Vertical Bars", "উল্লম্ব বার"),
+    BUDGET_VS_ACTUAL("Budget vs Actual", "বাজেট বনাম ব্যয়"),
+    STACKED("Stacked Bars", "স্ট্যাকড বার");
 
     fun getLabel(languageMode: LanguageMode): String {
         return when (languageMode) {

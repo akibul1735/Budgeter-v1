@@ -307,108 +307,392 @@ fun BudgetSummaryCard(
                     )
                 }
             } else {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable(enabled = onCardClick != null) { onCardClick?.invoke() }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Donut / Pie Canvas Chart on Left
-                    Box(
-                        modifier = Modifier
-                            .size(150.dp)
-                            .padding(4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Canvas(modifier = Modifier.size(140.dp)) {
-                            val strokeWidthPx = if (chartShape == BudgetChartShape.DONUT) 36.dp.toPx() else 0f
-                            val radius = size.minDimension / 2f
-                            val centerOffset = Offset(size.width / 2f, size.height / 2f)
+                    when (chartShape) {
+                        BudgetChartShape.DONUT, BudgetChartShape.PIE -> {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Donut / Pie Canvas Chart on Left
+                                Box(
+                                    modifier = Modifier
+                                        .size(150.dp)
+                                        .padding(4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Canvas(modifier = Modifier.size(140.dp)) {
+                                        val strokeWidthPx = if (chartShape == BudgetChartShape.DONUT) 34.dp.toPx() else 0f
+                                        val radius = size.minDimension / 2f
+                                        val centerOffset = Offset(size.width / 2f, size.height / 2f)
 
-                            var startAngle = -90f
-                            val textPaint = android.graphics.Paint().apply {
-                                color = android.graphics.Color.WHITE
-                                textSize = 10.sp.toPx()
-                                textAlign = android.graphics.Paint.Align.CENTER
-                                isFakeBoldText = true
-                                isAntiAlias = true
-                            }
+                                        var startAngle = -90f
+                                        val textPaint = android.graphics.Paint().apply {
+                                            color = android.graphics.Color.WHITE
+                                            textSize = 10.sp.toPx()
+                                            textAlign = android.graphics.Paint.Align.CENTER
+                                            isFakeBoldText = true
+                                            isAntiAlias = true
+                                        }
 
-                            categoryItems.forEach { item ->
-                                val sweepAngle = (item.percentage / 100f) * 360f
-                                if (sweepAngle > 0.5f) {
-                                    if (chartShape == BudgetChartShape.DONUT) {
-                                        drawArc(
-                                            color = item.color,
-                                            startAngle = startAngle,
-                                            sweepAngle = sweepAngle,
-                                            useCenter = false,
-                                            topLeft = Offset(centerOffset.x - radius + strokeWidthPx / 2f, centerOffset.y - radius + strokeWidthPx / 2f),
-                                            size = Size(radius * 2 - strokeWidthPx, radius * 2 - strokeWidthPx),
-                                            style = Stroke(width = strokeWidthPx, cap = StrokeCap.Butt)
-                                        )
-                                    } else {
-                                        drawArc(
-                                            color = item.color,
-                                            startAngle = startAngle,
-                                            sweepAngle = sweepAngle,
-                                            useCenter = true,
-                                            topLeft = Offset(centerOffset.x - radius, centerOffset.y - radius),
-                                            size = Size(radius * 2, radius * 2),
-                                            style = Fill
-                                        )
+                                        categoryItems.forEach { item ->
+                                            val sweepAngle = (item.percentage / 100f) * 360f
+                                            if (sweepAngle > 0.5f) {
+                                                if (chartShape == BudgetChartShape.DONUT) {
+                                                    drawArc(
+                                                        color = item.color,
+                                                        startAngle = startAngle,
+                                                        sweepAngle = sweepAngle,
+                                                        useCenter = false,
+                                                        topLeft = Offset(centerOffset.x - radius + strokeWidthPx / 2f, centerOffset.y - radius + strokeWidthPx / 2f),
+                                                        size = Size(radius * 2 - strokeWidthPx, radius * 2 - strokeWidthPx),
+                                                        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Butt)
+                                                    )
+                                                } else {
+                                                    drawArc(
+                                                        color = item.color,
+                                                        startAngle = startAngle,
+                                                        sweepAngle = sweepAngle,
+                                                        useCenter = true,
+                                                        topLeft = Offset(centerOffset.x - radius, centerOffset.y - radius),
+                                                        size = Size(radius * 2, radius * 2),
+                                                        style = Fill
+                                                    )
+                                                }
+
+                                                // Draw percentage inside slice if large enough
+                                                if (showPercentages && item.percentage >= 6f) {
+                                                    val midAngle = Math.toRadians((startAngle + sweepAngle / 2f).toDouble())
+                                                    val labelRadius = if (chartShape == BudgetChartShape.DONUT) radius - strokeWidthPx / 2f else radius * 0.65f
+                                                    val labelX = (centerOffset.x + labelRadius * cos(midAngle)).toFloat()
+                                                    val labelY = (centerOffset.y + labelRadius * sin(midAngle)).toFloat() + 3.dp.toPx()
+
+                                                    drawContext.canvas.nativeCanvas.drawText(
+                                                        "${item.percentage.toInt()}%",
+                                                        labelX,
+                                                        labelY,
+                                                        textPaint
+                                                    )
+                                                }
+
+                                                startAngle += sweepAngle
+                                            }
+                                        }
                                     }
+                                }
 
-                                    // Draw percentage inside slice if large enough
-                                    if (showPercentages && item.percentage >= 6f) {
-                                        val midAngle = Math.toRadians((startAngle + sweepAngle / 2f).toDouble())
-                                        val labelRadius = if (chartShape == BudgetChartShape.DONUT) radius - strokeWidthPx / 2f else radius * 0.65f
-                                        val labelX = (centerOffset.x + labelRadius * cos(midAngle)).toFloat()
-                                        val labelY = (centerOffset.y + labelRadius * sin(midAngle)).toFloat() + 3.dp.toPx()
+                                Spacer(modifier = Modifier.width(12.dp))
 
-                                        drawContext.canvas.nativeCanvas.drawText(
-                                            "${item.percentage.toInt()}%",
-                                            labelX,
-                                            labelY,
-                                            textPaint
-                                        )
+                                // Legend on Right
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    categoryItems.forEach { item ->
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(item.color)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = item.name,
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            if (showPercentages) {
+                                                Text(
+                                                    text = "${item.percentage.toInt()}%",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
                                     }
-
-                                    startAngle += sweepAngle
                                 }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    // Legend on Right
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        categoryItems.forEach { item ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth()
+                        BudgetChartShape.BAR -> {
+                            // Horizontal Ranked Bars
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Box(
+                                categoryItems.forEach { item ->
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(7.dp)
+                                                        .clip(CircleShape)
+                                                        .background(item.color)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = item.name,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = LanguageHelper.formatCurrency(item.amount, languageMode),
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (showPercentages) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "${item.percentage.toInt()}%",
+                                                        fontSize = 10.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = item.color
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth((item.percentage / 100f).coerceIn(0.02f, 1f))
+                                                    .fillMaxHeight()
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(item.color)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        BudgetChartShape.VERTICAL_BAR -> {
+                            // Vertical Bar Canvas
+                            val peakAmt = categoryItems.maxOfOrNull { it.amount } ?: 100.0
+                            val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+                            Canvas(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                val chartW = size.width
+                                val totalH = size.height
+                                val bottomH = 22.dp.toPx()
+                                val topPad = 16.dp.toPx()
+                                val drawH = totalH - bottomH - topPad
+                                val baselineY = totalH - bottomH
+
+                                val count = categoryItems.size.coerceAtLeast(1)
+                                val slotW = chartW / count
+                                val barW = (slotW * 0.6f).coerceIn(10.dp.toPx(), 28.dp.toPx())
+
+                                val labelPaint = android.graphics.Paint().apply {
+                                    color = if (isDark) android.graphics.Color.LTGRAY else android.graphics.Color.DKGRAY
+                                    textSize = 8.5.sp.toPx()
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                    isAntiAlias = true
+                                }
+                                val valPaint = android.graphics.Paint().apply {
+                                    color = if (isDark) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+                                    textSize = 7.5.sp.toPx()
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                    isFakeBoldText = true
+                                    isAntiAlias = true
+                                }
+
+                                drawLine(
+                                    color = if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f),
+                                    start = Offset(0f, baselineY),
+                                    end = Offset(chartW, baselineY),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+
+                                categoryItems.forEachIndexed { i, item ->
+                                    val ratio = (item.amount / peakAmt).toFloat().coerceIn(0.03f, 1f)
+                                    val barH = ratio * drawH
+                                    val cx = (i * slotW) + (slotW / 2f)
+                                    val barTop = baselineY - barH
+
+                                    drawRoundRect(
+                                        color = item.color,
+                                        topLeft = Offset(cx - barW / 2f, barTop),
+                                        size = Size(barW, barH),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                                    )
+
+                                    if (showPercentages) {
+                                        drawContext.canvas.nativeCanvas.drawText(
+                                            "${item.percentage.toInt()}%",
+                                            cx,
+                                            barTop - 3.dp.toPx(),
+                                            valPaint
+                                        )
+                                    }
+
+                                    val shortName = if (item.name.length > 5) item.name.take(4) + ".." else item.name
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        shortName,
+                                        cx,
+                                        baselineY + 13.dp.toPx(),
+                                        labelPaint
+                                    )
+                                }
+                            }
+                        }
+
+                        BudgetChartShape.BUDGET_VS_ACTUAL -> {
+                            // Dual Comparison Bars
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                categoryItems.take(4).forEach { item ->
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = item.name,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = LanguageHelper.formatCurrency(item.amount, languageMode),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = item.color
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth((item.percentage / 100f).coerceIn(0.02f, 1f))
+                                                    .fillMaxHeight()
+                                                    .clip(RoundedCornerShape(3.dp))
+                                                    .background(item.color)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        BudgetChartShape.STACKED -> {
+                            // Stacked Proportion Segmented Bar + Compact Legend
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                            ) {
+                                Row(
                                     modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(item.color)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = item.name,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                        .fillMaxWidth()
+                                        .height(20.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                ) {
+                                    categoryItems.forEach { item ->
+                                        val weight = (item.percentage / 100f).coerceAtLeast(0.01f)
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(weight)
+                                                .fillMaxHeight()
+                                                .background(item.color),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (showPercentages && item.percentage >= 12f) {
+                                                Text(
+                                                    text = "${item.percentage.toInt()}%",
+                                                    fontSize = 8.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    categoryItems.take(3).forEach { item ->
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(item.color)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = item.name,
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
