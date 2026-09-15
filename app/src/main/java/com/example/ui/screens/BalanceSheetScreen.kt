@@ -2901,6 +2901,11 @@ private fun BalanceSheetGroupItem(
                 }
 
                 // Account Name with Group Icon Indicator
+                val defaultPrimaryColor = MaterialTheme.colorScheme.primary
+                val parentAccColor = remember(group.parentAccount.colorHex, defaultPrimaryColor) {
+                    IconHelper.parseColorHex(group.parentAccount.colorHex, defaultPrimaryColor)
+                }
+
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -2911,19 +2916,22 @@ private fun BalanceSheetGroupItem(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (isIncluded) parentAccColor.copy(alpha = 0.15f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = IconHelper.getIconByName(group.parentAccount.iconName),
+                        IconHelper.AppIcon(
+                            iconName = group.parentAccount.iconName,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp)
+                            tint = if (isIncluded) parentAccColor else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(15.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (languageMode == LanguageMode.BANGLA) group.parentAccount.nameBn else group.parentAccount.nameEn,
                         fontSize = 13.sp,
@@ -3146,6 +3154,10 @@ private fun SubAccountRowItem(
 ) {
     val isIncluded = accountCalcConfig.isIncluded(row.account.id)
     val isAdjusted = accountCalcConfig.getAdjustment(row.account.id) != 0.0
+    val defaultPrimaryColor = MaterialTheme.colorScheme.primary
+    val subAccColor = remember(row.account.colorHex, defaultPrimaryColor) {
+        IconHelper.parseColorHex(row.account.colorHex, defaultPrimaryColor)
+    }
 
     Row(
         modifier = Modifier
@@ -3155,11 +3167,29 @@ private fun SubAccountRowItem(
             .padding(vertical = 4.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Account Name & % badge
+        // Account Name & % badge with Account Icon
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(
+                        if (isIncluded) subAccColor.copy(alpha = 0.12f)
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                IconHelper.AppIcon(
+                    iconName = row.account.iconName,
+                    contentDescription = null,
+                    tint = if (isIncluded) subAccColor else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = if (languageMode == LanguageMode.BANGLA) row.account.nameBn else row.account.nameEn,
                 fontSize = 12.sp,

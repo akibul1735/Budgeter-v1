@@ -684,7 +684,9 @@ fun BudgetTrackingScreen(
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+                    shadowElevation = 2.5.dp,
+                    tonalElevation = 1.dp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -1174,8 +1176,10 @@ fun BudgetTrackingScreen(
                 // MINI TOP FIXED CARD WHEN SCROLLING
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+                    shadowElevation = 3.dp,
+                    tonalElevation = 1.5.dp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 2.dp)
@@ -2040,7 +2044,8 @@ private fun BudgetComparisonDatesCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -2257,121 +2262,149 @@ private fun CategoryGroupSection(
     onToggleExpand: () -> Unit,
     onCategoryClick: (CategoryBudgetTrackingItem) -> Unit
 ) {
-    Column(
+    val groupShape = RoundedCornerShape(14.dp)
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = groupShape,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+        shadowElevation = 2.dp,
+        tonalElevation = 1.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(groupShape)
     ) {
-        // Group Header Row
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onToggleExpand() }
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(vertical = 2.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Left: Blue Circle Chevron + Group Icon + Group Name
+            // Group Header Row
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleExpand() }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f, fill = false)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Blue circular chevron toggle
-                        Surface(
-                            shape = CircleShape,
-                            color = BrandBlueLight,
-                            modifier = Modifier.size(20.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                contentDescription = if (isExpanded) "Collapse" else "Expand",
-                                tint = Color.White,
-                                modifier = Modifier.padding(2.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Group Indicating Icon Badge
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(BrandBlueLight.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
-                                contentDescription = null,
-                                tint = BrandBlueLight,
-                                modifier = Modifier.size(15.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        Text(
-                            text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandBlueLight,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-
-                        // % Share badge like Balance Sheet tab
-                        if (group.percentageShare > 0) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                            ) {
-                                Text(
-                                    text = "${group.percentageShare.toInt()}%",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Right: Group Total Spent Amount in straight right-aligned columns
-                    if (showComparison) {
+                        // Left: Blue Circle Chevron + Group Icon + Group Name
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.End
+                            modifier = Modifier.weight(1f, fill = false)
                         ) {
-                            Box(
-                                modifier = Modifier.widthIn(min = 75.dp),
-                                contentAlignment = Alignment.CenterEnd
+                            // Blue circular chevron toggle
+                            Surface(
+                                shape = CircleShape,
+                                color = BrandBlueLight,
+                                modifier = Modifier.size(20.dp)
                             ) {
-                                Text(
-                                    text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = SlateText,
-                                    textAlign = TextAlign.End,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                Icon(
+                                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                    tint = Color.White,
+                                    modifier = Modifier.padding(2.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // Group Indicating Icon Badge
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(BrandBlueLight.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = IconHelper.getIconByName(group.parentCategory?.iconName ?: "Category"),
+                                    contentDescription = null,
+                                    tint = BrandBlueLight,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Text(
+                                text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BrandBlueLight,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            // % Share badge like Balance Sheet tab
+                            if (group.percentageShare > 0) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = "${group.percentageShare.toInt()}%",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Right: Group Total Spent Amount in straight right-aligned columns
+                        if (showComparison) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Box(
+                                    modifier = Modifier.widthIn(min = 75.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = SlateText,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Box(
+                                    modifier = Modifier.widthIn(min = 85.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (group.totalSpent > 0) CrimsonPink else SlateText,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        } else {
                             Box(
                                 modifier = Modifier.widthIn(min = 85.dp),
                                 contentAlignment = Alignment.CenterEnd
                             ) {
                                 Text(
                                     text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                    fontSize = 13.5.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (group.totalSpent > 0) CrimsonPink else SlateText,
                                     textAlign = TextAlign.End,
@@ -2380,84 +2413,73 @@ private fun CategoryGroupSection(
                                 )
                             }
                         }
-                    } else {
-                        Box(
-                            modifier = Modifier.widthIn(min = 85.dp),
-                            contentAlignment = Alignment.CenterEnd
+                    }
+
+                    // If group has an overall budget, show group-level progress bar and stats
+                    if (group.hasBudget) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (group.totalSpent > 0) CrimsonPink else SlateText,
-                                textAlign = TextAlign.End,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = "${group.percentageInt}%",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            val diffText = if (group.remainingAmount > 0) {
+                                "${LanguageHelper.formatCurrency(group.remainingAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                            } else if (group.isOverBudget) {
+                                "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                            } else {
+                                "${LanguageHelper.formatCurrency(0.0, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
+                            }
+
+                            Text(
+                                text = diffText,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (group.remainingAmount > 0) SlateText else if (group.isOverBudget) CrimsonPink else SlateText
                             )
                         }
-                    }
-                }
 
-                // If group has an overall budget, show group-level progress bar and stats
-                if (group.hasBudget) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${group.percentageInt}%",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                        val diffText = if (group.remainingAmount > 0) {
-                            "${LanguageHelper.formatCurrency(group.remainingAmount, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                        } else if (group.isOverBudget) {
-                            "${LanguageHelper.formatCurrency(group.diffAmount, languageMode)} over ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                        } else {
-                            "${LanguageHelper.formatCurrency(0.0, languageMode)} left from ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}"
-                        }
-
-                        Text(
-                            text = diffText,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = if (group.remainingAmount > 0) SlateText else if (group.isOverBudget) CrimsonPink else SlateText
+                        BudgetProgressBarWithTodayMarker(
+                            progressRatio = group.progressRatio,
+                            todayPaceRatio = todayPaceRatio,
+                            isOverBudget = group.isOverBudget,
+                            barHeight = 5.dp,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    BudgetProgressBarWithTodayMarker(
-                        progressRatio = group.progressRatio,
-                        todayPaceRatio = todayPaceRatio,
-                        isOverBudget = group.isOverBudget,
-                        barHeight = 5.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             }
-        }
 
-        // Collapsible Children Rows indented under the group name
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                group.items.forEach { item ->
-                    CategoryRow(
-                        item = item,
-                        isSubcategory = true,
-                        showComparison = showComparison,
-                        todayPaceRatio = todayPaceRatio,
-                        languageMode = languageMode,
-                        onClick = { onCategoryClick(item) }
-                    )
+            // Collapsible Children Rows indented under the group name
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    group.items.forEach { item ->
+                        CategoryRow(
+                            item = item,
+                            isSubcategory = true,
+                            showComparison = showComparison,
+                            todayPaceRatio = todayPaceRatio,
+                            languageMode = languageMode,
+                            onClick = { onCategoryClick(item) }
+                        )
+                    }
                 }
             }
         }
@@ -2487,19 +2509,20 @@ private fun CategoryRow(
         }
     }
 
-    val rowShape = RoundedCornerShape(12.dp)
+    val rowShape = RoundedCornerShape(10.dp)
     Surface(
-        color = MaterialTheme.colorScheme.surface,
+        color = if (isSubcategory) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
         shape = rowShape,
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
-        shadowElevation = 0.5.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        shadowElevation = 1.5.dp,
+        tonalElevation = 0.5.dp,
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                start = if (isSubcategory) 28.dp else 12.dp,
+                start = if (isSubcategory) 12.dp else 12.dp,
                 end = 12.dp,
-                top = 4.dp,
-                bottom = 4.dp
+                top = 3.dp,
+                bottom = 3.dp
             )
             .clip(rowShape)
             .clickable { onClick() }
