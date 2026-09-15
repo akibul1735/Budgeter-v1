@@ -55,6 +55,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.*
 import com.example.ui.theme.*
+import com.example.util.DailyChartType
 import com.example.util.DateUtils
 import com.example.util.LanguageHelper
 import kotlinx.coroutines.launch
@@ -62,12 +63,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
 
-enum class DailyChartType(val labelEn: String, val labelBn: String) {
-    BAR("Bar", "বার"),
-    LINE("Line", "লাইন"),
-    AREA("Area", "এরিয়া"),
-    STEPPED("Stepped", "স্টেপড")
-}
 
 enum class DailyPeriodFilter(val labelEn: String, val labelBn: String, val days: Int) {
     LAST_7_DAYS("7 Days", "৭ দিন", 7),
@@ -154,6 +149,8 @@ fun DailySummaryDetailDialog(
     allCategories: List<Category> = emptyList(),
     accounts: List<Account> = emptyList(),
     initialSelectedDateEpoch: Long? = null,
+    initialChartType: DailyChartType = DailyChartType.BAR,
+    onChartTypeChange: ((DailyChartType) -> Unit)? = null,
     onDismiss: () -> Unit,
     onTransactionClick: ((TransactionWithDetails) -> Unit)? = null,
     onAccountClick: ((Account) -> Unit)? = null
@@ -166,7 +163,7 @@ fun DailySummaryDetailDialog(
     var selectedPeriod by remember { mutableStateOf(DailyPeriodFilter.LAST_14_DAYS) }
     var periodOffset by remember { mutableStateOf(0) }
     var graphMode by remember { mutableStateOf(DailyGraphMode.EXPENSE) }
-    var chartType by remember { mutableStateOf(DailyChartType.BAR) }
+    var chartType by remember { mutableStateOf(initialChartType) }
     var showValuesOnBars by remember { mutableStateOf(true) }
     var breakdownFilter by remember { mutableStateOf(DailyBreakdownFilter.ALL) }
     var breakdownSort by remember { mutableStateOf(DailyBreakdownSort.NEWEST) }
@@ -793,7 +790,10 @@ fun DailySummaryDetailDialog(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(6.dp))
                                                     .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                                    .clickable { chartType = type }
+                                                    .clickable {
+                                                        chartType = type
+                                                        onChartTypeChange?.invoke(type)
+                                                    }
                                                     .padding(horizontal = 6.dp, vertical = 3.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {

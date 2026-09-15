@@ -115,6 +115,7 @@ import com.example.ui.theme.SolidTransfer
 import com.example.util.BudgetChartShape
 import com.example.util.BudgetSummaryType
 import com.example.util.CalendarDisplayMode
+import com.example.util.DailyChartType
 import com.example.util.DailySummaryMode
 import com.example.util.DailySummaryPeriod
 import com.example.util.DashboardCardType
@@ -151,7 +152,7 @@ fun DashboardScreen(
     onAccountClick: (Account) -> Unit = {},
     onToggleCardVisibility: (DashboardCardType, Boolean) -> Unit,
     onReorderCards: (fromIndex: Int, toIndex: Int) -> Unit,
-    onUpdateDailySummarySettings: (DailySummaryMode, DailySummaryPeriod, Boolean, Boolean, DecimalPrecision, Boolean, Boolean) -> Unit,
+    onUpdateDailySummarySettings: (DailySummaryMode, DailySummaryPeriod, DailyChartType, Boolean, Boolean, DecimalPrecision, Boolean, Boolean) -> Unit,
     onUpdateBudgetSummarySettings: (BudgetChartShape, BudgetSummaryType, Int, Boolean, Boolean) -> Unit,
     onUpdateCalendarSettings: (CalendarDisplayMode, Boolean, Boolean) -> Unit,
     onUpdateFavoriteAccounts: (Set<Long>) -> Unit,
@@ -1720,6 +1721,7 @@ fun DashboardScreen(
                                     transactions = recentTransactions,
                                     mode = dashboardConfig.dailySummaryMode,
                                     period = dashboardConfig.dailySummaryPeriod,
+                                    chartType = dashboardConfig.dailyChartType,
                                     showValues = dashboardConfig.dailyShowValues,
                                     showAverages = dashboardConfig.dailyShowAverages,
                                     decimalPrecision = dashboardConfig.dailyDecimalPrecision,
@@ -1730,6 +1732,7 @@ fun DashboardScreen(
                                         onUpdateDailySummarySettings(
                                             newMode,
                                             dashboardConfig.dailySummaryPeriod,
+                                            dashboardConfig.dailyChartType,
                                             dashboardConfig.dailyShowValues,
                                             dashboardConfig.dailyShowAverages,
                                             dashboardConfig.dailyDecimalPrecision,
@@ -1741,6 +1744,7 @@ fun DashboardScreen(
                                         onUpdateDailySummarySettings(
                                             dashboardConfig.dailySummaryMode,
                                             newPeriod,
+                                            dashboardConfig.dailyChartType,
                                             dashboardConfig.dailyShowValues,
                                             dashboardConfig.dailyShowAverages,
                                             dashboardConfig.dailyDecimalPrecision,
@@ -1980,6 +1984,7 @@ fun DashboardScreen(
         DailySummarySettingsDialog(
             currentMode = dashboardConfig.dailySummaryMode,
             currentPeriod = dashboardConfig.dailySummaryPeriod,
+            currentChartType = dashboardConfig.dailyChartType,
             currentShowValues = dashboardConfig.dailyShowValues,
             currentShowAverages = dashboardConfig.dailyShowAverages,
             currentDecimalPrecision = dashboardConfig.dailyDecimalPrecision,
@@ -1987,8 +1992,8 @@ fun DashboardScreen(
             currentShowCurrencySymbol = dashboardConfig.dailyShowCurrencySymbol,
             languageMode = languageMode,
             onDismiss = { showDailySettingsDialog = false },
-            onSave = { m, p, sv, sa, dp, sc, scs ->
-                onUpdateDailySummarySettings(m, p, sv, sa, dp, sc, scs)
+            onSave = { m, p, ct, sv, sa, dp, sc, scs ->
+                onUpdateDailySummarySettings(m, p, ct, sv, sa, dp, sc, scs)
                 showDailySettingsDialog = false
             }
         )
@@ -2081,6 +2086,19 @@ fun DashboardScreen(
             accounts = accountsWithBalances.map { it.account },
             languageMode = languageMode,
             initialSelectedDateEpoch = dailySummarySelectedDayEpoch,
+            initialChartType = dashboardConfig.dailyChartType,
+            onChartTypeChange = { newType ->
+                onUpdateDailySummarySettings(
+                    dashboardConfig.dailySummaryMode,
+                    dashboardConfig.dailySummaryPeriod,
+                    newType,
+                    dashboardConfig.dailyShowValues,
+                    dashboardConfig.dailyShowAverages,
+                    dashboardConfig.dailyDecimalPrecision,
+                    dashboardConfig.dailyShowCurrency,
+                    dashboardConfig.dailyShowCurrencySymbol
+                )
+            },
             onDismiss = {
                 showDailySummaryDetail = false
                 dailySummarySelectedDayEpoch = null
@@ -2451,66 +2469,14 @@ private fun RedesignedFinancialOverviewCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("expendable_overview_card"),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Card Title Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SolidPrimary.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Payments,
-                            contentDescription = null,
-                            tint = SolidPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = LanguageHelper.getString("financial_overview", languageMode),
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ট্যাপ করে বিস্তারিত হিসাব দেখুন" else "Tap any amount to view calculation breakdown",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-
-                IconButton(
-                    onClick = { showFormulaBreakdown = !showFormulaBreakdown },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = if (showFormulaBreakdown) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = "Toggle Formula",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
+        Column(modifier = Modifier.padding(10.dp)) {
             // Primary Expendable & Expected Expendable Sub-Cards
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2602,18 +2568,31 @@ private fun RedesignedFinancialOverviewCard(
                                 modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
-                                    text = "+Income",
-                                    fontSize = 8.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = "+Income",
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                                Icon(
+                                    imageVector = if (showFormulaBreakdown) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = "Toggle Formula",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clickable { showFormulaBreakdown = !showFormulaBreakdown }
                                 )
                             }
                         }
@@ -2658,11 +2637,13 @@ private fun RedesignedFinancialOverviewCard(
                 )
 
                 // Sub-Card 2: Liabilities
+                val displayLiabilities = if (calculatedLiabilities > 0) -calculatedLiabilities else calculatedLiabilities
                 FinancialIndicatorItem(
                     label = LanguageHelper.getString("liabilities", languageMode),
-                    amount = calculatedLiabilities,
+                    amount = displayLiabilities,
                     icon = Icons.Default.CreditCard,
                     iconTint = SolidExpense,
+                    amountColor = if (displayLiabilities < 0) SolidExpense else MaterialTheme.colorScheme.onSurface,
                     languageMode = languageMode,
                     trendIndicator = if (overview.liabilitiesChange != 0.0) if (overview.liabilitiesChange > 0) "▲" else "▼" else null,
                     trendColor = if (overview.liabilitiesChange > 0) SolidExpense else SolidIncome,
@@ -2754,9 +2735,9 @@ private fun RedesignedFinancialOverviewCard(
                     )
                     Text(
                         text = if (languageMode == LanguageMode.BANGLA)
-                            "• সক্রিয় ও অন্তর্ভুক্ত দায় = ${LanguageHelper.formatCurrency(calculatedLiabilities, languageMode)}"
+                            "• সক্রিয় ও অন্তর্ভুক্ত দায় = ${LanguageHelper.formatCurrency(if (calculatedLiabilities > 0) -calculatedLiabilities else calculatedLiabilities, languageMode)}"
                         else
-                            "• Active & Included Liabilities = ${LanguageHelper.formatCurrency(calculatedLiabilities, languageMode)}",
+                            "• Active & Included Liabilities = ${LanguageHelper.formatCurrency(if (calculatedLiabilities > 0) -calculatedLiabilities else calculatedLiabilities, languageMode)}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

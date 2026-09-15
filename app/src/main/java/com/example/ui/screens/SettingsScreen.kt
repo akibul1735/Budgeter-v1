@@ -577,10 +577,27 @@ fun SettingsScreen(
                     }
 
                     item {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    // =========================================================================
+                    // 3. SECTION: DATA & RESET
+                    // =========================================================================
+                    item {
+                        SettingsSectionHeader(
+                            title = if (languageMode == LanguageMode.BANGLA) "ডাটা ও রিসেট" else "DATA & RESET"
+                        )
+                    }
+
+                    item {
                         ModernSettingsItemRow(
                             title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
                             subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন ডিলিট, সেটিংস রিসেট বা ফ্যাক্টরি ক্লিন স্টেট" else "Clear transactions or factory reset app",
                             icon = Icons.Default.DeleteSweep,
+                            iconTint = MaterialTheme.colorScheme.error,
                             onClick = onNavigateToReset
                         )
                     }
@@ -593,7 +610,7 @@ fun SettingsScreen(
                     }
 
                     // =========================================================================
-                    // 3. SECTION: ABOUT
+                    // 4. SECTION: ABOUT
                     // =========================================================================
                     item {
                         SettingsSectionHeader(
@@ -650,6 +667,7 @@ private fun ModernSettingsItemRow(
     title: String,
     subtitle: String? = null,
     icon: ImageVector,
+    iconTint: Color? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -662,7 +680,7 @@ private fun ModernSettingsItemRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = iconTint ?: MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(24.dp)
         )
         Spacer(modifier = Modifier.width(20.dp))

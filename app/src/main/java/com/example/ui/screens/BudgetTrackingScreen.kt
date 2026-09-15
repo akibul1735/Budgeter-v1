@@ -1414,6 +1414,7 @@ fun BudgetTrackingScreen(
                                 showComparison = filterState.comparisonEnabled && baseRange != null,
                                 todayPaceRatio = todayPaceRatio,
                                 languageMode = languageMode,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
                                 onClick = {
                                     selectedCategoryForDetail = item
                                 }
@@ -2247,67 +2248,13 @@ private fun BudgetComparisonDatesCard(
     }
 }
 
-// Helper to provide clean, contextual subtitles for categories matching screenshot
-private fun getCategorySubtitle(
-    item: CategoryBudgetTrackingItem,
-    groupNameEn: String,
-    languageMode: LanguageMode
-): String {
-    // 1. Check transactions for descriptive notes, payee, or subcategory name
-    val descriptions = item.transactions.mapNotNull { tx ->
-        val payee = tx.transaction.payeeOrPayer.trim()
-        val note = tx.transaction.note.trim()
-        val subCatName = tx.subCategory?.nameEn?.trim() ?: ""
-        when {
-            subCatName.isNotBlank() -> subCatName
-            payee.isNotBlank() -> payee
-            note.isNotBlank() && !note.startsWith("#") -> note
-            else -> null
-        }
-    }.distinct().take(2)
-
-    if (descriptions.isNotEmpty()) {
-        return descriptions.joinToString(", ")
-    }
-
-    // 2. Intelligent contextual subtitles based on category name
-    val nameEnLower = item.category.nameEn.lowercase()
-    return when {
-        nameEnLower.contains("housing") || nameEnLower.contains("rent") ->
-            if (languageMode == LanguageMode.BANGLA) "বাড়ি ভাড়া, ইউটিলিটি" else "Rent, utilities"
-        nameEnLower.contains("grocer") || nameEnLower.contains("food") ->
-            if (languageMode == LanguageMode.BANGLA) "খাবার ও নিত্যপণ্য" else "Food and supplies"
-        nameEnLower.contains("transport") || nameEnLower.contains("vehicle") || nameEnLower.contains("fuel") || nameEnLower.contains("commute") ->
-            if (languageMode == LanguageMode.BANGLA) "জ্বালানি, যাতায়াত" else "Fuel, transit"
-        nameEnLower.contains("dining") || nameEnLower.contains("restaurant") || nameEnLower.contains("cafe") ->
-            if (languageMode == LanguageMode.BANGLA) "রেস্তোরাঁ ও ক্যাফে" else "Restaurants, cafes"
-        nameEnLower.contains("entertainment") || nameEnLower.contains("movie") || nameEnLower.contains("stream") ->
-            if (languageMode == LanguageMode.BANGLA) "সিনেমা, বিনোদন" else "Streaming, movies"
-        nameEnLower.contains("shopping") || nameEnLower.contains("cloth") || nameEnLower.contains("dress") ->
-            if (languageMode == LanguageMode.BANGLA) "পোশাক, অন্যান্য" else "Clothes, misc"
-        nameEnLower.contains("health") || nameEnLower.contains("med") || nameEnLower.contains("doctor") ->
-            if (languageMode == LanguageMode.BANGLA) "ওষুধ, ডাক্তার" else "Medicine, clinic"
-        nameEnLower.contains("bill") || nameEnLower.contains("utility") || nameEnLower.contains("electric") ->
-            if (languageMode == LanguageMode.BANGLA) "বিদ্যুৎ, গ্যাস বিল" else "Electricity, gas"
-        nameEnLower.contains("education") || nameEnLower.contains("fee") || nameEnLower.contains("tuition") ->
-            if (languageMode == LanguageMode.BANGLA) "টিউশন ও বই" else "Tuition, books"
-        nameEnLower.contains("salary") || nameEnLower.contains("wage") ->
-            if (languageMode == LanguageMode.BANGLA) "মাসিক বেতন" else "Monthly salary"
-        nameEnLower.contains("bonus") || nameEnLower.contains("gift") ->
-            if (languageMode == LanguageMode.BANGLA) "বোনাস ও উপহার" else "Bonus, gifts"
-        nameEnLower.contains("invest") || nameEnLower.contains("profit") ->
-            if (languageMode == LanguageMode.BANGLA) "লভ্যাংশ ও রিটার্ন" else "Dividends, return"
-        groupNameEn.isNotBlank() && !groupNameEn.equals("Others", ignoreCase = true) ->
-            groupNameEn
-        else ->
-            if (languageMode == LanguageMode.BANGLA) "নিয়মিত খরচ" else "Regular items"
-    }
-}
-
 /**
- * Category Group Section matching the modern data layout in the attached screenshot:
- * Header: Group Name · Percentage | Group Spent / Group Budget Limit
- * Child rows: Individual rounded cards with category icon badge, name · %, subtitle, spent / budget, remaining/over, and sleek progress bar.
+ * Category Group Section matching the modern design requirements:
+ * - Group and its categories are enclosed together within a unified container with a thin lucrative border.
+ * - Group font size is 2 sizes larger (15sp for Group title vs 13sp for Category title).
+ * - Container and card backgrounds use a distinct color shade derived from the tab's background.
+ * - Header: Distinct group banner with Group Icon, Group Name (15sp Bold), Expand Chevron, Group Percentages (12sp under name) | Group Spent / Group Budget Limit.
+ * - Child rows: Clean inner category cards with category icon badge, 13sp name, 11sp percentages, spent / budget, and progress bar.
  */
 @Composable
 private fun CategoryGroupSection(
@@ -2319,151 +2266,297 @@ private fun CategoryGroupSection(
     onToggleExpand: () -> Unit,
     onCategoryClick: (CategoryBudgetTrackingItem) -> Unit
 ) {
-    Column(
+    val groupColor = remember(group.parentCategory?.colorHex) {
+        try {
+            if (group.parentCategory?.colorHex != null) {
+                IconHelper.parseColorHex(group.parentCategory.colorHex)
+            } else {
+                Color(0xFF64748B)
+            }
+        } catch (_: Exception) {
+            Color(0xFF64748B)
+        }
+    }
+
+    val groupIcon = remember(group.parentCategory?.iconName) {
+        if (group.parentCategory?.iconName != null) {
+            IconHelper.getIconByName(group.parentCategory.iconName)
+        } else {
+            IconHelper.getIconByName("Folder")
+        }
+    }
+
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    // Container background shade derived from tab's background
+    val containerBgColor = if (isLight) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
+    }
+
+    // Lucrative thin border (with subtle tint of group theme)
+    val lucrativeBorder = if (isLight) {
+        BorderStroke(0.85.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+    } else {
+        BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    }
+
+    val headerBgColor = if (isLight) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f)
+    }
+
+    val containerShape = RoundedCornerShape(16.dp)
+
+    Surface(
+        color = containerBgColor,
+        shape = containerShape,
+        border = lucrativeBorder,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .clip(containerShape)
     ) {
-        // Group Header Row (e.g. "Essentials · 70%           $1,400 / $2,000")
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onToggleExpand() }
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // Left: Group Title + Percentage (e.g. "Essentials · 70%")
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f, fill = false)
+            // Group Header Banner (Clickable to toggle expand)
+            Surface(
+                color = headerBgColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleExpand() }
             ) {
-                Text(
-                    text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                if (group.hasBudget) {
-                    Text(
-                        text = " · ${group.percentageInt}%",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (group.percentageShare >= 1.0) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
-                            shape = RoundedCornerShape(4.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Left: Group Icon + Group Name (15sp, Bold) on top, Group Percentages (12sp) under name
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        // Group Icon Badge (28dp)
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(groupColor.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
                         ) {
+                            Icon(
+                                imageVector = groupIcon,
+                                contentDescription = null,
+                                tint = groupColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(9.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // Top Line: Group Name (15sp, bold - 2 sizes larger than 13sp category) + Chevron
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = LanguageHelper.getLocalizedName(group.groupNameEn, group.groupNameBn, languageMode),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                    modifier = Modifier
+                                        .size(17.dp)
+                                        .rotate(if (isExpanded) 0f else -90f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            // Bottom Line: Group Percentages (12sp - under group name)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (group.hasBudget) {
+                                    val groupPercentColor = when {
+                                        group.isOverBudget -> AlertRed
+                                        group.progressRatio >= 0.85f -> Color(0xFFF59E0B)
+                                        else -> Color(0xFF22C55E)
+                                    }
+
+                                    Text(
+                                        text = "${group.percentageInt}%",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = groupPercentColor
+                                    )
+
+                                    if (group.percentageShare >= 1.0) {
+                                        Text(
+                                            text = " · ",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                                        )
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "${group.percentageShare.toInt()}% মোট" else "${group.percentageShare.toInt()}% of total",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = SlateText,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                } else if (group.percentageShare > 0) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "${group.percentageShare.toInt()}% মোট" else "${group.percentageShare.toInt()}% of total",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = SlateText,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "বাজেট নেই" else "No budget",
+                                        fontSize = 11.5.sp,
+                                        color = SlateText.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // Right: Group Total Spent (14sp) / Total Budget (12sp) + Left/Over status (11.5sp)
+                    Column(
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        if (showComparison) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
+                                    fontSize = 11.sp,
+                                    color = SlateText,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (group.totalSpent > 0) MaterialTheme.colorScheme.onSurface else SlateText,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
+                                if (group.hasBudget) {
+                                    Text(
+                                        text = " / ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        color = SlateText,
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+
+                        if (group.hasBudget) {
+                            val groupStatusText = if (group.isOverBudget) {
+                                if (languageMode == LanguageMode.BANGLA)
+                                    "${LanguageHelper.formatCurrency(group.overBudgetAmount, languageMode)} বেশি"
+                                else
+                                    "${LanguageHelper.formatCurrency(group.overBudgetAmount, languageMode)} over"
+                            } else {
+                                if (languageMode == LanguageMode.BANGLA)
+                                    "${LanguageHelper.formatCurrency(group.remainingAmount, languageMode)} বাকি"
+                                else
+                                    "${LanguageHelper.formatCurrency(group.remainingAmount, languageMode)} left"
+                            }
+                            val groupStatusColor = if (group.isOverBudget) AlertRed else if (group.progressRatio >= 0.85f) Color(0xFFF59E0B) else Color(0xFF22C55E)
+
+                            Spacer(modifier = Modifier.height(1.5.dp))
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "${group.percentageShare.toInt()}% মোট" else "${group.percentageShare.toInt()}% of total",
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = SlateText,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                text = groupStatusText,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = groupStatusColor,
+                                textAlign = TextAlign.End,
+                                maxLines = 1
                             )
                         }
                     }
-                } else if (group.percentageShare > 0) {
-                    Text(
-                        text = " · ",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "${group.percentageShare.toInt()}% মোট" else "${group.percentageShare.toInt()}% of total",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = SlateText
-                    )
                 }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .size(17.dp)
-                        .rotate(if (isExpanded) 0f else -90f)
-                )
             }
 
-            // Right: Group Total Spent / Total Budget (e.g. "$1,400 / $2,000")
-            if (showComparison) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
+            // Collapsible Children Rows inside the unified container with thin lucrative border
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = LanguageHelper.formatCurrency(group.totalSpentBase, languageMode),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = SlateText,
-                        textAlign = TextAlign.End,
-                        maxLines = 1
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (group.totalSpent > 0) CrimsonPink else SlateText,
-                        textAlign = TextAlign.End,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (group.hasBudget) {
-                        Text(
-                            text = " / ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = SlateText
+                    group.items.forEach { item ->
+                        CategoryRow(
+                            item = item,
+                            groupNameEn = group.groupNameEn,
+                            showComparison = showComparison,
+                            todayPaceRatio = todayPaceRatio,
+                            languageMode = languageMode,
+                            onClick = { onCategoryClick(item) }
                         )
                     }
-                }
-            }
-        }
-
-        // Collapsible Children Rows (Individual modern cards)
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                group.items.forEach { item ->
-                    CategoryRow(
-                        item = item,
-                        groupNameEn = group.groupNameEn,
-                        showComparison = showComparison,
-                        todayPaceRatio = todayPaceRatio,
-                        languageMode = languageMode,
-                        onClick = { onCategoryClick(item) }
-                    )
                 }
             }
         }
@@ -2471,14 +2564,14 @@ private fun CategoryGroupSection(
 }
 
 /**
- * Individual Category Row matching the modern design in the uploaded screenshot:
- * - Rounded surface card (16dp corner radius, subtle border)
- * - In Day mode: Off-white tinted background so cards stand out cleanly from screen background
- * - Left rounded-square icon badge with category-tinted background and crisp icon
- * - Center: Category name · Colored percentage (Green <85%, Amber 85-100%, Red >100%)
- * - Subtitle: Contextual / item / payee descriptors (e.g. "Rent, utilities", "Food and supplies")
- * - Right: Spent Amount / Budget Limit, and remaining/over status (e.g. "$100 left" in green, "$20 over" in red)
- * - Bottom: Full-width rounded progress bar with color state matching budget utilization.
+ * Individual Category Row:
+ * - Rendered inside the group container with a clean surface shade derived from tab's background
+ * - Thin lucrative border (0.65dp) with 11dp rounded corners
+ * - Category title is 13sp (2 sizes smaller than group's 15sp title)
+ * - Category icon badge (32dp)
+ * - Category percentages (11sp) under category name
+ * - Right: Spent (12.5sp) / Budget (11sp), Status (10.5sp)
+ * - Bottom: Full-width rounded progress bar (4dp)
  */
 @Composable
 private fun CategoryRow(
@@ -2487,6 +2580,7 @@ private fun CategoryRow(
     showComparison: Boolean,
     todayPaceRatio: Float,
     languageMode: LanguageMode,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val parsedColor = remember(item.category.colorHex) {
@@ -2506,51 +2600,47 @@ private fun CategoryRow(
         }
     }
 
-    val subtitle = remember(item, groupNameEn, languageMode) {
-        getCategorySubtitle(item, groupNameEn, languageMode)
-    }
-
     val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    // Card background shade derived from the tab's background
     val cardBgColor = if (isLight) {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-    } else {
         MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
     }
     val cardBorder = if (isLight) {
-        BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+        BorderStroke(0.65.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     } else {
-        BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        BorderStroke(0.55.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     }
 
-    val cardShape = RoundedCornerShape(14.dp)
+    val cardShape = RoundedCornerShape(11.dp)
     Surface(
         color = cardBgColor,
         shape = cardShape,
         border = cardBorder,
-        shadowElevation = if (isLight) 0.5.dp else 1.dp,
-        tonalElevation = 0.5.dp,
-        modifier = Modifier
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 3.dp)
             .clip(cardShape)
             .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .padding(horizontal = 10.dp, vertical = 7.dp)
         ) {
-            // Main Top Row: Left Icon Badge + Title/Subtitle + Right Amounts/Status
+            // Main Top Row: Left Icon Badge + Title/Percentages + Right Amounts/Status
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left Icon Badge
+                // Left Icon Badge (32dp)
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(parsedColor.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -2558,51 +2648,51 @@ private fun CategoryRow(
                         imageVector = IconHelper.getIconByName(item.category.iconName),
                         contentDescription = null,
                         tint = parsedColor,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
-                // Middle Column: Category Name · Percentage + Subtitle
+                // Middle Column: Category Name (13sp - 2 sizes smaller than group 15sp) + Percentages (11sp)
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
+                    Text(
+                        text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(1.5.dp))
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-
                         if (item.hasBudget) {
                             Text(
-                                text = " · ",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                            Text(
                                 text = "${item.percentageInt}%",
-                                fontSize = 12.5.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = percentColor
                             )
                             if (item.percentageShare >= 1.0) {
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = " · ",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                                )
                                 Surface(
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
-                                    shape = RoundedCornerShape(4.dp)
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                                    shape = RoundedCornerShape(3.5.dp)
                                 ) {
                                     Text(
                                         text = if (languageMode == LanguageMode.BANGLA) "${item.percentageShare.toInt()}% মোট" else "${item.percentageShare.toInt()}% of total",
-                                        fontSize = 9.5.sp,
+                                        fontSize = 9.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = SlateText,
                                         modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 0.5.dp)
@@ -2610,35 +2700,31 @@ private fun CategoryRow(
                                 }
                             }
                         } else if (item.percentageShare > 0) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                                shape = RoundedCornerShape(3.5.dp)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "${item.percentageShare.toInt()}% মোট" else "${item.percentageShare.toInt()}% of total",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = SlateText,
+                                    modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 0.5.dp)
+                                )
+                            }
+                        } else {
                             Text(
-                                text = " · ",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "${item.percentageShare.toInt()}% মোট" else "${item.percentageShare.toInt()}% of total",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = SlateText
+                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট নেই" else "No budget",
+                                fontSize = 10.5.sp,
+                                color = SlateText.copy(alpha = 0.7f)
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(1.dp))
-
-                    Text(
-                        text = subtitle,
-                        fontSize = 11.5.sp,
-                        color = SlateText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Right Column: Spent / Budget + Left/Over status
+                // Right Column: Spent (12.5sp) / Budget (11sp) + Left/Over status (10.5sp)
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
@@ -2649,7 +2735,7 @@ private fun CategoryRow(
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentBaseAmount, languageMode),
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 color = SlateText,
                                 textAlign = TextAlign.End,
                                 maxLines = 1
@@ -2657,7 +2743,7 @@ private fun CategoryRow(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                                fontSize = 13.5.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (item.spentAmount > 0) MaterialTheme.colorScheme.onSurface else SlateText,
                                 textAlign = TextAlign.End,
@@ -2671,7 +2757,7 @@ private fun CategoryRow(
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                                fontSize = 13.5.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.End,
@@ -2680,7 +2766,7 @@ private fun CategoryRow(
                             if (item.hasBudget) {
                                 Text(
                                     text = " / ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}",
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Normal,
                                     color = SlateText,
                                     textAlign = TextAlign.End,
@@ -2709,7 +2795,7 @@ private fun CategoryRow(
 
                         Text(
                             text = statusText,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = statusColor,
                             textAlign = TextAlign.End,
@@ -2718,7 +2804,7 @@ private fun CategoryRow(
                     } else {
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "বাজেট নেই" else "No budget",
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             color = SlateText,
                             textAlign = TextAlign.End,
                             maxLines = 1
@@ -2727,9 +2813,9 @@ private fun CategoryRow(
                 }
             }
 
-            // Bottom Progress Bar (matching screenshot horizontal bar)
+            // Bottom Progress Bar
             if (item.hasBudget) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(5.dp))
 
                 val clampedProgress = item.progressRatio.coerceIn(0f, 1f)
                 val barFillColor = when {
@@ -2741,16 +2827,16 @@ private fun CategoryRow(
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(2.5.dp))
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
                 ) {
                     if (clampedProgress > 0f) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(clampedProgress)
-                                .height(5.dp)
-                                .clip(RoundedCornerShape(2.5.dp))
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
                                 .background(barFillColor)
                         )
                     }

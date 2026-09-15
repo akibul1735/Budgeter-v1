@@ -66,6 +66,7 @@ import com.example.util.DropboxAuthBridge
 import com.example.util.BudgetChartShape
 import com.example.util.BudgetSummaryType
 import com.example.util.CalendarDisplayMode
+import com.example.util.DailyChartType
 import com.example.util.DailySummaryMode
 import com.example.util.DailySummaryPeriod
 import com.example.util.DashboardCardType
@@ -250,6 +251,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setDailySummarySettings(
         mode: DailySummaryMode,
         period: DailySummaryPeriod,
+        chartType: DailyChartType = DailyChartType.BAR,
         showValues: Boolean,
         showAverages: Boolean,
         decimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
@@ -259,6 +261,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         dashboardPrefs.setDailySummarySettings(
             mode = mode,
             period = period,
+            chartType = chartType,
             showValues = showValues,
             showAverages = showAverages,
             decimalPrecision = decimalPrecision,

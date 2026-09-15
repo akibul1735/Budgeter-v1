@@ -44,7 +44,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
@@ -57,6 +61,7 @@ import com.example.data.model.TransactionWithDetails
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.util.DailyChartType
 import com.example.util.DailySummaryMode
 import com.example.util.DailySummaryPeriod
 import com.example.util.DecimalPrecision
@@ -80,6 +85,7 @@ fun DailySummaryCard(
     transactions: List<TransactionWithDetails>,
     mode: DailySummaryMode,
     period: DailySummaryPeriod,
+    chartType: DailyChartType = DailyChartType.BAR,
     showValues: Boolean,
     showAverages: Boolean,
     decimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
@@ -375,36 +381,200 @@ fun DailySummaryCard(
                         this.isAntiAlias = true
                     }
 
+                    val baseBottom = height - bottomAxisHeight
+
+                    // 1. Draw Day Labels
                     dailyDataList.forEachIndexed { index, day ->
                         val centerX = slotWidth * index + slotWidth / 2f
-                        val baseBottom = height - bottomAxisHeight
-
-                        // Draw Day Label below baseline
                         drawContext.canvas.nativeCanvas.drawText(
                             day.dayLabel,
                             centerX,
                             baseBottom + 16.dp.toPx(),
                             labelPaint
                         )
+                    }
 
-                        when (mode) {
-                            DailySummaryMode.EXPENSE -> {
-                                if (day.expense > 0) {
-                                    val barH = (day.expense / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
-                                    val barW = (slotWidth * 0.48f).coerceIn(12.dp.toPx(), 36.dp.toPx())
-                                    val barLeft = centerX - barW / 2f
-                                    val barTop = baseBottom - barH
+                    // 2. Draw Chart based on chartType and mode
+                    when (chartType) {
+                        DailyChartType.BAR -> {
+                            dailyDataList.forEachIndexed { index, day ->
+                                val centerX = slotWidth * index + slotWidth / 2f
+                                when (mode) {
+                                    DailySummaryMode.EXPENSE -> {
+                                        if (day.expense > 0) {
+                                            val barH = (day.expense / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
+                                            val barW = (slotWidth * 0.48f).coerceIn(12.dp.toPx(), 36.dp.toPx())
+                                            val barLeft = centerX - barW / 2f
+                                            val barTop = baseBottom - barH
 
-                                    drawRoundRect(
-                                        color = expenseColor,
-                                        topLeft = Offset(barLeft, barTop),
-                                        size = Size(barW, barH),
-                                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                            drawRoundRect(
+                                                color = expenseColor,
+                                                topLeft = Offset(barLeft, barTop),
+                                                size = Size(barW, barH),
+                                                cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                            )
+
+                                            if (showValues) {
+                                                val formatted = LanguageHelper.formatWithPrecision(
+                                                    day.expense,
+                                                    languageMode,
+                                                    decimalPrecision,
+                                                    showCurrency,
+                                                    showCurrencySymbol
+                                                )
+                                                drawContext.canvas.nativeCanvas.drawText(
+                                                    formatted,
+                                                    centerX,
+                                                    barTop - 4.dp.toPx(),
+                                                    paint
+                                                )
+                                            }
+                                        }
+                                    }
+                                    DailySummaryMode.INCOME -> {
+                                        if (day.income > 0) {
+                                            val barH = (day.income / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
+                                            val barW = (slotWidth * 0.48f).coerceIn(12.dp.toPx(), 36.dp.toPx())
+                                            val barLeft = centerX - barW / 2f
+                                            val barTop = baseBottom - barH
+
+                                            drawRoundRect(
+                                                color = incomeColor,
+                                                topLeft = Offset(barLeft, barTop),
+                                                size = Size(barW, barH),
+                                                cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                            )
+
+                                            if (showValues) {
+                                                val formatted = LanguageHelper.formatWithPrecision(
+                                                    day.income,
+                                                    languageMode,
+                                                    decimalPrecision,
+                                                    showCurrency,
+                                                    showCurrencySymbol
+                                                )
+                                                drawContext.canvas.nativeCanvas.drawText(
+                                                    formatted,
+                                                    centerX,
+                                                    barTop - 4.dp.toPx(),
+                                                    paint
+                                                )
+                                            }
+                                        }
+                                    }
+                                    DailySummaryMode.BOTH -> {
+                                        val barW = (slotWidth * 0.32f).coerceIn(8.dp.toPx(), 18.dp.toPx())
+                                        val gap = 2.dp.toPx()
+
+                                        if (day.income > 0) {
+                                            val incH = (day.income / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
+                                            val incLeft = centerX - barW - gap / 2f
+                                            val incTop = baseBottom - incH
+
+                                            drawRoundRect(
+                                                color = incomeColor,
+                                                topLeft = Offset(incLeft, incTop),
+                                                size = Size(barW, incH),
+                                                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                                            )
+                                        }
+
+                                        if (day.expense > 0) {
+                                            val expH = (day.expense / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
+                                            val expLeft = centerX + gap / 2f
+                                            val expTop = baseBottom - expH
+
+                                            drawRoundRect(
+                                                color = expenseColor,
+                                                topLeft = Offset(expLeft, expTop),
+                                                size = Size(barW, expH),
+                                                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                                            )
+                                        }
+
+                                        if (showValues && (day.income > 0 || day.expense > 0)) {
+                                            val maxH = max(
+                                                if (day.income > 0) (day.income / maxAmount * chartHeight).toFloat() else 0f,
+                                                if (day.expense > 0) (day.expense / maxAmount * chartHeight).toFloat() else 0f
+                                            )
+                                            val net = day.income - day.expense
+                                            val formattedVal = LanguageHelper.formatWithPrecision(
+                                                kotlin.math.abs(net),
+                                                languageMode,
+                                                decimalPrecision,
+                                                showCurrency,
+                                                showCurrencySymbol
+                                            )
+                                            val formatted = if (net >= 0) "+$formattedVal" else "-$formattedVal"
+                                            drawContext.canvas.nativeCanvas.drawText(
+                                                formatted,
+                                                centerX,
+                                                baseBottom - maxH - 4.dp.toPx(),
+                                                paint
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        DailyChartType.LINE, DailyChartType.AREA -> {
+                            fun drawSeriesLine(
+                                values: List<Double>,
+                                seriesColor: Color,
+                                isArea: Boolean
+                            ) {
+                                if (values.isEmpty()) return
+                                val points = values.mapIndexed { i, value ->
+                                    val cx = slotWidth * i + slotWidth / 2f
+                                    val ratio = (value / maxAmount).toFloat().coerceIn(0f, 1f)
+                                    val cy = baseBottom - (ratio * chartHeight)
+                                    Offset(cx, cy)
+                                }
+
+                                if (isArea && points.size > 1) {
+                                    val fillPath = Path().apply {
+                                        moveTo(points.first().x, baseBottom)
+                                        points.forEach { lineTo(it.x, it.y) }
+                                        lineTo(points.last().x, baseBottom)
+                                        close()
+                                    }
+                                    drawPath(
+                                        path = fillPath,
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(seriesColor.copy(alpha = 0.35f), Color.Transparent),
+                                            startY = baseBottom - chartHeight,
+                                            endY = baseBottom
+                                        )
                                     )
+                                }
 
-                                    if (showValues) {
+                                val linePath = Path().apply {
+                                    points.forEachIndexed { i, pt ->
+                                        if (i == 0) moveTo(pt.x, pt.y) else lineTo(pt.x, pt.y)
+                                    }
+                                }
+                                drawPath(
+                                    path = linePath,
+                                    color = seriesColor,
+                                    style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+                                )
+
+                                points.forEachIndexed { i, pt ->
+                                    val value = values[i]
+                                    drawCircle(
+                                        color = seriesColor,
+                                        radius = 3.5.dp.toPx(),
+                                        center = pt
+                                    )
+                                    drawCircle(
+                                        color = Color.White,
+                                        radius = 1.8.dp.toPx(),
+                                        center = pt
+                                    )
+                                    if (showValues && value > 0) {
                                         val formatted = LanguageHelper.formatWithPrecision(
-                                            day.expense,
+                                            value,
                                             languageMode,
                                             decimalPrecision,
                                             showCurrency,
@@ -412,30 +582,90 @@ fun DailySummaryCard(
                                         )
                                         drawContext.canvas.nativeCanvas.drawText(
                                             formatted,
-                                            centerX,
-                                            barTop - 4.dp.toPx(),
+                                            pt.x,
+                                            pt.y - 6.dp.toPx(),
                                             paint
                                         )
                                     }
                                 }
                             }
-                            DailySummaryMode.INCOME -> {
-                                if (day.income > 0) {
-                                    val barH = (day.income / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
-                                    val barW = (slotWidth * 0.48f).coerceIn(12.dp.toPx(), 36.dp.toPx())
-                                    val barLeft = centerX - barW / 2f
-                                    val barTop = baseBottom - barH
 
-                                    drawRoundRect(
-                                        color = incomeColor,
-                                        topLeft = Offset(barLeft, barTop),
-                                        size = Size(barW, barH),
-                                        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                            val isArea = chartType == DailyChartType.AREA
+                            when (mode) {
+                                DailySummaryMode.EXPENSE -> {
+                                    drawSeriesLine(dailyDataList.map { it.expense }, expenseColor, isArea)
+                                }
+                                DailySummaryMode.INCOME -> {
+                                    drawSeriesLine(dailyDataList.map { it.income }, incomeColor, isArea)
+                                }
+                                DailySummaryMode.BOTH -> {
+                                    drawSeriesLine(dailyDataList.map { it.income }, incomeColor, isArea)
+                                    drawSeriesLine(dailyDataList.map { it.expense }, expenseColor, isArea)
+                                }
+                            }
+                        }
+
+                        DailyChartType.STEPPED -> {
+                            fun drawSeriesStepped(
+                                values: List<Double>,
+                                seriesColor: Color
+                            ) {
+                                if (values.isEmpty()) return
+                                val stepPath = Path()
+                                val fillPath = Path()
+
+                                val firstLeftX = slotWidth * 0
+                                val firstRatio = (values.first() / maxAmount).toFloat().coerceIn(0f, 1f)
+                                val firstY = baseBottom - (firstRatio * chartHeight)
+
+                                stepPath.moveTo(firstLeftX, firstY)
+                                fillPath.moveTo(firstLeftX, baseBottom)
+                                fillPath.lineTo(firstLeftX, firstY)
+
+                                values.forEachIndexed { i, value ->
+                                    val leftX = slotWidth * i
+                                    val rightX = slotWidth * (i + 1)
+                                    val ratio = (value / maxAmount).toFloat().coerceIn(0f, 1f)
+                                    val y = baseBottom - (ratio * chartHeight)
+
+                                    stepPath.lineTo(leftX, y)
+                                    stepPath.lineTo(rightX, y)
+
+                                    fillPath.lineTo(leftX, y)
+                                    fillPath.lineTo(rightX, y)
+                                }
+
+                                val lastRightX = slotWidth * values.size
+                                fillPath.lineTo(lastRightX, baseBottom)
+                                fillPath.close()
+
+                                drawPath(
+                                    path = fillPath,
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(seriesColor.copy(alpha = 0.22f), Color.Transparent),
+                                        startY = baseBottom - chartHeight,
+                                        endY = baseBottom
                                     )
+                                )
 
-                                    if (showValues) {
+                                drawPath(
+                                    path = stepPath,
+                                    color = seriesColor,
+                                    style = Stroke(width = 2.dp.toPx())
+                                )
+
+                                values.forEachIndexed { i, value ->
+                                    val cx = slotWidth * i + slotWidth / 2f
+                                    val ratio = (value / maxAmount).toFloat().coerceIn(0f, 1f)
+                                    val cy = baseBottom - (ratio * chartHeight)
+                                    drawCircle(
+                                        color = seriesColor,
+                                        radius = 3.dp.toPx(),
+                                        center = Offset(cx, cy)
+                                    )
+                                    if (showValues && value > 0) {
                                         val formatted = LanguageHelper.formatWithPrecision(
-                                            day.income,
+                                            value,
                                             languageMode,
                                             decimalPrecision,
                                             showCurrency,
@@ -443,65 +673,24 @@ fun DailySummaryCard(
                                         )
                                         drawContext.canvas.nativeCanvas.drawText(
                                             formatted,
-                                            centerX,
-                                            barTop - 4.dp.toPx(),
+                                            cx,
+                                            cy - 5.dp.toPx(),
                                             paint
                                         )
                                     }
                                 }
                             }
-                            DailySummaryMode.BOTH -> {
-                                val barW = (slotWidth * 0.32f).coerceIn(8.dp.toPx(), 18.dp.toPx())
-                                val gap = 2.dp.toPx()
 
-                                // Income bar on left
-                                if (day.income > 0) {
-                                    val incH = (day.income / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
-                                    val incLeft = centerX - barW - gap / 2f
-                                    val incTop = baseBottom - incH
-
-                                    drawRoundRect(
-                                        color = incomeColor,
-                                        topLeft = Offset(incLeft, incTop),
-                                        size = Size(barW, incH),
-                                        cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
-                                    )
+                            when (mode) {
+                                DailySummaryMode.EXPENSE -> {
+                                    drawSeriesStepped(dailyDataList.map { it.expense }, expenseColor)
                                 }
-
-                                // Expense bar on right
-                                if (day.expense > 0) {
-                                    val expH = (day.expense / maxAmount * chartHeight).toFloat().coerceAtLeast(4.dp.toPx())
-                                    val expLeft = centerX + gap / 2f
-                                    val expTop = baseBottom - expH
-
-                                    drawRoundRect(
-                                        color = expenseColor,
-                                        topLeft = Offset(expLeft, expTop),
-                                        size = Size(barW, expH),
-                                        cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
-                                    )
+                                DailySummaryMode.INCOME -> {
+                                    drawSeriesStepped(dailyDataList.map { it.income }, incomeColor)
                                 }
-
-                                if (showValues && (day.income > 0 || day.expense > 0)) {
-                                    val maxH = max(
-                                        if (day.income > 0) (day.income / maxAmount * chartHeight).toFloat() else 0f,
-                                        if (day.expense > 0) (day.expense / maxAmount * chartHeight).toFloat() else 0f
-                                    )
-                                    val net = day.income - day.expense
-                                    val formattedVal = LanguageHelper.formatWithPrecision(
-                                        kotlin.math.abs(net),
-                                        languageMode,
-                                        decimalPrecision,
-                                        showCurrency,
-                                        showCurrencySymbol
-                                    )
-                                    val formatted = if (net >= 0) "+$formattedVal" else "-$formattedVal"
-                                    drawContext.canvas.nativeCanvas.drawText(
-                                        formatted,
-                                        centerX,
-                                        baseBottom - maxH - 4.dp.toPx(),
-                                        paint
-                                    )
+                                DailySummaryMode.BOTH -> {
+                                    drawSeriesStepped(dailyDataList.map { it.income }, incomeColor)
+                                    drawSeriesStepped(dailyDataList.map { it.expense }, expenseColor)
                                 }
                             }
                         }

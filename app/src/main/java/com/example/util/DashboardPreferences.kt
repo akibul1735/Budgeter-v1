@@ -67,6 +67,20 @@ enum class DailySummaryMode(val labelEn: String, val labelBn: String) {
     }
 }
 
+enum class DailyChartType(val labelEn: String, val labelBn: String) {
+    BAR("Bar", "বার"),
+    LINE("Line", "লাইন"),
+    AREA("Area", "এরিয়া"),
+    STEPPED("Stepped", "স্টেপড");
+
+    fun getLabel(languageMode: LanguageMode): String {
+        return when (languageMode) {
+            LanguageMode.ENGLISH -> labelEn
+            LanguageMode.BANGLA -> labelBn
+        }
+    }
+}
+
 enum class DailySummaryPeriod(val labelEn: String, val labelBn: String, val days: Int) {
     LAST_7_DAYS("Last 7 Days", "গত ৭ দিন", 7),
     LAST_14_DAYS("Last 14 Days", "গত ১৪ দিন", 14),
@@ -160,6 +174,7 @@ data class DashboardConfig(
     ),
     val dailySummaryMode: DailySummaryMode = DailySummaryMode.EXPENSE,
     val dailySummaryPeriod: DailySummaryPeriod = DailySummaryPeriod.LAST_7_DAYS,
+    val dailyChartType: DailyChartType = DailyChartType.BAR,
     val dailyShowValues: Boolean = true,
     val dailyShowAverages: Boolean = true,
     val dailyDecimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
@@ -222,6 +237,9 @@ class DashboardPreferences private constructor(context: Context) {
         val dailyPeriodStr = prefs.getString(KEY_DAILY_PERIOD, DailySummaryPeriod.LAST_7_DAYS.name)
         val dailyPeriod = runCatching { DailySummaryPeriod.valueOf(dailyPeriodStr ?: "") }.getOrDefault(DailySummaryPeriod.LAST_7_DAYS)
 
+        val dailyChartTypeStr = prefs.getString(KEY_DAILY_CHART_TYPE, DailyChartType.BAR.name)
+        val dailyChartType = runCatching { DailyChartType.valueOf(dailyChartTypeStr ?: "") }.getOrDefault(DailyChartType.BAR)
+
         val dailyShowValues = prefs.getBoolean(KEY_DAILY_SHOW_VALUES, true)
         val dailyShowAverages = prefs.getBoolean(KEY_DAILY_SHOW_AVERAGES, true)
 
@@ -259,6 +277,7 @@ class DashboardPreferences private constructor(context: Context) {
             visibleCards = visibleCards,
             dailySummaryMode = dailyMode,
             dailySummaryPeriod = dailyPeriod,
+            dailyChartType = dailyChartType,
             dailyShowValues = dailyShowValues,
             dailyShowAverages = dailyShowAverages,
             dailyDecimalPrecision = dailyPrecision,
@@ -282,6 +301,7 @@ class DashboardPreferences private constructor(context: Context) {
             .putString(KEY_VISIBLE_CARDS, newConfig.visibleCards.joinToString(",") { it.id })
             .putString(KEY_DAILY_MODE, newConfig.dailySummaryMode.name)
             .putString(KEY_DAILY_PERIOD, newConfig.dailySummaryPeriod.name)
+            .putString(KEY_DAILY_CHART_TYPE, newConfig.dailyChartType.name)
             .putBoolean(KEY_DAILY_SHOW_VALUES, newConfig.dailyShowValues)
             .putBoolean(KEY_DAILY_SHOW_AVERAGES, newConfig.dailyShowAverages)
             .putString(KEY_DAILY_DECIMAL_PRECISION, newConfig.dailyDecimalPrecision.name)
@@ -327,6 +347,7 @@ class DashboardPreferences private constructor(context: Context) {
     fun setDailySummarySettings(
         mode: DailySummaryMode = _config.value.dailySummaryMode,
         period: DailySummaryPeriod = _config.value.dailySummaryPeriod,
+        chartType: DailyChartType = _config.value.dailyChartType,
         showValues: Boolean = _config.value.dailyShowValues,
         showAverages: Boolean = _config.value.dailyShowAverages,
         decimalPrecision: DecimalPrecision = _config.value.dailyDecimalPrecision,
@@ -337,6 +358,7 @@ class DashboardPreferences private constructor(context: Context) {
             _config.value.copy(
                 dailySummaryMode = mode,
                 dailySummaryPeriod = period,
+                dailyChartType = chartType,
                 dailyShowValues = showValues,
                 dailyShowAverages = showAverages,
                 dailyDecimalPrecision = decimalPrecision,
@@ -413,6 +435,7 @@ class DashboardPreferences private constructor(context: Context) {
         private const val KEY_VISIBLE_CARDS = "dashboard_visible_cards"
         private const val KEY_DAILY_MODE = "dashboard_daily_mode"
         private const val KEY_DAILY_PERIOD = "dashboard_daily_period"
+        private const val KEY_DAILY_CHART_TYPE = "dashboard_daily_chart_type"
         private const val KEY_DAILY_SHOW_VALUES = "dashboard_daily_show_values"
         private const val KEY_DAILY_SHOW_AVERAGES = "dashboard_daily_show_averages"
         private const val KEY_DAILY_DECIMAL_PRECISION = "dashboard_daily_decimal_precision"

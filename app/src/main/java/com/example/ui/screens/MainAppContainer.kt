@@ -1813,15 +1813,6 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.TRASH) }
         )
 
-        // 8. Reset & Wipe
-        DrawerItemRow(
-            title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
-            icon = Icons.Default.DeleteSweep,
-            iconTint = SolidExpense,
-            isSelected = currentView == AppView.RESET,
-            onClick = { onSelectView(AppView.RESET) }
-        )
-
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -1926,7 +1917,7 @@ private fun ScreenRouter(
             },
             onToggleCardVisibility = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
             onReorderCards = { from, to -> viewModel.moveDashboardCard(from, to) },
-            onUpdateDailySummarySettings = { m, p, sv, sa, dp, sc, scs -> viewModel.setDailySummarySettings(m, p, sv, sa, dp, sc, scs) },
+            onUpdateDailySummarySettings = { m, p, ct, sv, sa, dp, sc, scs -> viewModel.setDailySummarySettings(m, p, ct, sv, sa, dp, sc, scs) },
             onUpdateBudgetSummarySettings = { s, t, mc, sp, tp -> viewModel.setBudgetSummarySettings(s, t, mc, sp, tp) },
             onUpdateCalendarSettings = { dm, si, se -> viewModel.setCalendarSettings(dm, si, se) },
             onUpdateFavoriteAccounts = { favs -> viewModel.setFavoriteAccounts(favs) },
