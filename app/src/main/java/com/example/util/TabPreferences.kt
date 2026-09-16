@@ -162,7 +162,7 @@ class TabPreferences(context: Context) {
         val defaults = NavigationTabConfig(
             position = TabPosition.BOTTOM,
             allTabsOrder = AppTab.values().toList(),
-            enabledTabs = AppTab.values().toSet()
+            enabledTabs = AppTab.values().filter { it != AppTab.PAYMENT_SOURCE }.toSet()
         )
         updateConfig(defaults)
     }

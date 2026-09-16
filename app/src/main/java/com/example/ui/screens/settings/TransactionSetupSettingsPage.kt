@@ -907,6 +907,110 @@ fun TransactionSetupSettingsPage(
                                     )
                                 )
                             }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Clear Attachment
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "সংযুক্ত ছবি / ডকুমেন্ট রিসেট করুন" else "Clear Photo & File Attachments",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneClearAttachment,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneClearAttachment = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Keep Transfer Target Account
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "স্থানান্তর গন্তব্য অ্যাকাউন্ট মনে রাখুন" else "Keep Transfer Destination Account",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneKeepTransferAccount,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneKeepTransferAccount = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Auto-Increment Note Sequence
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = if (isBangla) "নোটে অটো ক্রমিক সংখ্যা যোগ (#১, #২)" else "Auto-Increment Sequence in Note (#1, #2)",
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = if (isBangla) "ধারাবাহিক লেনদেন ট্র্যাক করতে সহায়ক" else "Appends counter suffix to repeated entries",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Switch(
+                                    checked = txConfig.plusOneAutoIncrementNote,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneAutoIncrementNote = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Show Confirmation Notification Toast
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = if (isBangla) "+১ সেভের পর তাৎক্ষণিক কনফার্মেশন মেসেজ" else "Show Confirmation Toast on (+1) Save",
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = if (isBangla) "সংরক্ষণ নিশ্চিত করতে নিচে পপআপ দেখায়" else "Quick toast notification after transaction is stored",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Switch(
+                                    checked = txConfig.plusOneShowConfirmationToast,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneShowConfirmationToast = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
                         }
                     }
                 }

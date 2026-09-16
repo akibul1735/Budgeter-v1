@@ -57,6 +57,9 @@ data class TransactionConfig(
     val plusOneKeepType: Boolean = true,
     val plusOneKeepPaymentMethod: Boolean = true,
     val plusOneKeepLabels: Boolean = false,
+    val plusOneKeepTransferAccount: Boolean = true,
+    val plusOneShowConfirmationToast: Boolean = true,
+    val plusOneAutoIncrementNote: Boolean = false,
 
     // 6. Payee or Name for Unnamed Transactions
     val unnamedPayeeMode: UnnamedPayeeMode = UnnamedPayeeMode.DEFAULT_OTHERS,
@@ -106,6 +109,9 @@ class TransactionPreferences private constructor(context: Context) {
             plusOneKeepType = prefs.getBoolean(KEY_PLUS_ONE_KEEP_TYPE, true),
             plusOneKeepPaymentMethod = prefs.getBoolean(KEY_PLUS_ONE_KEEP_PAYMENT_METHOD, true),
             plusOneKeepLabels = prefs.getBoolean(KEY_PLUS_ONE_KEEP_LABELS, false),
+            plusOneKeepTransferAccount = prefs.getBoolean(KEY_PLUS_ONE_KEEP_TRANSFER_ACCOUNT, true),
+            plusOneShowConfirmationToast = prefs.getBoolean(KEY_PLUS_ONE_SHOW_CONFIRMATION_TOAST, true),
+            plusOneAutoIncrementNote = prefs.getBoolean(KEY_PLUS_ONE_AUTO_INCREMENT_NOTE, false),
             unnamedPayeeMode = try {
                 UnnamedPayeeMode.valueOf(prefs.getString(KEY_UNNAMED_PAYEE_MODE, UnnamedPayeeMode.DEFAULT_OTHERS.name) ?: UnnamedPayeeMode.DEFAULT_OTHERS.name)
             } catch (e: Exception) {
@@ -139,6 +145,9 @@ class TransactionPreferences private constructor(context: Context) {
             .putBoolean(KEY_PLUS_ONE_KEEP_TYPE, newConfig.plusOneKeepType)
             .putBoolean(KEY_PLUS_ONE_KEEP_PAYMENT_METHOD, newConfig.plusOneKeepPaymentMethod)
             .putBoolean(KEY_PLUS_ONE_KEEP_LABELS, newConfig.plusOneKeepLabels)
+            .putBoolean(KEY_PLUS_ONE_KEEP_TRANSFER_ACCOUNT, newConfig.plusOneKeepTransferAccount)
+            .putBoolean(KEY_PLUS_ONE_SHOW_CONFIRMATION_TOAST, newConfig.plusOneShowConfirmationToast)
+            .putBoolean(KEY_PLUS_ONE_AUTO_INCREMENT_NOTE, newConfig.plusOneAutoIncrementNote)
             .putString(KEY_UNNAMED_PAYEE_MODE, newConfig.unnamedPayeeMode.name)
             .putString(KEY_CUSTOM_DEFAULT_PAYEE, newConfig.customDefaultPayee)
             .putBoolean(KEY_AUTO_FOCUS_AMOUNT, newConfig.autoFocusAmount)
@@ -189,6 +198,9 @@ class TransactionPreferences private constructor(context: Context) {
         private const val KEY_PLUS_ONE_KEEP_TYPE = "plus_one_keep_type"
         private const val KEY_PLUS_ONE_KEEP_PAYMENT_METHOD = "plus_one_keep_payment_method"
         private const val KEY_PLUS_ONE_KEEP_LABELS = "plus_one_keep_labels"
+        private const val KEY_PLUS_ONE_KEEP_TRANSFER_ACCOUNT = "plus_one_keep_transfer_account"
+        private const val KEY_PLUS_ONE_SHOW_CONFIRMATION_TOAST = "plus_one_show_confirmation_toast"
+        private const val KEY_PLUS_ONE_AUTO_INCREMENT_NOTE = "plus_one_auto_increment_note"
         private const val KEY_UNNAMED_PAYEE_MODE = "unnamed_payee_mode"
         private const val KEY_CUSTOM_DEFAULT_PAYEE = "custom_default_payee"
         private const val KEY_AUTO_FOCUS_AMOUNT = "auto_focus_amount"

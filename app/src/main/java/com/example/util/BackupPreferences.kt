@@ -21,7 +21,8 @@ data class CloudAccountInfo(
     val autoSync: Boolean = true,
     val wifiOnly: Boolean = false,
     val uploadAttachments: Boolean = true,
-    val driveFolderType: String = "Visible 'Budgeter' Folder"
+    val driveFolderType: String = "Visible 'Budgeter' Folder",
+    val photoUrl: String = ""
 )
 
 data class BackupSettingsConfig(
@@ -113,7 +114,8 @@ class BackupPreferences(context: Context) {
                 autoSync = primaryAutoSync,
                 wifiOnly = primaryWifiOnly,
                 uploadAttachments = primaryUploadAtt,
-                driveFolderType = primaryFolderType
+                driveFolderType = primaryFolderType,
+                photoUrl = prefs.getString(KEY_PRIMARY_PHOTO_URL, "") ?: ""
             ),
             secondaryAccount = CloudAccountInfo(
                 provider = secondaryProvider,
@@ -129,7 +131,8 @@ class BackupPreferences(context: Context) {
                 autoSync = secondaryAutoSync,
                 wifiOnly = secondaryWifiOnly,
                 uploadAttachments = secondaryUploadAtt,
-                driveFolderType = secondaryFolderType
+                driveFolderType = secondaryFolderType,
+                photoUrl = prefs.getString(KEY_SECONDARY_PHOTO_URL, "") ?: ""
             ),
             isDualSyncEnabled = prefs.getBoolean(KEY_DUAL_SYNC_ENABLED, true),
             localBackupDirectory = prefs.getString(KEY_LOCAL_DIR, "Documents/Budgeter") ?: "Documents/Budgeter",
@@ -169,6 +172,7 @@ class BackupPreferences(context: Context) {
             .putBoolean(KEY_PRIMARY_WIFI_ONLY, safeConfig.primaryAccount.wifiOnly)
             .putBoolean(KEY_PRIMARY_UPLOAD_ATTACHMENTS, safeConfig.primaryAccount.uploadAttachments)
             .putString(KEY_PRIMARY_FOLDER_TYPE, safeConfig.primaryAccount.driveFolderType)
+            .putString(KEY_PRIMARY_PHOTO_URL, safeConfig.primaryAccount.photoUrl)
             .putString(KEY_SECONDARY_PROVIDER, safeConfig.secondaryAccount.provider)
             .putString(KEY_SECONDARY_EMAIL, safeConfig.secondaryAccount.email)
             .putString(KEY_SECONDARY_NAME, safeConfig.secondaryAccount.displayName)
@@ -183,6 +187,7 @@ class BackupPreferences(context: Context) {
             .putBoolean(KEY_SECONDARY_WIFI_ONLY, safeConfig.secondaryAccount.wifiOnly)
             .putBoolean(KEY_SECONDARY_UPLOAD_ATTACHMENTS, safeConfig.secondaryAccount.uploadAttachments)
             .putString(KEY_SECONDARY_FOLDER_TYPE, safeConfig.secondaryAccount.driveFolderType)
+            .putString(KEY_SECONDARY_PHOTO_URL, safeConfig.secondaryAccount.photoUrl)
             .putBoolean(KEY_DUAL_SYNC_ENABLED, safeConfig.isDualSyncEnabled)
             .putString(KEY_LOCAL_DIR, safeConfig.localBackupDirectory)
             .putBoolean(KEY_AUTO_PHONE_BACKUP, safeConfig.isAutoPhoneBackupEnabled)
@@ -208,13 +213,14 @@ class BackupPreferences(context: Context) {
         updateConfig(_config.value.copy(secondaryAccount = updated))
     }
 
-    fun setPrimaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "") {
+    fun setPrimaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "", photoUrl: String = "") {
         val updatedPrimary = _config.value.primaryAccount.copy(
             email = email,
             displayName = displayName,
             serverUrl = serverUrl,
             accessToken = if (accessToken.isNotBlank()) accessToken else _config.value.primaryAccount.accessToken,
-            isLinked = isLinked
+            isLinked = isLinked,
+            photoUrl = if (photoUrl.isNotBlank()) photoUrl else (if (!isLinked) "" else _config.value.primaryAccount.photoUrl)
         )
         updateConfig(
             _config.value.copy(
@@ -224,13 +230,14 @@ class BackupPreferences(context: Context) {
         )
     }
 
-    fun setSecondaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "") {
+    fun setSecondaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "", photoUrl: String = "") {
         val updatedSecondary = _config.value.secondaryAccount.copy(
             email = email,
             displayName = displayName,
             serverUrl = serverUrl,
             accessToken = if (accessToken.isNotBlank()) accessToken else _config.value.secondaryAccount.accessToken,
-            isLinked = isLinked
+            isLinked = isLinked,
+            photoUrl = if (photoUrl.isNotBlank()) photoUrl else (if (!isLinked) "" else _config.value.secondaryAccount.photoUrl)
         )
         updateConfig(
             _config.value.copy(
@@ -428,6 +435,7 @@ class BackupPreferences(context: Context) {
         private const val KEY_PRIMARY_WIFI_ONLY = "primary_wifi_only"
         private const val KEY_PRIMARY_UPLOAD_ATTACHMENTS = "primary_upload_attachments"
         private const val KEY_PRIMARY_FOLDER_TYPE = "primary_folder_type"
+        private const val KEY_PRIMARY_PHOTO_URL = "primary_photo_url"
         private const val KEY_SECONDARY_PROVIDER = "secondary_provider"
         private const val KEY_SECONDARY_EMAIL = "secondary_email"
         private const val KEY_SECONDARY_NAME = "secondary_name"
@@ -442,6 +450,7 @@ class BackupPreferences(context: Context) {
         private const val KEY_SECONDARY_WIFI_ONLY = "secondary_wifi_only"
         private const val KEY_SECONDARY_UPLOAD_ATTACHMENTS = "secondary_upload_attachments"
         private const val KEY_SECONDARY_FOLDER_TYPE = "secondary_folder_type"
+        private const val KEY_SECONDARY_PHOTO_URL = "secondary_photo_url"
         private const val KEY_DUAL_SYNC_ENABLED = "dual_sync_enabled"
         private const val KEY_LOCAL_DIR = "local_backup_dir"
         private const val KEY_AUTO_PHONE_BACKUP = "auto_phone_backup"

@@ -119,6 +119,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -127,6 +128,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.example.data.model.LanguageMode
 import com.example.ui.components.CsvExportDialog
 import com.example.ui.components.CsvImportPreviewDialog
@@ -210,7 +212,6 @@ fun BackupSyncSettingsScreen(
     var isDrive2TreeExpanded by remember { mutableStateOf(false) }
     var isLocalStorageExpanded by remember { mutableStateOf(false) }
     var isExportImportExpanded by remember { mutableStateOf(true) }
-    var isDemoExpanded by remember { mutableStateOf(false) }
 
     var activeDriveAccountTab by remember { mutableIntStateOf(0) }
     var selectedOnlineSyncTab by remember { mutableStateOf(OnlineSyncTab.DRIVE_1) }
@@ -218,6 +219,32 @@ fun BackupSyncSettingsScreen(
     var showProviderDialogForAccount by remember { mutableStateOf<Int?>(null) }
     var showAccountEditDialogForAccount by remember { mutableStateOf<Int?>(null) }
     var localBackups by remember { mutableStateOf<List<File>>(emptyList()) }
+
+    var isDrive1FilesVisible by remember { mutableStateOf(false) }
+    var isDrive2FilesVisible by remember { mutableStateOf(false) }
+    var isLocalSnapshotsVisible by remember { mutableStateOf(false) }
+
+    var pendingSecurityAction by remember { mutableStateOf<PendingSecurityAction?>(null) }
+
+    fun executeWithAuth(
+        title: String,
+        message: String,
+        confirmButtonText: String = if (languageMode == LanguageMode.BANGLA) "নিশ্চিত করুন" else "Confirm",
+        isDestructive: Boolean = false,
+        action: () -> Unit
+    ) {
+        if (securityConfig.hasPin || securityConfig.isBiometricEnabled) {
+            pendingSecurityAction = PendingSecurityAction(
+                title = title,
+                message = message,
+                confirmButtonText = confirmButtonText,
+                isDestructive = isDestructive,
+                onExecute = action
+            )
+        } else {
+            action()
+        }
+    }
     var showFolderPickerDialog by remember { mutableStateOf(false) }
     var showCsvExportDialog by remember { mutableStateOf(false) }
     var pendingCsvExportConfig by remember { mutableStateOf<CsvExportConfig?>(null) }
@@ -292,7 +319,8 @@ fun BackupSyncSettingsScreen(
                 viewModel.setPrimaryAccount(
                     email = account.email ?: "",
                     displayName = account.displayName ?: (account.email ?: ""),
-                    isLinked = true
+                    isLinked = true,
+                    photoUrl = account.photoUrl?.toString() ?: ""
                 )
                 viewModel.fetchDriveBackups(account)
             }
@@ -314,7 +342,8 @@ fun BackupSyncSettingsScreen(
                 viewModel.setSecondaryAccount(
                     email = account.email ?: "",
                     displayName = account.displayName ?: (account.email ?: ""),
-                    isLinked = true
+                    isLinked = true,
+                    photoUrl = account.photoUrl?.toString() ?: ""
                 )
                 viewModel.fetchSecondaryDriveBackups(account)
             }
@@ -651,6 +680,7 @@ fun BackupSyncSettingsScreen(
                     val isPrimaryLinked = if (isGoogleDrive) (signedInAccount != null || (primary.isLinked && primary.email.isNotBlank())) else (primary.isLinked && (primary.email.isNotBlank() || primary.accessToken.isNotBlank()))
                     val displayEmail = if (isGoogleDrive) (signedInAccount?.email ?: primary.email) else primary.email
                     val displayName = if (isGoogleDrive) (signedInAccount?.displayName ?: primary.displayName.ifEmpty { displayEmail }) else primary.displayName
+                    val displayPhotoUrl = primary.photoUrl.ifEmpty { signedInAccount?.photoUrl?.toString() ?: "" }
 
                     item {
                         DriveAccountConnectionCard(
@@ -659,6 +689,7 @@ fun BackupSyncSettingsScreen(
                             isLinked = isPrimaryLinked,
                             email = displayEmail,
                             displayName = displayName,
+                            photoUrl = displayPhotoUrl,
                             serverUrl = primary.serverUrl,
                             lastSyncTimestamp = if (primary.lastSyncTimestamp > 0L) primary.lastSyncTimestamp else config.lastSyncTimestamp,
                             isLoading = isLoading,
@@ -672,20 +703,32 @@ fun BackupSyncSettingsScreen(
                                 }
                             },
                             onDisconnect = {
-                                if (isGoogleDrive) {
-                                    val client = GoogleDriveService.getGoogleSignInClient(context)
-                                    client.signOut().addOnCompleteListener {
-                                        viewModel.updateSignedInAccount(null)
-                                        viewModel.setPrimaryAccount("", "", false)
+                                executeWithAuth(
+                                    title = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ আনলিঙ্ক করবেন?" else "Unlink Drive 1 Account?",
+                                    message = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ একাউন্ট সংযোগ বিচ্ছিন্ন করতে বায়োমেট্রিক বা পাসকোড যাচাই করুন।" else "Authenticate with Biometric or PIN to unlink Drive 1 account.",
+                                    confirmButtonText = if (languageMode == LanguageMode.BANGLA) "আনলিঙ্ক" else "Unlink",
+                                    isDestructive = true
+                                ) {
+                                    if (isGoogleDrive) {
+                                        val client = GoogleDriveService.getGoogleSignInClient(context)
+                                        client.signOut().addOnCompleteListener {
+                                            viewModel.updateSignedInAccount(null)
+                                            viewModel.setPrimaryAccount("", "", false)
+                                        }
+                                    } else if (primary.provider.contains("Dropbox", ignoreCase = true)) {
+                                        viewModel.disconnectDropbox(1)
+                                    } else {
+                                        viewModel.setPrimaryAccount("", "", false, "", "")
                                     }
-                                } else if (primary.provider.contains("Dropbox", ignoreCase = true)) {
-                                    viewModel.disconnectDropbox(1)
-                                } else {
-                                    viewModel.setPrimaryAccount("", "", false, "", "")
                                 }
                             },
                             onEditDetails = {
-                                showAccountEditDialogForAccount = 1
+                                executeWithAuth(
+                                    title = if (languageMode == LanguageMode.BANGLA) "একাউন্ট পরিবর্তন" else "Change Account Details",
+                                    message = if (languageMode == LanguageMode.BANGLA) "একাউন্ট বিবরণ পরিবর্তন করতে বায়োমেট্রিক বা পাসকোড দিন।" else "Authenticate with Biometric or PIN to change account details."
+                                ) {
+                                    showAccountEditDialogForAccount = 1
+                                }
                             },
                             onSyncNow = {
                                 viewModel.backupToCloudProvider(1)
@@ -699,7 +742,14 @@ fun BackupSyncSettingsScreen(
                             driveIndex = 1,
                             driveLabel = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ ক্লাউড সার্ভিস" else "Drive 1 Cloud Service",
                             provider = primary.provider,
-                            onChangeProvider = { showProviderDialogForAccount = 1 },
+                            onChangeProvider = {
+                                executeWithAuth(
+                                    title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড প্রোভাইডার পরিবর্তন" else "Change Cloud Provider",
+                                    message = if (languageMode == LanguageMode.BANGLA) "ক্লাউড প্রোভাইডার পরিবর্তন করতে বায়োমেট্রিক বা পাসকোড দিন।" else "Authenticate with Biometric or PIN to change cloud provider."
+                                ) {
+                                    showProviderDialogForAccount = 1
+                                }
+                            },
                             languageMode = languageMode
                         )
                     }
@@ -719,76 +769,112 @@ fun BackupSyncSettingsScreen(
                     }
 
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        OutlinedCard(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = if (isDrive1FilesVisible) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                            ),
+                            onClick = { isDrive1FilesVisible = !isDrive1FilesVisible },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ অনলাইন সিঙ্ক ফাইল (${driveBackups.size})" else "Drive 1 Online Sync Files (${driveBackups.size})",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "ডিভাইস ভিন্ন হলে আলাদা সিঙ্ক ফাইল থাকে, অন্যথায় ১টি সিঙ্ক ফাইল আপডেট হয়" else "Separate sync file kept per device; single sync file updated otherwise",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            IconButton(
-                                onClick = { viewModel.fetchCloudBackups(1) }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudSync,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ অনলাইন সিঙ্ক ফাইল (${driveBackups.size})" else "Drive 1 Online Sync Files (${driveBackups.size})",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = if (isDrive1FilesVisible) {
+                                                if (languageMode == LanguageMode.BANGLA) "ফাইল তালিকা লুকাতে ট্যাপ করুন" else "Tap to hide sync files"
+                                            } else {
+                                                if (languageMode == LanguageMode.BANGLA) "সিঙ্ক ফাইলগুলো দেখতে ট্যাপ করুন" else "Tap to view sync files"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { viewModel.fetchCloudBackups(1) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = if (isDrive1FilesVisible) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
                         }
                     }
 
-                    if (!isPrimaryLinked) {
-                        item {
-                            EmptyStateCard(
-                                message = if (languageMode == LanguageMode.BANGLA)
-                                    "ড্রাইভ ১-এ অনলাইন সিঙ্ক সক্রিয় করতে উপরের '${primary.provider}' একাউন্ট যুক্ত করুন।"
-                                else
-                                    "Connect your ${primary.provider} account above to manage Drive 1 online sync."
-                            )
-                        }
-                    } else if (driveBackups.isEmpty()) {
-                        item {
-                            EmptyStateCard(
-                                message = if (languageMode == LanguageMode.BANGLA)
-                                    "ড্রাইভ ১-এ এখনো কোনো সিঙ্ক ফাইল নেই। 'সিঙ্ক করুন' বাটনে ট্যাপ করুন।"
-                                else
-                                    "No online sync files found in Drive 1. Tap 'Sync Drive 1 Now' to sync."
-                            )
-                        }
-                    } else {
-                        items(driveBackups, key = { it.id }) { backupFile ->
-                            DriveSnapshotItem(
-                                backupFile = backupFile,
-                                onRestore = {
-                                    val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
-                                    val info = DetectedBackupInfo(
-                                        fileId = backupFile.id,
-                                        fileName = backupFile.name,
-                                        sourceProvider = "Google Drive (Drive 1)",
-                                        timestamp = parsedTime,
-                                        deviceName = backupFile.deviceName,
-                                        installationId = backupFile.installationId,
-                                        accountsCount = backupFile.accountsCount,
-                                        transactionsCount = backupFile.transactionsCount,
-                                        driveIndex = 1,
-                                        rawBackupFile = backupFile
-                                    )
-                                    selectedBackupForOptionsDialog = info
-                                },
-                                onDelete = {
-                                    activeDriveAccountTab = 0
-                                    deleteConfirmDriveFile = backupFile
-                                },
-                                languageMode = languageMode
-                            )
+                    if (isDrive1FilesVisible) {
+                        if (!isPrimaryLinked) {
+                            item {
+                                EmptyStateCard(
+                                    message = if (languageMode == LanguageMode.BANGLA)
+                                        "ড্রাইভ ১-এ অনলাইন সিঙ্ক সক্রিয় করতে উপরের '${primary.provider}' একাউন্ট যুক্ত করুন।"
+                                    else
+                                        "Connect your ${primary.provider} account above to manage Drive 1 online sync."
+                                )
+                            }
+                        } else if (driveBackups.isEmpty()) {
+                            item {
+                                EmptyStateCard(
+                                    message = if (languageMode == LanguageMode.BANGLA)
+                                        "ড্রাইভ ১-এ এখনো কোনো সিঙ্ক ফাইল নেই। 'সিঙ্ক করুন' বাটনে ট্যাপ করুন।"
+                                    else
+                                        "No online sync files found in Drive 1. Tap 'Sync Drive 1 Now' to sync."
+                                )
+                            }
+                        } else {
+                            items(driveBackups, key = { it.id }) { backupFile ->
+                                DriveSnapshotItem(
+                                    backupFile = backupFile,
+                                    onRestore = {
+                                        val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
+                                        val info = DetectedBackupInfo(
+                                            fileId = backupFile.id,
+                                            fileName = backupFile.name,
+                                            sourceProvider = "Google Drive (Drive 1)",
+                                            timestamp = parsedTime,
+                                            deviceName = backupFile.deviceName,
+                                            installationId = backupFile.installationId,
+                                            accountsCount = backupFile.accountsCount,
+                                            transactionsCount = backupFile.transactionsCount,
+                                            driveIndex = 1,
+                                            rawBackupFile = backupFile
+                                        )
+                                        selectedBackupForOptionsDialog = info
+                                    },
+                                    onDelete = {
+                                        activeDriveAccountTab = 0
+                                        deleteConfirmDriveFile = backupFile
+                                    },
+                                    languageMode = languageMode
+                                )
+                            }
                         }
                     }
                 }
@@ -802,6 +888,7 @@ fun BackupSyncSettingsScreen(
                     val isSecondaryLinked = if (isSecondaryGoogleDrive) (secondarySignedInAccount != null || (secondary.isLinked && secondary.email.isNotBlank())) else (secondary.isLinked && (secondary.email.isNotBlank() || secondary.accessToken.isNotBlank()))
                     val secondaryDisplayEmail = if (isSecondaryGoogleDrive) (secondarySignedInAccount?.email ?: secondary.email) else secondary.email
                     val secondaryDisplayName = if (isSecondaryGoogleDrive) (secondarySignedInAccount?.displayName ?: secondary.displayName.ifEmpty { secondaryDisplayEmail }) else secondary.displayName
+                    val secondaryDisplayPhotoUrl = secondary.photoUrl.ifEmpty { secondarySignedInAccount?.photoUrl?.toString() ?: "" }
 
                     item {
                         DriveAccountConnectionCard(
@@ -810,6 +897,7 @@ fun BackupSyncSettingsScreen(
                             isLinked = isSecondaryLinked,
                             email = secondaryDisplayEmail,
                             displayName = secondaryDisplayName,
+                            photoUrl = secondaryDisplayPhotoUrl,
                             serverUrl = secondary.serverUrl,
                             lastSyncTimestamp = secondary.lastSyncTimestamp,
                             isLoading = isLoading,
@@ -823,20 +911,32 @@ fun BackupSyncSettingsScreen(
                                 }
                             },
                             onDisconnect = {
-                                if (isSecondaryGoogleDrive) {
-                                    val client = GoogleDriveService.getGoogleSignInClient(context)
-                                    client.signOut().addOnCompleteListener {
-                                        viewModel.updateSecondarySignedInAccount(null)
-                                        viewModel.setSecondaryAccount("", "", false)
+                                executeWithAuth(
+                                    title = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ আনলিঙ্ক করবেন?" else "Unlink Drive 2 Account?",
+                                    message = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ একাউন্ট সংযোগ বিচ্ছিন্ন করতে বায়োমেট্রিক বা পাসকোড যাচাই করুন।" else "Authenticate with Biometric or PIN to unlink Drive 2 account.",
+                                    confirmButtonText = if (languageMode == LanguageMode.BANGLA) "আনলিঙ্ক" else "Unlink",
+                                    isDestructive = true
+                                ) {
+                                    if (isSecondaryGoogleDrive) {
+                                        val client = GoogleDriveService.getGoogleSignInClient(context)
+                                        client.signOut().addOnCompleteListener {
+                                            viewModel.updateSecondarySignedInAccount(null)
+                                            viewModel.setSecondaryAccount("", "", false)
+                                        }
+                                    } else if (secondary.provider.contains("Dropbox", ignoreCase = true)) {
+                                        viewModel.disconnectDropbox(2)
+                                    } else {
+                                        viewModel.setSecondaryAccount("", "", false, "", "")
                                     }
-                                } else if (secondary.provider.contains("Dropbox", ignoreCase = true)) {
-                                    viewModel.disconnectDropbox(2)
-                                } else {
-                                    viewModel.setSecondaryAccount("", "", false, "", "")
                                 }
                             },
                             onEditDetails = {
-                                showAccountEditDialogForAccount = 2
+                                executeWithAuth(
+                                    title = if (languageMode == LanguageMode.BANGLA) "একাউন্ট পরিবর্তন" else "Change Account Details",
+                                    message = if (languageMode == LanguageMode.BANGLA) "একাউন্ট বিবরণ পরিবর্তন করতে বায়োমেট্রিক বা পাসকোড দিন।" else "Authenticate with Biometric or PIN to change account details."
+                                ) {
+                                    showAccountEditDialogForAccount = 2
+                                }
                             },
                             onSyncNow = {
                                 viewModel.backupToCloudProvider(2)
@@ -850,7 +950,14 @@ fun BackupSyncSettingsScreen(
                             driveIndex = 2,
                             driveLabel = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ ক্লাউড সার্ভিস" else "Drive 2 Cloud Service",
                             provider = secondary.provider,
-                            onChangeProvider = { showProviderDialogForAccount = 2 },
+                            onChangeProvider = {
+                                executeWithAuth(
+                                    title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড প্রোভাইডার পরিবর্তন" else "Change Cloud Provider",
+                                    message = if (languageMode == LanguageMode.BANGLA) "ক্লাউড প্রোভাইডার পরিবর্তন করতে বায়োমেট্রিক বা পাসকোড দিন।" else "Authenticate with Biometric or PIN to change cloud provider."
+                                ) {
+                                    showProviderDialogForAccount = 2
+                                }
+                            },
                             languageMode = languageMode
                         )
                     }
@@ -870,76 +977,112 @@ fun BackupSyncSettingsScreen(
                     }
 
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        OutlinedCard(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = if (isDrive2FilesVisible) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                            ),
+                            onClick = { isDrive2FilesVisible = !isDrive2FilesVisible },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ অনলাইন সিঙ্ক ফাইল (${secondaryDriveBackups.size})" else "Drive 2 Online Sync Files (${secondaryDriveBackups.size})",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "ডিভাইস ভিন্ন হলে আলাদা সিঙ্ক ফাইল থাকে, অন্যথায় ১টি সিঙ্ক ফাইল আপডেট হয়" else "Separate sync file kept per device; single sync file updated otherwise",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            IconButton(
-                                onClick = { viewModel.fetchCloudBackups(2) }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudSync,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ অনলাইন সিঙ্ক ফাইল (${secondaryDriveBackups.size})" else "Drive 2 Online Sync Files (${secondaryDriveBackups.size})",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                        Text(
+                                            text = if (isDrive2FilesVisible) {
+                                                if (languageMode == LanguageMode.BANGLA) "ফাইল তালিকা লুকাতে ট্যাপ করুন" else "Tap to hide sync files"
+                                            } else {
+                                                if (languageMode == LanguageMode.BANGLA) "সিঙ্ক ফাইলগুলো দেখতে ট্যাপ করুন" else "Tap to view sync files"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { viewModel.fetchCloudBackups(2) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = if (isDrive2FilesVisible) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
                         }
                     }
 
-                    if (!isSecondaryLinked) {
-                        item {
-                            EmptyStateCard(
-                                message = if (languageMode == LanguageMode.BANGLA)
-                                    "ড্রাইভ ২-এ অনলাইন সিঙ্ক সক্রিয় করতে উপরের '${secondary.provider}' একাউন্ট যুক্ত করুন।"
-                                else
-                                    "Connect your ${secondary.provider} account above to manage Drive 2 online sync."
-                            )
-                        }
-                    } else if (secondaryDriveBackups.isEmpty()) {
-                        item {
-                            EmptyStateCard(
-                                message = if (languageMode == LanguageMode.BANGLA)
-                                    "ড্রাইভ ২-এ এখনো কোনো সিঙ্ক ফাইল নেই। 'সিঙ্ক করুন' বাটনে ট্যাপ করুন।"
-                                else
-                                    "No online sync files found in Drive 2. Tap 'Sync Drive 2 Now' to sync."
-                            )
-                        }
-                    } else {
-                        items(secondaryDriveBackups, key = { it.id }) { backupFile ->
-                            DriveSnapshotItem(
-                                backupFile = backupFile,
-                                onRestore = {
-                                    val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
-                                    val info = DetectedBackupInfo(
-                                        fileId = backupFile.id,
-                                        fileName = backupFile.name,
-                                        sourceProvider = "Secondary (${config.secondaryAccount.provider})",
-                                        timestamp = parsedTime,
-                                        deviceName = backupFile.deviceName,
-                                        installationId = backupFile.installationId,
-                                        accountsCount = backupFile.accountsCount,
-                                        transactionsCount = backupFile.transactionsCount,
-                                        driveIndex = 2,
-                                        rawBackupFile = backupFile
-                                    )
-                                    selectedBackupForOptionsDialog = info
-                                },
-                                onDelete = {
-                                    activeDriveAccountTab = 1
-                                    deleteConfirmDriveFile = backupFile
-                                },
-                                languageMode = languageMode
-                            )
+                    if (isDrive2FilesVisible) {
+                        if (!isSecondaryLinked) {
+                            item {
+                                EmptyStateCard(
+                                    message = if (languageMode == LanguageMode.BANGLA)
+                                        "ড্রাইভ ২-এ অনলাইন সিঙ্ক সক্রিয় করতে উপরের '${secondary.provider}' একাউন্ট যুক্ত করুন।"
+                                    else
+                                        "Connect your ${secondary.provider} account above to manage Drive 2 online sync."
+                                )
+                            }
+                        } else if (secondaryDriveBackups.isEmpty()) {
+                            item {
+                                EmptyStateCard(
+                                    message = if (languageMode == LanguageMode.BANGLA)
+                                        "ড্রাইভ ২-এ এখনো কোনো সিঙ্ক ফাইল নেই। 'সিঙ্ক করুন' বাটনে ট্যাপ করুন।"
+                                    else
+                                        "No online sync files found in Drive 2. Tap 'Sync Drive 2 Now' to sync."
+                                )
+                            }
+                        } else {
+                            items(secondaryDriveBackups, key = { it.id }) { backupFile ->
+                                DriveSnapshotItem(
+                                    backupFile = backupFile,
+                                    onRestore = {
+                                        val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
+                                        val info = DetectedBackupInfo(
+                                            fileId = backupFile.id,
+                                            fileName = backupFile.name,
+                                            sourceProvider = "Secondary (${config.secondaryAccount.provider})",
+                                            timestamp = parsedTime,
+                                            deviceName = backupFile.deviceName,
+                                            installationId = backupFile.installationId,
+                                            accountsCount = backupFile.accountsCount,
+                                            transactionsCount = backupFile.transactionsCount,
+                                            driveIndex = 2,
+                                            rawBackupFile = backupFile
+                                        )
+                                        selectedBackupForOptionsDialog = info
+                                    },
+                                    onDelete = {
+                                        activeDriveAccountTab = 1
+                                        deleteConfirmDriveFile = backupFile
+                                    },
+                                    languageMode = languageMode
+                                )
+                            }
                         }
                     }
                 }
@@ -1190,96 +1333,138 @@ fun BackupSyncSettingsScreen(
                     }
                 }
 
-                // Local Backups Header
+                // Local Backups Header / Button
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isLocalSnapshotsVisible) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                        ),
+                        onClick = { isLocalSnapshotsVisible = !isLocalSnapshotsVisible },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষিত লোকাল ব্যাকআপ (${localBackups.size})" else "Local Snapshots (${localBackups.size})",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        IconButton(onClick = { refreshLocalBackups() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.SdStorage,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষিত লোকাল স্ন্যাপশট (${localBackups.size})" else "Local Snapshots (${localBackups.size})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = if (isLocalSnapshotsVisible) {
+                                            if (languageMode == LanguageMode.BANGLA) "ফাইল তালিকা লুকাতে ট্যাপ করুন" else "Tap to hide snapshot files"
+                                        } else {
+                                            if (languageMode == LanguageMode.BANGLA) "ফাইলগুলো দেখতে ট্যাপ করুন" else "Tap to view snapshot files"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { refreshLocalBackups() }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = if (isLocalSnapshotsVisible) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                     }
                 }
 
-                if (localBackups.isEmpty()) {
-                    item {
-                        EmptyStateCard(
-                            message = if (languageMode == LanguageMode.BANGLA) "কোনো লোকাল ব্যাকআপ পাওয়া যায়নি" else "No local backups found in this folder."
-                        )
-                    }
-                } else {
-                    items(localBackups) { file ->
-                        val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(file.lastModified()))
-                        val sizeKb = (file.length() / 1024).coerceAtLeast(1)
+                if (isLocalSnapshotsVisible) {
+                    if (localBackups.isEmpty()) {
+                        item {
+                            EmptyStateCard(
+                                message = if (languageMode == LanguageMode.BANGLA) "কোনো লোকাল ব্যাকআপ পাওয়া যায়নি" else "No local backups found in this folder."
+                            )
+                        }
+                    } else {
+                        items(localBackups) { file ->
+                            val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(file.lastModified()))
+                            val sizeKb = (file.length() / 1024).coerceAtLeast(1)
 
-                        OutlinedCard(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            OutlinedCard(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(file.name, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
-                                    Text("$dateStr • $sizeKb KB", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
-                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(file.name, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
+                                        Text("$dateStr • $sizeKb KB", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+                                    }
 
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    IconButton(
-                                        onClick = {
-                                            try {
-                                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                                    type = "application/json"
-                                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        IconButton(
+                                            onClick = {
+                                                try {
+                                                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        type = "application/json"
+                                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    }
+                                                    context.startActivity(Intent.createChooser(shareIntent, "Share Backup"))
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
                                                 }
-                                                context.startActivity(Intent.createChooser(shareIntent, "Share Backup"))
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                    }
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        }
 
-                                    IconButton(
-                                        onClick = { deleteConfirmLocalFile = file },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                                    }
+                                        IconButton(
+                                            onClick = { deleteConfirmLocalFile = file },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                        }
 
-                                    Button(
-                                        onClick = {
-                                            val info = DetectedBackupInfo(
-                                                fileId = file.name,
-                                                fileName = file.name,
-                                                sourceProvider = "Local Storage",
-                                                timestamp = file.lastModified(),
-                                                localFile = file
-                                            )
-                                            selectedBackupForOptionsDialog = info
-                                        },
-                                        shape = RoundedCornerShape(6.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                                        modifier = Modifier.height(30.dp)
-                                    ) {
-                                        Text(if (languageMode == LanguageMode.BANGLA) "রিস্টোর" else "Restore", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Button(
+                                            onClick = {
+                                                val info = DetectedBackupInfo(
+                                                    fileId = file.name,
+                                                    fileName = file.name,
+                                                    sourceProvider = "Local Storage",
+                                                    timestamp = file.lastModified(),
+                                                    localFile = file
+                                                )
+                                                selectedBackupForOptionsDialog = info
+                                            },
+                                            shape = RoundedCornerShape(6.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(30.dp)
+                                        ) {
+                                            Text(if (languageMode == LanguageMode.BANGLA) "রিস্টোর" else "Restore", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -1418,7 +1603,7 @@ fun BackupSyncSettingsScreen(
         item {
             TreeSectionHeader(
                 title = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট ও ইম্পোর্ট সেটিংস" else "Export & Import Settings",
-                subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা এক্সপোর্ট, ইম্পোর্ট ও ডেমো স্যান্ডবক্স" else "Data export, import & demo sandbox mode",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ডাটা এক্সপোর্ট ও ইম্পোর্ট" else "Data export & import",
                 icon = Icons.Default.SwapVert,
                 isExpanded = isMoreTreeExpanded,
                 onToggle = { isMoreTreeExpanded = !isMoreTreeExpanded },
@@ -1518,120 +1703,10 @@ fun BackupSyncSettingsScreen(
                         )
                     }
                 }
-
-                // Tree Sub-branch 3.3: Demo Sandbox Mode
-                item {
-                    TreeSubBranchCard(
-                        title = if (languageMode == LanguageMode.BANGLA) "ডেমো স্যান্ডবক্স মোড" else "Demo Sandbox Environment",
-                        subtitle = if (isDemoMode) "Sample data active • Real data is safely isolated" else "Real database active",
-                        icon = Icons.Default.AutoAwesome,
-                        isExpanded = isDemoExpanded,
-                        onToggle = { isDemoExpanded = !isDemoExpanded }
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(if (languageMode == LanguageMode.BANGLA) "ডেমো স্যান্ডবক্স" else "Demo Sandbox", fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                Text(
-                                    text = if (isDemoMode) "Sample data active • Real data is safely isolated" else "Toggle to test features with sample data",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            Switch(
-                                checked = isDemoMode,
-                                onCheckedChange = { viewModel.setDemoMode(it) }
-                            )
-                        }
-
-                        if (isDemoMode) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Reset sample transactions & budgets:", fontSize = 11.sp, modifier = Modifier.weight(1f))
-                                OutlinedButton(
-                                    onClick = { viewModel.resetDemoData() },
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Reset Data", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
 
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedCard(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.outlinedCardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteSweep,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ওয়াইপ সেটিংস" else "Reset & Wipe Settings",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA)
-                                    "লেনদেন ডাটা মুছা, ব্যাকআপ ডিলিট বা পুরো অ্যাপ ফ্যাক্টরি রিসেট করুন"
-                                else
-                                    "Erase transactions, wipe cached backups, or full factory reset",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Button(
-                        onClick = onNavigateToReset,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "খুলুন" else "Open",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
@@ -2183,6 +2258,26 @@ fun BackupSyncSettingsScreen(
         )
     }
 
+    // Biometric / Passcode Auth for Unlink or Change Cloud Account
+    pendingSecurityAction?.let { pending ->
+        SecurityAuthDialog(
+            title = pending.title,
+            message = pending.message,
+            confirmButtonText = pending.confirmButtonText,
+            isDestructive = pending.isDestructive,
+            requiresAuth = securityConfig.hasPin || securityConfig.isBiometricEnabled,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { viewModel.verifySecurityPin(it) },
+            onConfirm = {
+                val action = pending.onExecute
+                pendingSecurityAction = null
+                action()
+            },
+            onDismiss = { pendingSecurityAction = null }
+        )
+    }
+
     // Restore or Merge Selection Dialog
     selectedBackupForOptionsDialog?.let { backupInfo ->
         RestoreOrMergeOptionsDialog(
@@ -2348,6 +2443,7 @@ private fun DriveAccountConnectionCard(
     isLinked: Boolean,
     email: String,
     displayName: String,
+    photoUrl: String = "",
     serverUrl: String,
     lastSyncTimestamp: Long,
     isLoading: Boolean,
@@ -2379,15 +2475,26 @@ private fun DriveAccountConnectionCard(
                     Surface(
                         shape = CircleShape,
                         color = if (isLinked) brandColor else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(42.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = if (isLinked) Icons.Default.CloudDone else Icons.Default.AccountCircle,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
+                        if (isLinked && photoUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = photoUrl,
+                                contentDescription = displayName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
                             )
+                        } else {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isLinked) Icons.Default.CloudDone else Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -2963,3 +3070,12 @@ private fun TreeSubBranchCard(
         }
     }
 }
+
+private data class PendingSecurityAction(
+    val title: String,
+    val message: String,
+    val confirmButtonText: String = "Confirm",
+    val isDestructive: Boolean = false,
+    val onExecute: () -> Unit
+)
+

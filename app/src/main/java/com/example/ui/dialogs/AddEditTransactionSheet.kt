@@ -1367,54 +1367,63 @@ fun AddEditTransactionSheet(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                            // Selectable Date Field
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { showDatePicker = true }
-                                    .padding(horizontal = 4.dp, vertical = 4.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.CalendarMonth,
-                                    contentDescription = "Date",
-                                    tint = SolidPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = DateUtils.formatDateFull(selectedDateEpochMs, languageMode),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            if (txConfig.showTimePicker) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { showTimePickerModal = true }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.AccessTime,
-                                            contentDescription = "Time",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text(
-                                            text = DateUtils.formatTime(selectedDateEpochMs, languageMode),
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                    Icon(
+                                        Icons.Default.CalendarMonth,
+                                        contentDescription = "Date",
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = DateUtils.formatDateFull(selectedDateEpochMs, languageMode),
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(6.dp))
+
+                            // Selectable Time Field
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showTimePickerModal = true }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.AccessTime,
+                                        contentDescription = "Select Time",
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = DateUtils.formatTime(selectedDateEpochMs, languageMode),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                             }
                         }
@@ -2482,6 +2491,25 @@ fun AddEditTransactionSheet(
                             if (!txConfig.plusOneKeepAccount) {
                                 creditAccountId = usableAccounts.firstOrNull()?.id
                                 debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
+                            } else if (!txConfig.plusOneKeepTransferAccount && txType == TransactionType.TRANSFER) {
+                                debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
+                            }
+                            if (txConfig.plusOneAutoIncrementNote && note.isNotBlank()) {
+                                val match = Regex("(.*?) #?(\\d+)$").find(note.trim())
+                                if (match != null) {
+                                    val prefix = match.groupValues[1]
+                                    val nextNum = (match.groupValues[2].toIntOrNull() ?: 1) + 1
+                                    note = "$prefix #$nextNum"
+                                } else {
+                                    note = "${note.trim()} #2"
+                                }
+                            }
+                            if (txConfig.plusOneShowConfirmationToast) {
+                                Toast.makeText(
+                                    context,
+                                    if (languageMode == LanguageMode.BANGLA) "লেনদেন সংরক্ষণ (+১) সম্পন্ন হয়েছে" else "Transaction saved (+1)",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                             if (!txConfig.plusOneKeepLabels) {
                                 labelTag = ""

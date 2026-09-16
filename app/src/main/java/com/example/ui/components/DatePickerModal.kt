@@ -55,20 +55,19 @@ fun DatePickerModal(
         initialSelectedDateMillis = selectedDateEpochMs
     )
     var isQuickModeActive by remember { mutableStateOf(quickSelectMode) }
-    var userInteracted by remember { mutableStateOf(false) }
+    var isInitialized by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        // Small delay to allow state initialization without premature firing
+        kotlinx.coroutines.delay(120)
+        isInitialized = true
+    }
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         val picked = datePickerState.selectedDateMillis
-        if (picked != null && userInteracted && isQuickModeActive) {
+        if (picked != null && isInitialized && isQuickModeActive) {
             onDateSelected(picked)
             onDismiss()
-        }
-        if (picked != null && picked != initialDate) {
-            userInteracted = true
-            if (isQuickModeActive) {
-                onDateSelected(picked)
-                onDismiss()
-            }
         }
     }
 
@@ -181,9 +180,7 @@ fun DatePickerModal(
                     todayDateBorderColor = MaterialTheme.colorScheme.primary,
                     dayContentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { userInteracted = true }
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

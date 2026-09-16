@@ -1173,7 +1173,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun updatePrimarySignedInAccount(account: GoogleSignInAccount?) {
         _signedInGoogleAccount.value = account
         if (account != null) {
-            backupPrefs.setPrimaryAccount(account.email ?: "", account.displayName ?: "", true)
+            backupPrefs.setPrimaryAccount(
+                email = account.email ?: "",
+                displayName = account.displayName ?: "",
+                isLinked = true,
+                photoUrl = account.photoUrl?.toString() ?: ""
+            )
             fetchDriveBackups(account)
         } else {
             backupPrefs.setPrimaryAccount("", "", false)
@@ -1184,7 +1189,12 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun updateSecondarySignedInAccount(account: GoogleSignInAccount?) {
         _secondarySignedInGoogleAccount.value = account
         if (account != null) {
-            backupPrefs.setSecondaryAccount(account.email ?: "", account.displayName ?: "", true)
+            backupPrefs.setSecondaryAccount(
+                email = account.email ?: "",
+                displayName = account.displayName ?: "",
+                isLinked = true,
+                photoUrl = account.photoUrl?.toString() ?: ""
+            )
             fetchSecondaryDriveBackups(account)
         } else {
             backupPrefs.setSecondaryAccount("", "", false)
@@ -1430,8 +1440,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setSecondaryProvider(provider: String) = backupPrefs.setSecondaryProvider(provider)
     fun setAccountLinked(linked: Boolean) = backupPrefs.setAccountLinked(linked)
     fun setDualSyncEnabled(enabled: Boolean) = backupPrefs.setDualSyncEnabled(enabled)
-    fun setPrimaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "") = backupPrefs.setPrimaryAccount(email, displayName, isLinked, serverUrl, accessToken)
-    fun setSecondaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "") = backupPrefs.setSecondaryAccount(email, displayName, isLinked, serverUrl, accessToken)
+    fun setPrimaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "", photoUrl: String = "") = backupPrefs.setPrimaryAccount(email, displayName, isLinked, serverUrl, accessToken, photoUrl)
+    fun setSecondaryAccount(email: String, displayName: String, isLinked: Boolean, serverUrl: String = "", accessToken: String = "", photoUrl: String = "") = backupPrefs.setSecondaryAccount(email, displayName, isLinked, serverUrl, accessToken, photoUrl)
 
     fun fetchCloudBackups(driveIndex: Int) {
         viewModelScope.launch {
@@ -2127,6 +2137,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    // Cloud account setters are defined above at lines 1443-1444
 
     fun setLocalBackupDirectory(dir: String) = backupPrefs.setLocalBackupDirectory(dir)
     fun setAutoPhoneBackupEnabled(enabled: Boolean) = backupPrefs.setAutoPhoneBackupEnabled(enabled)

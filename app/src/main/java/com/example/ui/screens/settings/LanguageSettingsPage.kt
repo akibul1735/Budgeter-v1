@@ -101,76 +101,9 @@ fun LanguageSettingsPage(
         ) {
             Spacer(modifier = Modifier.height(2.dp))
 
-            // 1. Live Language Hero Preview Card
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                border = BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isBangla) "সক্রিয় ভাষা প্রদর্শন" else "Active Language Display",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        )
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Text(
-                            text = if (isBangla) "বাংলা (বাংলাদেশ)" else "English (United States)",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isBangla) "৳ ৫৪,২৫০ • ০৭ সেপ্টেম্বর" else "৳ 54,250 • 07 September",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Translate,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = if (isBangla) "বাংলা" else "EN",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 2. Section: Language Selection
+            // Section: Language Selection
             Text(
-                text = if (isBangla) "ভাষা কনফিগারেশন" else "Language Configuration",
+                text = if (isBangla) "ভাষা নির্বাচন" else "Language Selection",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -213,14 +146,14 @@ fun LanguageSettingsPage(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isBangla) "অ্যাপের প্রধান ভাষা" else "App Primary Language",
+                            text = if (isBangla) "ভাষা" else "Language",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (isBangla) "বাংলা • বাংলা সংখ্যা ও স্থানীয় ক্যালেন্ডার" else "English • Western numerals & terminology",
+                            text = if (isBangla) "বাংলা" else "English",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,

@@ -121,7 +121,6 @@ import com.example.util.LanguageHelper
 
 enum class SettingsSubPage {
     ROOT,
-    PAYMENT_SOURCES,
     LANGUAGE,
     CURRENCY,
     AMOUNT_FORMAT,
@@ -285,13 +284,6 @@ fun SettingsScreen(
     }
 
     when (currentSubPage) {
-        SettingsSubPage.PAYMENT_SOURCES -> {
-            com.example.ui.screens.settings.PaymentSourcesSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
         SettingsSubPage.LANGUAGE -> {
             LanguageSettingsPage(
                 viewModel = viewModel,
@@ -462,8 +454,13 @@ fun SettingsScreen(
                         val currentFormatOption = DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
                         val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
                         val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
-                            java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
                             java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
+                            java.util.Calendar.SUNDAY -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
+                            java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
+                            java.util.Calendar.TUESDAY -> if (languageMode == LanguageMode.BANGLA) "মঙ্গলবার" else "Tuesday"
+                            java.util.Calendar.WEDNESDAY -> if (languageMode == LanguageMode.BANGLA) "বুধবার" else "Wednesday"
+                            java.util.Calendar.THURSDAY -> if (languageMode == LanguageMode.BANGLA) "বৃহস্পতিবার" else "Thursday"
+                            java.util.Calendar.FRIDAY -> if (languageMode == LanguageMode.BANGLA) "শুক্রবার" else "Friday"
                             else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
                         }
                         ModernSettingsItemRow(

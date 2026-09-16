@@ -459,7 +459,7 @@ fun SecuritySettingsPage(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.weight(1f, fill = false).padding(end = 6.dp)
+                                modifier = Modifier.weight(1f).padding(end = 8.dp)
                             ) {
                                 Surface(
                                     shape = CircleShape,
@@ -474,7 +474,8 @@ fun SecuritySettingsPage(
                                     Text(
                                         text = if (isBangla) "পিন কোড সক্রিয়" else "PIN Code Active",
                                         fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        softWrap = true
                                     )
                                     Text(
                                         text = "••••••",
@@ -598,13 +599,33 @@ fun SecuritySettingsPage(
                         )
                         timeouts.forEach { (seconds, label) ->
                             val isSelected = securityConfig.lockTimeoutSeconds == seconds
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { onSetLockTimeoutSeconds(seconds) },
-                                label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                            Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f)
-                            )
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onSetLockTimeoutSeconds(seconds) }
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -633,7 +654,7 @@ fun SecuritySettingsPage(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).padding(end = 8.dp)
                         ) {
                             Surface(
                                 shape = CircleShape,
@@ -644,14 +665,15 @@ fun SecuritySettingsPage(
                                     Icon(Icons.Default.HelpOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                 }
                             }
-                            Column {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     text = if (securityConfig.hasRecoveryQuestion)
                                         if (isBangla) "রিকভারি প্রশ্ন কনফিগার করা আছে" else "Recovery Question Active"
                                     else
                                         if (isBangla) "কোনো রিকভারি প্রশ্ন সেট করা নেই" else "No Recovery Question Configured",
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    softWrap = true
                                 )
                                 Text(
                                     text = if (securityConfig.hasRecoveryQuestion)
@@ -660,7 +682,8 @@ fun SecuritySettingsPage(
                                         if (isBangla) "পিন ভুলে গেলে পুনরুদ্ধারের জন্য প্রশ্ন সেট করুন" else "Set question to recover if you forget PIN",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.outline,
-                                    maxLines = 1
+                                    maxLines = 2,
+                                    softWrap = true
                                 )
                             }
                         }
@@ -691,7 +714,8 @@ fun SecuritySettingsPage(
                                 Text(
                                     text = if (isBangla) "পিন ভুলে গেছেন? প্রশ্নের মাধ্যমে রিসেট করুন" else "Forgot PIN? Reset with Security Question",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = MaterialTheme.colorScheme.primary,
+                                    softWrap = true
                                 )
                             }
                         }
@@ -719,7 +743,12 @@ fun SecuritySettingsPage(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(if (isBangla) "অ্যাকাউন্ট গ্রুপ ডিলিট" else "Account Group Deletion", fontSize = 13.sp)
+                        Text(
+                            text = if (isBangla) "অ্যাকাউন্ট গ্রুপ ডিলিট" else "Account Group Deletion",
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                            softWrap = true
+                        )
                         Switch(
                             checked = securityConfig.requireAuthForGroupDeletion,
                             onCheckedChange = { onSetRequireAuthForGroupDeletion(it) },
@@ -737,7 +766,12 @@ fun SecuritySettingsPage(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(if (isBangla) "একাধিক লেনদেন বাল্ক ডিলিট" else "Bulk Multi-Select Deletion", fontSize = 13.sp)
+                        Text(
+                            text = if (isBangla) "একাধিক লেনদেন বাল্ক ডিলিট" else "Bulk Multi-Select Deletion",
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                            softWrap = true
+                        )
                         Switch(
                             checked = securityConfig.requireAuthForMultiSelect,
                             onCheckedChange = { onSetRequireAuthForMultiSelect(it) },
@@ -755,7 +789,12 @@ fun SecuritySettingsPage(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(if (isBangla) "ট্র্যাশ চিরতরে খালি করা" else "Empty Recycle Bin / Trash", fontSize = 13.sp)
+                        Text(
+                            text = if (isBangla) "ট্র্যাশ চিরতরে খালি করা" else "Empty Recycle Bin / Trash",
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                            softWrap = true
+                        )
                         Switch(
                             checked = securityConfig.requireAuthForTrashClear,
                             onCheckedChange = { onSetRequireAuthForTrashClear(it) },
@@ -773,7 +812,12 @@ fun SecuritySettingsPage(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(if (isBangla) "গুগল ড্রাইভ ব্যাকআপ রিস্টোর" else "Google Drive Restore", fontSize = 13.sp)
+                        Text(
+                            text = if (isBangla) "গুগল ড্রাইভ ব্যাকআপ রিস্টোর" else "Google Drive Restore",
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                            softWrap = true
+                        )
                         Switch(
                             checked = securityConfig.requireAuthForBackupRestore,
                             onCheckedChange = { onSetRequireAuthForBackupRestore(it) },
