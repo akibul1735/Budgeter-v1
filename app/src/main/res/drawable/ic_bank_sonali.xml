@@ -1,0 +1,44 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Sonali Bank Deep Navy Circle -->
+    <path
+        android:fillColor="#1A365D"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#D4AF37"
+        android:strokeWidth="2"
+        android:pathData="M24,24m-19,0a19,19 0,1,1 38,0a19,19 0,1,1 -38,0" />
+    <!-- Radiant Golden Sun -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,19m-5,0a5,5 0,1,1 10,0a5,5 0,1,1 -10,0" />
+    <!-- Sun Rays -->
+    <path
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.8"
+        android:pathData="M24,11 L24,13 M18,13 L19.5,14.5 M30,13 L28.5,14.5 M16,19 L18,19 M32,19 L30,19" />
+    <!-- Two Golden Wheat Stalks Framing the Sun in Arc -->
+    <!-- Left Stalk -->
+    <path
+        android:strokeColor="#D4AF37"
+        android:strokeWidth="1.8"
+        android:pathData="M14,35 C14,27 18,22 23,21" />
+    <path
+        android:fillColor="#D4AF37"
+        android:pathData="M15,31 C13,29 15,26 17,28 Z M17,26 C15,24 17,21 19,23 Z M20,22 C19,20 21,18 22,20 Z" />
+    <!-- Right Stalk -->
+    <path
+        android:strokeColor="#D4AF37"
+        android:strokeWidth="1.8"
+        android:pathData="M34,35 C34,27 30,22 25,21" />
+    <path
+        android:fillColor="#D4AF37"
+        android:pathData="M33,31 C35,29 33,26 31,28 Z M31,26 C33,24 31,21 29,23 Z M28,22 C29,20 27,18 26,20 Z" />
+    <!-- Base Ribbon Plinth in Pure White -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M18,34 L30,34 L28,37 L20,37 Z" />
+</vector>

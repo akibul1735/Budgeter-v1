@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- MTB White Background -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#E2E8F0"
+        android:strokeWidth="1"
+        android:pathData="M24,24m-21.5,0a21.5,21.5 0,1,1 43,0a21.5,21.5 0,1,1 -43,0" />
+    <!-- MTB Red Left Segment Triangle -->
+    <path
+        android:fillColor="#E31B23"
+        android:pathData="M12,34 L24,12 L24,24 Z" />
+    <!-- MTB Deep Navy Blue Right Segment -->
+    <path
+        android:fillColor="#002B49"
+        android:pathData="M36,34 L24,12 L24,24 Z" />
+    <!-- MTB Green Center Bottom Triangle -->
+    <path
+        android:fillColor="#009245"
+        android:pathData="M18,34 L30,34 L24,24 Z" />
+    <!-- MTB Inner Negative Space / Diamond Core -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M24,22 L26,26 L24,30 L22,26 Z" />
+</vector>

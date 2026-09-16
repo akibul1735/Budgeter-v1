@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Upay Alt Deep Navy Circle -->
+    <path
+        android:fillColor="#0B2545"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#00A3E0"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-19.5,0a19.5,19.5 0,1,1 39,0a19.5,19.5 0,1,1 -39,0" />
+    <!-- Glowing Cyan/Lime Ribbon -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M15,16 L20,16 L20,25 C20,27.5 21.5,29 24,29 C26.5,29 28,27.5 28,25 L28,16 L33,16 L33,25 C33,31 29,34 24,34 C19,34 15,31 15,25 Z" />
+    <path
+        android:fillColor="#AEEA00"
+        android:pathData="M30,12 L36,17 L30,22 Z" />
+</vector>

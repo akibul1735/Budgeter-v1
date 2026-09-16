@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- bKash Pink Circle Badge -->
+    <path
+        android:fillColor="#E2136E"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- bKash Origami Flying Bird in Pure White -->
+    <!-- Bird Body & Main Wing -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M11,26 L23,10 L28,21 L16,28 Z" />
+    <!-- Bird Upper Wing Peak -->
+    <path
+        android:fillColor="#FFE4EF"
+        android:pathData="M23,10 L37,13 L28,21 Z" />
+    <!-- Bird Tail Feathers -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M11,26 L15,36 L21,29 L16,28 Z" />
+    <!-- Bird Head & Beak -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,21 L39,26 L31,29 Z" />
+    <!-- Lower Wing Facet -->
+    <path
+        android:fillColor="#FCE4EC"
+        android:pathData="M21,29 L31,29 L25,38 Z" />
+</vector>

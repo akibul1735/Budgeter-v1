@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Cellfin Teal Circle -->
+    <path
+        android:fillColor="#009688"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- Smartphone Frame Silhouette in Pure White -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M18,10 L30,10 C32.2,10 34,11.8 34,14 L34,34 C34,36.2 32.2,38 30,38 L18,38 C15.8,38 14,36.2 14,34 L14,14 C14,11.8 15.8,10 18,10 Z" />
+    <!-- Inner Phone Screen -->
+    <path
+        android:fillColor="#00796B"
+        android:pathData="M16.5,14 L31.5,14 L31.5,33 L16.5,33 Z" />
+    <!-- Infinite Financial Loop in Glowing Yellow/White -->
+    <path
+        android:fillColor="#FFEB3B"
+        android:pathData="M24,20 C22,20 20,21.5 19,23.5 C20,25.5 22,27 24,27 C26,27 28,25.5 29,23.5 C28,21.5 26,20 24,20 Z" />
+    <!-- Phone Home Indicator -->
+    <path
+        android:fillColor="#B2DFDB"
+        android:pathData="M24,35.5m-1,0a1,1 0,1,1 2,0a1,1 0,1,1 -2,0" />
+</vector>

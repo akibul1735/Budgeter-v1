@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- bKash Alternate White Outer with Magenta Ring -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#E2136E"
+        android:strokeWidth="2.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- bKash Bird in Magenta -->
+    <path
+        android:fillColor="#E2136E"
+        android:pathData="M13,26 L23,12 L28,21 L17,28 Z" />
+    <path
+        android:fillColor="#C2185B"
+        android:pathData="M23,12 L35,15 L28,21 Z" />
+    <path
+        android:fillColor="#E2136E"
+        android:pathData="M13,26 L17,35 L22,29 L17,28 Z" />
+    <path
+        android:fillColor="#AD1457"
+        android:pathData="M28,21 L37,25 L30,28 Z" />
+    <path
+        android:fillColor="#E2136E"
+        android:pathData="M22,29 L30,28 L25,36 Z" />
+</vector>

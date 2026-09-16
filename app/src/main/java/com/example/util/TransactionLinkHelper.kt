@@ -126,4 +126,63 @@ object TransactionLinkHelper {
         }
         return tx
     }
+
+    // --- Split Transaction Helpers ---
+
+    const val SPLIT_TAG_PREFIX = "[SplitGroup:"
+
+    /**
+     * Checks if a transaction is part of a split transaction group.
+     */
+    fun isSplitTransaction(tx: Transaction?): Boolean {
+        if (tx == null) return false
+        return tx.note.contains(SPLIT_TAG_PREFIX)
+    }
+
+    /**
+     * Extracts the Split Group ID from a transaction note.
+     */
+    fun getSplitGroupId(tx: Transaction?): String? {
+        if (tx == null) return null
+        val match = Regex("\\[SplitGroup:([^\\]]+)\\]").find(tx.note)
+        return match?.groupValues?.getOrNull(1)
+    }
+
+    /**
+     * Strips internal split tags from a note to display cleanly to the user.
+     */
+    fun getCleanNote(note: String): String {
+        return note.replace(Regex("\\[SplitGroup:[^\\]]+\\]"), "").trim()
+    }
+
+    /**
+     * Finds all sibling transactions that belong to the same split group as the given transaction.
+     */
+    fun findLinkedSplitTransactions(
+        tx: Transaction,
+        allTransactions: List<TransactionWithDetails>
+    ): List<TransactionWithDetails> {
+        val groupId = getSplitGroupId(tx) ?: return emptyList()
+        return findAllSplitsByGroupId(groupId, allTransactions)
+    }
+
+    /**
+     * Finds all transactions sharing a specific Split Group ID.
+     */
+    fun findAllSplitsByGroupId(
+        groupId: String,
+        allTransactions: List<TransactionWithDetails>
+    ): List<TransactionWithDetails> {
+        val tag = "[SplitGroup:$groupId]"
+        return allTransactions.filter { item ->
+            item.transaction.note.contains(tag)
+        }.sortedBy { it.transaction.id }
+    }
+
+    /**
+     * Calculates the total sum of all split transactions in a group.
+     */
+    fun getSplitGroupTotal(splits: List<TransactionWithDetails>): Double {
+        return splits.sumOf { it.transaction.amount }
+    }
 }

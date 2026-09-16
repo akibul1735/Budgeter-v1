@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Sonali e-Sheba Deep Emerald Green Circle -->
+    <path
+        android:fillColor="#004D20"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-19.5,0a19.5,19.5 0,1,1 39,0a19.5,19.5 0,1,1 -39,0" />
+    <!-- Golden Star Emblem -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M24,11 L27,19 L35,19 L29,24 L31,32 L24,27 L17,32 L19,24 L13,19 L21,19 Z" />
+    <!-- White Inner Core -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,19m-3,0a3,3 0,1,1 6,0a3,3 0,1,1 -6,0" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:pathData="M16,36 L32,36" />
+</vector>

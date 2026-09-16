@@ -1,0 +1,35 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- City Bank Crimson Red Circle -->
+    <path
+        android:fillColor="#E31B23"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- City Bank Famous Geometric Cube Matrix in White & Light Red -->
+    <!-- Top Cube -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,12 L31,16 L24,20 L17,16 Z" />
+    <path
+        android:fillColor="#FFCDD2"
+        android:pathData="M17,16 L24,20 L24,27 L17,23 Z" />
+    <path
+        android:fillColor="#EF9A9A"
+        android:pathData="M24,20 L31,16 L31,23 L24,27 Z" />
+    <!-- Bottom Left Cube -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,25 L24,29 L17,33 L10,29 Z" />
+    <path
+        android:fillColor="#FFCDD2"
+        android:pathData="M10,29 L17,33 L17,39 L10,35 Z" />
+    <!-- Bottom Right Cube -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,25 L38,29 L31,33 L24,29 Z" />
+    <path
+        android:fillColor="#EF9A9A"
+        android:pathData="M31,33 L38,29 L38,35 L31,39 Z" />
+</vector>

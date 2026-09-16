@@ -24,11 +24,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,7 +61,9 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
+import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import com.example.util.TransactionLinkHelper
 
@@ -86,6 +90,16 @@ fun TransactionDetailViewDialog(
     val linkedFeeItem = if (isTransfer) {
         TransactionLinkHelper.findLinkedFeeTransaction(tx, allTransactions)
     } else null
+
+    val isSplitTx = TransactionLinkHelper.isSplitTransaction(tx)
+    val splitSiblings = remember(tx, allTransactions) {
+        if (isSplitTx) TransactionLinkHelper.findLinkedSplitTransactions(tx, allTransactions)
+        else emptyList()
+    }
+    val totalSplitAmount = remember(splitSiblings) {
+        if (splitSiblings.isNotEmpty()) TransactionLinkHelper.getSplitGroupTotal(splitSiblings)
+        else tx.amount
+    }
 
     // Determine Amount color matching Screenshot and M3 Design
     val amtColor = when {
@@ -172,8 +186,12 @@ fun TransactionDetailViewDialog(
         if (languageMode == LanguageMode.BANGLA) "কোনো লেবেল নেই" else "No labels"
     }
 
-    val notesDisplay = if (tx.note.isNotBlank()) {
-        tx.note
+    val cleanNote = remember(tx.note) {
+        TransactionLinkHelper.getCleanNote(tx.note)
+    }
+
+    val notesDisplay = if (cleanNote.isNotBlank()) {
+        cleanNote
     } else {
         if (languageMode == LanguageMode.BANGLA) "কোনো নোট নেই" else "No notes"
     }
@@ -499,7 +517,7 @@ fun TransactionDetailViewDialog(
                             } else null
                         )
 
-                        val hasNotes = tx.note.isNotBlank()
+                        val hasNotes = cleanNote.isNotBlank()
                         DetailGridCard(
                             title = if (languageMode == LanguageMode.BANGLA) "নোট" else "Notes",
                             value = notesDisplay,
@@ -508,7 +526,7 @@ fun TransactionDetailViewDialog(
                             onClick = if (hasNotes) {
                                 {
                                     handleSelectSimilar(
-                                        tx.note,
+                                        cleanNote,
                                         if (languageMode == LanguageMode.BANGLA) "নোট" else "Notes"
                                     )
                                 }
@@ -535,6 +553,129 @@ fun TransactionDetailViewDialog(
                                 )
                             }
                         )
+                    }
+
+                    // Split Transaction Breakdown (if split transaction)
+                    if (isSplitTx && splitSiblings.isNotEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.CallSplit,
+                                            contentDescription = null,
+                                            tint = SolidPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "বিভাজিত লেনদেন (${splitSiblings.size}টি আইটেম)" else "Split Transaction (${splitSiblings.size} items)",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(totalSplitAmount, languageMode),
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = SolidPrimary
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                splitSiblings.forEach { sibling ->
+                                    val isCurrent = sibling.transaction.id == tx.id
+                                    val siblingCat = sibling.category?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "সাধারণ" else "General")
+                                    val siblingNote = TransactionLinkHelper.getCleanNote(sibling.transaction.note)
+                                    val siblingPct = if (totalSplitAmount > 0) (sibling.transaction.amount / totalSplitAmount * 100).toInt() else 0
+
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isCurrent) SolidPrimary.copy(alpha = 0.10f) else Color.Transparent,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(26.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            if (sibling.category != null) IconHelper.parseColorHex(sibling.category.colorHex).copy(alpha = 0.15f)
+                                                            else MaterialTheme.colorScheme.surfaceVariant
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    IconHelper.AppIcon(
+                                                        iconName = sibling.category?.iconName ?: "Category",
+                                                        modifier = Modifier.size(14.dp),
+                                                        tint = if (sibling.category != null) IconHelper.parseColorHex(sibling.category.colorHex) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column {
+                                                    Text(
+                                                        text = siblingCat,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (siblingNote.isNotBlank()) {
+                                                        Text(
+                                                            text = siblingNote,
+                                                            fontSize = 10.5.sp,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = LanguageHelper.formatCurrency(sibling.transaction.amount, languageMode),
+                                                    fontSize = 12.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isCurrent) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (siblingPct > 0) {
+                                                    Text(
+                                                        text = "$siblingPct%",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.outline
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Attachment indicator (if present)

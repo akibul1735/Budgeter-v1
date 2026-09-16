@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Prime Bank Background -->
+    <path
+        android:fillColor="#FFF6EE"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#FFD4B8"
+        android:strokeWidth="1"
+        android:pathData="M24,24m-21.5,0a21.5,21.5 0,1,1 43,0a21.5,21.5 0,1,1 -43,0" />
+    <!-- Prime Bank Orange Left Wing / Chevron -->
+    <path
+        android:fillColor="#F37021"
+        android:pathData="M13,28 L23,12 L28,12 L18,28 Z" />
+    <!-- Prime Bank Cyan Right Wing / Chevron -->
+    <path
+        android:fillColor="#0090D0"
+        android:pathData="M22,36 L32,20 L37,20 L27,36 Z" />
+    <!-- Center Intersection Accent -->
+    <path
+        android:fillColor="#E05500"
+        android:pathData="M20,28 L26,20 L28,23 L22,31 Z" />
+</vector>

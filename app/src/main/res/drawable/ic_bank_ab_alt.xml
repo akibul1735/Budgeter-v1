@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- AB Bank Navy Badge -->
+    <path
+        android:fillColor="#00213F"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#E4002B"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- White Letter A Section -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,34 L21,14 L26,14 L20,34 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,26 L26,26 L25,30 L16,30 Z" />
+    <!-- Red Dynamic Letter B Loop -->
+    <path
+        android:fillColor="#E4002B"
+        android:pathData="M23,14 L30,14 C34,14 36,16 36,19 C36,21.5 34.5,23 32,23.5 C35,24 37,26 37,29 C37,32.5 34,34 30,34 L22,34 L25,23 L23,14 Z M28,18 L26.5,22 L29.5,22 C31,22 32,21 32,19.5 C32,18.5 31,18 29.5,18 Z M26,25 L24.5,30 L29.5,30 C31.5,30 32.5,29 32.5,27.5 C32.5,26 31.5,25 29.5,25 Z" />
+</vector>

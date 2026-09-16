@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Nagad Alt Deep Red-Orange Circle -->
+    <path
+        android:fillColor="#E65100"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#FFB74D"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-19.5,0a19.5,19.5 0,1,1 39,0a19.5,19.5 0,1,1 -39,0" />
+    <!-- White Flame Crest -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,11 C28,17 34,21 33,28 C32,34 26,37 20,35 C15,33 13,27 15,22 C16,19 19,16 22,14 C21,17 23,20 26,20 C24,17 23,14 24,11 Z" />
+    <!-- Golden Core Droplet -->
+    <path
+        android:fillColor="#FFA726"
+        android:pathData="M22,23 C25,25 26,28 24,30 C22.5,31.5 20,31 19,29 C18,27 19.5,24.5 22,23 Z" />
+</vector>

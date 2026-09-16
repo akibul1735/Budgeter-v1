@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBox
@@ -2214,17 +2215,49 @@ internal fun TransactionRowItem(
                 }
 
                 // Below that: Labels on left (round shape) and just right notes if any
+                val cleanNote = remember(tx.note) { com.example.util.TransactionLinkHelper.getCleanNote(tx.note) }
+                val isSplit = remember(tx.note) { com.example.util.TransactionLinkHelper.isSplitTransaction(tx) }
                 val hasLabels = tx.referenceNo.isNotBlank() && txConfig.labelsDisplayMode != LabelsDisplayMode.HIDDEN
-                val hasNote = tx.note.isNotBlank() && txConfig.notesDisplayMode != NotesDisplayMode.HIDDEN
+                val hasNote = cleanNote.isNotBlank() && txConfig.notesDisplayMode != NotesDisplayMode.HIDDEN
                 val hasAttachment = tx.attachmentUri.isNotBlank()
 
-                if (hasLabels || hasNote || hasAttachment) {
+                if (hasLabels || hasNote || hasAttachment || isSplit) {
                     Spacer(modifier = Modifier.height(3.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        // Split Indicator Badge
+                        if (isSplit) {
+                            Surface(
+                                shape = CircleShape,
+                                color = SolidPrimary.copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    0.5.dp,
+                                    SolidPrimary.copy(alpha = 0.35f)
+                                )
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CallSplit,
+                                        contentDescription = "Split",
+                                        tint = SolidPrimary,
+                                        modifier = Modifier.size(9.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "স্প্লিট" else "Split",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidPrimary
+                                    )
+                                }
+                            }
+                        }
                         // Round Shape Label(s) on Left
                         if (hasLabels) {
                             val labelList = tx.referenceNo.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -2304,7 +2337,7 @@ internal fun TransactionRowItem(
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = tx.note,
+                                        text = cleanNote,
                                         fontSize = 10.5.sp,
                                         color = MaterialTheme.colorScheme.outline,
                                         maxLines = 1,

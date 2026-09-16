@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Eastern Bank Cobalt Blue Circle -->
+    <path
+        android:fillColor="#003399"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- White Dynamic Ribbon Ring -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,13 C30,13 35,18 35,24 C35,30 30,35 24,35 C18,35 13,30 13,24 C13,18 18,13 24,13 Z M24,17 C20,17 17,20 17,24 C17,28 20,31 24,31 C28,31 31,28 31,24 C31,20 28,17 24,17 Z" />
+    <!-- Red Dynamic Meridian Wave -->
+    <path
+        android:fillColor="#E53935"
+        android:pathData="M21,17 C26,20 26,28 21,31 C24,31 27,27 27,24 C27,21 24,17 21,17 Z" />
+    <!-- White Central Star Node -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,24m-2,0a2,2 0,1,1 4,0a2,2 0,1,1 -4,0" />
+</vector>

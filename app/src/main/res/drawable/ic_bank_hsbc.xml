@@ -1,0 +1,36 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- HSBC Light Circle Background -->
+    <path
+        android:fillColor="#F8F9FA"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#E5E7EB"
+        android:strokeWidth="1"
+        android:pathData="M24,24m-21.5,0a21.5,21.5 0,1,1 43,0a21.5,21.5 0,1,1 -43,0" />
+    <!-- HSBC Red Left Triangle -->
+    <path
+        android:fillColor="#DB0011"
+        android:pathData="M8,24 L16,14 L16,34 Z" />
+    <!-- HSBC Red Right Triangle -->
+    <path
+        android:fillColor="#DB0011"
+        android:pathData="M40,24 L32,14 L32,34 Z" />
+    <!-- HSBC White / Red Top-Bottom Triangles -->
+    <path
+        android:fillColor="#DB0011"
+        android:pathData="M24,14 L16,14 L24,24 Z" />
+    <path
+        android:fillColor="#DB0011"
+        android:pathData="M24,34 L32,34 L24,24 Z" />
+    <!-- HSBC Center Hourglass Triangles (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,24 L16,14 L32,14 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,24 L16,34 L32,34 Z" />
+</vector>

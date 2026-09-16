@@ -320,12 +320,20 @@ fun IconPickerModal(
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(item.name),
-                                    contentDescription = item.name,
-                                    tint = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                if (IconHelper.isDrawableIcon(item.name)) {
+                                    IconHelper.AppIcon(
+                                        iconName = item.name,
+                                        contentDescription = item.name,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = IconHelper.getIconByName(item.name),
+                                        contentDescription = item.name,
+                                        tint = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         }
                     }

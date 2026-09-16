@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Tap MFS Vibrant Yellow Background -->
+    <path
+        android:fillColor="#FFD100"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- Navy Blue Dynamic Wave -->
+    <path
+        android:fillColor="#1A237E"
+        android:pathData="M12,24 C12,18 16,14 22,14 C27,14 30,17 31,20 L26,22 C25,20 24,19 22,19 C18.5,19 17,21 17,24 C17,27 18.5,29 22,29 C24,29 25.5,28 26.5,26.5 L31.5,28.5 C29.5,32 26,34 22,34 C16,34 12,30 12,24 Z" />
+    <!-- Fast Forward / Tap Arrow Accents -->
+    <path
+        android:fillColor="#1A237E"
+        android:pathData="M31,18 L36,24 L31,30 Z" />
+    <!-- Yellow Inner Cutout dot -->
+    <path
+        android:fillColor="#FFD100"
+        android:pathData="M22,24m-2,0a2,2 0,1,1 4,0a2,2 0,1,1 -4,0" />
+</vector>

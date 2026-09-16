@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Agrani Bank Green Background -->
+    <path
+        android:fillColor="#006A4E"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- Agrani Red Center Circle (National Flag Colors) -->
+    <path
+        android:fillColor="#F42A41"
+        android:pathData="M24,24m-12,0a12,12 0,1,1 24,0a12,12 0,1,1 -24,0" />
+    <!-- Golden Wheat Stalks Surrounding Center -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,14 C23,17 22,20 20,22 C22,21 23,20 24,19 C25,20 26,21 28,22 C26,20 25,17 24,14 Z" />
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,19 C22,22 20,24 18,26 C20,25 22,25 24,23 C26,25 28,25 30,26 C28,24 26,22 24,19 Z" />
+    <!-- Golden Bank Vault Base / Pillar -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M18,29 L30,29 L28,33 L20,33 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,26m-2,0a2,2 0,1,1 4,0a2,2 0,1,1 -4,0" />
+</vector>

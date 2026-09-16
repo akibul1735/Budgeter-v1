@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Dhaka Bank Deep Navy Circle Badge -->
+    <path
+        android:fillColor="#002244"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- Cyan Diamond Accent -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M24,12 L36,24 L24,36 L12,24 Z" />
+    <!-- Navy Inner Core -->
+    <path
+        android:fillColor="#002244"
+        android:pathData="M24,16 L32,24 L24,32 L16,24 Z" />
+    <!-- White Crisp Monogram D -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M21,19 L25,19 C28,19 29.5,21 29.5,24 C29.5,27 28,29 25,29 L21,29 Z M23.5,21.5 L23.5,26.5 L24.8,26.5 C26,26.5 27,25.5 27,24 C27,22.5 26,21.5 24.8,21.5 Z" />
+</vector>

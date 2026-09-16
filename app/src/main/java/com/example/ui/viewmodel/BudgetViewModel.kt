@@ -788,6 +788,18 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     activeRepo.deleteTransaction(linkedFee.transaction)
                 }
             }
+
+            // If deleting a split transaction, also delete sibling split transactions in the same group
+            if (com.example.util.TransactionLinkHelper.isSplitTransaction(transaction)) {
+                val currentTxs = transactionsWithDetails.value
+                val linkedSplits = com.example.util.TransactionLinkHelper.findLinkedSplitTransactions(transaction, currentTxs)
+                linkedSplits.forEach { split ->
+                    if (split.transaction.id != transaction.id) {
+                        trashManager.addTransaction(split.transaction)
+                        activeRepo.deleteTransaction(split.transaction)
+                    }
+                }
+            }
         }
     }
 
@@ -799,13 +811,58 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 allToDelete.add(tx)
                 if (tx.type == TransactionType.TRANSFER) {
                     val linkedFee = com.example.util.TransactionLinkHelper.findLinkedFeeTransaction(tx, currentTxs)
-                    if (linkedFee != null && !transactions.any { it.id == linkedFee.transaction.id }) {
+                    if (linkedFee != null && !allToDelete.any { it.id == linkedFee.transaction.id }) {
                         allToDelete.add(linkedFee.transaction)
+                    }
+                }
+                if (com.example.util.TransactionLinkHelper.isSplitTransaction(tx)) {
+                    val linkedSplits = com.example.util.TransactionLinkHelper.findLinkedSplitTransactions(tx, currentTxs)
+                    linkedSplits.forEach { split ->
+                        if (!allToDelete.any { it.id == split.transaction.id }) {
+                            allToDelete.add(split.transaction)
+                        }
                     }
                 }
             }
             allToDelete.forEach { trashManager.addTransaction(it) }
             activeRepo.deleteTransactions(allToDelete)
+        }
+    }
+
+    /**
+     * Saves a split transaction group by inserting multiple linked transactions sharing a splitGroupId.
+     * Replaces any existing split transactions from the group being edited.
+     */
+    fun saveSplitTransaction(
+        splitGroupId: String,
+        baseTx: Transaction,
+        splitItems: List<com.example.data.model.TransactionSplitItem>,
+        existingSplitTxs: List<Transaction> = emptyList()
+    ) {
+        viewModelScope.launch {
+            // Delete old split transactions being replaced
+            if (existingSplitTxs.isNotEmpty()) {
+                activeRepo.deleteTransactions(existingSplitTxs)
+            }
+
+            val splitTag = "[SplitGroup:$splitGroupId]"
+            splitItems.forEachIndexed { index, item ->
+                val cleanNote = com.example.util.TransactionLinkHelper.getCleanNote(item.note.ifBlank { baseTx.note })
+                val finalNote = if (cleanNote.isNotBlank()) "$splitTag $cleanNote" else splitTag
+
+                val txToSave = baseTx.copy(
+                    id = 0L,
+                    amount = item.amount,
+                    categoryId = item.categoryId,
+                    subCategoryId = item.subCategoryId,
+                    note = finalNote,
+                    createdAt = System.currentTimeMillis() + index
+                )
+                activeRepo.insertTransaction(txToSave)
+            }
+
+            baseTx.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, baseTx.dateEpochMs) }
+            baseTx.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, baseTx.dateEpochMs) }
         }
     }
 

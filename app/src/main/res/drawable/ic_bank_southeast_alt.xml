@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Southeast Bank Deep Teal Badge -->
+    <path
+        android:fillColor="#004D40"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#26A69A"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- Light Teal Diamond -->
+    <path
+        android:fillColor="#26A69A"
+        android:pathData="M24,11 L36,24 L24,37 L12,24 Z" />
+    <!-- White Inner Geometry -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,16 L31,24 L24,32 L17,24 Z" />
+    <!-- Core Dark Diamond -->
+    <path
+        android:fillColor="#004D40"
+        android:pathData="M24,20 L27,24 L24,28 L21,24 Z" />
+</vector>

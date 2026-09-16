@@ -1033,6 +1033,9 @@ fun MainAppContainer(
             existingTransaction = editingTransaction,
             onDismiss = { showAddTransactionSheet = false },
             onSave = { tx -> viewModel.saveTransaction(tx) },
+            onSaveSplit = { splitGroupId, baseTx, items, existingTxs ->
+                viewModel.saveSplitTransaction(splitGroupId, baseTx, items, existingTxs)
+            },
             onDelete = { tx -> viewModel.deleteTransaction(tx) },
             onAddNewCategory = { cat -> viewModel.saveCategory(cat) },
             onAddNewAccount = { acc -> viewModel.saveAccount(acc) }

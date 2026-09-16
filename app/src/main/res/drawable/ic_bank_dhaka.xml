@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Dhaka Bank Light Blue Tint Background -->
+    <path
+        android:fillColor="#F0F7FF"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#BAE6FD"
+        android:strokeWidth="1"
+        android:pathData="M24,24m-21.5,0a21.5,21.5 0,1,1 43,0a21.5,21.5 0,1,1 -43,0" />
+    <!-- Dhaka Bank Royal Blue Diamond Core -->
+    <path
+        android:fillColor="#003366"
+        android:pathData="M24,11 L37,24 L24,37 L11,24 Z" />
+    <!-- Light Blue Inner Monogram Facets -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M24,15 L33,24 L24,33 L15,24 Z" />
+    <!-- White Letter D Geometric Lines -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,18 L25,18 C28.5,18 30.5,20.5 30.5,24 C30.5,27.5 28.5,30 25,30 L20,30 Z M23,21 L23,27 L25,27 C26.5,27 27.5,26 27.5,24 C27.5,22 26.5,21 25,21 Z" />
+</vector>

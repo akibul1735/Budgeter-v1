@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Rocket Alt Deep Violet Circle with White Orbit Ring -->
+    <path
+        android:fillColor="#5C1D5C"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- Elliptical Digital Orbit Ring -->
+    <path
+        android:strokeColor="#BA68C8"
+        android:strokeWidth="1.8"
+        android:pathData="M11,33 C14,37 34,31 37,21 C40,11 20,15 11,33 Z" />
+    <!-- Centered Sleek Rocket Silhouette -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,11 C26,16 28,21 28,27 L20,27 C20,21 22,16 24,11 Z" />
+    <!-- Rocket Wings -->
+    <path
+        android:fillColor="#E1BEE7"
+        android:pathData="M20,24 L14,29 L20,28 Z M28,24 L34,29 L28,28 Z" />
+    <!-- Booster Flame in Amber -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M22,29 L24,37 L26,29 Z" />
+</vector>

@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Southeast Bank Light Mint Background -->
+    <path
+        android:fillColor="#EDF8F8"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#B2DFDB"
+        android:strokeWidth="1"
+        android:pathData="M24,24m-21.5,0a21.5,21.5 0,1,1 43,0a21.5,21.5 0,1,1 -43,0" />
+    <!-- Southeast Bank Deep Teal Diamond Emblem -->
+    <path
+        android:fillColor="#00695C"
+        android:pathData="M24,10 L37,24 L24,38 L11,24 Z" />
+    <!-- Inner S Shape / Pillars in Light Mint -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,15 L32,24 L28,24 L24,19 L20,24 L16,24 Z" />
+    <path
+        android:fillColor="#009688"
+        android:pathData="M24,21 L30,28 L24,34 L18,28 Z" />
+    <!-- Center White Diamond -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,25 L26.5,28 L24,31 L21.5,28 Z" />
+</vector>

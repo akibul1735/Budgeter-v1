@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- mCash IBBL Emerald Background -->
+    <path
+        android:fillColor="#007A3D"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#A7F3D0"
+        android:strokeWidth="1"
+        android:pathData="M24,24m-21.5,0a21.5,21.5 0,1,1 43,0a21.5,21.5 0,1,1 -43,0" />
+    <!-- White Mobile Device -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,10 L32,10 C33.5,10 35,11.5 35,13 L35,35 C35,36.5 33.5,38 32,38 L16,38 C14.5,38 13,36.5 13,35 L13,13 C13,11.5 14.5,10 16,10 Z" />
+    <!-- Green Screen Area -->
+    <path
+        android:fillColor="#007A3D"
+        android:pathData="M16,14 L32,14 L32,33 L16,33 Z" />
+    <!-- Golden Coin & Letter M inside Phone Screen -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M18,17 L21,17 L24,23 L27,17 L30,17 L30,29 L27.5,29 L27.5,21 L24.8,26 L23.2,26 L20.5,21 L20.5,29 L18,29 Z" />
+    <!-- Golden Cash Dot -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,35.5m-1.2,0a1.2,1.2 0,1,1 2.4,0a1.2,1.2 0,1,1 -2.4,0" />
+</vector>

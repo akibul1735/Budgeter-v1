@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Prime Bank Altitude Navy Circle Badge -->
+    <path
+        android:fillColor="#0A1E35"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#F37021"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- Orange Dynamic Chevron -->
+    <path
+        android:fillColor="#FF7A29"
+        android:pathData="M13,28 L23,12 L28,12 L18,28 Z" />
+    <!-- Bright Cyan Dynamic Chevron -->
+    <path
+        android:fillColor="#00B4D8"
+        android:pathData="M22,36 L32,20 L37,20 L27,36 Z" />
+</vector>

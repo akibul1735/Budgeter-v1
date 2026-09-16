@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Janata Bank Crisp Light Badge -->
+    <path
+        android:fillColor="#FFF5F5"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#990000"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- Crimson Outer Ring -->
+    <path
+        android:fillColor="#990000"
+        android:pathData="M24,24m-14,0a14,14 0,1,1 28,0a14,14 0,1,1 -28,0" />
+    <!-- Light Inner Cutout -->
+    <path
+        android:fillColor="#FFF5F5"
+        android:pathData="M24,24m-11,0a11,11 0,1,1 22,0a11,11 0,1,1 -22,0" />
+    <!-- Crimson Monogram J -->
+    <path
+        android:fillColor="#990000"
+        android:pathData="M22,17 L29,17 L29,26 C29,29.5 26.5,31.5 23,31.5 C20,31.5 17.5,29.5 17.5,27 L21,27 C21,28 22,28.8 23,28.8 C24.5,28.8 25.5,27.8 25.5,26 L25.5,20 L22,20 Z" />
+</vector>

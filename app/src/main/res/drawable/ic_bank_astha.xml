@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- BRAC Astha App Vibrant Royal Blue Circle -->
+    <path
+        android:fillColor="#0056B3"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#64B5F6"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-19.5,0a19.5,19.5 0,1,1 39,0a19.5,19.5 0,1,1 -39,0" />
+    <!-- Dynamic Astha Shield Spark in Gold & White -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,12 C28,15 33,16 33,23 C33,30 27,35 24,37 C21,35 15,30 15,23 C15,16 20,15 24,12 Z" />
+    <!-- Golden Diamond Core Inside Shield -->
+    <path
+        android:fillColor="#FFC107"
+        android:pathData="M24,17 L29,24 L24,31 L19,24 Z" />
+    <path
+        android:fillColor="#0056B3"
+        android:pathData="M24,21 L26.5,24.5 L24,28 L21.5,24.5 Z" />
+</vector>

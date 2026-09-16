@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Citytouch Deep Maroon Circle -->
+    <path
+        android:fillColor="#880E4F"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#FF80AB"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-19.5,0a19.5,19.5 0,1,1 39,0a19.5,19.5 0,1,1 -39,0" />
+    <!-- Fingerprint Touch / Digital Ripple Arcs in White -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.2"
+        android:pathData="M18,24 C18,20.7 20.7,18 24,18 C27.3,18 30,20.7 30,24 C30,27.3 27.3,30 24,30" />
+    <path
+        android:strokeColor="#FF4081"
+        android:strokeWidth="2.2"
+        android:pathData="M14,24 C14,18.5 18.5,14 24,14 C29.5,14 34,18.5 34,24 C34,29.5 29.5,34 24,34" />
+    <!-- Center City Bank Red Diamond Node -->
+    <path
+        android:fillColor="#E31B23"
+        android:pathData="M24,21 L27,24 L24,27 L21,24 Z" />
+</vector>

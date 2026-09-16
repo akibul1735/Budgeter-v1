@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- UCB Clean Light Shield Badge -->
+    <path
+        android:fillColor="#F4FAF6"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#006837"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- UCB Green Shield -->
+    <path
+        android:fillColor="#006837"
+        android:pathData="M24,11 L34,16 L34,26 C34,32 30,36 24,38 C18,36 14,32 14,26 L14,16 Z" />
+    <!-- Golden Core Leaves inside Shield -->
+    <path
+        android:fillColor="#FFC20E"
+        android:pathData="M24,15 L31,20 L31,26 C31,30 28,33 24,35 C20,33 17,30 17,26 L17,20 Z" />
+    <!-- Green Star Center -->
+    <path
+        android:fillColor="#006837"
+        android:pathData="M24,20 L26,24.5 L24,29 L22,24.5 Z" />
+</vector>

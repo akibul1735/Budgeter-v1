@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- UCB Green Background -->
+    <path
+        android:fillColor="#006837"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- UCB Golden Border Circle -->
+    <path
+        android:strokeColor="#FFC20E"
+        android:strokeWidth="2"
+        android:pathData="M24,24m-19,0a19,19 0,1,1 38,0a19,19 0,1,1 -38,0" />
+    <!-- UCB Golden Shield Center -->
+    <path
+        android:fillColor="#FFC20E"
+        android:pathData="M24,12 L33,16 L33,26 C33,31 29,35 24,37 C19,35 15,31 15,26 L15,16 Z" />
+    <!-- Inner Green Emblem Leaves inside Shield -->
+    <path
+        android:fillColor="#006837"
+        android:pathData="M24,17 L29,21 L29,26 C29,29 27,31 24,33 C21,31 19,29 19,26 L19,21 Z" />
+    <!-- Golden Core Star / Diamond -->
+    <path
+        android:fillColor="#FFC20E"
+        android:pathData="M24,20 L26,24 L24,28 L22,24 Z" />
+</vector>

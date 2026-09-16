@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- DBBL Alt Deep Forest Green Circle with Golden Ring -->
+    <path
+        android:fillColor="#004D26"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#C5E1A5"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-19.5,0a19.5,19.5 0,1,1 39,0a19.5,19.5 0,1,1 -39,0" />
+    <!-- Bank Pediment / Roof -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,19 L24,12 L34,19 Z" />
+    <path
+        android:fillColor="#ED1C24"
+        android:pathData="M24,15m-1.5,0a1.5,1.5 0,1,1 3,0a1.5,1.5 0,1,1 -3,0" />
+    <!-- Colonnade Pillars -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,21 L18.5,21 L18.5,31 L16,31 Z M21,21 L23.5,21 L23.5,31 L21,31 Z M26,21 L28.5,21 L28.5,31 L26,31 Z M31,21 L33.5,21 L33.5,31 L31,31 Z" />
+    <!-- Base Plinth -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M13,32 L35,32 L35,35 L13,35 Z" />
+</vector>

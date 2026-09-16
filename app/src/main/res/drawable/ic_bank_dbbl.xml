@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Dutch-Bangla Bank Green Circle -->
+    <path
+        android:fillColor="#006738"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- White Trunk & Branch Foundation -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M22,26 L26,26 L26,37 L22,37 Z M19,37 L29,37 L29,39 L19,39 Z" />
+    <!-- DBBL Iconic Banyan Canopy in Red & Green/White -->
+    <!-- Red Left Foliage -->
+    <path
+        android:fillColor="#ED1C24"
+        android:pathData="M24,11 C17,11 13,16 13,22 C13,28 19,29 24,25 Z" />
+    <!-- White Right Foliage -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,11 C31,11 35,16 35,22 C35,28 29,29 24,25 Z" />
+    <!-- Central Leaf Division -->
+    <path
+        android:fillColor="#006738"
+        android:pathData="M24,13 C23,17 23,23 24,26 C25,23 25,17 24,13 Z" />
+</vector>

@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Upay Vibrant Cyan Circle -->
+    <path
+        android:fillColor="#00A3E0"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- White 'u' Swoosh Emblem -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,15 L21,15 L21,26 C21,28.5 22.5,30 24.5,30 C26.5,30 28,28.5 28,26 L28,15 L33,15 L33,26 C33,31.5 29.5,35 24.5,35 C19.5,35 16,31.5 16,26 Z" />
+    <!-- Dynamic Arrow / Spark in Navy -->
+    <path
+        android:fillColor="#004F9E"
+        android:pathData="M31,12 L37,18 L31,24 Z" />
+</vector>

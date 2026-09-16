@@ -73,6 +73,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
@@ -169,6 +170,7 @@ import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionSplitItem
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
@@ -207,6 +209,7 @@ fun AddEditTransactionSheet(
     existingTransaction: Transaction? = null,
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
+    onSaveSplit: ((splitGroupId: String, baseTx: Transaction, items: List<TransactionSplitItem>, existingTxs: List<Transaction>) -> Unit)? = null,
     onDelete: ((Transaction) -> Unit)? = null,
     onAddNewCategory: ((Category) -> Unit)? = null,
     onAddNewAccount: ((Account) -> Unit)? = null
@@ -258,15 +261,57 @@ fun AddEditTransactionSheet(
         )
     }
 
+    // Split Transaction State
+    val existingSplitGroupId = remember(existingTransaction) {
+        com.example.util.TransactionLinkHelper.getSplitGroupId(existingTransaction)
+    }
+    val existingSplitSiblings = remember(existingSplitGroupId, allTransactions) {
+        if (existingSplitGroupId != null) {
+            com.example.util.TransactionLinkHelper.findAllSplitsByGroupId(existingSplitGroupId, allTransactions)
+        } else emptyList()
+    }
+    var isSplitActive by remember {
+        mutableStateOf(existingSplitSiblings.isNotEmpty())
+    }
+    var splitGroupId by remember {
+        mutableStateOf(existingSplitGroupId ?: java.util.UUID.randomUUID().toString())
+    }
+    val splitItems = remember {
+        mutableStateListOf<TransactionSplitItem>().apply {
+            if (existingSplitSiblings.isNotEmpty()) {
+                addAll(
+                    existingSplitSiblings.map { item ->
+                        TransactionSplitItem(
+                            id = item.transaction.id,
+                            categoryId = item.transaction.categoryId,
+                            subCategoryId = item.transaction.subCategoryId,
+                            amount = item.transaction.amount,
+                            note = com.example.util.TransactionLinkHelper.getCleanNote(item.transaction.note)
+                        )
+                    }
+                )
+            }
+        }
+    }
+    var showSplitDialog by remember { mutableStateOf(false) }
+
+    val initialSplitTotal = remember(existingSplitSiblings, existingTransaction) {
+        if (existingSplitSiblings.isNotEmpty()) {
+            existingSplitSiblings.sumOf { it.transaction.amount }
+        } else {
+            Math.abs(existingTransaction?.amount ?: 0.0)
+        }
+    }
+
     var amount by remember {
-        mutableDoubleStateOf(Math.abs(existingTransaction?.amount ?: 0.0))
+        mutableDoubleStateOf(initialSplitTotal)
     }
 
     var amountText by remember {
         mutableStateOf(
-            if (existingTransaction != null && Math.abs(existingTransaction.amount) > 0.0) {
+            if (initialSplitTotal > 0.0) {
                 LanguageHelper.formatAmountNumber(
-                    value = Math.abs(existingTransaction.amount),
+                    value = initialSplitTotal,
                     mode = LanguageMode.ENGLISH,
                     groupingSeparator = amountFormatConfig.effectiveGroupingSeparator,
                     decimalSeparator = amountFormatConfig.effectiveDecimalSeparator,
@@ -875,8 +920,16 @@ fun AddEditTransactionSheet(
                 categoryId = finalCategoryId,
                 subCategoryId = finalSubCategoryId
             )
-            onSave(tx)
-            onDismiss()
+
+            // If split transaction is active, save via split handler
+            if (isSplitActive && splitItems.size >= 2 && txType != TransactionType.TRANSFER && onSaveSplit != null) {
+                val oldTxs = existingSplitSiblings.map { it.transaction }
+                onSaveSplit(splitGroupId, tx, splitItems.toList(), oldTxs)
+                onDismiss()
+            } else {
+                onSave(tx)
+                onDismiss()
+            }
         }
     }
 
@@ -1756,6 +1809,11 @@ fun AddEditTransactionSheet(
                                 val subCatName = resolvedChildCat?.localizedName(languageMode) ?: catGroupName
 
                                 val (catTitle, catSub) = when {
+                                    isSplitActive && splitItems.isNotEmpty() -> {
+                                        val title = if (languageMode == LanguageMode.BANGLA) "বিভাজন (${splitItems.size}টি ক্যাটাগরি)" else "Split (${splitItems.size} categories)"
+                                        val sub = if (languageMode == LanguageMode.BANGLA) "ট্যাপ করে স্প্লিট বিবরণ দেখুন বা পরিবর্তন করুন" else "Tap to view or edit split allocations"
+                                        Pair(title, sub)
+                                    }
                                     catGroupName == null && subCatName == null -> Pair(LanguageHelper.getString("select_category", languageMode), null)
                                     catGroupName != null && subCatName != null -> {
                                         if (isDoubleLine) {
@@ -1782,7 +1840,7 @@ fun AddEditTransactionSheet(
                                 OptionRowItem(
                                     icon = {
                                         Icon(
-                                            imageVector = IconHelper.getIconByName(selectedCategory?.iconName ?: "MoreHoriz"),
+                                            imageVector = if (isSplitActive) Icons.Default.CallSplit else IconHelper.getIconByName(selectedCategory?.iconName ?: "MoreHoriz"),
                                             contentDescription = "Category",
                                             tint = typePrimaryColor,
                                             modifier = Modifier.size(20.dp)
@@ -1790,8 +1848,8 @@ fun AddEditTransactionSheet(
                                     },
                                     title = catTitle,
                                     subTitle = catSub,
-                                    isTwoLine = isDoubleLine && catSub != null,
-                                    livePreview = if (selectedCategory != null) {
+                                    isTwoLine = isSplitActive || (isDoubleLine && catSub != null),
+                                    livePreview = if (!isSplitActive && selectedCategory != null) {
                                         {
                                             LiveImpactPill(
                                                 currentAmount = categoryCurrentMonthTotal,
@@ -1805,7 +1863,13 @@ fun AddEditTransactionSheet(
                                             )
                                         }
                                     } else null,
-                                    onClick = { showCategoryPickerModal = true }
+                                    onClick = {
+                                        if (isSplitActive) {
+                                            showSplitDialog = true
+                                        } else {
+                                            showCategoryPickerModal = true
+                                        }
+                                    }
                                 )
 
                                 HorizontalDivider(
@@ -2232,24 +2296,73 @@ fun AddEditTransactionSheet(
                             }
 
                             // Row C: Split
-                            OptionRowItem(
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.GridOn,
-                                        contentDescription = "Split",
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                },
-                                title = LanguageHelper.getString("split", languageMode),
-                                onClick = { /* Split indicator */ }
-                            )
+                            if (txType != TransactionType.TRANSFER) {
+                                val splitSubtitle = if (isSplitActive && splitItems.isNotEmpty()) {
+                                    val catSummaries = splitItems.take(2).mapNotNull { item ->
+                                        val cat = categories.firstOrNull { it.id == item.categoryId }
+                                        val name = cat?.localizedName(languageMode) ?: ""
+                                        if (name.isNotBlank()) "$name (${LanguageHelper.formatCurrency(item.amount, languageMode)})" else null
+                                    }.joinToString(" • ")
+                                    val extra = if (splitItems.size > 2) " +${splitItems.size - 2}" else ""
+                                    "$catSummaries$extra"
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA) "একাধিক ক্যাটাগরিতে ভাগ করুন" else "Split into multiple categories"
+                                }
 
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 48.dp, end = 12.dp),
-                                thickness = 0.5.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                            )
+                                OptionRowItem(
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.CallSplit,
+                                            contentDescription = "Split",
+                                            tint = if (isSplitActive) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    title = if (isSplitActive) {
+                                        if (languageMode == LanguageMode.BANGLA) "বিভাজন (${splitItems.size}টি আইটেম)" else "Split (${splitItems.size} items)"
+                                    } else {
+                                        LanguageHelper.getString("split", languageMode)
+                                    },
+                                    subTitle = splitSubtitle,
+                                    isTwoLine = true,
+                                    trailingContent = {
+                                        if (isSplitActive) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = SolidPrimary.copy(alpha = 0.12f)
+                                            ) {
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পাদনা" else "Edit",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SolidPrimary,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        } else {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                            ) {
+                                                Text(
+                                                    text = "+",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = { showSplitDialog = true }
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 48.dp, end = 12.dp),
+                                    thickness = 0.5.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                )
+                            }
 
                             // Row D: Status (None / Cleared / Void / Reconciled - Default: None)
                             Row(
@@ -2435,99 +2548,107 @@ fun AddEditTransactionSheet(
                             categoryId = finalCategoryId,
                             subCategoryId = finalSubCategoryId
                         )
-                        onSave(tx)
 
-                        // If transfer with fee, create fee transaction as well
-                        if (txType == TransactionType.TRANSFER && hasTransferFee && transferFeeAmount > 0) {
-                            val feeAccId = transferFeeAccountId ?: creditAccountId
-                            val feeTx = Transaction(
-                                id = 0,
-                                type = TransactionType.EXPENSE,
-                                amount = transferFeeAmount,
-                                dateEpochMs = selectedDateEpochMs,
-                                note = "Transfer fee for ${payee.ifBlank { "Transfer" }}",
-                                referenceNo = if (labelTag.isNotBlank()) "$labelTag, Fee" else "Fee",
-                                payeeOrPayer = if (payee.isNotBlank()) "$payee (Fee)" else "Transfer Fee",
-                                attachmentUri = "",
-                                status = status,
-                                debitAccountId = null,
-                                creditAccountId = feeAccId,
-                                categoryId = transferFeeCategoryId,
-                                subCategoryId = transferFeeSubCategoryId
-                            )
-                            onSave(feeTx)
-
-                            // Save remembered category in preferences
-                            if (transferFeeCategoryId != null) {
-                                transferFeePrefs.setFeeCategoryForPayee(
-                                    payee,
-                                    transferFeeCategoryId!!,
-                                    transferFeeSubCategoryId
-                                )
-                            }
-                        }
-
-                        if (keepFormOpen && existingTransaction == null) {
-                            if (txConfig.plusOneClearAmount) {
-                                amount = 0.0
-                                amountText = ""
-                                amountTextFieldValue = TextFieldValue("")
-                            }
-                            if (txConfig.plusOneClearNote) {
-                                note = ""
-                            }
-                            if (txConfig.plusOneClearPayee) {
-                                payee = ""
-                            }
-                            if (txConfig.plusOneClearAttachment) {
-                                attachmentUri = ""
-                            }
-                            if (!txConfig.plusOneKeepDate) {
-                                selectedDateEpochMs = System.currentTimeMillis()
-                            } else if (!txConfig.plusOneKeepTime) {
-                                val cal = Calendar.getInstance().apply {
-                                    timeInMillis = selectedDateEpochMs
-                                    val nowCal = Calendar.getInstance()
-                                    set(Calendar.HOUR_OF_DAY, nowCal.get(Calendar.HOUR_OF_DAY))
-                                    set(Calendar.MINUTE, nowCal.get(Calendar.MINUTE))
-                                }
-                                selectedDateEpochMs = cal.timeInMillis
-                            }
-                            if (!txConfig.plusOneKeepCategory && txType != TransactionType.TRANSFER) {
-                                selectedCategoryId = othersCategoryGroup?.id ?: relevantCategories.firstOrNull()?.id
-                                selectedSubCategoryId = null
-                            }
-                            if (!txConfig.plusOneKeepAccount) {
-                                creditAccountId = usableAccounts.firstOrNull()?.id
-                                debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
-                            } else if (!txConfig.plusOneKeepTransferAccount && txType == TransactionType.TRANSFER) {
-                                debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
-                            }
-                            if (txConfig.plusOneAutoIncrementNote && note.isNotBlank()) {
-                                val match = Regex("(.*?) #?(\\d+)$").find(note.trim())
-                                if (match != null) {
-                                    val prefix = match.groupValues[1]
-                                    val nextNum = (match.groupValues[2].toIntOrNull() ?: 1) + 1
-                                    note = "$prefix #$nextNum"
-                                } else {
-                                    note = "${note.trim()} #2"
-                                }
-                            }
-                            if (txConfig.plusOneShowConfirmationToast) {
-                                Toast.makeText(
-                                    context,
-                                    if (languageMode == LanguageMode.BANGLA) "লেনদেন সংরক্ষণ (+১) সম্পন্ন হয়েছে" else "Transaction saved (+1)",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                            if (!txConfig.plusOneKeepLabels) {
-                                labelTag = ""
-                            }
-                            hasTransferFee = false
-                            transferFeeAmount = 0.0
-                            transferFeeAmountText = ""
-                        } else {
+                        // If split transaction is active, save via split handler
+                        if (isSplitActive && splitItems.size >= 2 && txType != TransactionType.TRANSFER && onSaveSplit != null) {
+                            val oldTxs = existingSplitSiblings.map { it.transaction }
+                            onSaveSplit(splitGroupId, tx, splitItems.toList(), oldTxs)
                             onDismiss()
+                        } else {
+                            onSave(tx)
+
+                            // If transfer with fee, create fee transaction as well
+                            if (txType == TransactionType.TRANSFER && hasTransferFee && transferFeeAmount > 0) {
+                                val feeAccId = transferFeeAccountId ?: creditAccountId
+                                val feeTx = Transaction(
+                                    id = 0,
+                                    type = TransactionType.EXPENSE,
+                                    amount = transferFeeAmount,
+                                    dateEpochMs = selectedDateEpochMs,
+                                    note = "Transfer fee for ${payee.ifBlank { "Transfer" }}",
+                                    referenceNo = if (labelTag.isNotBlank()) "$labelTag, Fee" else "Fee",
+                                    payeeOrPayer = if (payee.isNotBlank()) "$payee (Fee)" else "Transfer Fee",
+                                    attachmentUri = "",
+                                    status = status,
+                                    debitAccountId = null,
+                                    creditAccountId = feeAccId,
+                                    categoryId = transferFeeCategoryId,
+                                    subCategoryId = transferFeeSubCategoryId
+                                )
+                                onSave(feeTx)
+
+                                // Save remembered category in preferences
+                                if (transferFeeCategoryId != null) {
+                                    transferFeePrefs.setFeeCategoryForPayee(
+                                        payee,
+                                        transferFeeCategoryId!!,
+                                        transferFeeSubCategoryId
+                                    )
+                                }
+                            }
+
+                            if (keepFormOpen && existingTransaction == null) {
+                                if (txConfig.plusOneClearAmount) {
+                                    amount = 0.0
+                                    amountText = ""
+                                    amountTextFieldValue = TextFieldValue("")
+                                }
+                                if (txConfig.plusOneClearNote) {
+                                    note = ""
+                                }
+                                if (txConfig.plusOneClearPayee) {
+                                    payee = ""
+                                }
+                                if (txConfig.plusOneClearAttachment) {
+                                    attachmentUri = ""
+                                }
+                                if (!txConfig.plusOneKeepDate) {
+                                    selectedDateEpochMs = System.currentTimeMillis()
+                                } else if (!txConfig.plusOneKeepTime) {
+                                    val cal = Calendar.getInstance().apply {
+                                        timeInMillis = selectedDateEpochMs
+                                        val nowCal = Calendar.getInstance()
+                                        set(Calendar.HOUR_OF_DAY, nowCal.get(Calendar.HOUR_OF_DAY))
+                                        set(Calendar.MINUTE, nowCal.get(Calendar.MINUTE))
+                                    }
+                                    selectedDateEpochMs = cal.timeInMillis
+                                }
+                                if (!txConfig.plusOneKeepCategory && txType != TransactionType.TRANSFER) {
+                                    selectedCategoryId = othersCategoryGroup?.id ?: relevantCategories.firstOrNull()?.id
+                                    selectedSubCategoryId = null
+                                }
+                                if (!txConfig.plusOneKeepAccount) {
+                                    creditAccountId = usableAccounts.firstOrNull()?.id
+                                    debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
+                                } else if (!txConfig.plusOneKeepTransferAccount && txType == TransactionType.TRANSFER) {
+                                    debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
+                                }
+                                if (txConfig.plusOneAutoIncrementNote && note.isNotBlank()) {
+                                    val match = Regex("(.*?) #?(\\d+)$").find(note.trim())
+                                    if (match != null) {
+                                        val prefix = match.groupValues[1]
+                                        val nextNum = (match.groupValues[2].toIntOrNull() ?: 1) + 1
+                                        note = "$prefix #$nextNum"
+                                    } else {
+                                        note = "${note.trim()} #2"
+                                    }
+                                }
+                                if (txConfig.plusOneShowConfirmationToast) {
+                                    Toast.makeText(
+                                        context,
+                                        if (languageMode == LanguageMode.BANGLA) "লেনদেন সংরক্ষণ (+১) সম্পন্ন হয়েছে" else "Transaction saved (+1)",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                if (!txConfig.plusOneKeepLabels) {
+                                    labelTag = ""
+                                }
+                                hasTransferFee = false
+                                transferFeeAmount = 0.0
+                                transferFeeAmountText = ""
+                            } else {
+                                onDismiss()
+                            }
                         }
                     } else {
                         Toast.makeText(
@@ -2945,6 +3066,36 @@ fun AddEditTransactionSheet(
             }
         )
     }
+
+    if (showSplitDialog) {
+        val splitEffectiveTotal = if (amount > 0.0) amount else splitItems.sumOf { it.amount }
+        SplitTransactionDialog(
+            totalAmount = splitEffectiveTotal,
+            initialItems = splitItems.toList(),
+            categories = categories,
+            txType = txType,
+            languageMode = languageMode,
+            onDismiss = { showSplitDialog = false },
+            onApplySplit = { updatedItems, updatedTotal ->
+                splitItems.clear()
+                splitItems.addAll(updatedItems)
+                isSplitActive = true
+                amount = updatedTotal
+                amountText = formatAmountInput(updatedTotal)
+                // Set first split's category as primary fallback
+                updatedItems.firstOrNull()?.let { firstItem ->
+                    selectedCategoryId = firstItem.categoryId
+                    selectedSubCategoryId = firstItem.subCategoryId
+                }
+                showSplitDialog = false
+            },
+            onRevertToSingle = {
+                isSplitActive = false
+                splitItems.clear()
+                showSplitDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -3170,7 +3321,7 @@ private fun LiveImpactPill(
 }
 
 @Composable
-private fun CategoryPickerModalDialog(
+internal fun CategoryPickerModalDialog(
     categories: List<Category>,
     txType: TransactionType,
     selectedCategoryId: Long?,

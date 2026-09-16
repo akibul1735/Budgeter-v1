@@ -40,6 +40,7 @@ object IconHelper {
 
     val CATEGORIES = listOf(
         "All",
+        "BD Banks & MFS",
         "Custom",
         "Finance",
         "Food & Drinks",
@@ -56,6 +57,57 @@ object IconHelper {
     )
 
     val BUILTIN_ICONS: List<IconItem> = listOf(
+        // Bangladeshi Banks & Mobile Banking Services (MFS) - At least 2 per bank
+        IconItem("BankBkash", "BD Banks & MFS", listOf("bkash", "bKash", "বিকাশ", "mobile bank", "mfs", "wallet", "bangladesh", "finance"), false),
+        IconItem("BankBkashAlt", "BD Banks & MFS", listOf("bkash", "bKash", "বিকাশ", "pink", "badge", "mfs", "bangladesh"), false),
+        IconItem("BankNagad", "BD Banks & MFS", listOf("nagad", "নগদ", "mobile bank", "post office", "mfs", "orange", "flame", "bangladesh"), false),
+        IconItem("BankNagadAlt", "BD Banks & MFS", listOf("nagad", "নগদ", "seal", "mfs", "bangladesh", "dak"), false),
+        IconItem("BankRocket", "BD Banks & MFS", listOf("rocket", "রকেট", "dbbl", "dutch bangla", "mobile bank", "purple", "mfs", "bangladesh"), false),
+        IconItem("BankRocketAlt", "BD Banks & MFS", listOf("rocket", "রকেট", "orbit", "mfs", "bangladesh"), false),
+        IconItem("BankUpay", "BD Banks & MFS", listOf("upay", "উপায়", "ucb", "mobile bank", "mfs", "cyan", "bangladesh"), false),
+        IconItem("BankUpayAlt", "BD Banks & MFS", listOf("upay", "উপায়", "navy", "badge", "mfs", "bangladesh"), false),
+        IconItem("BankCellfin", "BD Banks & MFS", listOf("cellfin", "সেলফিন", "ibbl", "islami bank", "wallet", "app", "bangladesh"), false),
+        IconItem("BankCellfinAlt", "BD Banks & MFS", listOf("cellfin", "সেলফিন", "digital", "coin", "mfs", "bangladesh"), false),
+        IconItem("BankDBBL", "BD Banks & MFS", listOf("dbbl", "dutch bangla", "ডাচ বাংলা", "bank", "banyan", "leaf", "bangladesh"), false),
+        IconItem("BankDBBLAlt", "BD Banks & MFS", listOf("dbbl", "dutch bangla", "crest", "vault", "bank", "bangladesh"), false),
+        IconItem("BankIBBL", "BD Banks & MFS", listOf("ibbl", "islami bank", "ইসলামী ব্যাংক", "crescent", "wheat", "bank", "bangladesh"), false),
+        IconItem("BankIBBLAlt", "BD Banks & MFS", listOf("ibbl", "islami bank", "star", "seal", "islamic", "bank", "bangladesh"), false),
+        IconItem("BankBRAC", "BD Banks & MFS", listOf("brac", "brac bank", "ব্র্যাক ব্যাংক", "square", "yellow", "blue", "bank", "bangladesh"), false),
+        IconItem("BankAstha", "BD Banks & MFS", listOf("astha", "brac astha", "আস্থা", "mobile app", "shield", "bank", "bangladesh"), false),
+        IconItem("BankCity", "BD Banks & MFS", listOf("city bank", "সিটি ব্যাংক", "cube", "red", "bank", "bangladesh"), false),
+        IconItem("BankCitytouch", "BD Banks & MFS", listOf("citytouch", "city touch", "সিটি টাচ", "digital", "diamond", "bank", "bangladesh"), false),
+        IconItem("BankSonali", "BD Banks & MFS", listOf("sonali bank", "সোনালী ব্যাংক", "sun", "wheat", "gold", "public bank", "bangladesh"), false),
+        IconItem("BankSonaliSheba", "BD Banks & MFS", listOf("sonali sheba", "সোনালী সেবা", "star", "green", "bank", "bangladesh"), false),
+        IconItem("BankEBL", "BD Banks & MFS", listOf("ebl", "eastern bank", "ইস্টার্ন ব্যাংক", "ribbon", "blue", "bank", "bangladesh"), false),
+        IconItem("BankSkybanking", "BD Banks & MFS", listOf("skybanking", "ebl skybanking", "cloud", "vault", "bank", "bangladesh"), false),
+        IconItem("BankSCB", "BD Banks & MFS", listOf("scb", "standard chartered", "স্ট্যান্ডার্ড চার্টার্ড", "foreign bank", "swirl", "blue", "green", "bank", "bangladesh"), false),
+        IconItem("BankSCBAlt", "BD Banks & MFS", listOf("scb", "standard chartered", "স্ট্যান্ডার্ড চার্টার্ড", "navy", "badge", "helix", "bank", "bangladesh"), false),
+        IconItem("BankHSBC", "BD Banks & MFS", listOf("hsbc", "এইচএসবিসি", "hexagon", "red", "white", "international", "bank", "bangladesh"), false),
+        IconItem("BankHSBCAlt", "BD Banks & MFS", listOf("hsbc", "এইচএসবিসি", "dark", "badge", "bank", "bangladesh"), false),
+        IconItem("BankPrime", "BD Banks & MFS", listOf("prime bank", "প্রাইম ব্যাংক", "altitude", "orange", "cyan", "bank", "bangladesh"), false),
+        IconItem("BankPrimeAlt", "BD Banks & MFS", listOf("prime bank", "altitude", "badge", "bank", "bangladesh"), false),
+        IconItem("BankUCB", "BD Banks & MFS", listOf("ucb", "united commercial bank", "ইউসিবি", "green", "gold", "shield", "bank", "bangladesh"), false),
+        IconItem("BankUCBAlt", "BD Banks & MFS", listOf("ucb", "united commercial bank", "badge", "shield", "bank", "bangladesh"), false),
+        IconItem("BankMTB", "BD Banks & MFS", listOf("mtb", "mutual trust bank", "এমটিবি", "triangle", "red", "green", "blue", "bank", "bangladesh"), false),
+        IconItem("BankMTBAlt", "BD Banks & MFS", listOf("mtb", "mutual trust bank", "badge", "bank", "bangladesh"), false),
+        IconItem("BankSoutheast", "BD Banks & MFS", listOf("southeast bank", "সাউথইস্ট ব্যাংক", "sebl", "teal", "diamond", "bank", "bangladesh"), false),
+        IconItem("BankSoutheastAlt", "BD Banks & MFS", listOf("southeast bank", "badge", "teal", "bank", "bangladesh"), false),
+        IconItem("BankPubali", "BD Banks & MFS", listOf("pubali bank", "পূবালী ব্যাংক", "banyan tree", "bot", "tree", "green", "bank", "bangladesh"), false),
+        IconItem("BankPubaliAlt", "BD Banks & MFS", listOf("pubali bank", "tree", "gold", "badge", "bank", "bangladesh"), false),
+        IconItem("BankDhaka", "BD Banks & MFS", listOf("dhaka bank", "ঢাকা ব্যাংক", "blue", "diamond", "monogram", "bank", "bangladesh"), false),
+        IconItem("BankDhakaAlt", "BD Banks & MFS", listOf("dhaka bank", "badge", "navy", "cyan", "bank", "bangladesh"), false),
+        IconItem("BankTrust", "BD Banks & MFS", listOf("trust bank", "ট্রাস্ট ব্যাংক", "army", "shield", "star", "bank", "bangladesh"), false),
+        IconItem("BankTap", "BD Banks & MFS", listOf("tap", "ট্যাপ", "trust axiata pay", "mobile bank", "mfs", "yellow", "navy", "bangladesh"), false),
+        IconItem("BankSureCash", "BD Banks & MFS", listOf("surecash", "সিওরক্যাশ", "mobile bank", "mfs", "purple", "cyan", "bangladesh"), false),
+        IconItem("BankSureCashAlt", "BD Banks & MFS", listOf("surecash", "সিওরক্যাশ", "badge", "phone", "mfs", "bangladesh"), false),
+        IconItem("BankAgrani", "BD Banks & MFS", listOf("agrani bank", "অগ্রণী ব্যাংক", "national", "green", "red", "wheat", "public bank", "bangladesh"), false),
+        IconItem("BankAgraniAlt", "BD Banks & MFS", listOf("agrani bank", "badge", "gold", "bank", "bangladesh"), false),
+        IconItem("BankJanata", "BD Banks & MFS", listOf("janata bank", "জনতা ব্যাংক", "crimson", "public bank", "bank", "bangladesh"), false),
+        IconItem("BankJanataAlt", "BD Banks & MFS", listOf("janata bank", "badge", "red", "bank", "bangladesh"), false),
+        IconItem("BankMCash", "BD Banks & MFS", listOf("mcash", "এমক্যাশ", "ibbl mcash", "islami bank", "mobile wallet", "mfs", "bangladesh"), false),
+        IconItem("BankAB", "BD Banks & MFS", listOf("ab bank", "এবি ব্যাংক", "arab bangladesh bank", "navy", "red", "bank", "bangladesh"), false),
+        IconItem("BankABAlt", "BD Banks & MFS", listOf("ab bank", "এবি ব্যাংক", "badge", "bank", "bangladesh"), false),
+
         IconItem("AccountBalance", "Finance", listOf("bank", "central bank", "institution", "governor", "finance"), false),
         IconItem("AccountBalanceWallet", "Finance", listOf("wallet", "money", "cash", "funds", "pocket"), false),
         IconItem("Wallet", "Finance", listOf("purse", "pocket", "money", "leather"), false),
@@ -114,6 +166,9 @@ object IconHelper {
         IconItem("DonutSmall", "Finance", listOf("donut", "chart", "portion", "share"), false),
         IconItem("DonutLarge", "Finance", listOf("ring", "donut", "budget split", "graph"), false),
         IconItem("InsertChart", "Finance", listOf("chart", "insert", "graph", "records"), false),
+        IconItem("RealEstateAgent", "Finance", listOf("broker", "agent", "real estate", "property fee", "lease", "rent"), false),
+        IconItem("Subscriptions", "Finance", listOf("streaming", "ott", "subscription", "recurring", "membership"), false),
+        IconItem("LocalShipping", "Finance", listOf("delivery charge", "courier", "parcel", "freight", "shipping"), false),
         IconItem("Restaurant", "Food & Drinks", listOf("dine", "eating", "meal", "food"), false),
         IconItem("DinnerDining", "Food & Drinks", listOf("dinner", "night", "food", "evening meal"), false),
         IconItem("LunchDining", "Food & Drinks", listOf("lunch", "meal", "burger", "afternoon"), false),
@@ -294,6 +349,7 @@ object IconHelper {
         IconItem("Propane", "Bills & Housing", listOf("gas cylinder", "cylinder", "propane gas"), false),
         IconItem("ElectricalServices", "Bills & Housing", listOf("electrician", "wiring", "power repair"), false),
         IconItem("Sensors", "Bills & Housing", listOf("iot", "smart home sensor", "alarm"), false),
+        IconItem("CellTower", "Bills & Housing", listOf("mobile network", "telecom", "recharge", "broadband", "tower", "cell"), false),
         IconItem("LocalHospital", "Health", listOf("hospital", "clinic", "doctor", "emergency"), false),
         IconItem("Medication", "Health", listOf("medicine", "tablet", "pharma", "prescription"), false),
         IconItem("MedicalServices", "Health", listOf("first aid", "emergency", "medical kit"), false),
@@ -409,6 +465,7 @@ object IconHelper {
         IconItem("Living", "Life & Work", listOf("living room", "sofa set", "hall"), false),
         IconItem("KingBed", "Life & Work", listOf("master bed", "luxury suite", "king bed"), false),
         IconItem("SingleBed", "Life & Work", listOf("single bed", "guest bed", "cot"), false),
+        IconItem("SupportAgent", "Life & Work", listOf("customer care", "support", "call center", "agent", "helpdesk"), false),
         IconItem("PhoneAndroid", "Entertainment", listOf("mobile", "smartphone", "recharge", "phone"), false),
         IconItem("PhoneIphone", "Entertainment", listOf("apple", "iphone", "ios", "iphone"), false),
         IconItem("SmartDisplay", "Entertainment", listOf("screen", "streaming", "ott", "display"), false),
@@ -671,6 +728,11 @@ object IconHelper {
             "DonutSmall" -> Icons.Default.DonutSmall
             "DonutLarge" -> Icons.Default.DonutLarge
             "InsertChart" -> Icons.Default.InsertChart
+            "RealEstateAgent" -> Icons.Default.RealEstateAgent
+            "Subscriptions" -> Icons.Default.Subscriptions
+            "LocalShipping" -> Icons.Default.LocalShipping
+            "CellTower" -> Icons.Default.CellTower
+            "SupportAgent" -> Icons.Default.SupportAgent
             "Restaurant" -> Icons.Default.Restaurant
             "DinnerDining" -> Icons.Default.DinnerDining
             "LunchDining" -> Icons.Default.LunchDining
@@ -1162,6 +1224,10 @@ object IconHelper {
             "Share" -> Icons.Default.Share
             "Brush" -> Icons.Default.Brush
             "Palette" -> Icons.Default.Palette
+            "BankBkash", "BankBkashAlt", "BankNagad", "BankNagadAlt", "BankRocket", "BankRocketAlt",
+            "BankUpay", "BankUpayAlt", "BankCellfin", "BankCellfinAlt" -> Icons.Default.Payments
+            "BankDBBL", "BankDBBLAlt", "BankIBBL", "BankIBBLAlt", "BankBRAC", "BankAstha",
+            "BankCity", "BankCitytouch", "BankSonali", "BankSonaliSheba", "BankEBL", "BankSkybanking" -> Icons.Default.AccountBalance
             else -> Icons.Default.Category
         }
     }
@@ -1243,7 +1309,72 @@ object IconHelper {
     }
 
     /**
-     * Universal Composable to render either a built-in Material Icon or a Custom Image Icon.
+     * Maps named bank and MFS logos to their respective XML Vector Drawables.
+     */
+    fun getDrawableResId(iconName: String?): Int? {
+        return when (iconName) {
+            "BankBkash" -> com.example.R.drawable.ic_bank_bkash
+            "BankBkashAlt" -> com.example.R.drawable.ic_bank_bkash_alt
+            "BankNagad" -> com.example.R.drawable.ic_bank_nagad
+            "BankNagadAlt" -> com.example.R.drawable.ic_bank_nagad_alt
+            "BankRocket" -> com.example.R.drawable.ic_bank_rocket
+            "BankRocketAlt" -> com.example.R.drawable.ic_bank_rocket_alt
+            "BankUpay" -> com.example.R.drawable.ic_bank_upay
+            "BankUpayAlt" -> com.example.R.drawable.ic_bank_upay_alt
+            "BankCellfin" -> com.example.R.drawable.ic_bank_cellfin
+            "BankCellfinAlt" -> com.example.R.drawable.ic_bank_cellfin_alt
+            "BankDBBL" -> com.example.R.drawable.ic_bank_dbbl
+            "BankDBBLAlt" -> com.example.R.drawable.ic_bank_dbbl_alt
+            "BankIBBL" -> com.example.R.drawable.ic_bank_ibbl
+            "BankIBBLAlt" -> com.example.R.drawable.ic_bank_ibbl_alt
+            "BankBRAC" -> com.example.R.drawable.ic_bank_brac
+            "BankAstha" -> com.example.R.drawable.ic_bank_astha
+            "BankCity" -> com.example.R.drawable.ic_bank_city
+            "BankCitytouch" -> com.example.R.drawable.ic_bank_citytouch
+            "BankSonali" -> com.example.R.drawable.ic_bank_sonali
+            "BankSonaliSheba" -> com.example.R.drawable.ic_bank_sonali_sheba
+            "BankEBL" -> com.example.R.drawable.ic_bank_ebl
+            "BankSkybanking" -> com.example.R.drawable.ic_bank_skybanking
+            "BankSCB" -> com.example.R.drawable.ic_bank_scb
+            "BankSCBAlt" -> com.example.R.drawable.ic_bank_scb_alt
+            "BankHSBC" -> com.example.R.drawable.ic_bank_hsbc
+            "BankHSBCAlt" -> com.example.R.drawable.ic_bank_hsbc_alt
+            "BankPrime" -> com.example.R.drawable.ic_bank_prime
+            "BankPrimeAlt" -> com.example.R.drawable.ic_bank_prime_alt
+            "BankUCB" -> com.example.R.drawable.ic_bank_ucb
+            "BankUCBAlt" -> com.example.R.drawable.ic_bank_ucb_alt
+            "BankMTB" -> com.example.R.drawable.ic_bank_mtb
+            "BankMTBAlt" -> com.example.R.drawable.ic_bank_mtb_alt
+            "BankSoutheast" -> com.example.R.drawable.ic_bank_southeast
+            "BankSoutheastAlt" -> com.example.R.drawable.ic_bank_southeast_alt
+            "BankPubali" -> com.example.R.drawable.ic_bank_pubali
+            "BankPubaliAlt" -> com.example.R.drawable.ic_bank_pubali_alt
+            "BankDhaka" -> com.example.R.drawable.ic_bank_dhaka
+            "BankDhakaAlt" -> com.example.R.drawable.ic_bank_dhaka_alt
+            "BankTrust" -> com.example.R.drawable.ic_bank_trust
+            "BankTap" -> com.example.R.drawable.ic_bank_tap
+            "BankSureCash" -> com.example.R.drawable.ic_bank_surecash
+            "BankSureCashAlt" -> com.example.R.drawable.ic_bank_surecash_alt
+            "BankAgrani" -> com.example.R.drawable.ic_bank_agrani
+            "BankAgraniAlt" -> com.example.R.drawable.ic_bank_agrani_alt
+            "BankJanata" -> com.example.R.drawable.ic_bank_janata
+            "BankJanataAlt" -> com.example.R.drawable.ic_bank_janata_alt
+            "BankMCash" -> com.example.R.drawable.ic_bank_mcash
+            "BankAB" -> com.example.R.drawable.ic_bank_ab
+            "BankABAlt" -> com.example.R.drawable.ic_bank_ab_alt
+            else -> null
+        }
+    }
+
+    /**
+     * Checks if the icon is a built-in multi-color drawable vector.
+     */
+    fun isDrawableIcon(iconName: String?): Boolean {
+        return getDrawableResId(iconName) != null
+    }
+
+    /**
+     * Universal Composable to render either a built-in Material Icon, a Drawable Bank Logo, or a Custom Image Icon.
      */
     @Composable
     fun AppIcon(
@@ -1253,6 +1384,16 @@ object IconHelper {
         tint: Color = LocalContentColor.current
     ) {
         val context = LocalContext.current
+        val drawableRes = getDrawableResId(iconName)
+        if (drawableRes != null) {
+            Image(
+                painter = androidx.compose.ui.res.painterResource(id = drawableRes),
+                contentDescription = contentDescription,
+                modifier = modifier.clip(CircleShape),
+                contentScale = ContentScale.Fit
+            )
+            return
+        }
         if (isCustomIcon(iconName)) {
             val customFile = getCustomIconFile(context, iconName ?: "")
             if (customFile.exists()) {

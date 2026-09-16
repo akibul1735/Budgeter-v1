@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Nagad Orange Circle -->
+    <path
+        android:fillColor="#F7941D"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- Inner Radiant Flame Gradient base -->
+    <path
+        android:fillColor="#FFA000"
+        android:pathData="M24,24m-18,0a18,18 0,1,1 36,0a18,18 0,1,1 -36,0" />
+    <!-- Dynamic White Swirling Flame -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,9 C26,14 32,17 32,23 C32,28.5 28,33 23,34 C17.5,35 13,31 13,25.5 C13,19 19,15 22,12 C21.5,15 22.5,18 25,19 C23,16 23,12 24,9 Z" />
+    <!-- Inner Core Red/Orange Accent -->
+    <path
+        android:fillColor="#E65100"
+        android:pathData="M23,21 C26,24 28,26 26,29 C24.5,31 21.5,31 20,29 C18.5,27 20,24 23,21 Z" />
+</vector>

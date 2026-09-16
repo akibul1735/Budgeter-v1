@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Agrani Bank Light Shield Badge -->
+    <path
+        android:fillColor="#F0FDF4"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#006A4E"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- Outer Green Ring -->
+    <path
+        android:fillColor="#006A4E"
+        android:pathData="M24,24m-16,0a16,16 0,1,1 32,0a16,16 0,1,1 -32,0" />
+    <!-- Red Center Circle -->
+    <path
+        android:fillColor="#F42A41"
+        android:pathData="M24,24m-9,0a9,9 0,1,1 18,0a9,9 0,1,1 -18,0" />
+    <!-- Golden Wheat Sheaf Silhouette -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M24,17 L25.5,21 L28,21 L26,23 L27,26 L24,24 L21,26 L22,23 L20,21 L22.5,21 Z" />
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M21,27 L27,27 L27,30 L21,30 Z" />
+</vector>

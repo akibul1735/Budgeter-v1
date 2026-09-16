@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- IBBL Alt Islamic Star Seal in Deep Green -->
+    <path
+        android:fillColor="#0A4D2E"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- Islamic 8-pointed star contour in Gold -->
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="1.6"
+        android:pathData="M16,16 L24,11 L32,16 L37,24 L32,32 L24,37 L16,32 L11,24 Z" />
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="1.6"
+        android:pathData="M24,11 L24,37 M11,24 L37,24" />
+    <!-- Center Crescent & Star in Pure White -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,18 C20.5,18 18,20.7 18,24 C18,27.3 20.5,30 24,30 C25.5,30 26.8,29.5 27.8,28.5 C24.5,28.5 22,26.2 22,24 C22,21.8 24.5,19.5 27.8,19.5 C26.8,18.5 25.5,18 24,18 Z" />
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M28,24 L29.5,22.5 L29,24.5 L30.5,25.5 L28.5,25.5 Z" />
+</vector>

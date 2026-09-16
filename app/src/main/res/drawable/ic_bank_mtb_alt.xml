@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- MTB Navy Circle Badge -->
+    <path
+        android:fillColor="#001B33"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <path
+        android:strokeColor="#E31B23"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-20.5,0a20.5,20.5 0,1,1 41,0a20.5,20.5 0,1,1 -41,0" />
+    <!-- MTB Vibrant Red Left Segment -->
+    <path
+        android:fillColor="#FF2E36"
+        android:pathData="M13,34 L24,13 L24,25 Z" />
+    <!-- MTB Cyan-Blue Right Segment -->
+    <path
+        android:fillColor="#00A3E0"
+        android:pathData="M35,34 L24,13 L24,25 Z" />
+    <!-- MTB Bright Green Bottom Center -->
+    <path
+        android:fillColor="#00C853"
+        android:pathData="M19,34 L29,34 L24,25 Z" />
+</vector>

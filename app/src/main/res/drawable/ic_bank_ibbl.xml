@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- IBBL Signature Green Circle -->
+    <path
+        android:fillColor="#006837"
+        android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
+    <!-- White Crescent Moon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M25,11 C18,11 13,16.5 13,23.5 C13,30.5 18,36 25,36 C28,36 30.5,35 32.5,33.5 C26,33 21,28 21,23.5 C21,19 26,14 32.5,13.5 C30.5,12 28,11 25,11 Z" />
+    <!-- Golden Wheat Sheaf nestled in the crescent -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M26,15 C27,15 28,17 27,18 C26,19 25,18 25,17 Z M29,18 C30,18 31,20 30,21 C29,22 28,21 28,20 Z M28,23 C29,23 30,25 29,26 C28,27 27,26 27,25 Z M26,27 C27,27 28,29 27,30 C26,31 25,30 25,29 Z" />
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="1.2"
+        android:pathData="M25,16 C28,20 28,28 24,34" />
+</vector>
