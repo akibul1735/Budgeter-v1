@@ -175,11 +175,12 @@ data class CategoryGroupBudgetTracking(
     val totalSpent: Double get() = items.sumOf { it.spentAmount }
     val totalSpentBase: Double get() = items.sumOf { it.spentBaseAmount }
     val totalBudget: Double get() = items.filter { it.hasBudget }.sumOf { it.budgetLimit }
+    val totalBudgetedSpent: Double get() = items.filter { it.hasBudget }.sumOf { it.spentAmount }
     val hasBudget: Boolean get() = totalBudget > 0
-    val progressRatio: Float get() = if (totalBudget > 0) (totalSpent / totalBudget).toFloat() else 0f
-    val percentageInt: Int get() = if (totalBudget > 0) ((totalSpent / totalBudget) * 100).roundToInt() else 0
-    val isOverBudget: Boolean get() = hasBudget && totalSpent > totalBudget
-    val diffAmount: Double get() = kotlin.math.abs(totalBudget - totalSpent)
+    val progressRatio: Float get() = if (totalBudget > 0) (totalBudgetedSpent / totalBudget).toFloat() else 0f
+    val percentageInt: Int get() = if (totalBudget > 0) ((totalBudgetedSpent / totalBudget) * 100).roundToInt() else 0
+    val isOverBudget: Boolean get() = hasBudget && totalBudgetedSpent > totalBudget
+    val diffAmount: Double get() = kotlin.math.abs(totalBudget - totalBudgetedSpent)
     val remainingAmount: Double get() = items.sumOf { it.remainingAmount }
     val overBudgetAmount: Double get() = items.sumOf { it.overBudgetAmount }
     val deltaSpent: Double get() = totalSpent - totalSpentBase
@@ -1414,7 +1415,7 @@ fun BudgetTrackingScreen(
                                 showComparison = filterState.comparisonEnabled && baseRange != null,
                                 todayPaceRatio = todayPaceRatio,
                                 languageMode = languageMode,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 onClick = {
                                     selectedCategoryForDetail = item
                                 }
@@ -2294,11 +2295,11 @@ private fun CategoryGroupSection(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
     }
 
-    // Lucrative thin border (with subtle tint of group theme)
+    // Lucrative border (doubled thickness as requested)
     val lucrativeBorder = if (isLight) {
-        BorderStroke(0.85.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        BorderStroke(1.7.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
     } else {
-        BorderStroke(0.75.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
     }
 
     val headerBgColor = if (isLight) {
@@ -2317,7 +2318,7 @@ private fun CategoryGroupSection(
         tonalElevation = 0.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .padding(horizontal = 6.dp, vertical = 3.dp)
             .clip(containerShape)
     ) {
         Column(
@@ -2333,7 +2334,7 @@ private fun CategoryGroupSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                        .padding(start = 6.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -2486,10 +2487,11 @@ private fun CategoryGroupSection(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.End
                             ) {
+                                val displaySpent = if (group.hasBudget && group.items.any { !it.hasBudget && it.spentAmount > 0 }) group.totalBudgetedSpent else group.totalSpent
                                 Text(
-                                    text = LanguageHelper.formatCurrency(group.totalSpent, languageMode),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    text = LanguageHelper.formatCurrency(displaySpent, languageMode),
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     textAlign = TextAlign.End,
                                     maxLines = 1
@@ -2497,9 +2499,9 @@ private fun CategoryGroupSection(
                                 if (group.hasBudget) {
                                     Text(
                                         text = " / ${LanguageHelper.formatCurrency(group.totalBudget, languageMode)}",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Normal,
-                                        color = SlateText,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = SlateText.copy(alpha = 0.9f),
                                         textAlign = TextAlign.End,
                                         maxLines = 1
                                     )
@@ -2544,7 +2546,7 @@ private fun CategoryGroupSection(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     group.items.forEach { item ->
@@ -2608,9 +2610,9 @@ private fun CategoryRow(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
     }
     val cardBorder = if (isLight) {
-        BorderStroke(0.65.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        BorderStroke(1.3.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     } else {
-        BorderStroke(0.55.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        BorderStroke(1.1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     }
 
     val cardShape = RoundedCornerShape(11.dp)
@@ -2757,8 +2759,8 @@ private fun CategoryRow(
                         ) {
                             Text(
                                 text = LanguageHelper.formatCurrency(item.spentAmount, languageMode),
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.End,
                                 maxLines = 1
@@ -2766,9 +2768,9 @@ private fun CategoryRow(
                             if (item.hasBudget) {
                                 Text(
                                     text = " / ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)}",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    color = SlateText,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = SlateText.copy(alpha = 0.9f),
                                     textAlign = TextAlign.End,
                                     maxLines = 1
                                 )

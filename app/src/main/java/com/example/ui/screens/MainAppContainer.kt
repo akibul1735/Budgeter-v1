@@ -1347,7 +1347,7 @@ private fun AppFab(
     currentView: AppView,
     onAddTransaction: () -> Unit
 ) {
-    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER, AppView.LABELS, AppView.ITEMS_SUMMARY, AppView.REPORTS)) {
+    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER, AppView.LABELS, AppView.ITEMS_SUMMARY)) {
         FloatingActionButton(
             onClick = onAddTransaction,
             containerColor = MaterialTheme.colorScheme.primary,
@@ -2065,8 +2065,12 @@ private fun ScreenRouter(
             accountsWithBalances = accountsWithBalances,
             transactions = transactionsWithDetails,
             categories = allCategories,
+            allAccounts = allAccounts,
             languageMode = languageMode,
-            onOpenDrawer = onOpenDrawer
+            onOpenDrawer = onOpenDrawer,
+            onAddTransactionWithCategory = onAddTransactionWithCategory,
+            onEditTransaction = onEditTransaction,
+            onAccountClick = onAccountClick
         )
         AppView.LABELS -> LabelsScreen(
             transactions = transactionsWithDetails,
