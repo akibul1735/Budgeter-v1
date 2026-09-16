@@ -254,6 +254,9 @@ object BalanceSheetHelper {
                     }
 
                     val isInc = accountCalcConfig.isIncluded(acc.id)
+                    if (!isInc) {
+                        continue
+                    }
                     val adj = accountCalcConfig.getAdjustment(acc.id)
                     val effBase = if (!isInc) 0.0 else (baseBal + adj)
                     val effCurr = if (!isInc) 0.0 else (currBal + adj)
@@ -300,15 +303,18 @@ object BalanceSheetHelper {
                         effectiveBaseBalance = effBase,
                         effectiveCurrentBalance = effCurr
                     )
-                }.filter { !excludeZeroAmounts || Math.abs(it.baseBalance) > 0.001 || Math.abs(it.currentBalance) > 0.001 }
+                }.filter { it.isIncludedInCalc && (!excludeZeroAmounts || Math.abs(it.baseBalance) > 0.001 || Math.abs(it.currentBalance) > 0.001) }
 
                 val isParentInc = accountCalcConfig.isIncluded(parent.id)
+                if (!isParentInc && subRows.isEmpty()) {
+                    continue
+                }
                 val parentAdj = accountCalcConfig.getAdjustment(parent.id)
                 val parentBaseBal = if (subRows.isNotEmpty()) subRows.sumOf { it.baseBalance } else (baseBalanceMap[parent.id] ?: 0.0)
                 val parentCurrBal = if (subRows.isNotEmpty()) subRows.sumOf { it.currentBalance } else (currBalanceMap[parent.id] ?: 0.0)
 
-                val effectiveGroupBase = if (!isParentInc) 0.0 else if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveBaseBalance } + parentAdj else parentBaseBal + parentAdj
-                val effectiveGroupCurr = if (!isParentInc) 0.0 else if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveCurrentBalance } + parentAdj else parentCurrBal + parentAdj
+                val effectiveGroupBase = if (!isParentInc) (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveBaseBalance } else 0.0) else (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveBaseBalance } + parentAdj else parentBaseBal + parentAdj)
+                val effectiveGroupCurr = if (!isParentInc) (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveCurrentBalance } else 0.0) else (if (subRows.isNotEmpty()) subRows.sumOf { it.effectiveCurrentBalance } + parentAdj else parentCurrBal + parentAdj)
 
                 if (!excludeZeroAmounts || Math.abs(parentBaseBal) > 0.001 || Math.abs(parentCurrBal) > 0.001 || subRows.isNotEmpty()) {
                     if (filterNonZeroGroups && Math.abs(effectiveGroupCurr) < 0.001 && Math.abs(effectiveGroupBase) < 0.001) {

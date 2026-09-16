@@ -1959,6 +1959,20 @@ private fun ScreenRouter(
                 onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) },
                 onAccountClick = onAccountClick,
                 accountCalcConfig = accountCalcConfig,
+                onToggleActiveStatus = { acc, active ->
+                    viewModel.saveAccount(acc.copy(isActive = active))
+                    if (acc.parentId == null) {
+                        val childAccounts = allAccounts.filter { it.parentId == acc.id }
+                        if (childAccounts.isNotEmpty()) {
+                            viewModel.updateAccounts(childAccounts.map { it.copy(isActive = active) })
+                        }
+                    } else if (active) {
+                        val parent = allAccounts.firstOrNull { it.id == acc.parentId }
+                        if (parent != null && !parent.isActive) {
+                            viewModel.saveAccount(parent.copy(isActive = true))
+                        }
+                    }
+                },
                 onToggleIncludeStatus = { acc, isIncluded ->
                     viewModel.setAccountIncludeStatus(acc.id, isIncluded)
                 },

@@ -122,9 +122,12 @@ import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.dialogs.AccountCalculationDialog
+import com.example.ui.dialogs.ExcludedAccountsDialog
+import com.example.ui.dialogs.InactiveAccountsDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import androidx.compose.material.icons.filled.PauseCircle
 import com.example.util.AccountCalcConfig
 import com.example.util.BalanceSheetAccountRow
 import com.example.util.BalanceSheetComparisonData
@@ -304,6 +307,7 @@ fun BalanceSheetScreen(
     onAddTransactionClick: () -> Unit,
     onAccountClick: ((Account) -> Unit)? = null,
     accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
+    onToggleActiveStatus: ((Account, Boolean) -> Unit)? = null,
     onToggleIncludeStatus: ((Account, Boolean) -> Unit)? = null,
     onSaveCalculationSetting: ((Account, Boolean, Double) -> Unit)? = null,
     onResetAccountCalculation: ((Account) -> Unit)? = null
@@ -335,12 +339,22 @@ fun BalanceSheetScreen(
 
     // Modal Filter Dialog & Calculation Mode
     var showFilterDialog by remember { mutableStateOf(false) }
+    var showExcludedAccountsDialog by remember { mutableStateOf(false) }
+    var showInactiveAccountsDialog by remember { mutableStateOf(false) }
     var isCalcMode by remember { mutableStateOf(false) }
     var calcDialogTarget by remember { mutableStateOf<Pair<Account, Double>?>(null) }
     var isDualDateFlow by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var activeTabMode by remember { mutableStateOf("ASSETS") } // "ASSETS" or "LIABILITIES"
     var isSpeedDialExpanded by remember { mutableStateOf(false) }
+
+    // Counts for Excluded and Inactive accounts
+    val excludedAccountsCount = remember(accounts, accountCalcConfig) {
+        accounts.count { !accountCalcConfig.isIncluded(it.id) }
+    }
+    val inactiveAccountsCount = remember(accounts) {
+        accounts.count { !it.isActive }
+    }
 
     // Date Pickers for Custom Mode
     var showBaseDatePicker by remember { mutableStateOf(false) }
@@ -619,7 +633,97 @@ fun BalanceSheetScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.padding(bottom = 12.dp)
                     ) {
-                        // Option 1: Add Account
+                        // Option 1: Inactive Accounts
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                val label = if (languageMode == LanguageMode.BANGLA) {
+                                    if (inactiveAccountsCount > 0) "নিষ্ক্রিয় অ্যাকাউন্ট ($inactiveAccountsCount)" else "নিষ্ক্রিয় অ্যাকাউন্ট"
+                                } else {
+                                    if (inactiveAccountsCount > 0) "Inactive Accounts ($inactiveAccountsCount)" else "Inactive Accounts"
+                                }
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    showInactiveAccountsDialog = true
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shadowElevation = 4.dp,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.PauseCircle,
+                                        contentDescription = "Inactive Accounts",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Option 2: Excluded Accounts
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                val label = if (languageMode == LanguageMode.BANGLA) {
+                                    if (excludedAccountsCount > 0) "বাদ দেওয়া অ্যাকাউন্ট ($excludedAccountsCount)" else "বাদ দেওয়া অ্যাকাউন্ট"
+                                } else {
+                                    if (excludedAccountsCount > 0) "Excluded Accounts ($excludedAccountsCount)" else "Excluded Accounts"
+                                }
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    showExcludedAccountsDialog = true
+                                },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                shadowElevation = 4.dp,
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.VisibilityOff,
+                                        contentDescription = "Excluded Accounts",
+                                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Option 3: Add Account
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.End
@@ -659,7 +763,7 @@ fun BalanceSheetScreen(
                             }
                         }
 
-                        // Option 2: Add Transaction
+                        // Option 4: Add Transaction
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.End
@@ -823,6 +927,40 @@ fun BalanceSheetScreen(
                 onResetAccountCalculation?.invoke(targetAccount)
                 calcDialogTarget = null
             }
+        )
+    }
+
+    // Excluded Accounts Dialog
+    if (showExcludedAccountsDialog) {
+        ExcludedAccountsDialog(
+            allAccounts = accounts,
+            transactions = transactions,
+            accountCalcConfig = accountCalcConfig,
+            languageMode = languageMode,
+            onDismiss = { showExcludedAccountsDialog = false },
+            onToggleIncludeStatus = { acc, isIncluded ->
+                onToggleIncludeStatus?.invoke(acc, isIncluded)
+            },
+            onAdjustCalculation = { acc, bal ->
+                calcDialogTarget = Pair(acc, bal)
+                showExcludedAccountsDialog = false
+            },
+            onAccountClick = onAccountClick
+        )
+    }
+
+    // Inactive Accounts Dialog
+    if (showInactiveAccountsDialog) {
+        InactiveAccountsDialog(
+            allAccounts = accounts,
+            transactions = transactions,
+            languageMode = languageMode,
+            onDismiss = { showInactiveAccountsDialog = false },
+            onToggleActiveStatus = { acc, isActive ->
+                onToggleActiveStatus?.invoke(acc, isActive)
+            },
+            onEditAccountClick = onEditAccountClick,
+            onAccountClick = onAccountClick
         )
     }
 
