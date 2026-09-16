@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Label
@@ -33,10 +38,10 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -54,44 +59,45 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Account
+import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.Transaction
+import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.ExportMenuButton
+import com.example.ui.components.LocalHeaderScrollState
+import com.example.ui.dialogs.AggregatedDatePreset
+import com.example.ui.dialogs.AggregatedFilterDialog
+import com.example.ui.dialogs.AggregatedFilterState
+import com.example.ui.dialogs.AggregatedSortOrder
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.DateUtils
 import com.example.util.LanguageHelper
 import com.example.util.TabExportHelper
-import androidx.compose.ui.platform.LocalContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-enum class LabelSortOption {
-    SUM_AMOUNT_DESC,
-    COUNT_DESC,
-    NAME_ASC
-}
+private val CrimsonPink = Color(0xFFE91E63)
+private val SlateText = Color(0xFF64748B)
 
-enum class LabelDateFilterPreset {
-    ALL_TIME,
-    THIS_MONTH,
-    LAST_MONTH,
-    THIS_YEAR,
-    LAST_30_DAYS,
-    CUSTOM
-}
+typealias LabelSortOption = AggregatedSortOrder
+typealias LabelDateFilterPreset = AggregatedDatePreset
 
 data class AggregatedLabel(
     val labelName: String,
@@ -107,25 +113,21 @@ data class AggregatedLabel(
 @Composable
 fun LabelsScreen(
     transactions: List<TransactionWithDetails>,
+    categories: List<Category> = emptyList(),
     accounts: List<Account> = emptyList(),
     languageMode: LanguageMode,
     onOpenDrawer: () -> Unit = {},
-    onTransactionClick: (Transaction) -> Unit
+    onTransactionClick: (Transaction) -> Unit,
+    onAddTransactionClick: ((TransactionType) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
-    var selectedTypeFilter by remember { mutableStateOf<TransactionType?>(null) }
-    var selectedPreset by remember { mutableStateOf(LabelDateFilterPreset.THIS_MONTH) }
-    var sortOption by remember { mutableStateOf(LabelSortOption.SUM_AMOUNT_DESC) }
-    var minAmountFilter by remember { mutableDoubleStateOf(0.0) }
-    var customStartDateMs by remember { mutableLongStateOf(0L) }
-    var customEndDateMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var activeTabMode by remember { mutableStateOf("EXPENSE") }
+    var filterState by remember { mutableStateOf(AggregatedFilterState()) }
 
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var selectedDrilldownLabel by remember { mutableStateOf<AggregatedLabel?>(null) }
-    var showCustomStartPicker by remember { mutableStateOf(false) }
-    var showCustomEndPicker by remember { mutableStateOf(false) }
 
     if (showTimelineScreen) {
         LabelsTimelineScreen(
@@ -138,50 +140,35 @@ fun LabelsScreen(
     }
 
     // Date Bounds
-    val (startEpochMs, endEpochMs) = remember(selectedPreset, customStartDateMs, customEndDateMs) {
-        val now = System.currentTimeMillis()
-        val cal = Calendar.getInstance().apply { timeInMillis = now }
-        when (selectedPreset) {
-            LabelDateFilterPreset.ALL_TIME -> Pair(0L, Long.MAX_VALUE)
-            LabelDateFilterPreset.THIS_MONTH -> {
-                val year = cal.get(Calendar.YEAR)
-                val month = cal.get(Calendar.MONTH) + 1
-                Pair(DateUtils.getStartOfMonth(year, month), DateUtils.getEndOfMonth(year, month))
-            }
-            LabelDateFilterPreset.LAST_MONTH -> {
-                cal.set(Calendar.DAY_OF_MONTH, 1)
-                cal.add(Calendar.MONTH, -1)
-                val prevYear = cal.get(Calendar.YEAR)
-                val prevMonth = cal.get(Calendar.MONTH) + 1
-                Pair(DateUtils.getStartOfMonth(prevYear, prevMonth), DateUtils.getEndOfMonth(prevYear, prevMonth))
-            }
-            LabelDateFilterPreset.THIS_YEAR -> {
-                val year = cal.get(Calendar.YEAR)
-                Pair(DateUtils.getStartOfMonth(year, 1), DateUtils.getEndOfMonth(year, 12))
-            }
-            LabelDateFilterPreset.LAST_30_DAYS -> {
-                val endOfToday = DateUtils.getStartOfDay(now) + 86400000L - 1L
-                Pair(now - (30L * 24L * 60L * 60L * 1000L), endOfToday)
-            }
-            LabelDateFilterPreset.CUSTOM -> Pair(customStartDateMs, customEndDateMs)
-        }
+    val (startEpochMs, endEpochMs) = remember(filterState.datePreset, filterState.customStartDateMs, filterState.customEndDateMs) {
+        filterState.calculateDateRange()
     }
+
+    val currentTargetType = if (activeTabMode == "EXPENSE") TransactionType.EXPENSE else TransactionType.INCOME
+    val effectiveType = filterState.transactionType ?: currentTargetType
 
     // Extract tags/labels from transaction notes & referenceNo
     val aggregatedLabels = remember(
         transactions,
         searchQuery,
-        selectedTypeFilter,
+        effectiveType,
         startEpochMs,
         endEpochMs,
-        sortOption,
-        minAmountFilter
+        filterState
     ) {
         val filteredTxs = transactions.filter { item ->
             val tx = item.transaction
             val matchesDate = tx.dateEpochMs in startEpochMs..endEpochMs
-            val matchesType = selectedTypeFilter == null || tx.type == selectedTypeFilter
-            matchesDate && matchesType
+            val matchesType = tx.type == effectiveType
+            val matchesAccount = filterState.selectedAccountIds.isEmpty() ||
+                    (tx.debitAccountId != null && tx.debitAccountId in filterState.selectedAccountIds) ||
+                    (tx.creditAccountId != null && tx.creditAccountId in filterState.selectedAccountIds)
+            val matchesCategory = filterState.selectedCategoryIds.isEmpty() ||
+                    (tx.categoryId != null && tx.categoryId in filterState.selectedCategoryIds) ||
+                    (tx.subCategoryId != null && tx.subCategoryId in filterState.selectedCategoryIds)
+            val matchesStatus = filterState.selectedStatuses.isEmpty() || tx.status in filterState.selectedStatuses
+
+            matchesDate && matchesType && matchesAccount && matchesCategory && matchesStatus
         }
 
         // Map: label string -> list of TransactionWithDetails
@@ -196,7 +183,7 @@ fun LabelsScreen(
             val hashtagRegex = Regex("#[\\w\\u0980-\\u09FF]+")
             val foundTags = hashtagRegex.findAll("$note $ref").map { it.value }.toMutableSet()
 
-            // If no hashtag found, and note is short (e.g. single word tag like "Gift", "Bonus", "Electric"), treat note as label
+            // If no hashtag found, and note is short, treat note as label
             if (foundTags.isEmpty() && note.isNotBlank()) {
                 val cleanNote = note.trim()
                 if (cleanNote.length <= 25 && !cleanNote.contains("\n")) {
@@ -215,13 +202,14 @@ fun LabelsScreen(
             }
         }
 
-        val totalTaggedExpense = filteredTxs.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
+        val totalTaggedFlow = filteredTxs.sumOf { it.transaction.amount }
 
         val list = labelMap.map { (tagName, txList) ->
             val expenseSum = txList.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
             val incomeSum = txList.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
+            val currentSum = if (effectiveType == TransactionType.EXPENSE) expenseSum else incomeSum
             val totalSum = expenseSum + incomeSum
-            val share = if (totalTaggedExpense > 0 && expenseSum > 0) (expenseSum / totalTaggedExpense) * 100.0 else 0.0
+            val share = if (totalTaggedFlow > 0 && currentSum > 0) (currentSum / totalTaggedFlow) * 100.0 else 0.0
 
             AggregatedLabel(
                 labelName = tagName,
@@ -233,161 +221,333 @@ fun LabelsScreen(
                 percentageShare = share
             )
         }.filter { label ->
-            label.totalSum >= minAmountFilter && (searchQuery.isBlank() || label.labelName.contains(searchQuery, ignoreCase = true))
+            val totalAmt = if (effectiveType == TransactionType.EXPENSE) label.totalExpense else label.totalIncome
+            val matchesSearch = searchQuery.isBlank() || label.labelName.contains(searchQuery, ignoreCase = true)
+            val matchesMin = filterState.minAmount == null || totalAmt >= filterState.minAmount!!
+            val matchesMax = filterState.maxAmount == null || totalAmt <= filterState.maxAmount!!
+            val matchesZero = !filterState.excludeZeroAmounts || totalAmt > 0
+
+            matchesSearch && matchesMin && matchesMax && matchesZero
         }
 
-        when (sortOption) {
-            LabelSortOption.SUM_AMOUNT_DESC -> list.sortedByDescending { it.totalSum }
-            LabelSortOption.COUNT_DESC -> list.sortedByDescending { it.transactionCount }
-            LabelSortOption.NAME_ASC -> list.sortedBy { it.labelName.lowercase() }
+        when (filterState.sortOrder) {
+            AggregatedSortOrder.AMOUNT_DESC -> list.sortedByDescending { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
+            AggregatedSortOrder.AMOUNT_ASC -> list.sortedBy { if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome }
+            AggregatedSortOrder.COUNT_DESC -> list.sortedByDescending { it.transactionCount }
+            AggregatedSortOrder.COUNT_ASC -> list.sortedBy { it.transactionCount }
+            AggregatedSortOrder.AVG_DESC -> list.sortedByDescending {
+                val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome
+                if (it.transactionCount > 0) amt / it.transactionCount else 0.0
+            }
+            AggregatedSortOrder.AVG_ASC -> list.sortedBy {
+                val amt = if (effectiveType == TransactionType.EXPENSE) it.totalExpense else it.totalIncome
+                if (it.transactionCount > 0) amt / it.transactionCount else 0.0
+            }
+            AggregatedSortOrder.NAME_ASC -> list.sortedBy { it.labelName.lowercase() }
+            AggregatedSortOrder.NAME_DESC -> list.sortedByDescending { it.labelName.lowercase() }
+            AggregatedSortOrder.RECENT_DATE -> list.sortedByDescending { it.transactions.firstOrNull()?.transaction?.dateEpochMs ?: 0L }
         }
     }
 
-    val totalExpenseOverall = remember(aggregatedLabels) { aggregatedLabels.sumOf { it.totalExpense } }
-    val totalIncomeOverall = remember(aggregatedLabels) { aggregatedLabels.sumOf { it.totalIncome } }
+    val totalFlowOverall = remember(aggregatedLabels, activeTabMode) {
+        aggregatedLabels.sumOf { if (activeTabMode == "EXPENSE") it.totalExpense else it.totalIncome }
+    }
 
-    val activeFilterSummary = remember(
-        selectedPreset, customStartDateMs, customEndDateMs,
-        selectedTypeFilter, minAmountFilter, searchQuery, languageMode
-    ) {
-        val parts = mutableListOf<String>()
-        when (selectedPreset) {
-            LabelDateFilterPreset.ALL_TIME -> {}
-            LabelDateFilterPreset.THIS_MONTH -> parts.add(if (languageMode == LanguageMode.BANGLA) "চলতি মাস" else "This Month")
-            LabelDateFilterPreset.LAST_MONTH -> parts.add(if (languageMode == LanguageMode.BANGLA) "গত মাস" else "Last Month")
-            LabelDateFilterPreset.THIS_YEAR -> parts.add(if (languageMode == LanguageMode.BANGLA) "চলতি বছর" else "This Year")
-            LabelDateFilterPreset.LAST_30_DAYS -> parts.add(if (languageMode == LanguageMode.BANGLA) "বিগত ৩০ দিন" else "Last 30 Days")
-            LabelDateFilterPreset.CUSTOM -> {
-                val s = DateUtils.formatDate(customStartDateMs, languageMode)
-                val e = DateUtils.formatDate(customEndDateMs, languageMode)
-                parts.add("$s - $e")
-            }
-        }
-
-        if (selectedTypeFilter != null) {
-            val typeName = when (selectedTypeFilter) {
-                TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
-                TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
-                TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
-                else -> ""
-            }
-            if (typeName.isNotEmpty()) parts.add(typeName)
-        }
-
-        if (minAmountFilter > 0.0) {
-            parts.add("≥ ৳$minAmountFilter")
-        }
-
+    val activeFilterSummary = remember(filterState, searchQuery, languageMode) {
+        val summary = filterState.buildFilterSummary(languageMode)
         if (searchQuery.isNotBlank()) {
-            parts.add("\"${searchQuery.trim()}\"")
+            if (summary.isNotBlank()) "$summary • \"${searchQuery.trim()}\"" else "\"${searchQuery.trim()}\""
+        } else {
+            summary
         }
-
-        parts.joinToString(" • ")
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        AppTabHeader(
-            title = LanguageHelper.getString("labels", languageMode),
-            searchQuery = searchQuery,
-            onSearchQueryChange = { searchQuery = it },
-            searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ খুঁজুন..." else "Search labels/tags...",
-            showSearchButton = true,
-            showFilterButton = true,
-            isFilterActive = selectedPreset != LabelDateFilterPreset.THIS_MONTH || selectedTypeFilter != null || minAmountFilter > 0.0,
-            onFilterClick = { showFilterDialog = true },
-            showTimelineButton = true,
-            onTimelineClick = { showTimelineScreen = true },
-            onOpenDrawer = onOpenDrawer,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
-            actions = {
-                ExportMenuButton(
-                    languageMode = languageMode,
-                    onExport = { format ->
-                        TabExportHelper.exportLabels(
-                            context = context,
-                            format = format,
-                            filterSubtitle = activeFilterSummary,
-                            labels = aggregatedLabels,
-                            languageMode = languageMode
-                        )
-                    }
-                )
-            }
-        )
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
 
-        // Summary Overview Header
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTabHeader(
+                title = LanguageHelper.getString("labels", languageMode),
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ খুঁজুন..." else "Search labels/tags...",
+                showSearchButton = true,
+                showFilterButton = true,
+                isFilterActive = filterState.isFilterActive,
+                activeFilterCount = filterState.activeFilterCount,
+                onFilterClick = { showFilterDialog = true },
+                showTimelineButton = true,
+                onTimelineClick = { showTimelineScreen = true },
+                onOpenDrawer = onOpenDrawer,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 2.dp),
+                actions = {
+                    ExportMenuButton(
+                        languageMode = languageMode,
+                        onExport = { format ->
+                            TabExportHelper.exportLabels(
+                                context = context,
+                                format = format,
+                                filterSubtitle = activeFilterSummary,
+                                labels = aggregatedLabels,
+                                languageMode = languageMode
+                            )
+                        }
+                    )
+                }
+            )
+
+            // Net Earnings Style Summary Card
+            Surface(
+                color = if (isLight) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                LabelSummaryCard(
-                    title = if (languageMode == LanguageMode.BANGLA) "সক্রিয় লেবেল" else "Active Labels",
-                    value = "${aggregatedLabels.size}",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                LabelSummaryCard(
-                    title = if (languageMode == LanguageMode.BANGLA) "ট্যাগকৃত খরচ" else "Tagged Expense",
-                    value = "৳ ${LanguageHelper.formatCurrency(totalExpenseOverall, languageMode)}",
-                    color = SolidExpense,
-                    modifier = Modifier.weight(1.3f)
-                )
-                if (totalIncomeOverall > 0) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    LabelSummaryCard(
-                        title = if (languageMode == LanguageMode.BANGLA) "ট্যাগকৃত আয়" else "Tagged Income",
-                        value = "৳ ${LanguageHelper.formatCurrency(totalIncomeOverall, languageMode)}",
-                        color = SolidIncome,
-                        modifier = Modifier.weight(1.3f)
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (activeTabMode == "EXPENSE") {
+                                if (languageMode == LanguageMode.BANGLA) "মোট ব্যয় (Labels Expense)" else "Total Labels Expense"
+                            } else {
+                                if (languageMode == LanguageMode.BANGLA) "মোট আয় (Labels Income)" else "Total Labels Income"
+                            },
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = SlateText
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "৳ ${LanguageHelper.formatCurrency(totalFlowOverall, languageMode)}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
+                                    fontSize = 9.5.sp,
+                                    color = SlateText
+                                )
+                                Text(
+                                    text = LanguageHelper.formatNumber(aggregatedLabels.size.toDouble(), languageMode, false),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            val totalTxCount = aggregatedLabels.sumOf { it.transactionCount }
+                            Column(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "লেনদেন" else "Txns",
+                                    fontSize = 9.5.sp,
+                                    color = SlateText
+                                )
+                                Text(
+                                    text = LanguageHelper.formatNumber(totalTxCount.toDouble(), languageMode, false),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Labels List
+            if (aggregatedLabels.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.LocalOffer,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কোন লেবেল পাওয়া যায়নি (নোট এ #ট্যাগ ব্যবহার করুন)" else "No labels found (use #tags in transaction notes)",
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 125.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    items(aggregatedLabels, key = { it.labelName }) { label ->
+                        AggregatedLabelCard(
+                            label = label,
+                            languageMode = languageMode,
+                            onClick = { selectedDrilldownLabel = label }
+                        )
+                    }
                 }
             }
         }
 
-        // Labels List
-        if (aggregatedLabels.isEmpty()) {
-            Box(
+        // Pinned Auto-Hiding Bottom Container with Segmented Toggle & Single Docked FAB
+        val headerScrollState = LocalHeaderScrollState.current
+        AutoHidingBottomContainer(
+            headerScrollState = headerScrollState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.LocalOffer,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "কোন লেবেল পাওয়া যায়নি (নোট এ #ট্যাগ ব্যবহার করুন)" else "No labels found (use #tags in transaction notes)",
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                // Single FAB above toggle, aligned to End
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    FloatingActionButton(
+                        onClick = {
+                            val targetType = if (activeTabMode == "EXPENSE") TransactionType.EXPENSE else TransactionType.INCOME
+                            onAddTransactionClick?.invoke(targetType)
+                        },
+                        containerColor = if (activeTabMode == "EXPENSE") Color(0xFF2563EB) else SolidIncome,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .testTag("labels_add_fab")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেন" else "Add Transaction",
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(aggregatedLabels, key = { it.labelName }) { label ->
-                    AggregatedLabelCard(
-                        label = label,
-                        languageMode = languageMode,
-                        onClick = { selectedDrilldownLabel = label }
-                    )
+
+                // Segmented Toggle: [ Expenses (ব্যয়) | Income (আয়) ]
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Expense Button
+                        val isExpense = activeTabMode == "EXPENSE"
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isExpense) CrimsonPink.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { activeTabMode = "EXPENSE" }
+                                .testTag("labels_mode_expense")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingDown,
+                                    contentDescription = null,
+                                    tint = if (isExpense) CrimsonPink else SlateText,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "ব্যয় (Expenses)" else "Expenses",
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isExpense) CrimsonPink else SlateText
+                                )
+                            }
+                        }
+
+                        // Income Button
+                        val isIncome = activeTabMode == "INCOME"
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isIncome) SolidIncome.copy(alpha = 0.16f) else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { activeTabMode = "INCOME" }
+                                .testTag("labels_mode_income")
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    tint = if (isIncome) SolidIncome else SlateText,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "আয় (Income)" else "Income",
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isIncome) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isIncome) SolidIncome else SlateText
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -504,106 +664,23 @@ fun LabelsScreen(
         )
     }
 
-    // Vast Filter Dialog
+    // Filter & Sort Dialog
     if (showFilterDialog) {
-        LabelsFilterDialog(
-            currentPreset = selectedPreset,
-            currentType = selectedTypeFilter,
-            currentSort = sortOption,
-            currentMinAmount = minAmountFilter,
+        AggregatedFilterDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "লেবেল ফিল্টার ও সাজানো" else "Filter & Sort Labels",
+            currentState = filterState,
+            categories = categories,
+            accounts = accounts,
             languageMode = languageMode,
-            onApply = { newPreset, newType, newSort, newMin ->
-                selectedPreset = newPreset
-                selectedTypeFilter = newType
-                sortOption = newSort
-                minAmountFilter = newMin
+            onDismiss = { showFilterDialog = false },
+            onApply = { newFilter ->
+                filterState = newFilter
                 showFilterDialog = false
-            },
-            onSelectCustomRange = {
-                showFilterDialog = false
-                showCustomStartPicker = true
-            },
-            onDismiss = { showFilterDialog = false }
+            }
         )
     }
-
-    // Custom Date Range Pickers
-    if (showCustomStartPicker) {
-        val dateState = rememberDatePickerState()
-        DatePickerDialog(
-            onDismissRequest = { showCustomStartPicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    dateState.selectedDateMillis?.let {
-                        customStartDateMs = it
-                        showCustomStartPicker = false
-                        showCustomEndPicker = true
-                    }
-                }) {
-                    Text("Next: End Date")
-                }
-            },
-            dismissButton = { TextButton(onClick = { showCustomStartPicker = false }) { Text("Cancel") } }
-        ) {
-            DatePicker(state = dateState, title = { Text("Select Start Date", modifier = Modifier.padding(16.dp)) })
-        }
-    }
-
-    if (showCustomEndPicker) {
-        val dateState = rememberDatePickerState()
-        DatePickerDialog(
-            onDismissRequest = { showCustomEndPicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    dateState.selectedDateMillis?.let {
-                        customEndDateMs = it + (24L * 60L * 60L * 1000L - 1L)
-                        selectedPreset = LabelDateFilterPreset.CUSTOM
-                        showCustomEndPicker = false
-                    }
-                }) {
-                    Text("Apply Range")
-                }
-            },
-            dismissButton = { TextButton(onClick = { showCustomEndPicker = false }) { Text("Cancel") } }
-        ) {
-            DatePicker(state = dateState, title = { Text("Select End Date", modifier = Modifier.padding(16.dp)) })
-        }
-    }
 }
 
-@Composable
-private fun LabelSummaryCard(
-    title: String,
-    value: String,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = color.copy(alpha = 0.1f),
-        modifier = modifier
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = title,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = color,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
 
 @Composable
 private fun AggregatedLabelCard(
@@ -611,99 +688,123 @@ private fun AggregatedLabelCard(
     languageMode: LanguageMode,
     onClick: () -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    val isExpense = label.totalExpense >= label.totalIncome
+    val typeColor = if (isExpense) CrimsonPink else SolidIncome
+
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    val cardBgColor = if (isLight) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    }
+    val cardBorder = if (isLight) {
+        BorderStroke(1.3.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+    } else {
+        BorderStroke(1.1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    }
+
+    val cardShape = RoundedCornerShape(11.dp)
+    Surface(
+        color = cardBgColor,
+        shape = cardShape,
+        border = cardBorder,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
         modifier = Modifier
             .fillMaxWidth()
+            .clip(cardShape)
             .clickable { onClick() }
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 7.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Label badge & count
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
+                // Left Icon Badge (32dp)
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(typeColor.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.padding(end = 10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Label,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = label.labelName,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    Text(
-                        text = "${label.transactionCount} txs",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icon(
+                        imageVector = Icons.Default.Label,
+                        contentDescription = null,
+                        tint = typeColor,
+                        modifier = Modifier.size(17.dp)
                     )
                 }
 
-                // Sum Amount
+                Spacer(modifier = Modifier.width(9.dp))
+
+                // Middle Column: Label Name (13sp) + Subtitle + Percentage Badge (9sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = label.labelName,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(1.5.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val subtitle = "${label.transactionCount} ${if (languageMode == LanguageMode.BANGLA) "টি লেনদেন" else "txs"}"
+                        Text(
+                            text = subtitle,
+                            fontSize = 10.5.sp,
+                            color = SlateText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+
+                        if (label.percentageShare > 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                                shape = RoundedCornerShape(3.5.dp)
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "${label.percentageShare.toInt()}% মোট" else "${label.percentageShare.toInt()}% of total",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = SlateText,
+                                    modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 0.5.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // Right Column: Actual Amount (13.5sp) + Average (10sp)
+                val totalAmt = if (isExpense) label.totalExpense else label.totalIncome
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "৳ ${LanguageHelper.formatCurrency(label.totalSum, languageMode)}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = if (label.totalExpense >= label.totalIncome) SolidExpense else SolidIncome
+                        text = "৳ ${LanguageHelper.formatCurrency(totalAmt, languageMode)}",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = typeColor,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
                     )
-                    val avg = label.totalSum / label.transactionCount
+                    val avg = if (label.transactionCount > 0) totalAmt / label.transactionCount else 0.0
                     Text(
                         text = "Avg: ৳ ${LanguageHelper.formatCurrency(avg, languageMode)}",
                         fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
-            }
-
-            // Percentage Share Bar
-            if (label.percentageShare > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    LinearProgressIndicator(
-                        progress = { (label.percentageShare / 100.0).toFloat().coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "${String.format(Locale.US, "%.1f", label.percentageShare)}%",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = SlateText,
+                        textAlign = TextAlign.End,
+                        maxLines = 1
                     )
                 }
             }
@@ -711,144 +812,4 @@ private fun AggregatedLabelCard(
     }
 }
 
-@Composable
-fun LabelsFilterDialog(
-    currentPreset: LabelDateFilterPreset,
-    currentType: TransactionType?,
-    currentSort: LabelSortOption,
-    currentMinAmount: Double,
-    languageMode: LanguageMode,
-    onApply: (LabelDateFilterPreset, TransactionType?, LabelSortOption, Double) -> Unit,
-    onSelectCustomRange: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var tempPreset by remember { mutableStateOf(currentPreset) }
-    var tempType by remember { mutableStateOf(currentType) }
-    var tempSort by remember { mutableStateOf(currentSort) }
-    var tempMinStr by remember { mutableStateOf(if (currentMinAmount > 0) currentMinAmount.toInt().toString() else "") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (languageMode == LanguageMode.BANGLA) "লেবেল ফিল্টার ও সাজানো" else "Filter & Sort Labels",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Timeframe Presets
-                Text("Date Period:", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilterChip(
-                        selected = tempPreset == LabelDateFilterPreset.ALL_TIME,
-                        onClick = { tempPreset = LabelDateFilterPreset.ALL_TIME },
-                        label = { Text("All Time", fontSize = 10.sp) }
-                    )
-                    FilterChip(
-                        selected = tempPreset == LabelDateFilterPreset.THIS_MONTH,
-                        onClick = { tempPreset = LabelDateFilterPreset.THIS_MONTH },
-                        label = { Text("This Month", fontSize = 10.sp) }
-                    )
-                    FilterChip(
-                        selected = tempPreset == LabelDateFilterPreset.LAST_MONTH,
-                        onClick = { tempPreset = LabelDateFilterPreset.LAST_MONTH },
-                        label = { Text("Last Month", fontSize = 10.sp) }
-                    )
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilterChip(
-                        selected = tempPreset == LabelDateFilterPreset.THIS_YEAR,
-                        onClick = { tempPreset = LabelDateFilterPreset.THIS_YEAR },
-                        label = { Text("This Year", fontSize = 10.sp) }
-                    )
-                    FilterChip(
-                        selected = tempPreset == LabelDateFilterPreset.LAST_30_DAYS,
-                        onClick = { tempPreset = LabelDateFilterPreset.LAST_30_DAYS },
-                        label = { Text("Last 30 Days", fontSize = 10.sp) }
-                    )
-                    FilterChip(
-                        selected = tempPreset == LabelDateFilterPreset.CUSTOM,
-                        onClick = {
-                            tempPreset = LabelDateFilterPreset.CUSTOM
-                            onSelectCustomRange()
-                        },
-                        label = { Text("Custom 📅", fontSize = 10.sp) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Transaction Type
-                Text("Transaction Type:", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = tempType == null,
-                        onClick = { tempType = null },
-                        label = { Text("All", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = tempType == TransactionType.EXPENSE,
-                        onClick = { tempType = TransactionType.EXPENSE },
-                        label = { Text("Expenses Only", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = tempType == TransactionType.INCOME,
-                        onClick = { tempType = TransactionType.INCOME },
-                        label = { Text("Incomes Only", fontSize = 11.sp) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Sort Options
-                Text("Sort Order:", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = tempSort == LabelSortOption.SUM_AMOUNT_DESC,
-                        onClick = { tempSort = LabelSortOption.SUM_AMOUNT_DESC },
-                        label = { Text("Highest Sum", fontSize = 10.sp) }
-                    )
-                    FilterChip(
-                        selected = tempSort == LabelSortOption.COUNT_DESC,
-                        onClick = { tempSort = LabelSortOption.COUNT_DESC },
-                        label = { Text("Most Frequent", fontSize = 10.sp) }
-                    )
-                    FilterChip(
-                        selected = tempSort == LabelSortOption.NAME_ASC,
-                        onClick = { tempSort = LabelSortOption.NAME_ASC },
-                        label = { Text("Name A-Z", fontSize = 10.sp) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Minimum Amount Threshold
-                OutlinedTextField(
-                    value = tempMinStr,
-                    onValueChange = { tempMinStr = it.filter { c -> c.isDigit() } },
-                    label = { Text("Minimum Tagged Sum (৳)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                val minAmt = tempMinStr.toDoubleOrNull() ?: 0.0
-                onApply(tempPreset, tempType, tempSort, minAmt)
-            }) {
-                Text("Apply Filters")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}

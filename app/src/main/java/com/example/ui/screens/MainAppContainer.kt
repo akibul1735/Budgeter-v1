@@ -1347,7 +1347,7 @@ private fun AppFab(
     currentView: AppView,
     onAddTransaction: () -> Unit
 ) {
-    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER, AppView.LABELS, AppView.ITEMS_SUMMARY)) {
+    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
         FloatingActionButton(
             onClick = onAddTransaction,
             containerColor = MaterialTheme.colorScheme.primary,
@@ -2074,17 +2074,21 @@ private fun ScreenRouter(
         )
         AppView.LABELS -> LabelsScreen(
             transactions = transactionsWithDetails,
+            categories = allCategories,
             accounts = allAccounts,
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer,
-            onTransactionClick = onEditTransaction
+            onTransactionClick = onEditTransaction,
+            onAddTransactionClick = onAddTransactionWithType
         )
         AppView.ITEMS_SUMMARY -> ItemsScreen(
             transactions = transactionsWithDetails,
+            categories = allCategories,
             accounts = allAccounts,
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer,
-            onTransactionClick = onEditTransaction
+            onTransactionClick = onEditTransaction,
+            onAddTransactionClick = onAddTransactionWithType
         )
         AppView.RECURRING_BILLS -> RecurringBillsScreen(
             viewModel = viewModel,
