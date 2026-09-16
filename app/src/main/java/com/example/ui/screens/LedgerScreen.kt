@@ -402,6 +402,12 @@ fun LedgerScreen(
                 val query = searchQuery.trim().lowercase()
                 val isRevertTx = tx.amount < 0
                 val revertKeywordMatch = (query == "revert" || query == "reverted" || query == "reversal" || query == "রিভার্স" || query == "রিভার্সাল") && isRevertTx
+                
+                val catGroup = allCategories.firstOrNull { it.id == item.category?.parentId || it.id == item.subCategory?.parentId }
+                val debitAccGroup = allAccounts.firstOrNull { it.id == item.debitAccount?.parentId }
+                val creditAccGroup = allAccounts.firstOrNull { it.id == item.creditAccount?.parentId }
+                val dateStr = DateUtils.formatDate(tx.dateEpochMs, languageMode).lowercase()
+
                 revertKeywordMatch ||
                         tx.note.lowercase().contains(query) ||
                         tx.payeeOrPayer.lowercase().contains(query) ||
@@ -410,8 +416,17 @@ fun LedgerScreen(
                         (item.category?.nameBn?.lowercase()?.contains(query) == true) ||
                         (item.subCategory?.nameEn?.lowercase()?.contains(query) == true) ||
                         (item.subCategory?.nameBn?.lowercase()?.contains(query) == true) ||
+                        (catGroup?.nameEn?.lowercase()?.contains(query) == true) ||
+                        (catGroup?.nameBn?.lowercase()?.contains(query) == true) ||
                         (item.debitAccount?.nameEn?.lowercase()?.contains(query) == true) ||
+                        (item.debitAccount?.nameBn?.lowercase()?.contains(query) == true) ||
+                        (debitAccGroup?.nameEn?.lowercase()?.contains(query) == true) ||
+                        (debitAccGroup?.nameBn?.lowercase()?.contains(query) == true) ||
                         (item.creditAccount?.nameEn?.lowercase()?.contains(query) == true) ||
+                        (item.creditAccount?.nameBn?.lowercase()?.contains(query) == true) ||
+                        (creditAccGroup?.nameEn?.lowercase()?.contains(query) == true) ||
+                        (creditAccGroup?.nameBn?.lowercase()?.contains(query) == true) ||
+                        dateStr.contains(query) ||
                         Math.abs(tx.amount).toString().contains(query)
             }
             matchesType && matchesDate && matchesAmount && matchesCategory && matchesAccount && matchesLabel && matchesStatus && matchesSearch
@@ -1282,6 +1297,8 @@ fun LedgerScreen(
         TransactionDetailViewDialog(
             item = viewItem,
             allTransactions = transactions,
+            allAccounts = allAccounts,
+            allCategories = allCategories,
             languageMode = languageMode,
             onDismiss = { viewingTransactionItem = null },
             onEdit = { tx ->
