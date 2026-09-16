@@ -24,6 +24,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +57,7 @@ import com.example.data.model.MonthlyBudget
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.util.BudgetChartShape
+import com.example.util.BudgetSummaryPeriod
 import com.example.util.BudgetSummaryType
 import com.example.util.LanguageHelper
 import java.util.Calendar
@@ -91,11 +93,15 @@ fun BudgetSummaryCard(
     monthlyBudgets: List<MonthlyBudget>,
     chartShape: BudgetChartShape,
     categoryType: BudgetSummaryType,
+    period: BudgetSummaryPeriod = BudgetSummaryPeriod.LAST_1_MONTH,
+    customStartEpoch: Long? = null,
+    customEndEpoch: Long? = null,
     maxCategories: Int,
     showPercentages: Boolean,
     showTodayPace: Boolean,
     languageMode: LanguageMode,
     onCategoryTypeChange: (BudgetSummaryType) -> Unit,
+    onPeriodChange: ((BudgetSummaryPeriod) -> Unit)? = null,
     onOpenSettings: () -> Unit,
     onCardClick: (() -> Unit)? = null
 ) {
@@ -107,25 +113,117 @@ fun BudgetSummaryCard(
     val maxDaysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
     val todayPaceRatio = (currentDayOfMonth.toFloat() / maxDaysInMonth.toFloat()).coerceIn(0f, 1f)
 
-    val currentYear = calendar.get(Calendar.YEAR)
-    val currentMonth = calendar.get(Calendar.MONTH) + 1
-
-    // Filter transactions for current month
-    val monthStartEpoch = remember(currentYear, currentMonth) {
+    val periodRange = remember(period, customStartEpoch, customEndEpoch) {
         val c = Calendar.getInstance()
-        c.set(currentYear, currentMonth - 1, 1, 0, 0, 0)
-        c.set(Calendar.MILLISECOND, 0)
-        c.timeInMillis
+        when (period) {
+            BudgetSummaryPeriod.LAST_7_DAYS -> {
+                val end = c.timeInMillis
+                c.add(Calendar.DAY_OF_YEAR, -6)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                Pair(c.timeInMillis, end)
+            }
+            BudgetSummaryPeriod.LAST_14_DAYS -> {
+                val end = c.timeInMillis
+                c.add(Calendar.DAY_OF_YEAR, -13)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                Pair(c.timeInMillis, end)
+            }
+            BudgetSummaryPeriod.LAST_1_MONTH -> {
+                c.set(Calendar.DAY_OF_MONTH, 1)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                val start = c.timeInMillis
+                c.set(Calendar.DAY_OF_MONTH, c.getActualMaximum(Calendar.DAY_OF_MONTH))
+                c.set(Calendar.HOUR_OF_DAY, 23)
+                c.set(Calendar.MINUTE, 59)
+                c.set(Calendar.SECOND, 59)
+                c.set(Calendar.MILLISECOND, 999)
+                Pair(start, c.timeInMillis)
+            }
+            BudgetSummaryPeriod.LAST_2_MONTHS -> {
+                val end = c.timeInMillis
+                c.add(Calendar.DAY_OF_YEAR, -59)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                Pair(c.timeInMillis, end)
+            }
+            BudgetSummaryPeriod.LAST_3_MONTHS -> {
+                val end = c.timeInMillis
+                c.add(Calendar.DAY_OF_YEAR, -89)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                Pair(c.timeInMillis, end)
+            }
+            BudgetSummaryPeriod.QUARTER -> {
+                val currentMonth0 = c.get(Calendar.MONTH)
+                val quarterStartMonth = (currentMonth0 / 3) * 3
+                c.set(Calendar.MONTH, quarterStartMonth)
+                c.set(Calendar.DAY_OF_MONTH, 1)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                val start = c.timeInMillis
+                c.set(Calendar.MONTH, quarterStartMonth + 2)
+                c.set(Calendar.DAY_OF_MONTH, c.getActualMaximum(Calendar.DAY_OF_MONTH))
+                c.set(Calendar.HOUR_OF_DAY, 23)
+                c.set(Calendar.MINUTE, 59)
+                c.set(Calendar.SECOND, 59)
+                c.set(Calendar.MILLISECOND, 999)
+                Pair(start, c.timeInMillis)
+            }
+            BudgetSummaryPeriod.HALF_YEAR -> {
+                val end = c.timeInMillis
+                c.add(Calendar.DAY_OF_YEAR, -179)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                Pair(c.timeInMillis, end)
+            }
+            BudgetSummaryPeriod.ONE_YEAR -> {
+                c.set(Calendar.DAY_OF_YEAR, 1)
+                c.set(Calendar.HOUR_OF_DAY, 0)
+                c.set(Calendar.MINUTE, 0)
+                c.set(Calendar.SECOND, 0)
+                c.set(Calendar.MILLISECOND, 0)
+                val start = c.timeInMillis
+                c.set(Calendar.DAY_OF_MONTH, 31)
+                c.set(Calendar.MONTH, Calendar.DECEMBER)
+                c.set(Calendar.HOUR_OF_DAY, 23)
+                c.set(Calendar.MINUTE, 59)
+                c.set(Calendar.SECOND, 59)
+                c.set(Calendar.MILLISECOND, 999)
+                Pair(start, c.timeInMillis)
+            }
+            BudgetSummaryPeriod.CUSTOM -> {
+                if (customStartEpoch != null && customEndEpoch != null) {
+                    Pair(customStartEpoch, customEndEpoch)
+                } else {
+                    val end = c.timeInMillis
+                    c.add(Calendar.DAY_OF_YEAR, -29)
+                    Pair(c.timeInMillis, end)
+                }
+            }
+        }
     }
-    val monthEndEpoch = remember(currentYear, currentMonth) {
-        val c = Calendar.getInstance()
-        c.set(currentYear, currentMonth - 1, maxDaysInMonth, 23, 59, 59)
-        c.set(Calendar.MILLISECOND, 999)
-        c.timeInMillis
-    }
+    val periodStartEpoch = periodRange.first
+    val periodEndEpoch = periodRange.second
 
-    val currentMonthTxs = remember(transactions, monthStartEpoch, monthEndEpoch) {
-        transactions.filter { it.transaction.dateEpochMs in monthStartEpoch..monthEndEpoch }
+    val currentMonthTxs = remember(transactions, periodStartEpoch, periodEndEpoch) {
+        transactions.filter { it.transaction.dateEpochMs in periodStartEpoch..periodEndEpoch }
     }
 
     // Target transaction types based on selected category type
@@ -242,6 +340,13 @@ fun BudgetSummaryCard(
                         expanded = showDropdownMenu,
                         onDismissRequest = { showDropdownMenu = false }
                     ) {
+                        Text(
+                            text = "  Type",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
                         BudgetSummaryType.values().forEach { t ->
                             DropdownMenuItem(
                                 text = {
@@ -256,6 +361,31 @@ fun BudgetSummaryCard(
                                     showDropdownMenu = false
                                 }
                             )
+                        }
+                        if (onPeriodChange != null) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text(
+                                text = "  Period",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            BudgetSummaryPeriod.values().forEach { p ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = p.getLabel(languageMode),
+                                            fontWeight = if (p == period) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (p == period) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    onClick = {
+                                        onPeriodChange(p)
+                                        showDropdownMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }

@@ -256,11 +256,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         showAverages: Boolean,
         decimalPrecision: DecimalPrecision = DecimalPrecision.TWO_DIGITS,
         showCurrency: Boolean = true,
-        showCurrencySymbol: Boolean = true
+        showCurrencySymbol: Boolean = true,
+        customStartEpoch: Long? = null,
+        customEndEpoch: Long? = null
     ) {
         dashboardPrefs.setDailySummarySettings(
             mode = mode,
             period = period,
+            customStartEpoch = customStartEpoch,
+            customEndEpoch = customEndEpoch,
             chartType = chartType,
             showValues = showValues,
             showAverages = showAverages,
@@ -273,11 +277,23 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun setBudgetSummarySettings(
         shape: BudgetChartShape,
         categoryType: BudgetSummaryType,
-        maxCategories: Int,
-        showPercentages: Boolean,
-        showTodayPace: Boolean
+        maxCategories: Int = 6,
+        showPercentages: Boolean = true,
+        showTodayPace: Boolean = true,
+        period: com.example.util.BudgetSummaryPeriod = com.example.util.BudgetSummaryPeriod.LAST_1_MONTH,
+        customStartEpoch: Long? = null,
+        customEndEpoch: Long? = null
     ) {
-        dashboardPrefs.setBudgetSummarySettings(shape, categoryType, maxCategories, showPercentages, showTodayPace)
+        dashboardPrefs.setBudgetSummarySettings(
+            shape = shape,
+            categoryType = categoryType,
+            period = period,
+            customStartEpoch = customStartEpoch,
+            customEndEpoch = customEndEpoch,
+            maxCategories = maxCategories,
+            showPercentages = showPercentages,
+            showTodayPace = showTodayPace
+        )
     }
 
     fun setFavoriteAccounts(accountIds: Set<Long>) {
@@ -712,8 +728,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 activeRepo.updateTransaction(transaction)
             }
-            transaction.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
-            transaction.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
+            transaction.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, transaction.dateEpochMs) }
+            transaction.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, transaction.dateEpochMs) }
         }
     }
 
@@ -726,8 +742,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 transferTx.id
             }
 
-            transferTx.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
-            transferTx.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
+            transferTx.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, transferTx.dateEpochMs) }
+            transferTx.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, transferTx.dateEpochMs) }
 
             if (feeTx != null && feeTx.amount > 0) {
                 val tagPattern = "[TransferTx:$transferId]"
@@ -741,7 +757,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 } else {
                     activeRepo.insertTransaction(feeToSave)
                 }
-                feeToSave.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.addFavoriteAccount(id) }
+                feeToSave.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, feeToSave.dateEpochMs) }
             } else if (previousFeeTxId != null && previousFeeTxId > 0L) {
                 activeRepo.deleteTransactionById(previousFeeTxId)
             }
@@ -751,8 +767,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun updateTransactions(transactions: List<Transaction>) {
         viewModelScope.launch {
             activeRepo.updateTransactions(transactions)
-            val accIds = transactions.flatMap { listOfNotNull(it.debitAccountId, it.creditAccountId) }
-            dashboardPrefs.addFavoriteAccounts(accIds)
+            transactions.forEach { tx ->
+                tx.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, tx.dateEpochMs) }
+                tx.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, tx.dateEpochMs) }
+            }
         }
     }
 

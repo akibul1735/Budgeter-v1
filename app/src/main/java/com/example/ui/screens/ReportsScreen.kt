@@ -37,18 +37,28 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.window.Dialog
+import com.example.ui.dialogs.TransactionDetailViewDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -171,6 +181,11 @@ fun ReportsScreen(
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var filterState by remember { mutableStateOf(BudgetFilterState(datePreset = BudgetDateRangePreset.THIS_MONTH)) }
+
+    var selectedCategoryItemForDetail by remember { mutableStateOf<CategoryEarningsTrackingItem?>(null) }
+    var showNetSummaryDialog by remember { mutableStateOf(false) }
+    var netSummaryType by remember { mutableStateOf("NET") }
+    var selectedTxForDetail by remember { mutableStateOf<TransactionWithDetails?>(null) }
 
     // Expanded groups map (default expanded)
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
@@ -599,7 +614,14 @@ fun ReportsScreen(
                     ) {
                         // Metric 1: Total Inflows / Income
                         Column(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    netSummaryType = "INCOME"
+                                    showNetSummaryDialog = true
+                                }
+                                .padding(vertical = 4.dp, horizontal = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
@@ -638,7 +660,14 @@ fun ReportsScreen(
 
                         // Metric 2: Total Outflows / Expense
                         Column(
-                            modifier = Modifier.weight(1.35f),
+                            modifier = Modifier
+                                .weight(1.35f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    netSummaryType = "EXPENSE"
+                                    showNetSummaryDialog = true
+                                }
+                                .padding(vertical = 4.dp, horizontal = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
@@ -680,7 +709,14 @@ fun ReportsScreen(
 
                         // Metric 3: Net Earnings (Savings / Surplus)
                         Column(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    netSummaryType = "NET"
+                                    showNetSummaryDialog = true
+                                }
+                                .padding(vertical = 4.dp, horizontal = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             val isSurplus = netSavings >= 0
@@ -731,7 +767,13 @@ fun ReportsScreen(
                         shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
                         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                netSummaryType = "NET"
+                                showNetSummaryDialog = true
+                            }
                     ) {
                         Row(
                             modifier = Modifier
@@ -943,11 +985,7 @@ fun ReportsScreen(
                                     languageMode = languageMode,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     onClick = {
-                                        if (item.transactions.isNotEmpty() && onEditTransaction != null) {
-                                            onEditTransaction(item.transactions.first().transaction)
-                                        } else if (onAddTransactionWithCategory != null) {
-                                            onAddTransactionWithCategory(item.category)
-                                        }
+                                        selectedCategoryItemForDetail = item
                                     }
                                 )
                             }
@@ -962,11 +1000,7 @@ fun ReportsScreen(
                                     languageMode = languageMode,
                                     onToggleExpand = {},
                                     onCategoryClick = { item ->
-                                        if (item.transactions.isNotEmpty() && onEditTransaction != null) {
-                                            onEditTransaction(item.transactions.first().transaction)
-                                        } else if (onAddTransactionWithCategory != null) {
-                                            onAddTransactionWithCategory(item.category)
-                                        }
+                                        selectedCategoryItemForDetail = item
                                     }
                                 )
                             }
@@ -984,11 +1018,7 @@ fun ReportsScreen(
                                     languageMode = languageMode,
                                     onToggleExpand = { expandedGroups[groupId] = !isExpanded },
                                     onCategoryClick = { item ->
-                                        if (item.transactions.isNotEmpty() && onEditTransaction != null) {
-                                            onEditTransaction(item.transactions.first().transaction)
-                                        } else if (onAddTransactionWithCategory != null) {
-                                            onAddTransactionWithCategory(item.category)
-                                        }
+                                        selectedCategoryItemForDetail = item
                                     }
                                 )
                             }
@@ -1124,6 +1154,86 @@ fun ReportsScreen(
                 }
             }
         }
+    }
+
+    // Net Earnings Summary Detail Dialog
+    if (showNetSummaryDialog) {
+        NetEarningsSummaryDetailDialog(
+            type = netSummaryType,
+            totalIncome = totalMonthIncome,
+            totalExpense = totalMonthExpense,
+            netSavings = netSavings,
+            monthTransactions = monthTransactions,
+            allTransactions = transactions,
+            allAccounts = allAccounts,
+            allCategories = categories,
+            languageMode = languageMode,
+            periodLabel = monthLabel,
+            onDismiss = { showNetSummaryDialog = false },
+            onEditTransaction = { tx ->
+                showNetSummaryDialog = false
+                onEditTransaction?.invoke(tx)
+            },
+            onAccountClick = { acc ->
+                showNetSummaryDialog = false
+                onAccountClick?.invoke(acc)
+            },
+            onTransactionClick = { txWithDetails ->
+                selectedTxForDetail = txWithDetails
+            }
+        )
+    }
+
+    // Category Detail Dialog (like Budget Tab popup)
+    selectedCategoryItemForDetail?.let { catItem ->
+        NetEarningsCategoryTransactionsDetailDialog(
+            item = catItem,
+            allTransactions = transactions,
+            allAccounts = allAccounts,
+            allCategories = categories,
+            languageMode = languageMode,
+            onDismiss = { selectedCategoryItemForDetail = null },
+            onEditTransaction = { tx ->
+                selectedCategoryItemForDetail = null
+                onEditTransaction?.invoke(tx)
+            },
+            onAddTransaction = {
+                val cat = catItem.category
+                selectedCategoryItemForDetail = null
+                onAddTransactionWithCategory?.invoke(cat)
+            },
+            onAccountClick = { acc ->
+                selectedCategoryItemForDetail = null
+                onAccountClick?.invoke(acc)
+            },
+            onTransactionClick = { txWithDetails ->
+                selectedTxForDetail = txWithDetails
+            }
+        )
+    }
+
+    // Rich Transaction Detail Dialog
+    selectedTxForDetail?.let { txDetails ->
+        TransactionDetailViewDialog(
+            item = txDetails,
+            allTransactions = transactions,
+            allAccounts = allAccounts,
+            allCategories = categories,
+            languageMode = languageMode,
+            onDismiss = { selectedTxForDetail = null },
+            onEdit = { tx ->
+                selectedTxForDetail = null
+                onEditTransaction?.invoke(tx)
+            },
+            onShowSimilar = { query ->
+                selectedTxForDetail = null
+                searchQuery = query
+            },
+            onAccountClick = { acc ->
+                selectedTxForDetail = null
+                onAccountClick?.invoke(acc)
+            }
+        )
     }
 
     // BudgetFilterDialog for advanced filtering
@@ -1447,6 +1557,656 @@ private fun NetEarningsCategoryRow(
                         textAlign = TextAlign.End,
                         maxLines = 1
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Category Transactions Detail Dialog for Net Earnings (Reports) screen.
+ * Replicates the Budget Tab popup with Category info, total amount, export action,
+ * and transaction item list with selectable details.
+ */
+@Composable
+private fun NetEarningsCategoryTransactionsDetailDialog(
+    item: CategoryEarningsTrackingItem,
+    allTransactions: List<TransactionWithDetails>,
+    allAccounts: List<Account>,
+    allCategories: List<Category>,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onEditTransaction: (Transaction) -> Unit,
+    onAddTransaction: () -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null,
+    onTransactionClick: ((TransactionWithDetails) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val parsedColor = remember(item.category.colorHex) {
+        try {
+            if (item.category.colorHex != null) IconHelper.parseColorHex(item.category.colorHex)
+            else CrimsonPink
+        } catch (_: Exception) {
+            CrimsonPink
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth(0.96f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp)
+            ) {
+                // Top row: Category Icon + Title + Export + Close
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(parsedColor.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = IconHelper.getIconByName(item.category.iconName),
+                                contentDescription = null,
+                                tint = parsedColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = LanguageHelper.getLocalizedName(item.category.nameEn, item.category.nameBn, languageMode),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (item.percentageShare > 0) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA)
+                                        "মোটের ${LanguageHelper.toBanglaDigits(String.format(Locale.US, "%.1f", item.percentageShare))}%"
+                                    else
+                                        "${String.format(Locale.US, "%.1f", item.percentageShare)}% of total",
+                                    fontSize = 11.sp,
+                                    color = SlateText
+                                )
+                            }
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExportMenuButton(
+                            onExport = { format ->
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = item.transactions,
+                                    filterSummary = "${item.category.nameEn} Transactions",
+                                    languageMode = languageMode
+                                )
+                            },
+                            languageMode = languageMode
+                        )
+
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Amount Summary Card
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মোট পরিমাণ" else "Total Amount",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = LanguageHelper.formatCurrency(item.actualAmount, languageMode),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (item.category.type == CategoryType.EXPENSE) CrimsonPink else SolidIncome
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "লেনদেনের তালিকা (${LanguageHelper.toBanglaDigits(item.transactions.size.toString())})" else "Transactions (${item.transactions.size})",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (item.transactions.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কোনো লেনদেন পাওয়া যায়নি" else "No transactions found in this period.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height((item.transactions.size * 56).coerceIn(120, 240).dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(item.transactions, key = { it.transaction.id }) { txDetails ->
+                            val tx = txDetails.transaction
+                            val dateStr = DateUtils.formatDate(tx.dateEpochMs, languageMode)
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (onTransactionClick != null) {
+                                            onTransactionClick(txDetails)
+                                        } else {
+                                            onEditTransaction(tx)
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (tx.note.isNotEmpty()) tx.note else if (item.category.type == CategoryType.EXPENSE) "Expense" else "Income",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = dateStr,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                            val acc = txDetails.debitAccount ?: txDetails.creditAccount
+                                            if (acc != null) {
+                                                Text(
+                                                    text = "• ${LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode)}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = BrandBlueLight,
+                                                    modifier = Modifier.clickable {
+                                                        onAccountClick?.invoke(acc)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(tx.amount, languageMode),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (tx.type == TransactionType.EXPENSE) CrimsonPink else SolidIncome
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Add Entry Action
+                Button(
+                    onClick = onAddTransaction,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (item.category.type == CategoryType.EXPENSE) Color(0xFF2563EB) else SolidIncome),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "নতুন লেনদেন যুক্ত করুন" else "+ Add Entry",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Net Earnings Summary Detail Dialog:
+ * Shows a rich overview popup when clicking Net Earnings, Total Income, or Total Expense.
+ * Features tabs to filter Inflows/Outflows/All, amount breakdown, transaction list, and export.
+ */
+@Composable
+private fun NetEarningsSummaryDetailDialog(
+    type: String, // "NET", "INCOME", "EXPENSE"
+    totalIncome: Double,
+    totalExpense: Double,
+    netSavings: Double,
+    monthTransactions: List<TransactionWithDetails>,
+    allTransactions: List<TransactionWithDetails>,
+    allAccounts: List<Account>,
+    allCategories: List<Category>,
+    languageMode: LanguageMode,
+    periodLabel: String,
+    onDismiss: () -> Unit,
+    onEditTransaction: (Transaction) -> Unit,
+    onAccountClick: ((Account) -> Unit)? = null,
+    onTransactionClick: ((TransactionWithDetails) -> Unit)? = null
+) {
+    val context = LocalContext.current
+    var selectedFilterTab by remember {
+        mutableStateOf(
+            when (type) {
+                "INCOME" -> "INCOME"
+                "EXPENSE" -> "EXPENSE"
+                else -> "ALL"
+            }
+        )
+    }
+    var localSearchQuery by remember { mutableStateOf("") }
+
+    val filteredList = remember(monthTransactions, selectedFilterTab, localSearchQuery) {
+        monthTransactions.filter { details ->
+            val matchesTab = when (selectedFilterTab) {
+                "INCOME" -> details.transaction.type == TransactionType.INCOME
+                "EXPENSE" -> details.transaction.type == TransactionType.EXPENSE
+                else -> true
+            }
+            if (!matchesTab) return@filter false
+
+            if (localSearchQuery.isBlank()) return@filter true
+            val q = localSearchQuery.trim().lowercase()
+            val noteMatch = details.transaction.note.lowercase().contains(q)
+            val catMatch = details.category?.let {
+                it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q)
+            } ?: false
+            val accMatch = (details.debitAccount ?: details.creditAccount)?.let {
+                it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q)
+            } ?: false
+
+            noteMatch || catMatch || accMatch
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth(0.96f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp)
+            ) {
+                // Header Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = when (type) {
+                                "INCOME" -> if (languageMode == LanguageMode.BANGLA) "মোট আয় বিবরণী" else "Total Income Summary"
+                                "EXPENSE" -> if (languageMode == LanguageMode.BANGLA) "মোট ব্যয় বিবরণী" else "Total Expense Summary"
+                                else -> if (languageMode == LanguageMode.BANGLA) "নেট আয় (উদ্বৃত্ত) বিবরণী" else "Net Earnings Summary"
+                            },
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = periodLabel,
+                            fontSize = 11.sp,
+                            color = SlateText
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ExportMenuButton(
+                            onExport = { format ->
+                                TabExportHelper.exportTransactions(
+                                    context = context,
+                                    format = format,
+                                    transactions = filteredList,
+                                    filterSummary = "Net Earnings Summary",
+                                    languageMode = languageMode
+                                )
+                            },
+                            languageMode = languageMode
+                        )
+
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Summary Numbers Card
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Income
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "আয়" else "Income",
+                                fontSize = 10.sp,
+                                color = SolidIncome,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = LanguageHelper.formatCurrency(totalIncome, languageMode),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidIncome
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(26.dp)
+                                .padding(horizontal = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        // Expense
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense",
+                                fontSize = 10.sp,
+                                color = CrimsonPink,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = LanguageHelper.formatCurrency(totalExpense, languageMode),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CrimsonPink
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier
+                                .height(26.dp)
+                                .padding(horizontal = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
+
+                        // Net
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            val isSurplus = netSavings >= 0
+                            val col = if (isSurplus) SolidIncome else SolidExpense
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত" else "Net",
+                                fontSize = 10.sp,
+                                color = col,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "${if (isSurplus && netSavings > 0) "+" else ""}${LanguageHelper.formatCurrency(netSavings, languageMode)}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = col
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Filter Tabs: [ All | Expenses | Income ]
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(
+                        "ALL" to if (languageMode == LanguageMode.BANGLA) "সকল (${LanguageHelper.toBanglaDigits(monthTransactions.size.toString())})" else "All (${monthTransactions.size})",
+                        "EXPENSE" to if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expenses",
+                        "INCOME" to if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+                    ).forEach { (tabKey, label) ->
+                        val isSelected = selectedFilterTab == tabKey
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            border = BorderStroke(0.5.dp, if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedFilterTab = tabKey }
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Search Box
+                OutlinedTextField(
+                    value = localSearchQuery,
+                    onValueChange = { localSearchQuery = it },
+                    placeholder = {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন..." else "Search transactions...",
+                            fontSize = 12.sp
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            modifier = Modifier.size(16.dp),
+                            tint = SlateText
+                        )
+                    },
+                    trailingIcon = {
+                        if (localSearchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { localSearchQuery = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Transactions List
+                if (filteredList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কোনো লেনদেন পাওয়া যায়নি" else "No matching transactions found.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height((filteredList.size * 56).coerceIn(120, 220).dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filteredList, key = { it.transaction.id }) { txDetails ->
+                            val tx = txDetails.transaction
+                            val dateStr = DateUtils.formatDate(tx.dateEpochMs, languageMode)
+                            val isExp = tx.type == TransactionType.EXPENSE
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (onTransactionClick != null) {
+                                            onTransactionClick(txDetails)
+                                        } else {
+                                            onEditTransaction(tx)
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (tx.note.isNotEmpty()) tx.note else if (isExp) "Expense" else "Income",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = dateStr,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                            val cat = txDetails.category ?: txDetails.subCategory
+                                            if (cat != null) {
+                                                Text(
+                                                    text = "• ${LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode)}",
+                                                    fontSize = 11.sp,
+                                                    color = SlateText
+                                                )
+                                            }
+                                            val acc = txDetails.debitAccount ?: txDetails.creditAccount
+                                            if (acc != null) {
+                                                Text(
+                                                    text = "• ${LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode)}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = BrandBlueLight,
+                                                    modifier = Modifier.clickable {
+                                                        onAccountClick?.invoke(acc)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = "${if (isExp) "- " else "+ "}${LanguageHelper.formatCurrency(tx.amount, languageMode)}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isExp) CrimsonPink else SolidIncome
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -85,6 +85,8 @@ fun DailySummaryCard(
     transactions: List<TransactionWithDetails>,
     mode: DailySummaryMode,
     period: DailySummaryPeriod,
+    customStartEpoch: Long? = null,
+    customEndEpoch: Long? = null,
     chartType: DailyChartType = DailyChartType.BAR,
     showValues: Boolean,
     showAverages: Boolean,
@@ -102,20 +104,27 @@ fun DailySummaryCard(
 
     // Calculate daily data based on period
     val calendar = Calendar.getInstance()
-    val todayEpoch = calendar.timeInMillis
+    val todayEpoch = customEndEpoch ?: calendar.timeInMillis
     
     val dayCount = when (period) {
         DailySummaryPeriod.LAST_7_DAYS -> 7
         DailySummaryPeriod.LAST_14_DAYS -> 14
-        DailySummaryPeriod.LAST_30_DAYS -> 30
-        DailySummaryPeriod.THIS_MONTH -> {
-            val maxDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-            val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
-            currentDay.coerceAtLeast(7)
+        DailySummaryPeriod.LAST_1_MONTH -> 30
+        DailySummaryPeriod.LAST_2_MONTHS -> 60
+        DailySummaryPeriod.LAST_3_MONTHS -> 90
+        DailySummaryPeriod.QUARTER -> 90
+        DailySummaryPeriod.HALF_YEAR -> 180
+        DailySummaryPeriod.ONE_YEAR -> 365
+        DailySummaryPeriod.CUSTOM -> {
+            if (customStartEpoch != null && customEndEpoch != null && customEndEpoch >= customStartEpoch) {
+                (((customEndEpoch - customStartEpoch) / (24 * 60 * 60 * 1000L)) + 1).toInt().coerceIn(1, 365)
+            } else {
+                30
+            }
         }
     }
 
-    val dailyDataList = remember(transactions, period, dayCount) {
+    val dailyDataList = remember(transactions, period, dayCount, customStartEpoch, customEndEpoch) {
         val list = mutableListOf<DaySummaryData>()
         val cal = Calendar.getInstance()
         

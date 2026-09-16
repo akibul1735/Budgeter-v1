@@ -163,12 +163,15 @@ enum class AccountDetailTab {
 }
 
 enum class ChartDateRange(val labelEn: String, val labelBn: String) {
-    LAST_7_DAYS("Last 7 Days", "বিগত ৭ দিন"),
-    LAST_14_DAYS("Last 14 Days", "বিগত ১৪ দিন"),
-    LAST_30_DAYS("Last 30 Days", "বিগত ৩০ দিন"),
-    THIS_MONTH("This Month", "চলতি মাস"),
-    LAST_90_DAYS("Last 90 Days", "বিগত ৯০ দিন"),
-    THIS_YEAR("This Year", "চলতি বছর"),
+    LAST_7_DAYS("7 Days", "৭ দিন"),
+    LAST_14_DAYS("14 Days", "১৪ দিন"),
+    LAST_1_MONTH("1 Month", "১ মাস"),
+    LAST_2_MONTHS("2 Months", "২ মাস"),
+    LAST_3_MONTHS("3 Months", "৩ মাস"),
+    QUARTER("Quarter", "ত্রৈমাসিক"),
+    HALF_YEAR("Half Year", "অর্ধবছর"),
+    ONE_YEAR("1 Year", "১ বছর"),
+    CUSTOM("Custom", "কাস্টম"),
     ALL_TIME("All Time", "সব সময়")
 }
 
@@ -396,19 +399,11 @@ fun AccountDetailScreen(
             when (filterState.dateRange) {
                 ChartDateRange.LAST_7_DAYS -> if (txTime < now - (7L * 86400000L)) return@filter false
                 ChartDateRange.LAST_14_DAYS -> if (txTime < now - (14L * 86400000L)) return@filter false
-                ChartDateRange.LAST_30_DAYS -> if (txTime < now - (30L * 86400000L)) return@filter false
-                ChartDateRange.THIS_MONTH -> {
-                    val startOfMonth = DateUtils.getStartOfMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
-                    if (txTime < startOfMonth) return@filter false
-                }
-                ChartDateRange.LAST_90_DAYS -> if (txTime < now - (90L * 86400000L)) return@filter false
-                ChartDateRange.THIS_YEAR -> {
-                    cal.set(Calendar.DAY_OF_YEAR, 1)
-                    cal.set(Calendar.HOUR_OF_DAY, 0)
-                    cal.set(Calendar.MINUTE, 0)
-                    cal.set(Calendar.SECOND, 0)
-                    if (txTime < cal.timeInMillis) return@filter false
-                }
+                ChartDateRange.LAST_1_MONTH, ChartDateRange.CUSTOM -> if (txTime < now - (30L * 86400000L)) return@filter false
+                ChartDateRange.LAST_2_MONTHS -> if (txTime < now - (60L * 86400000L)) return@filter false
+                ChartDateRange.LAST_3_MONTHS, ChartDateRange.QUARTER -> if (txTime < now - (90L * 86400000L)) return@filter false
+                ChartDateRange.HALF_YEAR -> if (txTime < now - (180L * 86400000L)) return@filter false
+                ChartDateRange.ONE_YEAR -> if (txTime < now - (365L * 86400000L)) return@filter false
                 ChartDateRange.ALL_TIME -> {}
             }
 
@@ -2245,18 +2240,11 @@ private fun computeTimelinePoints(
     val startTimeMs = when (range) {
         ChartDateRange.LAST_7_DAYS -> now - (7L * 86400000L)
         ChartDateRange.LAST_14_DAYS -> now - (14L * 86400000L)
-        ChartDateRange.LAST_30_DAYS -> now - (30L * 86400000L)
-        ChartDateRange.THIS_MONTH -> DateUtils.getStartOfMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
-        ChartDateRange.LAST_90_DAYS -> now - (90L * 86400000L)
-        ChartDateRange.THIS_YEAR -> {
-            val c = Calendar.getInstance().apply {
-                set(Calendar.DAY_OF_YEAR, 1)
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-            }
-            c.timeInMillis
-        }
+        ChartDateRange.LAST_1_MONTH, ChartDateRange.CUSTOM -> now - (30L * 86400000L)
+        ChartDateRange.LAST_2_MONTHS -> now - (60L * 86400000L)
+        ChartDateRange.LAST_3_MONTHS, ChartDateRange.QUARTER -> now - (90L * 86400000L)
+        ChartDateRange.HALF_YEAR -> now - (180L * 86400000L)
+        ChartDateRange.ONE_YEAR -> now - (365L * 86400000L)
         ChartDateRange.ALL_TIME -> chronological.firstOrNull()?.transaction?.dateEpochMs ?: (now - 30L * 86400000L)
     }
 
@@ -2318,7 +2306,11 @@ private fun computeTimelinePoints(
         val projectionDaysCount = when (range) {
             ChartDateRange.LAST_7_DAYS -> 7
             ChartDateRange.LAST_14_DAYS -> 14
-            ChartDateRange.LAST_30_DAYS -> 15
+            ChartDateRange.LAST_1_MONTH, ChartDateRange.CUSTOM -> 15
+            ChartDateRange.LAST_2_MONTHS -> 30
+            ChartDateRange.LAST_3_MONTHS, ChartDateRange.QUARTER -> 30
+            ChartDateRange.HALF_YEAR -> 60
+            ChartDateRange.ONE_YEAR -> 90
             else -> 30
         }
         val projEnd = now + (projectionDaysCount * 86400000L)
