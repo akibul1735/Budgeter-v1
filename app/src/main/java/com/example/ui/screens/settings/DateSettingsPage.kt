@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -69,7 +71,7 @@ import com.example.util.DateUtils
 import com.example.util.LanguageHelper
 import java.util.Calendar
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DateSettingsPage(
     viewModel: BudgetViewModel,
@@ -469,7 +471,7 @@ fun DateSettingsPage(
                             OutlinedTextField(
                                 value = customPatternInput,
                                 onValueChange = { customPatternInput = it },
-                                label = { Text(if (isBangla) "প্যাটার্ন (যেমন: dd MMMM yyyy)" else "Pattern (e.g. dd MMMM yyyy)", fontSize = 11.sp) },
+                                label = { Text(if (isBangla) "প্যাটার্ন (যেমন: dd MMM, Y: DDDD)" else "Pattern (e.g. dd MMM, Y: DDDD)", fontSize = 11.sp) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(10.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -479,11 +481,106 @@ fun DateSettingsPage(
                                 modifier = Modifier.fillMaxWidth()
                             )
 
+                            // Real-time Live Preview Card
+                            val customLivePreview = remember(customPatternInput, languageMode) {
+                                if (customPatternInput.isNotBlank()) {
+                                    try {
+                                        DateUtils.formatDate(System.currentTimeMillis(), languageMode, customPatternInput)
+                                    } catch (e: Exception) {
+                                        "..."
+                                    }
+                                } else {
+                                    DateUtils.formatDate(System.currentTimeMillis(), languageMode)
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (isBangla) "লাইভ আউটপুট:" else "Live Preview:",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = customLivePreview,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Quick Token Helper Chips
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = if (isBangla) "টোকেন যোগ করুন:" else "Quick Insert Tokens:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    val tokens = listOf(
+                                        "d" to "d",
+                                        "DD" to "dd",
+                                        "DDD" to "ddd",
+                                        "DDDD" to "dddd",
+                                        "MM" to "MM",
+                                        "MMM" to "MMM",
+                                        "MMMM" to "MMMM",
+                                        "YYYY" to "yyyy",
+                                        "dd MMM, Y: DDDD" to "dd MMM, Y: DDDD"
+                                    )
+                                    tokens.forEach { (label, tokenValue) ->
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                                            modifier = Modifier.clickable {
+                                                customPatternInput = if (tokenValue == "dd MMM, Y: DDDD") {
+                                                    tokenValue
+                                                } else if (customPatternInput.isBlank()) {
+                                                    tokenValue
+                                                } else {
+                                                    "$customPatternInput $tokenValue"
+                                                }
+                                            }
+                                        ) {
+                                            Text(
+                                                text = "+ $label",
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             Text(
                                 text = if (isBangla)
-                                    "টোকেন গাইড: d (দিন), dd (০৭), ddd (রবি), dddd (রবিবার), MM (০৯), MMM (সেপ্টে), MMMM (সেপ্টেম্বর), yyyy (২০২৬)"
+                                    "টোকেন গাইড: d (দিন), dd (০৭), ddd/DDD (রবি), dddd/DDDD (রবিবার), MM (০৯), MMM (সেপ্টে), MMMM (সেপ্টেম্বর), yyyy/Y (২০২৬)"
                                 else
-                                    "Tokens: d (day), dd (07), ddd (Sun), dddd (Sunday), MM (09), MMM (Sep), MMMM (September), yyyy (2026)",
+                                    "Tokens: d (day), dd (07), ddd/DDD (Sun), dddd/DDDD (Sunday), MM (09), MMM (Sep), MMMM (September), yyyy/Y (2026)",
                                 fontSize = 10.5.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 lineHeight = 14.sp

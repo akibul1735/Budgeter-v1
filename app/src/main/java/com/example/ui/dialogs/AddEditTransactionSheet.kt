@@ -1752,21 +1752,30 @@ fun AddEditTransactionSheet(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             // Row A: Category (For Expense & Income)
                             if (txType != TransactionType.TRANSFER) {
-                                val catGroupName = resolvedParentCat?.localizedName(languageMode)
-                                val subCatName = resolvedChildCat?.localizedName(languageMode)
+                                val catGroupName = (resolvedParentCat ?: if (resolvedChildCat?.parentId != null) categories.firstOrNull { it.id == resolvedChildCat.parentId } else null)?.localizedName(languageMode)
+                                val subCatName = resolvedChildCat?.localizedName(languageMode) ?: catGroupName
+
                                 val (catTitle, catSub) = when {
-                                    resolvedParentCat == null && resolvedChildCat == null -> Pair(LanguageHelper.getString("select_category", languageMode), null)
-                                    resolvedParentCat != null && resolvedChildCat != null -> {
-                                        if (catGroupName.equals(subCatName, ignoreCase = true)) {
-                                            Pair(catGroupName!!, null)
-                                        } else if (isDoubleLine) {
-                                            Pair(catGroupName!!, subCatName!!)
+                                    catGroupName == null && subCatName == null -> Pair(LanguageHelper.getString("select_category", languageMode), null)
+                                    catGroupName != null && subCatName != null -> {
+                                        if (isDoubleLine) {
+                                            Pair(catGroupName, subCatName)
                                         } else {
-                                            Pair("$catGroupName > $subCatName", null)
+                                            if (catGroupName.equals(subCatName, ignoreCase = true)) {
+                                                Pair(catGroupName, null)
+                                            } else {
+                                                Pair("$catGroupName > $subCatName", null)
+                                            }
                                         }
                                     }
-                                    resolvedParentCat != null -> Pair(catGroupName!!, null)
-                                    resolvedChildCat != null -> Pair(subCatName!!, null)
+                                    catGroupName != null -> {
+                                        if (isDoubleLine) Pair(catGroupName, catGroupName)
+                                        else Pair(catGroupName, null)
+                                    }
+                                    subCatName != null -> {
+                                        if (isDoubleLine) Pair(subCatName, subCatName)
+                                        else Pair(subCatName, null)
+                                    }
                                     else -> Pair(LanguageHelper.getString("select_category", languageMode), null)
                                 }
 
@@ -4111,18 +4120,6 @@ private fun Account3ColumnGrid(
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            if (parentGroup != null) {
-                                Text(
-                                    text = parentGroup.localizedName(languageMode),
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Normal,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
                         }
                     } else {
                         Spacer(modifier = Modifier.weight(1f))

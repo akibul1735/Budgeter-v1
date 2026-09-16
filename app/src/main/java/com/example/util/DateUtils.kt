@@ -60,7 +60,7 @@ object DateUtils {
      * - ddd / DDD -> EEE (Short day of week, e.g., Sun / রবি)
      * - DD -> dd (2-digit day of month, e.g., 06)
      * - d / D -> d (1-digit day of month, e.g., 6)
-     * - YYYY -> yyyy, YY -> yy
+     * - YYYY / YYY / Y -> yyyy, YY -> yy
      */
     fun normalizePattern(pattern: String): String {
         if (pattern.isBlank()) return "dd MMM, yyyy"
@@ -68,30 +68,32 @@ object DateUtils {
         var p = pattern
 
         // Replace 4-letter day of week (dddd, DDDD) with placeholder
-        p = p.replace("dddd", "\u0001")
-            .replace("DDDD", "\u0001")
+        p = p.replace("dddd", "\u0001", ignoreCase = true)
 
         // Replace 3-letter day of week (ddd, DDD) with placeholder
-        p = p.replace("ddd", "\u0002")
-            .replace("DDD", "\u0002")
+        p = p.replace("ddd", "\u0002", ignoreCase = true)
 
         // Replace 2-digit day of month (DD, dd) with placeholder
         p = p.replace("DD", "\u0003")
             .replace("dd", "\u0003")
 
-        // Replace 1-digit day of month (d, D) with placeholder (avoiding replacing within other words)
+        // Replace 1-digit day of month (d, D) with placeholder
         p = p.replace("D", "\u0004")
             .replace("d", "\u0004")
 
-        // Replace year tokens (YYYY -> yyyy, YY -> yy)
-        p = p.replace("YYYY", "yyyy")
-            .replace("YY", "yy")
+        // Replace year tokens (YYYY, YYY, Y -> yyyy; YY -> yy)
+        p = p.replace("YYYY", "\u0005", ignoreCase = true)
+            .replace("YYY", "\u0005", ignoreCase = true)
+            .replace("YY", "\u0006", ignoreCase = true)
+            .replace("Y", "\u0005", ignoreCase = true)
 
         // Restore normalized SimpleDateFormat tokens
-        p = p.replace("\u0001", "EEEE") // Sunday
-        p = p.replace("\u0002", "EEE")  // Sun
+        p = p.replace("\u0001", "EEEE") // Sunday / রবিবার
+        p = p.replace("\u0002", "EEE")  // Sun / রবি
         p = p.replace("\u0003", "dd")   // 06
         p = p.replace("\u0004", "d")    // 6
+        p = p.replace("\u0005", "yyyy") // 2026
+        p = p.replace("\u0006", "yy")   // 26
 
         return p
     }
@@ -100,6 +102,13 @@ object DateUtils {
         val cal = getCalendar().apply { timeInMillis = epochMs }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 1 = Sunday ... 7 = Saturday
         val formattedDate = formatDate(epochMs, mode)
+
+        val pattern = activeDateFormat
+        val norm = normalizePattern(pattern)
+        val hasDayOfWeekInPattern = norm.contains("EEEE") || norm.contains("EEE")
+        if (hasDayOfWeekInPattern) {
+            return formattedDate
+        }
 
         return when (mode) {
             LanguageMode.BANGLA -> {
