@@ -166,12 +166,15 @@ fun DateSettingsPage(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = if (displayFormatConfig.firstDayOfWeek == Calendar.SATURDAY) {
-                                    if (isBangla) "শনিবার" else "Sat"
-                                } else if (displayFormatConfig.firstDayOfWeek == Calendar.SUNDAY) {
-                                    if (isBangla) "রবিবার" else "Sun"
-                                } else {
-                                    if (isBangla) "সোমবার" else "Mon"
+                                text = when (displayFormatConfig.firstDayOfWeek) {
+                                    Calendar.SATURDAY -> if (isBangla) "শনিবার" else "Sat"
+                                    Calendar.SUNDAY -> if (isBangla) "রবিবার" else "Sun"
+                                    Calendar.MONDAY -> if (isBangla) "সোমবার" else "Mon"
+                                    Calendar.TUESDAY -> if (isBangla) "মঙ্গলবার" else "Tue"
+                                    Calendar.WEDNESDAY -> if (isBangla) "বুধবার" else "Wed"
+                                    Calendar.THURSDAY -> if (isBangla) "বৃহস্পতিবার" else "Thu"
+                                    Calendar.FRIDAY -> if (isBangla) "শুক্রবার" else "Fri"
+                                    else -> if (isBangla) "শনিবার" else "Sat"
                                 },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -260,9 +263,13 @@ fun DateSettingsPage(
 
             // First Day of the Week Row (Opens Modal Bottom Sheet)
             val firstDayTitle = when (displayFormatConfig.firstDayOfWeek) {
-                Calendar.SATURDAY -> if (isBangla) "শনিবার (বাংলাদেশ/মধ্যপ্রাচ্য স্ট্যান্ডার্ড)" else "Saturday (Bangladesh/Middle East)"
+                Calendar.SATURDAY -> if (isBangla) "শনিবার (বাংলাদেশ/মধ্যপ্রাচ্য)" else "Saturday (Bangladesh/Middle East)"
                 Calendar.SUNDAY -> if (isBangla) "রবিবার (আমেরিকান স্ট্যান্ডার্ড)" else "Sunday (Americas Standard)"
-                Calendar.MONDAY -> if (isBangla) "সোমবার (আন্তর্জাতিক/ইউরোপিয়ান)" else "Monday (ISO/European Standard)"
+                Calendar.MONDAY -> if (isBangla) "সোমবার (আন্তর্জাতিক/আইএসও)" else "Monday (ISO/European Standard)"
+                Calendar.TUESDAY -> if (isBangla) "মঙ্গলবার" else "Tuesday"
+                Calendar.WEDNESDAY -> if (isBangla) "বুধবার" else "Wednesday"
+                Calendar.THURSDAY -> if (isBangla) "বৃহস্পতিবার" else "Thursday"
+                Calendar.FRIDAY -> if (isBangla) "শুক্রবার" else "Friday"
                 else -> if (isBangla) "শনিবার" else "Saturday"
             }
 
@@ -704,9 +711,13 @@ fun DateSettingsPage(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
                 val days = listOf(
-                    Triple(Calendar.SATURDAY, if (isBangla) "শনিবার (Saturday)" else "Saturday", if (isBangla) "বাংলাদেশ ও মধ্যপ্রাচ্য" else "Standard for Bangladesh & Middle East"),
-                    Triple(Calendar.SUNDAY, if (isBangla) "রবিবার (Sunday)" else "Sunday", if (isBangla) "যুক্তরাষ্ট্র, কানাডা ও জাপান" else "Standard for US, Canada & Japan"),
-                    Triple(Calendar.MONDAY, if (isBangla) "সোমবার (Monday)" else "Monday", if (isBangla) "ইউরোপ ও আন্তর্জাতিক আইএসও" else "Standard for Europe & ISO standard")
+                    Triple(Calendar.SATURDAY, if (isBangla) "শনিবার (Saturday)" else "Saturday", if (isBangla) "বাংলাদেশ ও মধ্যপ্রাচ্য স্ট্যান্ডার্ড" else "Standard for Bangladesh & Middle East"),
+                    Triple(Calendar.SUNDAY, if (isBangla) "রবিবার (Sunday)" else "Sunday", if (isBangla) "যুক্তরাষ্ট্র, কানাডা ও জাপান স্ট্যান্ডার্ড" else "Standard for US, Canada & Japan"),
+                    Triple(Calendar.MONDAY, if (isBangla) "সোমবার (Monday)" else "Monday", if (isBangla) "ইউরোপ ও আন্তর্জাতিক আইএসও" else "Standard for Europe & ISO standard"),
+                    Triple(Calendar.TUESDAY, if (isBangla) "মঙ্গলবার (Tuesday)" else "Tuesday", if (isBangla) "মঙ্গলবার থেকে সপ্তাহ শুরু" else "Start week on Tuesday"),
+                    Triple(Calendar.WEDNESDAY, if (isBangla) "বুধবার (Wednesday)" else "Wednesday", if (isBangla) "বুধবার থেকে সপ্তাহ শুরু" else "Start week on Wednesday"),
+                    Triple(Calendar.THURSDAY, if (isBangla) "বৃহস্পতিবার (Thursday)" else "Thursday", if (isBangla) "বৃহস্পতিবার থেকে সপ্তাহ শুরু" else "Start week on Thursday"),
+                    Triple(Calendar.FRIDAY, if (isBangla) "শুক্রবার (Friday)" else "Friday", if (isBangla) "শুক্রবার থেকে সপ্তাহ শুরু" else "Start week on Friday")
                 )
 
                 days.forEach { (dayInt, title, desc) ->

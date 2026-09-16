@@ -512,19 +512,19 @@ fun SettingsScreen(
 
                     item {
                         ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা" else "Data Management",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক (ড্রাইভ ১, ২, কমন), লোকাল ও ব্যাকআপ" else "Online Sync (Drive 1, 2, Common), Local & Export",
-                            icon = Icons.Default.Storage,
-                            onClick = onNavigateToBackupSync
+                            title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব" else "Navigation Tabs",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
+                            icon = Icons.Default.ViewCarousel,
+                            onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
                         )
                     }
 
                     item {
                         ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম ও অ্যাকাউন্ট" else "Payment Sources",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "ডিফল্ট পেমেন্ট মাধ্যম ও সক্রিয় সোর্স অ্যাকাউন্ট" else "Source accounts, wallets & default payment methods",
-                            icon = Icons.Default.AccountBalanceWallet,
-                            onClick = { currentSubPage = SettingsSubPage.PAYMENT_SOURCES }
+                            title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা" else "Data Management",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক (ড্রাইভ ১, ২, কমন), লোকাল ও ব্যাকআপ" else "Online Sync (Drive 1, 2, Common), Local & Export",
+                            icon = Icons.Default.Storage,
+                            onClick = onNavigateToBackupSync
                         )
                     }
 
@@ -564,15 +564,6 @@ fun SettingsScreen(
                                 (if (languageMode == LanguageMode.BANGLA) "বায়োমেট্রিক ও পিন সুরক্ষা" else "Biometric authentication & PIN lock"),
                             icon = Icons.Default.Fingerprint,
                             onClick = { handleSecurityAccess() }
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব" else "Navigation Tabs",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
-                            icon = Icons.Default.ViewCarousel,
-                            onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
                         )
                     }
 

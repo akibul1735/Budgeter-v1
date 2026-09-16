@@ -65,7 +65,7 @@ enum class TabPosition {
 data class NavigationTabConfig(
     val position: TabPosition = TabPosition.BOTTOM,
     val allTabsOrder: List<AppTab> = AppTab.values().toList(),
-    val enabledTabs: Set<AppTab> = AppTab.values().toSet()
+    val enabledTabs: Set<AppTab> = AppTab.values().filter { it != AppTab.PAYMENT_SOURCE }.toSet()
 ) {
     val visibleTabs: List<AppTab>
         get() = allTabsOrder.filter { enabledTabs.contains(it) }
@@ -104,7 +104,7 @@ class TabPreferences(context: Context) {
                 .toSet()
             if (loaded.isNotEmpty()) loaded else setOf(AppTab.MAIN)
         } else {
-            AppTab.values().toSet()
+            AppTab.values().filter { it != AppTab.PAYMENT_SOURCE }.toSet()
         }
 
         return NavigationTabConfig(

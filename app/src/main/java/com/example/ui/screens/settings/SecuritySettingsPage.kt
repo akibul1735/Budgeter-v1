@@ -219,7 +219,7 @@ fun SecuritySettingsPage(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
@@ -235,7 +235,7 @@ fun SecuritySettingsPage(
                                 )
                             }
                         }
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (isBangla) "অ্যাপ সুরক্ষা লক" else "Master App Lock",
                                 fontSize = 15.sp,
@@ -458,7 +458,8 @@ fun SecuritySettingsPage(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f, fill = false).padding(end = 6.dp)
                             ) {
                                 Surface(
                                     shape = CircleShape,
@@ -472,36 +473,38 @@ fun SecuritySettingsPage(
                                 Column {
                                     Text(
                                         text = if (isBangla) "পিন কোড সক্রিয়" else "PIN Code Active",
-                                        fontSize = 14.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
                                         text = "••••••",
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         letterSpacing = 2.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
                             }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 OutlinedButton(
                                     onClick = { activeDialog = SecurityDialogType.CHANGE_PIN },
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(if (isBangla) "পরিবর্তন" else "Change", fontSize = 12.sp)
+                                    Icon(Icons.Default.LockReset, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(if (isBangla) "পরিবর্তন" else "Change", fontSize = 11.sp)
                                 }
 
                                 OutlinedButton(
                                     onClick = { activeDialog = SecurityDialogType.REMOVE_PIN },
                                     shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Icon(Icons.Default.KeyOff, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(if (isBangla) "মুছুন" else "Remove", fontSize = 12.sp)
+                                    Icon(Icons.Default.KeyOff, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(if (isBangla) "মুছুন" else "Remove", fontSize = 11.sp)
                                 }
                             }
                         }

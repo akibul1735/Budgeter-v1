@@ -28,6 +28,7 @@ enum class UnnamedPayeeMode {
 data class TransactionConfig(
     // 1. Quick Date Picker & Show Time
     val enableQuickDatePicker: Boolean = true,
+    val autoSelectDateOnDayClick: Boolean = true,
     val showTimePicker: Boolean = true,
     val showKeyboardImmediately: Boolean = true,
 
@@ -52,6 +53,10 @@ data class TransactionConfig(
     val plusOneKeepCategory: Boolean = true,
     val plusOneKeepAccount: Boolean = true,
     val plusOneKeepDate: Boolean = true,
+    val plusOneKeepTime: Boolean = false,
+    val plusOneKeepType: Boolean = true,
+    val plusOneKeepPaymentMethod: Boolean = true,
+    val plusOneKeepLabels: Boolean = false,
 
     // 6. Payee or Name for Unnamed Transactions
     val unnamedPayeeMode: UnnamedPayeeMode = UnnamedPayeeMode.DEFAULT_OTHERS,
@@ -72,6 +77,7 @@ class TransactionPreferences private constructor(context: Context) {
     private fun loadConfig(): TransactionConfig {
         return TransactionConfig(
             enableQuickDatePicker = prefs.getBoolean(KEY_ENABLE_QUICK_DATE_PICKER, true),
+            autoSelectDateOnDayClick = prefs.getBoolean(KEY_AUTO_SELECT_DATE_ON_DAY_CLICK, true),
             showTimePicker = prefs.getBoolean(KEY_SHOW_TIME_PICKER, true),
             showKeyboardImmediately = prefs.getBoolean(KEY_SHOW_KEYBOARD_IMMEDIATELY, true),
             notesDisplayMode = try {
@@ -96,6 +102,10 @@ class TransactionPreferences private constructor(context: Context) {
             plusOneKeepCategory = prefs.getBoolean(KEY_PLUS_ONE_KEEP_CATEGORY, true),
             plusOneKeepAccount = prefs.getBoolean(KEY_PLUS_ONE_KEEP_ACCOUNT, true),
             plusOneKeepDate = prefs.getBoolean(KEY_PLUS_ONE_KEEP_DATE, true),
+            plusOneKeepTime = prefs.getBoolean(KEY_PLUS_ONE_KEEP_TIME, false),
+            plusOneKeepType = prefs.getBoolean(KEY_PLUS_ONE_KEEP_TYPE, true),
+            plusOneKeepPaymentMethod = prefs.getBoolean(KEY_PLUS_ONE_KEEP_PAYMENT_METHOD, true),
+            plusOneKeepLabels = prefs.getBoolean(KEY_PLUS_ONE_KEEP_LABELS, false),
             unnamedPayeeMode = try {
                 UnnamedPayeeMode.valueOf(prefs.getString(KEY_UNNAMED_PAYEE_MODE, UnnamedPayeeMode.DEFAULT_OTHERS.name) ?: UnnamedPayeeMode.DEFAULT_OTHERS.name)
             } catch (e: Exception) {
@@ -111,6 +121,7 @@ class TransactionPreferences private constructor(context: Context) {
         val newConfig = update(_config.value)
         val editor = prefs.edit()
             .putBoolean(KEY_ENABLE_QUICK_DATE_PICKER, newConfig.enableQuickDatePicker)
+            .putBoolean(KEY_AUTO_SELECT_DATE_ON_DAY_CLICK, newConfig.autoSelectDateOnDayClick)
             .putBoolean(KEY_SHOW_TIME_PICKER, newConfig.showTimePicker)
             .putBoolean(KEY_SHOW_KEYBOARD_IMMEDIATELY, newConfig.showKeyboardImmediately)
             .putString(KEY_NOTES_DISPLAY_MODE, newConfig.notesDisplayMode.name)
@@ -124,6 +135,10 @@ class TransactionPreferences private constructor(context: Context) {
             .putBoolean(KEY_PLUS_ONE_KEEP_CATEGORY, newConfig.plusOneKeepCategory)
             .putBoolean(KEY_PLUS_ONE_KEEP_ACCOUNT, newConfig.plusOneKeepAccount)
             .putBoolean(KEY_PLUS_ONE_KEEP_DATE, newConfig.plusOneKeepDate)
+            .putBoolean(KEY_PLUS_ONE_KEEP_TIME, newConfig.plusOneKeepTime)
+            .putBoolean(KEY_PLUS_ONE_KEEP_TYPE, newConfig.plusOneKeepType)
+            .putBoolean(KEY_PLUS_ONE_KEEP_PAYMENT_METHOD, newConfig.plusOneKeepPaymentMethod)
+            .putBoolean(KEY_PLUS_ONE_KEEP_LABELS, newConfig.plusOneKeepLabels)
             .putString(KEY_UNNAMED_PAYEE_MODE, newConfig.unnamedPayeeMode.name)
             .putString(KEY_CUSTOM_DEFAULT_PAYEE, newConfig.customDefaultPayee)
             .putBoolean(KEY_AUTO_FOCUS_AMOUNT, newConfig.autoFocusAmount)
@@ -153,6 +168,7 @@ class TransactionPreferences private constructor(context: Context) {
 
     companion object {
         private const val KEY_ENABLE_QUICK_DATE_PICKER = "enable_quick_date_picker"
+        private const val KEY_AUTO_SELECT_DATE_ON_DAY_CLICK = "auto_select_date_on_day_click"
         private const val KEY_SHOW_TIME_PICKER = "show_time_picker"
         private const val KEY_SHOW_KEYBOARD_IMMEDIATELY = "show_keyboard_immediately"
         private const val KEY_NOTES_DISPLAY_MODE = "notes_display_mode"
@@ -169,6 +185,10 @@ class TransactionPreferences private constructor(context: Context) {
         private const val KEY_PLUS_ONE_KEEP_CATEGORY = "plus_one_keep_category"
         private const val KEY_PLUS_ONE_KEEP_ACCOUNT = "plus_one_keep_account"
         private const val KEY_PLUS_ONE_KEEP_DATE = "plus_one_keep_date"
+        private const val KEY_PLUS_ONE_KEEP_TIME = "plus_one_keep_time"
+        private const val KEY_PLUS_ONE_KEEP_TYPE = "plus_one_keep_type"
+        private const val KEY_PLUS_ONE_KEEP_PAYMENT_METHOD = "plus_one_keep_payment_method"
+        private const val KEY_PLUS_ONE_KEEP_LABELS = "plus_one_keep_labels"
         private const val KEY_UNNAMED_PAYEE_MODE = "unnamed_payee_mode"
         private const val KEY_CUSTOM_DEFAULT_PAYEE = "custom_default_payee"
         private const val KEY_AUTO_FOCUS_AMOUNT = "auto_focus_amount"

@@ -174,6 +174,7 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.DatePickerModal
 import com.example.ui.components.PopupCalculatorDialog
+import com.example.ui.components.TimePickerModal
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidExpenseContainer
 import com.example.ui.theme.SolidIncome
@@ -414,6 +415,7 @@ fun AddEditTransactionSheet(
     // Pickers & Modals
     var showCalculator by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePickerModal by remember { mutableStateOf(false) }
     var showCategoryPickerModal by remember { mutableStateOf(false) }
     var showAccountPickerModal by remember { mutableStateOf(false) }
     var showLabelDialog by remember { mutableStateOf(false) }
@@ -1363,38 +1365,56 @@ fun AddEditTransactionSheet(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { showDatePicker = true }
-                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.CalendarMonth,
-                                contentDescription = "Date",
-                                tint = SolidPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = DateUtils.formatDateFull(selectedDateEpochMs, languageMode),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showDatePicker = true }
+                                    .padding(horizontal = 4.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = "Date",
+                                    tint = SolidPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = DateUtils.formatDateFull(selectedDateEpochMs, languageMode),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                             if (txConfig.showTimePicker) {
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { showTimePickerModal = true }
                                 ) {
-                                    Text(
-                                        text = DateUtils.formatTime(selectedDateEpochMs, languageMode),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.AccessTime,
+                                            contentDescription = "Time",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = DateUtils.formatTime(selectedDateEpochMs, languageMode),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2430,16 +2450,42 @@ fun AddEditTransactionSheet(
                         }
 
                         if (keepFormOpen && existingTransaction == null) {
-                            amount = 0.0
-                            amountText = ""
-                            selectedSign = when (txType) {
-                                TransactionType.EXPENSE -> "−"
-                                TransactionType.INCOME -> "+"
-                                TransactionType.TRANSFER -> "⇄"
+                            if (txConfig.plusOneClearAmount) {
+                                amount = 0.0
+                                amountText = ""
+                                amountTextFieldValue = TextFieldValue("")
                             }
-                            note = ""
-                            payee = ""
-                            attachmentUri = ""
+                            if (txConfig.plusOneClearNote) {
+                                note = ""
+                            }
+                            if (txConfig.plusOneClearPayee) {
+                                payee = ""
+                            }
+                            if (txConfig.plusOneClearAttachment) {
+                                attachmentUri = ""
+                            }
+                            if (!txConfig.plusOneKeepDate) {
+                                selectedDateEpochMs = System.currentTimeMillis()
+                            } else if (!txConfig.plusOneKeepTime) {
+                                val cal = Calendar.getInstance().apply {
+                                    timeInMillis = selectedDateEpochMs
+                                    val nowCal = Calendar.getInstance()
+                                    set(Calendar.HOUR_OF_DAY, nowCal.get(Calendar.HOUR_OF_DAY))
+                                    set(Calendar.MINUTE, nowCal.get(Calendar.MINUTE))
+                                }
+                                selectedDateEpochMs = cal.timeInMillis
+                            }
+                            if (!txConfig.plusOneKeepCategory && txType != TransactionType.TRANSFER) {
+                                selectedCategoryId = othersCategoryGroup?.id ?: relevantCategories.firstOrNull()?.id
+                                selectedSubCategoryId = null
+                            }
+                            if (!txConfig.plusOneKeepAccount) {
+                                creditAccountId = usableAccounts.firstOrNull()?.id
+                                debitAccountId = usableAccounts.getOrNull(1)?.id ?: usableAccounts.firstOrNull()?.id
+                            }
+                            if (!txConfig.plusOneKeepLabels) {
+                                labelTag = ""
+                            }
                             hasTransferFee = false
                             transferFeeAmount = 0.0
                             transferFeeAmountText = ""
@@ -2691,11 +2737,40 @@ fun AddEditTransactionSheet(
         DatePickerModal(
             selectedDateEpochMs = selectedDateEpochMs,
             languageMode = languageMode,
-            onDateSelected = {
-                selectedDateEpochMs = it
+            quickSelectMode = txConfig.autoSelectDateOnDayClick,
+            onDateSelected = { newDateMillis ->
+                val oldCal = Calendar.getInstance().apply { timeInMillis = selectedDateEpochMs }
+                val newCal = Calendar.getInstance().apply {
+                    timeInMillis = newDateMillis
+                    set(Calendar.HOUR_OF_DAY, oldCal.get(Calendar.HOUR_OF_DAY))
+                    set(Calendar.MINUTE, oldCal.get(Calendar.MINUTE))
+                    set(Calendar.SECOND, oldCal.get(Calendar.SECOND))
+                    set(Calendar.MILLISECOND, oldCal.get(Calendar.MILLISECOND))
+                }
+                selectedDateEpochMs = newCal.timeInMillis
                 showDatePicker = false
             },
             onDismiss = { showDatePicker = false }
+        )
+    }
+
+    if (showTimePickerModal) {
+        TimePickerModal(
+            initialTimeEpochMs = selectedDateEpochMs,
+            is24Hour = !displayFormatConfig.isTimeFormat12Hour,
+            languageMode = languageMode,
+            onTimeSelected = { hour, minute ->
+                val cal = Calendar.getInstance().apply {
+                    timeInMillis = selectedDateEpochMs
+                    set(Calendar.HOUR_OF_DAY, hour)
+                    set(Calendar.MINUTE, minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                selectedDateEpochMs = cal.timeInMillis
+                showTimePickerModal = false
+            },
+            onDismiss = { showTimePickerModal = false }
         )
     }
 

@@ -162,7 +162,7 @@ fun TransactionSetupSettingsPage(
             when (selectedTab) {
                 0 -> {
                     // TAB 0: Input & Date
-                    // 1. Quick Date Chips
+                    // 1. Quick Date Chips & Auto-Select Mode
                     OutlinedCard(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -185,12 +185,12 @@ fun TransactionSetupSettingsPage(
                                 }
                                 Column {
                                     Text(
-                                        text = if (isBangla) "কুইক ডেট চিপস প্রদর্শন" else "Quick Date Picker",
+                                        text = if (isBangla) "ক্যালেন্ডার ও কুইক ডেট সেটিংস" else "Calendar & Quick Date Picker",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
                                     Text(
-                                        text = if (isBangla) "লেনদেন ইনপুটে দ্রুত তারিখ চয়ন বাটন" else "Fast date selection chips on transaction entry",
+                                        text = if (isBangla) "দ্রুত তারিখ চয়ন ও ১-ট্যাপ নির্বাচন সুবিধা" else "Fast date presets and 1-tap auto-select",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
@@ -204,13 +204,48 @@ fun TransactionSetupSettingsPage(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = if (isBangla) "তারিখ চিপস সক্রিয় রাখুন" else "Show Quick Date Picker",
-                                    fontSize = 13.sp
-                                )
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = if (isBangla) "দ্রুত ডেট চিপস প্রদর্শন" else "Show Quick Date Chips",
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = if (isBangla) "আজ, গতকাল ইত্যাদি বাটন" else "Show Today, Yesterday quick buttons",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
                                 Switch(
                                     checked = txConfig.enableQuickDatePicker,
                                     onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(enableQuickDatePicker = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = if (isBangla) "১-ট্যাপ অটো সিলেক্ট মোড" else "1-Tap Quick Calendar Select",
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = if (isBangla) "ক্যালেন্ডারে যেকোনো দিনে ক্লিক করলে সাথে সাথে নির্বাচিত ও বন্ধ হবে" else "Clicking any day auto-selects and closes calendar",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Switch(
+                                    checked = txConfig.autoSelectDateOnDayClick,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(autoSelectDateOnDayClick = it) } },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = MaterialTheme.colorScheme.primary,
                                         checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
@@ -536,10 +571,17 @@ fun TransactionSetupSettingsPage(
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
-                                text = if (isBangla) "লেনদেন তালিকা ভিউ ফরম্যাট" else "Transaction List Item Density",
+                                text = if (isBangla) "লেনদেন তালিকা ডিসপ্লে ও স্টাইল" else "Transaction List & Display",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = SolidPrimary
+                            )
+
+                            // 1. Item Density
+                            Text(
+                                text = if (isBangla) "তালিকার ঘনত্ব (আইটেম ডেনসিটি):" else "List item density:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
                             )
 
                             Row(
@@ -565,20 +607,112 @@ fun TransactionSetupSettingsPage(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
+                            // 2. Category Icons in List
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = if (isBangla) "ক্যাটাগরি আইকন প্রদর্শন" else "Show Category Icons",
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = if (isBangla) "তালিকায় ক্যাটাগরির রঙিন আইকন ব্যাজ দেখান" else "Show category icons in transaction lists",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Switch(
+                                    checked = txConfig.enableCategoryIcons,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(enableCategoryIcons = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                            // 3. Account Badges in List
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = if (isBangla) "অ্যাকাউন্ট আইকন ও লেবেল" else "Show Account Badges",
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = if (isBangla) "পেমেন্ট অ্যাকাউন্টের আইকন ব্যাজ প্রদর্শন" else "Show account & payment source badges",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Switch(
+                                    checked = txConfig.enableAccountIcons,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(enableAccountIcons = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // +1 (Save & Add Another) Behavior Card
+                    OutlinedCard(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
-                                text = if (isBangla) "+১ (Save and Add Another) বোতামের আচরণ" else "(+1) Save & Add Another Behavior",
+                                text = if (isBangla) "+১ (Save & Add Another) আচরণ ও অপশন" else "(+1) Save & Add Another Options",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                color = SolidPrimary
                             )
 
+                            // Keep Transaction Type
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isBangla) "ক্যাটাগরি মনে রাখুন" else "Keep selected Category",
-                                    fontSize = 13.sp
+                                    text = if (isBangla) "লেনদেনের ধরন মনে রাখুন (আয়/ব্যয়/স্থানান্তর)" else "Keep Transaction Type (Income/Expense)",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneKeepType,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneKeepType = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Keep Category
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "ক্যাটাগরি মনে রাখুন" else "Keep Selected Category",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
                                 )
                                 Switch(
                                     checked = txConfig.plusOneKeepCategory,
@@ -590,14 +724,18 @@ fun TransactionSetupSettingsPage(
                                 )
                             }
 
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Keep Account
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isBangla) "অ্যাকাউন্ট মনে রাখুন" else "Keep selected Account",
-                                    fontSize = 13.sp
+                                    text = if (isBangla) "অ্যাকাউন্ট / পেমেন্ট সোর্স মনে রাখুন" else "Keep Selected Account",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
                                 )
                                 Switch(
                                     checked = txConfig.plusOneKeepAccount,
@@ -609,18 +747,160 @@ fun TransactionSetupSettingsPage(
                                 )
                             }
 
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Keep Date
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (isBangla) "তারিখ মনে রাখুন" else "Keep selected Date",
-                                    fontSize = 13.sp
+                                    text = if (isBangla) "তারিখ মনে রাখুন" else "Keep Selected Date",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
                                 )
                                 Switch(
                                     checked = txConfig.plusOneKeepDate,
                                     onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneKeepDate = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Keep Time
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "সময় মনে রাখুন" else "Keep Selected Time",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneKeepTime,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneKeepTime = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Keep Payment Method
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "পেমেন্ট মেথড মনে রাখুন" else "Keep Payment Method",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneKeepPaymentMethod,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneKeepPaymentMethod = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Keep Labels / Tags
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "ট্যাগ / লেবেল মনে রাখুন" else "Keep Tags & Labels",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneKeepLabels,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneKeepLabels = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Clear Amount
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "টাকার পরিমাণ রিসেট করুন" else "Clear Amount for Next Entry",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneClearAmount,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneClearAmount = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Clear Note
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "নোট / বিবরণ রিসেট করুন" else "Clear Note / Description",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneClearNote,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneClearNote = it) } },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
+                            // Clear Payee
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isBangla) "প্রাপক / পেয়ি রিসেট করুন" else "Clear Payee / Payer",
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                Switch(
+                                    checked = txConfig.plusOneClearPayee,
+                                    onCheckedChange = { txPrefs.updateConfig { cfg -> cfg.copy(plusOneClearPayee = it) } },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = MaterialTheme.colorScheme.primary,
                                         checkedTrackColor = MaterialTheme.colorScheme.primaryContainer

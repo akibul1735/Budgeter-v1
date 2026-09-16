@@ -32,6 +32,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LanguageMode
 import com.example.util.LanguageHelper
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,27 +46,48 @@ import java.util.Calendar
 fun DatePickerModal(
     selectedDateEpochMs: Long,
     languageMode: LanguageMode,
+    quickSelectMode: Boolean = true,
     onDateSelected: (Long) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val initialDate = remember { selectedDateEpochMs }
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = selectedDateEpochMs
     )
+    var isQuickModeActive by remember { mutableStateOf(quickSelectMode) }
+    var userInteracted by remember { mutableStateOf(false) }
+
+    LaunchedEffect(datePickerState.selectedDateMillis) {
+        val picked = datePickerState.selectedDateMillis
+        if (picked != null && userInteracted && isQuickModeActive) {
+            onDateSelected(picked)
+            onDismiss()
+        }
+        if (picked != null && picked != initialDate) {
+            userInteracted = true
+            if (isQuickModeActive) {
+                onDateSelected(picked)
+                onDismiss()
+            }
+        }
+    }
 
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
-                onClick = {
-                    datePickerState.selectedDateMillis?.let { onDateSelected(it) }
-                    onDismiss()
-                },
-                modifier = Modifier.testTag("date_picker_confirm_btn")
-            ) {
-                Text(
-                    text = LanguageHelper.getString("save", languageMode),
-                    fontWeight = FontWeight.Bold
-                )
+            if (!isQuickModeActive) {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { onDateSelected(it) }
+                        onDismiss()
+                    },
+                    modifier = Modifier.testTag("date_picker_confirm_btn")
+                ) {
+                    Text(
+                        text = LanguageHelper.getString("save", languageMode),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         },
         dismissButton = {
@@ -74,7 +102,7 @@ fun DatePickerModal(
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
         ) {
-            // Compact Title & Quick Action Chips
+            // Compact Title, 1-Tap Mode Toggle & Quick Action Chips
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -82,7 +110,13 @@ fun DatePickerModal(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { isQuickModeActive = !isQuickModeActive }
+                        .padding(4.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.CalendarMonth,
                         contentDescription = null,
@@ -91,8 +125,11 @@ fun DatePickerModal(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = LanguageHelper.getString("schedule", languageMode),
-                        fontSize = 14.sp,
+                        text = if (isQuickModeActive)
+                            (if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার (১-ট্যাপ অটো)" else "1-Tap Auto Select")
+                        else
+                            (if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার" else "Calendar"),
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -144,7 +181,9 @@ fun DatePickerModal(
                     todayDateBorderColor = MaterialTheme.colorScheme.primary,
                     dayContentColor = MaterialTheme.colorScheme.onSurface
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { userInteracted = true }
             )
         }
     }
