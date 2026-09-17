@@ -168,6 +168,7 @@ enum class AppView {
     PAYMENT_SOURCE,
     BALANCE_SHEET,
     ACCOUNTS,
+    RM_MANAGER,
     BUDGET,
     BUDGET_MAKER,
     CATEGORIES,
@@ -557,6 +558,19 @@ fun MainAppContainer(
                                             )
                                             showAddTransactionSheet = true
                                         },
+                                        onExecuteRepayTransfer = { acc, label, defaultAmt ->
+                                            presetTxType = TransactionType.TRANSFER
+                                            editingTransaction = Transaction(
+                                                type = TransactionType.TRANSFER,
+                                                amount = if (defaultAmt > 0) defaultAmt else 0.0,
+                                                creditAccountId = null,
+                                                debitAccountId = acc?.id,
+                                                dateEpochMs = System.currentTimeMillis(),
+                                                note = if (!label.isNullOrBlank()) "#$label Repayment" else "RM Repayment",
+                                                payeeOrPayer = label ?: (acc?.localizedName(languageMode) ?: "")
+                                            )
+                                            showAddTransactionSheet = true
+                                        },
                                         onAddTransactionWithAccountAndType = { acc, txType ->
                                             presetTxType = txType
                                             editingTransaction = if (txType == TransactionType.EXPENSE) {
@@ -655,6 +669,19 @@ fun MainAppContainer(
                                             debitAccountId = toAcc.id,
                                             dateEpochMs = System.currentTimeMillis(),
                                             note = "Payment source fund allocation"
+                                        )
+                                        showAddTransactionSheet = true
+                                    },
+                                    onExecuteRepayTransfer = { acc, label, defaultAmt ->
+                                        presetTxType = TransactionType.TRANSFER
+                                        editingTransaction = Transaction(
+                                            type = TransactionType.TRANSFER,
+                                            amount = if (defaultAmt > 0) defaultAmt else 0.0,
+                                            creditAccountId = null,
+                                            debitAccountId = acc?.id,
+                                            dateEpochMs = System.currentTimeMillis(),
+                                            note = if (!label.isNullOrBlank()) "#$label Repayment" else "RM Repayment",
+                                            payeeOrPayer = label ?: (acc?.localizedName(languageMode) ?: "")
                                         )
                                         showAddTransactionSheet = true
                                     },
@@ -829,6 +856,19 @@ fun MainAppContainer(
                                     presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                     showAddTransactionSheet = true
                                 },
+                                onExecuteRepayTransfer = { acc, label, defaultAmt ->
+                                    presetTxType = TransactionType.TRANSFER
+                                    editingTransaction = Transaction(
+                                        type = TransactionType.TRANSFER,
+                                        amount = if (defaultAmt > 0) defaultAmt else 0.0,
+                                        creditAccountId = null,
+                                        debitAccountId = acc?.id,
+                                        dateEpochMs = System.currentTimeMillis(),
+                                        note = if (!label.isNullOrBlank()) "#$label Repayment" else "RM Repayment",
+                                        payeeOrPayer = label ?: (acc?.localizedName(languageMode) ?: "")
+                                    )
+                                    showAddTransactionSheet = true
+                                },
                                 onAddAccount = { parentId ->
                                     editingAccount = null
                                     presetAccountParentId = parentId
@@ -952,6 +992,19 @@ fun MainAppContainer(
                                         debitAccountId = toAcc.id,
                                         dateEpochMs = System.currentTimeMillis(),
                                         note = "Payment source fund allocation"
+                                    )
+                                    showAddTransactionSheet = true
+                                },
+                                onExecuteRepayTransfer = { acc, label, defaultAmt ->
+                                    presetTxType = TransactionType.TRANSFER
+                                    editingTransaction = Transaction(
+                                        type = TransactionType.TRANSFER,
+                                        amount = if (defaultAmt > 0) defaultAmt else 0.0,
+                                        creditAccountId = null,
+                                        debitAccountId = acc?.id,
+                                        dateEpochMs = System.currentTimeMillis(),
+                                        note = if (!label.isNullOrBlank()) "#$label Repayment" else "RM Repayment",
+                                        payeeOrPayer = label ?: (acc?.localizedName(languageMode) ?: "")
                                     )
                                     showAddTransactionSheet = true
                                 },
@@ -1665,6 +1718,15 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.ACCOUNTS) }
         )
 
+        // 1.5. RM Manager
+        DrawerItemRow(
+            title = LanguageHelper.getString("rm_manager", languageMode).ifEmpty { "RM Manager" },
+            icon = Icons.Default.AccountBalance,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = currentView == AppView.RM_MANAGER,
+            onClick = { onSelectView(AppView.RM_MANAGER) }
+        )
+
         // 2. Categories
         DrawerItemRow(
             title = LanguageHelper.getString("categories", languageMode),
@@ -1888,6 +1950,7 @@ private fun ScreenRouter(
     onAddTransactionWithAccount: (Account) -> Unit,
     onExecuteTransfer: (Account, Account, Double) -> Unit = { _, _, _ -> },
     onAddTransactionWithAccountAndType: (Account, TransactionType) -> Unit = { _, _ -> },
+    onExecuteRepayTransfer: (Account?, String?, Double) -> Unit = { _, _, _ -> },
     onAddAccount: (Long?) -> Unit,
     onEditAccount: (Account) -> Unit,
     onAddCategory: (CategoryType, Long?) -> Unit,
@@ -2162,6 +2225,22 @@ private fun ScreenRouter(
                 viewModel.deleteAccounts(delList)
             }
         )
+        AppView.RM_MANAGER -> RmManagerScreen(
+            allAccounts = allAccounts,
+            allTransactions = transactionsWithDetails,
+            languageMode = languageMode,
+            onOpenDrawer = onOpenDrawer,
+            onTransactionClick = onEditTransaction,
+            onAddTransactionClick = onAddTransactionWithType,
+            onExecuteRepayTransfer = onExecuteRepayTransfer,
+            onSaveTransaction = { tx ->
+                viewModel.saveTransaction(tx)
+            },
+            onUpdateTransactions = { txList ->
+                viewModel.updateTransactions(txList)
+            },
+            onAddAccountClick = { onAddAccount(null) }
+        )
         AppView.CATEGORIES -> CategoriesScreen(
             categories = allCategories,
             languageMode = languageMode,
@@ -2268,6 +2347,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.ITEMS_SUMMARY -> LanguageHelper.getString("items_summary", languageMode)
         AppView.RECURRING_BILLS -> LanguageHelper.getString("reminders", languageMode)
         AppView.ACCOUNTS -> LanguageHelper.getString("accounts", languageMode)
+        AppView.RM_MANAGER -> LanguageHelper.getString("rm_manager", languageMode).ifEmpty { "RM Manager" }
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
         AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
         AppView.BACKUP_SYNC -> "Backup, Restore & Sync"
