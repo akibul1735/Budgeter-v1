@@ -36,8 +36,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
 import com.example.util.DecimalPrecision
 import androidx.compose.material.icons.Icons
@@ -3595,45 +3597,117 @@ private fun CategorySetBudgetDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Enable Switch Row
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট সক্রিয় করুন" else "Enable Budget",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "এই ক্যাটাগরির জন্য বাজেট কার্যকর থাকবে" else "Enforce spending limit for this period",
-                                fontSize = 11.5.sp,
-                                color = SlateText
-                            )
+                // 1. Monthly Budget Amount Field
+                OutlinedTextField(
+                    value = amountInput,
+                    onValueChange = { newText ->
+                        val filtered = buildString {
+                            var hasDot = false
+                            for (ch in newText) {
+                                if (ch.isDigit()) append(ch)
+                                else if (ch == '.' && !hasDot) {
+                                    append(ch)
+                                    hasDot = true
+                                }
+                            }
                         }
-                        Switch(
-                            checked = isEnabled,
-                            onCheckedChange = { isEnabled = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = BrandBlueLight
-                            )
+                        amountInput = filtered
+                    },
+                    label = {
+                        Text(
+                            text = if (selectedFrequency == BudgetFrequency.MONTHLY)
+                                (if (languageMode == LanguageMode.BANGLA) "মাসিক বাজেট পরিমাণ" else "Monthly Budget Amount")
+                            else
+                                (if (languageMode == LanguageMode.BANGLA) "${selectedFrequency.localizedName(languageMode)} বাজেট পরিমাণ" else "${selectedFrequency.localizedName(languageMode)} Budget Amount")
                         )
+                    },
+                    prefix = { Text("৳ ", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BrandBlueLight) },
+                    textStyle = androidx.compose.material3.LocalTextStyle.current.copy(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    trailingIcon = {
+                        IconButton(onClick = { showCalculator = true }) {
+                            Icon(Icons.Default.Calculate, contentDescription = "Calculator", tint = BrandBlueLight)
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = BrandBlueLight,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Normalized Monthly calculation preview (if not monthly)
+                if (selectedFrequency != BudgetFrequency.MONTHLY && parsedAmount > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "≈ ${LanguageHelper.formatCurrency(monthlyNormalized, languageMode)} " +
+                                (if (languageMode == LanguageMode.BANGLA) "প্রতি মাসে সংরক্ষিত হবে" else "per month"),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SlateText,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+
+                // 2. Smart Suggestions Chips (PB, PE, Limit, Frequent)
+                if (suggestions.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "স্মার্ট পরামর্শ (Smart Suggestions):" else "Smart Suggestions:",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        suggestions.forEach { sug ->
+                            val monthlyVal = sug.amountMonthly
+                            val freqVal = selectedFrequency.fromMonthly(monthlyVal)
+                            val displayVal = if (selectedFrequency == BudgetFrequency.MONTHLY) monthlyVal else freqVal
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = BrandBlueLight.copy(alpha = 0.08f),
+                                border = BorderStroke(1.dp, BrandBlueLight.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        amountInput = formatCleanNumber(freqVal)
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "${sug.label}:",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = BrandBlueLight
+                                    )
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(displayVal, languageMode),
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
+                // 3. Frequency Selector
                 Spacer(modifier = Modifier.height(14.dp))
-
-                // Frequency Selector
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) "বাজেটের পুনরাবৃত্তি (Frequency)" else "Budget Frequency",
                     fontSize = 12.5.sp,
@@ -3679,102 +3753,46 @@ private fun CategorySetBudgetDialog(
                     }
                 }
 
+                // 4. Enable Switch Row
                 Spacer(modifier = Modifier.height(14.dp))
-
-                // Smart Suggestions Chips (PB, PE, Limit, Frequent)
-                if (suggestions.isNotEmpty()) {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "স্মার্ট পরামর্শ (Smart Suggestions):" else "Smart Suggestions:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        suggestions.forEach { sug ->
-                            val monthlyVal = sug.amountMonthly
-                            val freqVal = selectedFrequency.fromMonthly(monthlyVal)
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = BrandBlueLight.copy(alpha = 0.08f),
-                                border = BorderStroke(1.dp, BrandBlueLight.copy(alpha = 0.35f)),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        amountInput = formatCleanNumber(freqVal)
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = "${sug.label}:",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = BrandBlueLight
-                                    )
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(monthlyVal, languageMode),
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // Amount Input Field
-                OutlinedTextField(
-                    value = amountInput,
-                    onValueChange = { amountInput = it.filter { ch -> ch.isDigit() || ch == '.' } },
-                    label = {
-                        Text(
-                            text = if (selectedFrequency == BudgetFrequency.MONTHLY)
-                                (if (languageMode == LanguageMode.BANGLA) "মাসিক বাজেট পরিমাণ" else "Monthly Budget Amount")
-                            else
-                                "${selectedFrequency.localizedName(languageMode)} Amount"
-                        )
-                    },
-                    prefix = { Text("৳ ", fontWeight = FontWeight.Bold, color = BrandBlueLight) },
-                    trailingIcon = {
-                        IconButton(onClick = { showCalculator = true }) {
-                            Icon(Icons.Default.Calculate, contentDescription = "Calculator", tint = BrandBlueLight)
-                        }
-                    },
-                    singleLine = true,
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrandBlueLight,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                    ),
                     modifier = Modifier.fillMaxWidth()
-                )
-
-                // Normalized Monthly calculation preview (if not monthly)
-                if (selectedFrequency != BudgetFrequency.MONTHLY && parsedAmount > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "≈ ${LanguageHelper.formatCurrency(monthlyNormalized, languageMode)} " +
-                                (if (languageMode == LanguageMode.BANGLA) "প্রতি মাসে সংরক্ষিত হবে" else "per month"),
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = SlateText,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট সক্রিয় করুন" else "Enable Budget",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "এই ক্যাটাগরির জন্য বাজেট কার্যকর থাকবে" else "Enforce spending limit for this period",
+                                fontSize = 11.5.sp,
+                                color = SlateText
+                            )
+                        }
+                        Switch(
+                            checked = isEnabled,
+                            onCheckedChange = { isEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = BrandBlueLight
+                            )
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Action Buttons
+                // 5. Action Buttons (Remove, Cancel, Save Budget)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)

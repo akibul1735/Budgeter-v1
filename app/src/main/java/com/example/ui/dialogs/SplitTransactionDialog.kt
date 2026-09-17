@@ -52,6 +52,12 @@ internal data class EditableSplitLine(
     var payeeOrPayer: String = ""
 )
 
+enum class SplitMode {
+    ONE_CAT_MULTI_ACC, // 1 Category -> Multiple Accounts (e.g. split bill across 2+ cards/cash)
+    MULTI_CAT_ONE_ACC, // Multiple Categories -> 1 Account (e.g. supermarket receipt with groceries, clothes, etc. paid with 1 card)
+    MULTI_CAT_MULTI_ACC // Multiple Categories -> Multiple Accounts (full custom matrix)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SplitTransactionDialog(
@@ -135,6 +141,34 @@ fun SplitTransactionDialog(
     // Modal pickers state
     var pickingCategoryLineIndex by remember { mutableStateOf<Int?>(null) }
     var pickingAccountLineIndex by remember { mutableStateOf<Int?>(null) }
+    var pickingSharedCategory by remember { mutableStateOf(false) }
+    var pickingSharedAccount by remember { mutableStateOf(false) }
+
+    // Split mode detection and state
+    var currentMode by remember {
+        val initialMode = if (initialItems.isNotEmpty()) {
+            val distinctCats = initialItems.mapNotNull { it.categoryId }.distinct()
+            val distinctAccs = initialItems.mapNotNull { if (it.type == TransactionType.INCOME) it.debitAccountId else it.creditAccountId }.distinct()
+            when {
+                distinctCats.size <= 1 && distinctAccs.size > 1 -> SplitMode.ONE_CAT_MULTI_ACC
+                distinctCats.size > 1 && distinctAccs.size <= 1 -> SplitMode.MULTI_CAT_ONE_ACC
+                else -> SplitMode.MULTI_CAT_ONE_ACC
+            }
+        } else {
+            SplitMode.MULTI_CAT_ONE_ACC
+        }
+        mutableStateOf(initialMode)
+    }
+
+    var sharedCategoryId by remember {
+        mutableStateOf(defaultCategoryId ?: lines.firstOrNull()?.categoryId ?: categories.firstOrNull { it.parentId == null }?.id)
+    }
+    var sharedSubCategoryId by remember {
+        mutableStateOf(defaultSubCategoryId ?: lines.firstOrNull()?.subCategoryId)
+    }
+    var sharedAccountId by remember {
+        mutableStateOf(defaultCreditAccountId ?: defaultAccId ?: lines.firstOrNull()?.creditAccountId ?: accounts.firstOrNull()?.id)
+    }
 
     // Computations
     val sumOfSplits = lines.sumOf { it.amountText.toDoubleOrNull() ?: 0.0 }
@@ -165,10 +199,13 @@ fun SplitTransactionDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(SolidPrimary.copy(alpha = 0.12f)),
                             contentAlignment = Alignment.Center
@@ -177,30 +214,239 @@ fun SplitTransactionDialog(
                                 imageVector = Icons.Default.CallSplit,
                                 contentDescription = null,
                                 tint = SolidPrimary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (isBangla) "লেনদেন বিভাজন (স্প্লিট)" else "Split Transaction",
+                                text = if (isBangla) "লেনদেন বিভাজন" else "Split Transaction",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            val modeSubtitle = when (currentMode) {
+                                SplitMode.ONE_CAT_MULTI_ACC -> if (isBangla) "১টি ক্যাটাগরি • একাধিক অ্যাকাউন্ট" else "1 Category • Multi Accounts"
+                                SplitMode.MULTI_CAT_ONE_ACC -> if (isBangla) "একাধিক ক্যাটাগরি • ১টি অ্যাকাউন্ট" else "Multi Categories • 1 Account"
+                                SplitMode.MULTI_CAT_MULTI_ACC -> if (isBangla) "উভয়ই একাধিক (কাস্টম)" else "Custom • Multi Categories & Accounts"
+                            }
                             Text(
-                                text = if (isBangla) "একাধিক ক্যাটাগরি, অ্যাকাউন্ট ও দেনা-পাওনা" else "Multi-category, multi-account & receivables",
+                                text = modeSubtitle,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(34.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Mode Selector Bar (Row of 3 compact tabs/chips)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf(
+                            SplitMode.ONE_CAT_MULTI_ACC to (if (isBangla) "১ ক্যাটাগরি" else "1 Category"),
+                            SplitMode.MULTI_CAT_ONE_ACC to (if (isBangla) "১ অ্যাকাউন্ট" else "1 Account"),
+                            SplitMode.MULTI_CAT_MULTI_ACC to (if (isBangla) "কাস্টম" else "Custom")
+                        ).forEach { (mode, label) ->
+                            val isSelected = currentMode == mode
+                            Surface(
+                                shape = RoundedCornerShape(9.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                                shadowElevation = if (isSelected) 2.dp else 0.dp,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        currentMode = mode
+                                        // Synchronize lines when switching to single-category or single-account mode
+                                        if (mode == SplitMode.ONE_CAT_MULTI_ACC && sharedCategoryId != null) {
+                                            for (i in lines.indices) {
+                                                lines[i] = lines[i].copy(
+                                                    categoryId = sharedCategoryId,
+                                                    subCategoryId = sharedSubCategoryId
+                                                )
+                                            }
+                                        } else if (mode == SplitMode.MULTI_CAT_ONE_ACC && sharedAccountId != null) {
+                                            for (i in lines.indices) {
+                                                if (lines[i].type == TransactionType.INCOME) {
+                                                    lines[i] = lines[i].copy(debitAccountId = sharedAccountId)
+                                                } else {
+                                                    lines[i] = lines[i].copy(creditAccountId = sharedAccountId)
+                                                }
+                                            }
+                                        }
+                                    }
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(vertical = 6.dp, horizontal = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Global Shared Selector Bar for Fixed Category or Fixed Account
+                if (currentMode == SplitMode.ONE_CAT_MULTI_ACC) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val selectedGlobalCat = categories.firstOrNull { it.id == sharedCategoryId }
+                    val selectedGlobalSub = categories.firstOrNull { it.id == sharedSubCategoryId }
+                    val catLabel = when {
+                        selectedGlobalSub != null -> "${selectedGlobalCat?.localizedName(languageMode) ?: ""} > ${selectedGlobalSub.localizedName(languageMode)}"
+                        selectedGlobalCat != null -> selectedGlobalCat.localizedName(languageMode)
+                        else -> if (isBangla) "ক্যাটাগরি নির্ধারণ করুন" else "Select Fixed Category"
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { pickingSharedCategory = true }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(SolidPrimary.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    IconHelper.AppIcon(
+                                        iconName = selectedGlobalCat?.iconName ?: "Category",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = SolidPrimary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isBangla) "স্থির ক্যাটাগরি (সব স্প্লিটের জন্য)" else "Fixed Category (for all splits)",
+                                        fontSize = 9.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = catLabel,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                } else if (currentMode == SplitMode.MULTI_CAT_ONE_ACC) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val selectedGlobalAcc = accounts.firstOrNull { it.id == sharedAccountId }
+                    val accLabel = selectedGlobalAcc?.localizedName(languageMode)
+                        ?: (if (isBangla) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Payment Account")
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.35f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { pickingSharedAccount = true }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex).copy(alpha = 0.15f)
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    IconHelper.AppIcon(
+                                        iconName = selectedGlobalAcc?.iconName ?: "AccountBalance",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex) else SolidPrimary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isBangla) "স্থির পেমেন্ট অ্যাকাউন্ট" else "Fixed Payment Account",
+                                        fontSize = 9.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = accLabel,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Summary Card (Total, Allocated, Remaining)
                 Surface(
@@ -385,7 +631,10 @@ fun SplitTransactionDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
                                         Surface(
                                             shape = CircleShape,
                                             color = SolidPrimary.copy(alpha = 0.12f),
@@ -405,6 +654,8 @@ fun SplitTransactionDialog(
                                             text = if (isBangla) "স্প্লিট #${index + 1}" else "Split #${index + 1}",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         if (pct > 0) {
@@ -484,145 +735,151 @@ fun SplitTransactionDialog(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                // Category Selector Box
-                                val catTitle = when {
-                                    selectedSub != null -> "${selectedCategory?.localizedName(languageMode) ?: ""} > ${selectedSub.localizedName(languageMode)}"
-                                    selectedCategory != null -> selectedCategory.localizedName(languageMode)
-                                    line.type == TransactionType.TRANSFER -> if (isBangla) "পাওনাদার / ক্যাটাগরি" else "Receivable / Category"
-                                    else -> if (isBangla) "ক্যাটাগরি নির্বাচন করুন" else "Select Category"
-                                }
+                                // Category Selector Box (Shown in MULTI_CAT_ONE_ACC and MULTI_CAT_MULTI_ACC modes)
+                                if (currentMode != SplitMode.ONE_CAT_MULTI_ACC) {
+                                    val catTitle = when {
+                                        selectedSub != null -> "${selectedCategory?.localizedName(languageMode) ?: ""} > ${selectedSub.localizedName(languageMode)}"
+                                        selectedCategory != null -> selectedCategory.localizedName(languageMode)
+                                        line.type == TransactionType.TRANSFER -> if (isBangla) "পাওনাদার / ক্যাটাগরি" else "Receivable / Category"
+                                        else -> if (isBangla) "ক্যাটাগরি নির্বাচন করুন" else "Select Category"
+                                    }
 
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { pickingCategoryLineIndex = index }
-                                ) {
-                                    Row(
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                            .clickable { pickingCategoryLineIndex = index }
                                     ) {
                                         Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (selectedCategory != null) IconHelper.parseColorHex(selectedCategory.colorHex).copy(alpha = 0.15f)
-                                                        else SolidPrimary.copy(alpha = 0.1f)
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
                                             ) {
-                                                IconHelper.AppIcon(
-                                                    iconName = selectedCategory?.iconName ?: if (line.type == TransactionType.TRANSFER) "SwapHoriz" else "Category",
-                                                    modifier = Modifier.size(16.dp),
-                                                    tint = if (selectedCategory != null) IconHelper.parseColorHex(selectedCategory.colorHex) else SolidPrimary
-                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            if (selectedCategory != null) IconHelper.parseColorHex(selectedCategory.colorHex).copy(alpha = 0.15f)
+                                                            else SolidPrimary.copy(alpha = 0.1f)
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    IconHelper.AppIcon(
+                                                        iconName = selectedCategory?.iconName ?: if (line.type == TransactionType.TRANSFER) "SwapHoriz" else "Category",
+                                                        modifier = Modifier.size(16.dp),
+                                                        tint = if (selectedCategory != null) IconHelper.parseColorHex(selectedCategory.colorHex) else SolidPrimary
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = if (isBangla) "ক্যাটাগরি / আইটেম" else "Category / Line Purpose",
+                                                        fontSize = 9.5.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(
+                                                        text = catTitle,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        color = if (selectedCategory != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                                    )
+                                                }
                                             }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(
-                                                    text = if (isBangla) "ক্যাটাগরি / আইটেম" else "Category / Line Purpose",
-                                                    fontSize = 9.5.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
-                                                    text = catTitle,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    color = if (selectedCategory != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-                                                )
-                                            }
-                                        }
 
-                                        Icon(
-                                            Icons.Default.KeyboardArrowDown,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                            Icon(
+                                                Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(6.dp))
                                 }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                // Account Selector Box (Shown in ONE_CAT_MULTI_ACC and MULTI_CAT_MULTI_ACC modes)
+                                if (currentMode != SplitMode.MULTI_CAT_ONE_ACC) {
+                                    val accTitle = selectedAccount?.localizedName(languageMode)
+                                        ?: (if (isBangla) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Payment Account")
 
-                                // Account Selector Box (Supporting Multi-Account splits)
-                                val accTitle = selectedAccount?.localizedName(languageMode)
-                                    ?: (if (isBangla) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Payment Account")
-
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { pickingAccountLineIndex = index }
-                                ) {
-                                    Row(
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                            .clickable { pickingAccountLineIndex = index }
                                     ) {
                                         Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (selectedAccount != null) IconHelper.parseColorHex(selectedAccount.colorHex).copy(alpha = 0.15f)
-                                                        else MaterialTheme.colorScheme.surfaceVariant
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
                                             ) {
-                                                IconHelper.AppIcon(
-                                                    iconName = selectedAccount?.iconName ?: "AccountBalance",
-                                                    modifier = Modifier.size(16.dp),
-                                                    tint = if (selectedAccount != null) IconHelper.parseColorHex(selectedAccount.colorHex) else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            if (selectedAccount != null) IconHelper.parseColorHex(selectedAccount.colorHex).copy(alpha = 0.15f)
+                                                            else MaterialTheme.colorScheme.surfaceVariant
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    IconHelper.AppIcon(
+                                                        iconName = selectedAccount?.iconName ?: "AccountBalance",
+                                                        modifier = Modifier.size(16.dp),
+                                                        tint = if (selectedAccount != null) IconHelper.parseColorHex(selectedAccount.colorHex) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = if (isBangla) "পরিশোধের অ্যাকাউন্ট" else "Paid from Account",
+                                                        fontSize = 9.5.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(
+                                                        text = accTitle,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        color = if (selectedAccount != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                                    )
+                                                }
                                             }
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(
-                                                    text = if (isBangla) "পরিশোধের অ্যাকাউন্ট" else "Paid from Account",
-                                                    fontSize = 9.5.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
-                                                    text = accTitle,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    color = if (selectedAccount != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-                                                )
-                                            }
+
+                                            Icon(
+                                                Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
-
-                                        Icon(
-                                            Icons.Default.KeyboardArrowDown,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.size(18.dp)
-                                        )
                                     }
+                                    Spacer(modifier = Modifier.height(6.dp))
                                 }
-
-                                Spacer(modifier = Modifier.height(6.dp))
 
                                 // Amount Input Field + Fill Remaining Button
                                 Row(
@@ -721,14 +978,25 @@ fun SplitTransactionDialog(
                     item {
                         OutlinedButton(
                             onClick = {
-                                val nextCat = categories.filter { it.parentId == null }.getOrNull(lines.size)
-                                    ?: categories.firstOrNull { it.parentId == null }
-                                val nextAcc = accounts.getOrNull(lines.size)?.id ?: defaultAccId
+                                val nextCat = when (currentMode) {
+                                    SplitMode.ONE_CAT_MULTI_ACC -> sharedCategoryId
+                                    else -> categories.filter { it.parentId == null }.getOrNull(lines.size)?.id
+                                        ?: categories.firstOrNull { it.parentId == null }?.id
+                                }
+                                val nextSubCat = when (currentMode) {
+                                    SplitMode.ONE_CAT_MULTI_ACC -> sharedSubCategoryId
+                                    else -> null
+                                }
+                                val nextAcc = when (currentMode) {
+                                    SplitMode.MULTI_CAT_ONE_ACC -> sharedAccountId
+                                    else -> accounts.getOrNull(lines.size)?.id ?: defaultAccId
+                                }
                                 val autoFillAmount = if (remaining > 0.0) String.format(Locale.US, "%.2f", remaining) else ""
                                 lines.add(
                                     EditableSplitLine(
                                         type = txType,
-                                        categoryId = nextCat?.id,
+                                        categoryId = nextCat,
+                                        subCategoryId = nextSubCat,
                                         creditAccountId = nextAcc,
                                         amountText = autoFillAmount
                                     )
@@ -892,6 +1160,75 @@ fun SplitTransactionDialog(
                 pickingAccountLineIndex = null
             },
             onDismiss = { pickingAccountLineIndex = null }
+        )
+    }
+
+    // Modal category picker for shared fixed category (ONE_CAT_MULTI_ACC mode)
+    if (pickingSharedCategory) {
+        CategoryPickerModalDialog(
+            categories = categories,
+            txType = txType,
+            selectedCategoryId = sharedCategoryId,
+            selectedSubCategoryId = sharedSubCategoryId,
+            languageMode = languageMode,
+            onCategorySelected = { catId, subCatId ->
+                sharedCategoryId = catId
+                sharedSubCategoryId = subCatId
+                for (i in lines.indices) {
+                    lines[i] = lines[i].copy(categoryId = catId, subCategoryId = subCatId)
+                }
+                pickingSharedCategory = false
+            },
+            onAddNewCategory = { newCat ->
+                onAddNewCategory?.invoke(newCat)
+                val catId = newCat.parentId ?: newCat.id
+                val subCatId = if (newCat.parentId != null) newCat.id else null
+                sharedCategoryId = catId
+                sharedSubCategoryId = subCatId
+                for (i in lines.indices) {
+                    lines[i] = lines[i].copy(categoryId = catId, subCategoryId = subCatId)
+                }
+                pickingSharedCategory = false
+            },
+            onDismiss = { pickingSharedCategory = false }
+        )
+    }
+
+    // Modal account picker for shared fixed account (MULTI_CAT_ONE_ACC mode)
+    if (pickingSharedAccount) {
+        AccountPickerModalDialog(
+            accounts = accounts,
+            allAccounts = accounts,
+            txType = txType,
+            creditAccountId = sharedAccountId ?: defaultAccId,
+            debitAccountId = null,
+            initialTarget = if (txType == TransactionType.INCOME) 1 else 0,
+            languageMode = languageMode,
+            onAccountSelected = { srcAccId, destAccId ->
+                val chosenAcc = if (txType == TransactionType.INCOME) (destAccId ?: srcAccId) else (srcAccId ?: destAccId)
+                sharedAccountId = chosenAcc
+                for (i in lines.indices) {
+                    if (lines[i].type == TransactionType.INCOME) {
+                        lines[i] = lines[i].copy(debitAccountId = chosenAcc)
+                    } else {
+                        lines[i] = lines[i].copy(creditAccountId = chosenAcc)
+                    }
+                }
+                pickingSharedAccount = false
+            },
+            onAddNewAccount = { newAcc ->
+                onAddNewAccount?.invoke(newAcc)
+                sharedAccountId = newAcc.id
+                for (i in lines.indices) {
+                    if (lines[i].type == TransactionType.INCOME) {
+                        lines[i] = lines[i].copy(debitAccountId = newAcc.id)
+                    } else {
+                        lines[i] = lines[i].copy(creditAccountId = newAcc.id)
+                    }
+                }
+                pickingSharedAccount = false
+            },
+            onDismiss = { pickingSharedAccount = false }
         )
     }
 }
