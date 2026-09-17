@@ -860,7 +860,7 @@ fun LedgerScreen(
                 onOpenDrawer = onOpenDrawer,
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
-                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেনদেন খুঁজুন (নোট, পেয়ী, ক্যাটাগরি)..." else "Search transactions, notes, payees...",
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "লেনদেন, নোট বা পেয়ী খুঁজুন..." else "Search transactions, notes, payees...",
                 showSearchButton = true,
                 showFilterButton = true,
                 isFilterActive = hasActiveFilters,
