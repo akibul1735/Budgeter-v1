@@ -582,6 +582,20 @@ object LanguageHelper {
         "dimension_account" to Trans("By Account", "হিসাব অনুযায়ী"),
         "show_values" to Trans("Values on Bars", "বারের মান"),
         "account_distribution" to Trans("Account Distribution", "হিসাবের বণ্টন"),
-        "assets_vs_liabilities" to Trans("Assets & Liabilities", "সম্পদ ও দায়")
+        "assets_vs_liabilities" to Trans("Assets & Liabilities", "সম্পদ ও দায়"),
+        "cash_flow" to Trans("Cash Flow", "নগদ প্রবাহ"),
+        "cash_inflow" to Trans("Cash Inflow", "নগদ আগমন"),
+        "cash_outflow" to Trans("Cash Outflow", "নগদ নির্গমন"),
+        "net_cash_flow" to Trans("Net Cash Flow", "নিট নগদ প্রবাহ"),
+        "opening_balance" to Trans("Opening Balance", "প্রারম্ভিক জের"),
+        "closing_balance" to Trans("Closing Balance", "সমাপনী জের"),
+        "operating_flow" to Trans("Operating Flow", "পরিচালন প্রবাহ"),
+        "financing_flow" to Trans("Financing / RM Flow", "অর্থায়ন ও আরএম প্রবাহ"),
+        "liquidity_trajectory" to Trans("Liquidity Trajectory", "নগদ তহবিলের গতিপথ"),
+        "cash_runway" to Trans("Cash Runway", "নগদ রানওয়ে"),
+        "daily_burn_rate" to Trans("Daily Burn Rate", "দৈনিক গড় ব্যয় হার"),
+        "liquid_accounts" to Trans("Liquid Accounts", "নগদ ও ব্যাংক হিসাব"),
+        "inflow_vs_outflow" to Trans("Inflow vs Outflow", "আগমন বনাম নির্গমন"),
+        "cash_flow_statement" to Trans("Cash Flow Statement", "নগদ প্রবাহ বিবরণী")
     )
 }

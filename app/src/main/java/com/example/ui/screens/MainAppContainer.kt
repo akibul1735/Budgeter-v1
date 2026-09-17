@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
@@ -165,6 +166,7 @@ import kotlinx.coroutines.launch
 enum class AppView {
     DASHBOARD,
     LEDGER,
+    CASH_FLOW,
     PAYMENT_SOURCE,
     BALANCE_SHEET,
     ACCOUNTS,
@@ -187,6 +189,7 @@ enum class AppView {
 fun AppTab.toAppView(): AppView = when (this) {
     AppTab.MAIN -> AppView.DASHBOARD
     AppTab.TRANSACTIONS -> AppView.LEDGER
+    AppTab.CASH_FLOW -> AppView.CASH_FLOW
     AppTab.PAYMENT_SOURCE -> AppView.PAYMENT_SOURCE
     AppTab.BALANCE_SHEET -> AppView.BALANCE_SHEET
     AppTab.BUDGET -> AppView.BUDGET
@@ -199,6 +202,7 @@ fun AppTab.toAppView(): AppView = when (this) {
 fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.DASHBOARD -> AppTab.MAIN
     AppView.LEDGER -> AppTab.TRANSACTIONS
+    AppView.CASH_FLOW -> AppTab.CASH_FLOW
     AppView.PAYMENT_SOURCE -> AppTab.PAYMENT_SOURCE
     AppView.BALANCE_SHEET -> AppTab.BALANCE_SHEET
     AppView.BUDGET -> AppTab.BUDGET
@@ -1978,6 +1982,7 @@ private fun ScreenRouter(
             onAddTransactionClick = onAddTransactionWithType,
             onTransactionClick = onEditTransaction,
             onViewAllTransactionsClick = { onNavigate(AppView.LEDGER) },
+            onNavigateToCashFlow = { onNavigate(AppView.CASH_FLOW) },
             onAccountClick = { acc ->
                 if (onAccountClick != null) onAccountClick(acc) else onEditAccount(acc)
             },
@@ -2010,6 +2015,18 @@ private fun ScreenRouter(
                 onAccountClick = onAccountClick,
                 onUpdateTransactions = { txList -> viewModel.updateTransactions(txList) },
                 onDeleteTransactions = { txList -> viewModel.deleteTransactions(txList) }
+            )
+        }
+        AppView.CASH_FLOW -> {
+            CashFlowScreen(
+                transactionsWithDetails = transactionsWithDetails,
+                allAccounts = allAccounts,
+                accountsWithBalances = accountsWithBalances,
+                allCategories = allCategories,
+                languageMode = languageMode,
+                onOpenDrawer = onOpenDrawer,
+                onTransactionClick = onEditTransaction,
+                onAddTransactionClick = { onAddTransactionWithType(TransactionType.EXPENSE) }
             )
         }
         AppView.BALANCE_SHEET -> {
@@ -2337,6 +2354,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
     return when (view) {
         AppView.DASHBOARD -> LanguageHelper.getString("app_name", languageMode)
         AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
+        AppView.CASH_FLOW -> LanguageHelper.getString("cash_flow", languageMode).ifEmpty { "Cash Flow" }
         AppView.PAYMENT_SOURCE -> LanguageHelper.getString("payment_source", languageMode)
         AppView.BALANCE_SHEET -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)

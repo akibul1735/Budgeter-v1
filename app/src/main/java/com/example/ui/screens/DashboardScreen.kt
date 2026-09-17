@@ -101,6 +101,7 @@ import com.example.ui.screens.dashboard.CalendarSummaryCard
 import com.example.ui.screens.dashboard.CustomizeDashboardCardsDialog
 import com.example.ui.screens.dashboard.DailySummaryCard
 import com.example.ui.screens.dashboard.DailySummarySettingsDialog
+import com.example.ui.screens.dashboard.DashboardCashFlowSummaryCard
 import com.example.ui.screens.dashboard.FavoriteAccountsCard
 import com.example.ui.screens.dashboard.FavoriteAccountsSelectionDialog
 import com.example.ui.theme.SolidExpense
@@ -149,6 +150,7 @@ fun DashboardScreen(
     onAddTransactionClick: (TransactionType) -> Unit,
     onTransactionClick: (Transaction) -> Unit,
     onViewAllTransactionsClick: () -> Unit,
+    onNavigateToCashFlow: () -> Unit = {},
     onAccountClick: (Account) -> Unit = {},
     onToggleCardVisibility: (DashboardCardType, Boolean) -> Unit,
     onReorderCards: (fromIndex: Int, toIndex: Int) -> Unit,
@@ -1822,11 +1824,13 @@ fun DashboardScreen(
 
                         DashboardCardType.CASH_FLOW -> {
                             item(key = "card_cash_flow") {
-                                RedesignedCashFlowRow(
-                                    overview = overview,
+                                val allRawAccounts = remember(accountsWithBalances) { accountsWithBalances.map { it.account } }
+                                DashboardCashFlowSummaryCard(
+                                    transactions = recentTransactions,
+                                    allAccounts = allRawAccounts,
+                                    allCategories = allCategories,
                                     languageMode = languageMode,
-                                    onIncomeClick = { openIncomeBreakdown() },
-                                    onExpenseClick = { openExpenseBreakdown() }
+                                    onNavigateToCashFlow = onNavigateToCashFlow
                                 )
                             }
                         }

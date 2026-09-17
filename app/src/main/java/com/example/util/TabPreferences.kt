@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
@@ -28,6 +29,7 @@ enum class AppTab(
 ) {
     MAIN("main", "Main", "মূল ড্যাশবোর্ড"),
     TRANSACTIONS("transactions", "Transactions", "লেনদেন"),
+    CASH_FLOW("cash_flow", "Cash Flow", "নগদ প্রবাহ"),
     PAYMENT_SOURCE("payment_source", "Payment Source", "পেমেন্ট সোর্স"),
     BALANCE_SHEET("balance_sheet", "Balance Sheet", "ব্যালেন্স শীট"),
     BUDGET("budget", "Budget", "বাজেট"),
@@ -40,6 +42,7 @@ enum class AppTab(
         get() = when (this) {
             MAIN -> Icons.Default.Dashboard
             TRANSACTIONS -> Icons.AutoMirrored.Filled.ReceiptLong
+            CASH_FLOW -> Icons.AutoMirrored.Filled.TrendingUp
             PAYMENT_SOURCE -> Icons.Default.Payments
             BALANCE_SHEET -> Icons.Default.AccountBalance
             BUDGET -> Icons.Default.ShoppingBag
