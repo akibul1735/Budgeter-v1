@@ -283,10 +283,14 @@ fun AddEditTransactionSheet(
                     existingSplitSiblings.map { item ->
                         TransactionSplitItem(
                             id = item.transaction.id,
+                            type = item.transaction.type,
                             categoryId = item.transaction.categoryId,
                             subCategoryId = item.transaction.subCategoryId,
+                            debitAccountId = item.transaction.debitAccountId,
+                            creditAccountId = item.transaction.creditAccountId,
                             amount = item.transaction.amount,
-                            note = com.example.util.TransactionLinkHelper.getCleanNote(item.transaction.note)
+                            note = com.example.util.TransactionLinkHelper.getCleanNote(item.transaction.note),
+                            payeeOrPayer = item.transaction.payeeOrPayer
                         )
                     }
                 )
@@ -922,7 +926,7 @@ fun AddEditTransactionSheet(
             )
 
             // If split transaction is active, save via split handler
-            if (isSplitActive && splitItems.size >= 2 && txType != TransactionType.TRANSFER && onSaveSplit != null) {
+            if (isSplitActive && splitItems.size >= 2 && onSaveSplit != null) {
                 val oldTxs = existingSplitSiblings.map { it.transaction }
                 onSaveSplit(splitGroupId, tx, splitItems.toList(), oldTxs)
                 onDismiss()
@@ -979,7 +983,7 @@ fun AddEditTransactionSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -1189,7 +1193,7 @@ fun AddEditTransactionSheet(
                         ) {
                             focusManager.clearFocus()
                         }
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     // 1. Title / Payee Name Field with Dropdown Suggestions & Partial Matching
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1319,7 +1323,7 @@ fun AddEditTransactionSheet(
 
                     // Attachment Preview Bar if present
                     if (attachmentUri.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
@@ -1367,7 +1371,7 @@ fun AddEditTransactionSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Quick Date Chips (Today, Yesterday, 2 Days Ago, Tomorrow)
                     if (txConfig.enableQuickDatePicker) {
@@ -1401,19 +1405,19 @@ fun AddEditTransactionSheet(
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp)
                                     )
                                 }
                             }
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
 
                     // 2. Date, Time & Schedule Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 2.dp),
+                            .padding(vertical = 0.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -1431,7 +1435,7 @@ fun AddEditTransactionSheet(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.CalendarMonth,
@@ -1462,7 +1466,7 @@ fun AddEditTransactionSheet(
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.AccessTime,
@@ -1486,7 +1490,7 @@ fun AddEditTransactionSheet(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { showDatePicker = true }
-                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                                .padding(horizontal = 4.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = "|  ${LanguageHelper.getString("schedule", languageMode)}",
@@ -1504,7 +1508,7 @@ fun AddEditTransactionSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // 3. Amount Container Card with +/- sign toggle
                     Surface(
@@ -1517,7 +1521,7 @@ fun AddEditTransactionSheet(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1531,7 +1535,7 @@ fun AddEditTransactionSheet(
                                         color = SolidTransfer.copy(alpha = 0.15f),
                                         border = BorderStroke(1.dp, SolidTransfer.copy(alpha = 0.35f)),
                                         modifier = Modifier
-                                            .size(36.dp)
+                                            .size(32.dp)
                                             .testTag("tx_transfer_indicator")
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
@@ -1539,7 +1543,7 @@ fun AddEditTransactionSheet(
                                                 imageVector = Icons.Default.SwapHoriz,
                                                 contentDescription = "Transfer",
                                                 tint = SolidTransfer,
-                                                modifier = Modifier.size(20.dp)
+                                                modifier = Modifier.size(18.dp)
                                             )
                                         }
                                     }
@@ -1552,7 +1556,7 @@ fun AddEditTransactionSheet(
                                     ) {
                                         Row(
                                             modifier = Modifier
-                                                .padding(3.dp)
+                                                .padding(2.5.dp)
                                                 .clickable {
                                                     selectedSign = if (selectedSign == "+" || selectedSign == "⇄") "−" else "+"
                                                 }
@@ -1565,7 +1569,7 @@ fun AddEditTransactionSheet(
                                                 shape = CircleShape,
                                                 color = if (isMinusSelected) SolidExpense else Color.Transparent,
                                                 modifier = Modifier
-                                                    .size(32.dp)
+                                                    .size(28.dp)
                                                     .clip(CircleShape)
                                                     .clickable {
                                                         selectedSign = "−"
@@ -1575,7 +1579,7 @@ fun AddEditTransactionSheet(
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "−",
-                                                        fontSize = 18.sp,
+                                                        fontSize = 16.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = if (isMinusSelected) Color.White else SolidExpense
                                                     )
@@ -1590,7 +1594,7 @@ fun AddEditTransactionSheet(
                                                 shape = CircleShape,
                                                 color = if (isPlusSelected) SolidIncome else Color.Transparent,
                                                 modifier = Modifier
-                                                    .size(32.dp)
+                                                    .size(28.dp)
                                                     .clip(CircleShape)
                                                     .clickable {
                                                         selectedSign = "+"
@@ -1600,7 +1604,7 @@ fun AddEditTransactionSheet(
                                                 Box(contentAlignment = Alignment.Center) {
                                                     Text(
                                                         text = "+",
-                                                        fontSize = 18.sp,
+                                                        fontSize = 16.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = if (isPlusSelected) Color.White else SolidIncome
                                                     )
@@ -1756,7 +1760,7 @@ fun AddEditTransactionSheet(
 
                     // Quick Amount Presets (+10, +50, +100, +500, +1000)
                     if (txConfig.enableQuickAmountPresets) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1777,7 +1781,7 @@ fun AddEditTransactionSheet(
                                 ) {
                                     Box(
                                         contentAlignment = Alignment.Center,
-                                        modifier = Modifier.padding(vertical = 4.dp)
+                                        modifier = Modifier.padding(vertical = 3.5.dp)
                                     ) {
                                         Text(
                                             text = "+$preset",
@@ -1791,7 +1795,7 @@ fun AddEditTransactionSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // 4. Selector Rows (Category, Account, Transfer Fee, Split, Status, Label)
                     val isDoubleLine = displayFormatConfig.itemDisplayFormat == ItemDisplayFormat.TWO_LINES
@@ -2300,14 +2304,21 @@ fun AddEditTransactionSheet(
                                 val splitSubtitle = if (isSplitActive && splitItems.isNotEmpty()) {
                                     val catSummaries = splitItems.take(2).mapNotNull { item ->
                                         val cat = categories.firstOrNull { it.id == item.categoryId }
-                                        val name = cat?.localizedName(languageMode) ?: ""
-                                        if (name.isNotBlank()) "$name (${LanguageHelper.formatCurrency(item.amount, languageMode)})" else null
+                                        val lineAccId = item.creditAccountId ?: item.debitAccountId
+                                        val acc = accounts.firstOrNull { it.id == lineAccId }
+                                        val catName = cat?.localizedName(languageMode) ?: ""
+                                        val accName = acc?.localizedName(languageMode) ?: ""
+                                        val title = when {
+                                            catName.isNotBlank() && accName.isNotBlank() -> "$catName ($accName)"
+                                            catName.isNotBlank() -> catName
+                                            accName.isNotBlank() -> accName
+                                            else -> "Split"
+                                        }
+                                        "$title: ${LanguageHelper.formatCurrency(item.amount, languageMode)}"
                                     }.joinToString(" • ")
                                     val extra = if (splitItems.size > 2) " +${splitItems.size - 2}" else ""
                                     "$catSummaries$extra"
-                                } else {
-                                    if (languageMode == LanguageMode.BANGLA) "একাধিক ক্যাটাগরিতে ভাগ করুন" else "Split into multiple categories"
-                                }
+                                } else null
 
                                 OptionRowItem(
                                     icon = {
@@ -2324,7 +2335,7 @@ fun AddEditTransactionSheet(
                                         LanguageHelper.getString("split", languageMode)
                                     },
                                     subTitle = splitSubtitle,
-                                    isTwoLine = true,
+                                    isTwoLine = isSplitActive && splitSubtitle != null,
                                     trailingContent = {
                                         if (isSplitActive) {
                                             Surface(
@@ -2368,7 +2379,7 @@ fun AddEditTransactionSheet(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -2424,7 +2435,7 @@ fun AddEditTransactionSheet(
                                                 fontSize = 10.sp,
                                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (isSel) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.5.dp)
                                             )
                                         }
                                     }
@@ -2453,7 +2464,7 @@ fun AddEditTransactionSheet(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // 5. Note Card Box
                     Card(
@@ -2467,7 +2478,7 @@ fun AddEditTransactionSheet(
                             onValueChange = { note = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(4.dp),
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
                             placeholder = {
                                 Text(
                                     text = LanguageHelper.getString("notes", languageMode).ifEmpty { "Note" },
@@ -2475,7 +2486,7 @@ fun AddEditTransactionSheet(
                                     color = MaterialTheme.colorScheme.outline
                                 )
                             },
-                            minLines = 3,
+                            minLines = 2,
                             maxLines = 5,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color.Transparent,
@@ -2484,7 +2495,7 @@ fun AddEditTransactionSheet(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(80.dp)) // Padding for bottom bar
+                    Spacer(modifier = Modifier.height(16.dp)) // Compact padding for bottom bar
                 }
 
                 // Bottom Action Bar: Type Selector Pills or Keyboard Accessory Toolbar (Pinned above Keyboard)
@@ -2550,7 +2561,7 @@ fun AddEditTransactionSheet(
                         )
 
                         // If split transaction is active, save via split handler
-                        if (isSplitActive && splitItems.size >= 2 && txType != TransactionType.TRANSFER && onSaveSplit != null) {
+                        if (isSplitActive && splitItems.size >= 2 && onSaveSplit != null) {
                             val oldTxs = existingSplitSiblings.map { it.transaction }
                             onSaveSplit(splitGroupId, tx, splitItems.toList(), oldTxs)
                             onDismiss()
@@ -2778,7 +2789,7 @@ fun AddEditTransactionSheet(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -2831,7 +2842,7 @@ fun AddEditTransactionSheet(
                                                 textAlign = TextAlign.Center,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 9.dp)
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 7.dp)
                                             )
                                         }
                                     }
@@ -2846,10 +2857,10 @@ fun AddEditTransactionSheet(
                                     contentColor = Color.White,
                                     shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier
-                                        .size(46.dp)
+                                        .size(42.dp)
                                         .testTag("save_transaction_btn")
                                 ) {
-                                    Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(24.dp))
+                                    Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(22.dp))
                                 }
                             }
                         }
@@ -3073,7 +3084,12 @@ fun AddEditTransactionSheet(
             totalAmount = splitEffectiveTotal,
             initialItems = splitItems.toList(),
             categories = categories,
+            accounts = accounts,
             txType = txType,
+            defaultDebitAccountId = debitAccountId,
+            defaultCreditAccountId = creditAccountId,
+            defaultCategoryId = selectedCategoryId,
+            defaultSubCategoryId = selectedSubCategoryId,
             languageMode = languageMode,
             onDismiss = { showSplitDialog = false },
             onApplySplit = { updatedItems, updatedTotal ->
@@ -3082,10 +3098,18 @@ fun AddEditTransactionSheet(
                 isSplitActive = true
                 amount = updatedTotal
                 amountText = formatAmountInput(updatedTotal)
-                // Set first split's category as primary fallback
+                // Set first split's category and account as primary fallbacks
                 updatedItems.firstOrNull()?.let { firstItem ->
-                    selectedCategoryId = firstItem.categoryId
-                    selectedSubCategoryId = firstItem.subCategoryId
+                    if (firstItem.categoryId != null) {
+                        selectedCategoryId = firstItem.categoryId
+                        selectedSubCategoryId = firstItem.subCategoryId
+                    }
+                    if (firstItem.creditAccountId != null) {
+                        creditAccountId = firstItem.creditAccountId
+                    }
+                    if (firstItem.debitAccountId != null) {
+                        debitAccountId = firstItem.debitAccountId
+                    }
                 }
                 showSplitDialog = false
             },
@@ -3093,7 +3117,9 @@ fun AddEditTransactionSheet(
                 isSplitActive = false
                 splitItems.clear()
                 showSplitDialog = false
-            }
+            },
+            onAddNewCategory = { newCat -> onAddNewCategory?.invoke(newCat) },
+            onAddNewAccount = { newAcc -> onAddNewAccount?.invoke(newAcc) }
         )
     }
 }
@@ -3112,7 +3138,7 @@ private fun OptionRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = if ((isTwoLine && subTitle != null) || livePreview != null) 9.dp else 12.dp),
+            .padding(horizontal = 14.dp, vertical = if ((isTwoLine && subTitle != null) || livePreview != null) 7.5.dp else 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -3802,7 +3828,7 @@ private fun QuickCreateCategoryDialog(
 }
 
 @Composable
-private fun AccountPickerModalDialog(
+internal fun AccountPickerModalDialog(
     accounts: List<Account>,
     allAccounts: List<Account>,
     txType: TransactionType,

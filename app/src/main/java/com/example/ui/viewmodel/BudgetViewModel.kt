@@ -840,6 +840,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * Saves a split transaction group by inserting multiple linked transactions sharing a splitGroupId.
      * Replaces any existing split transactions from the group being edited.
+     * Supports multi-account, multi-category, mixed expense/income/receivable splits.
      */
     fun saveSplitTransaction(
         splitGroupId: String,
@@ -858,19 +859,40 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 val cleanNote = com.example.util.TransactionLinkHelper.getCleanNote(item.note.ifBlank { baseTx.note })
                 val finalNote = if (cleanNote.isNotBlank()) "$splitTag $cleanNote" else splitTag
 
+                val lineType = item.type
+                val (debitAccId, creditAccId) = when (lineType) {
+                    com.example.data.model.TransactionType.EXPENSE -> {
+                        val payingAcc = item.creditAccountId ?: item.debitAccountId ?: baseTx.creditAccountId ?: baseTx.debitAccountId
+                        Pair(null, payingAcc)
+                    }
+                    com.example.data.model.TransactionType.INCOME -> {
+                        val receivingAcc = item.debitAccountId ?: item.creditAccountId ?: baseTx.debitAccountId ?: baseTx.creditAccountId
+                        Pair(receivingAcc, null)
+                    }
+                    com.example.data.model.TransactionType.TRANSFER -> {
+                        val destAcc = item.debitAccountId ?: baseTx.debitAccountId
+                        val srcAcc = item.creditAccountId ?: baseTx.creditAccountId
+                        Pair(destAcc, srcAcc)
+                    }
+                }
+
                 val txToSave = baseTx.copy(
                     id = 0L,
+                    type = lineType,
                     amount = item.amount,
                     categoryId = item.categoryId,
                     subCategoryId = item.subCategoryId,
+                    debitAccountId = debitAccId,
+                    creditAccountId = creditAccId,
+                    payeeOrPayer = item.payeeOrPayer.ifBlank { baseTx.payeeOrPayer },
                     note = finalNote,
                     createdAt = System.currentTimeMillis() + index
                 )
                 activeRepo.insertTransaction(txToSave)
-            }
 
-            baseTx.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, baseTx.dateEpochMs) }
-            baseTx.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, baseTx.dateEpochMs) }
+                debitAccId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, baseTx.dateEpochMs) }
+                creditAccId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, baseTx.dateEpochMs) }
+            }
         }
     }
 

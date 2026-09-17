@@ -638,12 +638,23 @@ fun TransactionDetailViewDialog(
                                                 }
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Column {
-                                                    Text(
-                                                        text = siblingCat,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
+                                                    val accName = sibling.creditAccount?.localizedName(languageMode)
+                                                        ?: sibling.debitAccount?.localizedName(languageMode)
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            text = siblingCat,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                        if (!accName.isNullOrBlank()) {
+                                                            Text(
+                                                                text = " • $accName",
+                                                                fontSize = 11.sp,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                    }
                                                     if (siblingNote.isNotBlank()) {
                                                         Text(
                                                             text = siblingNote,
