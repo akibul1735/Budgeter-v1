@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.window.Dialog
+import com.example.util.DecimalPrecision
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -2814,42 +2815,42 @@ private fun CategoryRow(
                                 color = SlateText.copy(alpha = 0.7f)
                             )
                         }
+                    }
 
-                        if (item.isAdjusted || item.lastAdjustment != null) {
-                            Text(
-                                text = " · ",
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-                            )
-                            Surface(
-                                color = AmberGold.copy(alpha = 0.12f),
-                                shape = RoundedCornerShape(3.5.dp),
-                                border = BorderStroke(0.6.dp, AmberGold.copy(alpha = 0.4f))
+                    if (item.isAdjusted || item.lastAdjustment != null) {
+                        Spacer(modifier = Modifier.height(2.5.dp))
+                        Surface(
+                            color = AmberGold.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(3.5.dp),
+                            border = BorderStroke(0.6.dp, AmberGold.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 3.5.dp, vertical = 0.5.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Tune,
-                                        contentDescription = null,
-                                        tint = AmberGold,
-                                        modifier = Modifier.size(9.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    val origAmt = if (item.originalBudget > 0) item.originalBudget else (item.lastAdjustment?.previousAmount ?: item.budgetLimit)
-                                    val adjAmt = item.budgetLimit
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA)
-                                            "সমন্বয়: ${LanguageHelper.formatCurrency(origAmt, languageMode)} → ${LanguageHelper.formatCurrency(adjAmt, languageMode)}"
-                                        else
-                                            "Adj: ${LanguageHelper.formatCurrency(origAmt, languageMode)} → ${LanguageHelper.formatCurrency(adjAmt, languageMode)}",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = AmberGold
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = null,
+                                    tint = AmberGold,
+                                    modifier = Modifier.size(9.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.5.dp))
+                                val origAmt = if (item.originalBudget > 0) item.originalBudget else (item.lastAdjustment?.previousAmount ?: item.budgetLimit)
+                                val adjAmt = item.budgetLimit
+                                val origStr = LanguageHelper.formatWithPrecision(origAmt, languageMode, DecimalPrecision.ONE_DIGIT)
+                                val adjStr = LanguageHelper.formatWithPrecision(adjAmt, languageMode, DecimalPrecision.ONE_DIGIT)
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA)
+                                        "সমন্বয়: $origStr → $adjStr"
+                                    else
+                                        "Adj: $origStr → $adjStr",
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AmberGold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -3191,18 +3192,24 @@ private fun CategoryTransactionsDetailDialog(
                                         fontWeight = FontWeight.Bold,
                                         color = AmberGold
                                     )
+                                    val origStr = LanguageHelper.formatWithPrecision(origAmt, languageMode, DecimalPrecision.ONE_DIGIT)
+                                    val adjStr = LanguageHelper.formatWithPrecision(adjAmt, languageMode, DecimalPrecision.ONE_DIGIT)
                                     Text(
                                         text = if (languageMode == LanguageMode.BANGLA)
-                                            "আসল: ${LanguageHelper.formatCurrency(origAmt, languageMode)} → নতুন: ${LanguageHelper.formatCurrency(adjAmt, languageMode)}"
+                                            "আসল: $origStr → নতুন: $adjStr"
                                         else
-                                            "Orig: ${LanguageHelper.formatCurrency(origAmt, languageMode)} → New: ${LanguageHelper.formatCurrency(adjAmt, languageMode)}",
+                                            "Orig: $origStr → New: $adjStr",
                                         fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
+                            val diffStr = LanguageHelper.formatWithPrecision(Math.abs(diff), languageMode, DecimalPrecision.ONE_DIGIT)
                             Text(
-                                text = "${if (diff >= 0) "+" else ""}${LanguageHelper.formatCurrency(diff, languageMode)}",
+                                text = "${if (diff >= 0) "+" else "-"}$diffStr",
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (diff >= 0) Color(0xFF16A34A) else Color(0xFFDC2626)
@@ -3770,7 +3777,7 @@ private fun CategorySetBudgetDialog(
                 // Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (item.hasBudget) {
                         OutlinedButton(
@@ -3780,12 +3787,15 @@ private fun CategorySetBudgetDialog(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = AlertRed),
                             border = BorderStroke(1.dp, AlertRed.copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(0.9f)
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "মুছুন" else "Remove",
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -3793,11 +3803,14 @@ private fun CategorySetBudgetDialog(
                     OutlinedButton(
                         onClick = onDismiss,
                         shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel",
-                            fontSize = 12.5.sp
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
 
@@ -3807,12 +3820,15 @@ private fun CategorySetBudgetDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BrandBlueLight),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.3f)
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1.35f)
                     ) {
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ করুন" else "Save Budget",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }

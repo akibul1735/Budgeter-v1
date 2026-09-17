@@ -7,29 +7,21 @@
     <path
         android:fillColor="#E31B23"
         android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
-    <!-- City Bank Famous Geometric Cube Matrix in White & Light Red -->
-    <!-- Top Cube -->
+    <!-- City Bank Famous Geometric 3D Cube -->
+    <!-- Top Face in Pure White -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M24,12 L31,16 L24,20 L17,16 Z" />
+        android:pathData="M24,12 L33,17 L24,22 L15,17 Z" />
+    <!-- Left Face in Light Red / Pink -->
     <path
         android:fillColor="#FFCDD2"
-        android:pathData="M17,16 L24,20 L24,27 L17,23 Z" />
+        android:pathData="M15,17 L24,22 L24,32 L15,27 Z" />
+    <!-- Right Face in Medium Coral / Red -->
     <path
         android:fillColor="#EF9A9A"
-        android:pathData="M24,20 L31,16 L31,23 L24,27 Z" />
-    <!-- Bottom Left Cube -->
+        android:pathData="M24,22 L33,17 L33,27 L24,32 Z" />
+    <!-- Small Bottom Accent Diamond in White -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M17,25 L24,29 L17,33 L10,29 Z" />
-    <path
-        android:fillColor="#FFCDD2"
-        android:pathData="M10,29 L17,33 L17,39 L10,35 Z" />
-    <!-- Bottom Right Cube -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M31,25 L38,29 L31,33 L24,29 Z" />
-    <path
-        android:fillColor="#EF9A9A"
-        android:pathData="M31,33 L38,29 L38,35 L31,39 Z" />
+        android:pathData="M24,33 L27,35 L24,37 L21,35 Z" />
 </vector>

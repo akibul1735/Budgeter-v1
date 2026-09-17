@@ -3,20 +3,20 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Eastern Bank Cobalt Blue Circle -->
+    <!-- Eastern Bank Signature Blue Circle -->
     <path
         android:fillColor="#003399"
         android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
     <!-- White Dynamic Ribbon Ring -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M24,13 C30,13 35,18 35,24 C35,30 30,35 24,35 C18,35 13,30 13,24 C13,18 18,13 24,13 Z M24,17 C20,17 17,20 17,24 C17,28 20,31 24,31 C28,31 31,28 31,24 C31,20 28,17 24,17 Z" />
-    <!-- Red Dynamic Meridian Wave -->
+        android:pathData="M24,11 C31.2,11 37,16.8 37,24 C37,31.2 31.2,37 24,37 C16.8,37 11,31.2 11,24 C11,16.8 16.8,11 24,11 Z M24,16 C19.6,16 16,19.6 16,24 C16,28.4 19.6,32 24,32 C28.4,32 32,28.4 32,24 C32,19.6 28.4,16 24,16 Z" />
+    <!-- Dynamic Red Meridian Wave Curve -->
     <path
         android:fillColor="#E53935"
-        android:pathData="M21,17 C26,20 26,28 21,31 C24,31 27,27 27,24 C27,21 24,17 21,17 Z" />
-    <!-- White Central Star Node -->
+        android:pathData="M22,16 C27.5,19.5 27.5,28.5 22,32 C25.5,32 29,27.5 29,24 C29,20.5 25.5,16 22,16 Z" />
+    <!-- Central White Star Node -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M24,24m-2,0a2,2 0,1,1 4,0a2,2 0,1,1 -4,0" />
+        android:pathData="M24,24m-2.2,0a2.2,2.2 0,1,1 4.4,0a2.2,2.2 0,1,1 -4.4,0" />
 </vector>

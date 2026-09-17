@@ -3,42 +3,39 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Sonali Bank Deep Navy Circle -->
+    <!-- Sonali Bank Deep Green Circle -->
     <path
-        android:fillColor="#1A365D"
+        android:fillColor="#006837"
         android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
-    <path
-        android:strokeColor="#D4AF37"
-        android:strokeWidth="2"
-        android:pathData="M24,24m-19,0a19,19 0,1,1 38,0a19,19 0,1,1 -38,0" />
-    <!-- Radiant Golden Sun -->
+    <!-- Rising Sun Rays in Golden Yellow -->
     <path
         android:fillColor="#FFD700"
-        android:pathData="M24,19m-5,0a5,5 0,1,1 10,0a5,5 0,1,1 -10,0" />
-    <!-- Sun Rays -->
+        android:pathData="M24,10 L25.5,15 L22.5,15 Z M31,13 L28.5,17.5 L26.5,15.5 Z M17,13 L21.5,15.5 L19.5,17.5 Z M36,19 L31,20.5 L31,18 Z M12,19 L17,18 L17,20.5 Z" />
+    <!-- Central Red Circle -->
+    <path
+        android:fillColor="#ED1C24"
+        android:pathData="M24,21m-4.5,0a4.5,4.5 0,1,1 9,0a4.5,4.5 0,1,1 -9,0" />
+    <!-- Flanking Golden Paddy / Wheat Ears -->
+    <!-- Left Stalk -->
     <path
         android:strokeColor="#FFD700"
         android:strokeWidth="1.8"
-        android:pathData="M24,11 L24,13 M18,13 L19.5,14.5 M30,13 L28.5,14.5 M16,19 L18,19 M32,19 L30,19" />
-    <!-- Two Golden Wheat Stalks Framing the Sun in Arc -->
-    <!-- Left Stalk -->
+        android:strokeLineCap="round"
+        android:pathData="M16,35 C15,30 16,24 20,20" />
     <path
-        android:strokeColor="#D4AF37"
-        android:strokeWidth="1.8"
-        android:pathData="M14,35 C14,27 18,22 23,21" />
-    <path
-        android:fillColor="#D4AF37"
-        android:pathData="M15,31 C13,29 15,26 17,28 Z M17,26 C15,24 17,21 19,23 Z M20,22 C19,20 21,18 22,20 Z" />
+        android:fillColor="#FFD700"
+        android:pathData="M14.5,29 C13.5,28 14.5,26.5 16,27.5 Z M15.5,25 C14.5,24 15.5,22.5 17,23.5 Z M18,21 C17,20 18,18.5 19.5,19.5 Z" />
     <!-- Right Stalk -->
     <path
-        android:strokeColor="#D4AF37"
+        android:strokeColor="#FFD700"
         android:strokeWidth="1.8"
-        android:pathData="M34,35 C34,27 30,22 25,21" />
+        android:strokeLineCap="round"
+        android:pathData="M32,35 C33,30 32,24 28,20" />
     <path
-        android:fillColor="#D4AF37"
-        android:pathData="M33,31 C35,29 33,26 31,28 Z M31,26 C33,24 31,21 29,23 Z M28,22 C29,20 27,18 26,20 Z" />
-    <!-- Base Ribbon Plinth in Pure White -->
+        android:fillColor="#FFD700"
+        android:pathData="M33.5,29 C34.5,28 33.5,26.5 32,27.5 Z M32.5,25 C33.5,24 32.5,22.5 31,23.5 Z M30,21 C31,20 30,18.5 28.5,19.5 Z" />
+    <!-- Base Ribbon in White -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M18,34 L30,34 L28,37 L20,37 Z" />
+        android:pathData="M17,35 L31,35 L31,37 L17,37 Z" />
 </vector>

@@ -7,25 +7,29 @@
     <path
         android:fillColor="#E2136E"
         android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
-    <!-- bKash Origami Flying Bird in Pure White -->
-    <!-- Bird Body & Main Wing -->
+    <!-- bKash Authentic Origami Bird in Pure White -->
+    <!-- Head and Beak pointing Upper Right -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M11,26 L23,10 L28,21 L16,28 Z" />
-    <!-- Bird Upper Wing Peak -->
-    <path
-        android:fillColor="#FFE4EF"
-        android:pathData="M23,10 L37,13 L28,21 Z" />
-    <!-- Bird Tail Feathers -->
+        android:pathData="M26.5,19 L38.5,24 L29.5,26.5 Z" />
+    <!-- Soaring Upper Large Wing -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M11,26 L15,36 L21,29 L16,28 Z" />
-    <!-- Bird Head & Beak -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M28,21 L39,26 L31,29 Z" />
-    <!-- Lower Wing Facet -->
+        android:pathData="M22,9 L34.5,11 L26.5,19 L19,17 Z" />
+    <!-- Upper Wing Shadow Facet -->
     <path
         android:fillColor="#FCE4EC"
-        android:pathData="M21,29 L31,29 L25,38 Z" />
+        android:pathData="M26.5,19 L34.5,11 L31.5,17 Z" />
+    <!-- Central Body Facet -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M19,17 L26.5,19 L29.5,26.5 L22.5,28.5 Z" />
+    <!-- Lower Wing / Chest Facet -->
+    <path
+        android:fillColor="#FCE4EC"
+        android:pathData="M22.5,28.5 L29.5,26.5 L26.5,36 Z" />
+    <!-- Lower Tail Feathers pointing Lower Left -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M13,25 L19,17 L22.5,28.5 L16.5,34 Z" />
 </vector>

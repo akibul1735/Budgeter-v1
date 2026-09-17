@@ -3,20 +3,20 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Nagad Alt Deep Red-Orange Circle -->
+    <!-- Nagad Signature Orange Circular Background -->
     <path
-        android:fillColor="#E65100"
+        android:fillColor="#F7941D"
         android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
-    <path
-        android:strokeColor="#FFB74D"
-        android:strokeWidth="1.5"
-        android:pathData="M24,24m-19.5,0a19.5,19.5 0,1,1 39,0a19.5,19.5 0,1,1 -39,0" />
-    <!-- White Flame Crest -->
+    <!-- White Swirling Ribbon -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M24,11 C28,17 34,21 33,28 C32,34 26,37 20,35 C15,33 13,27 15,22 C16,19 19,16 22,14 C21,17 23,20 26,20 C24,17 23,14 24,11 Z" />
-    <!-- Golden Core Droplet -->
+        android:pathData="M25,8 C33,9 38,15 37,23 C36,29 31,34 25,35 C19,36 13,32 12,26 C11.5,23 12.5,19 15,16 C15.8,17.2 16,19 16.5,21 C17,25 20,29 24,29 C28,29 31,26 31.5,22 C32,17 28.5,13.5 24.5,12 C23,11.5 21,11 19,11 C21,9.5 23,8.5 25,8 Z" />
+    <!-- Golden Yellow Swirl Ribbon -->
     <path
-        android:fillColor="#FFA726"
-        android:pathData="M22,23 C25,25 26,28 24,30 C22.5,31.5 20,31 19,29 C18,27 19.5,24.5 22,23 Z" />
+        android:fillColor="#FFE082"
+        android:pathData="M18.5,13 C14.5,16.5 13,21.5 14,26 C15,31 20,35.5 25.5,35 C23.5,33.5 21.5,31.5 20.5,29 C17.5,29 15.5,25.5 15,22 C14.5,18.5 16,15.5 18.5,13 Z" />
+    <!-- Center Dot in White -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,23.5m-3,0a3,3 0,1,1 6,0a3,3 0,1,1 -6,0" />
 </vector>

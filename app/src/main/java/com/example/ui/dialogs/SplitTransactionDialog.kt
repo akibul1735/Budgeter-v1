@@ -633,24 +633,35 @@ fun SplitTransactionDialog(
                                     OutlinedTextField(
                                         value = line.amountText,
                                         onValueChange = { newText ->
-                                            val filtered = newText.filter { it.isDigit() || it == '.' }
+                                            val filtered = buildString {
+                                                var hasDot = false
+                                                for (ch in newText) {
+                                                    if (ch.isDigit()) append(ch)
+                                                    else if (ch == '.' && !hasDot) {
+                                                        append(ch)
+                                                        hasDot = true
+                                                    }
+                                                }
+                                            }
                                             lines[index] = line.copy(amountText = filtered)
                                         },
                                         placeholder = { Text("0.00", fontSize = 13.sp) },
-                                        leadingIcon = {
+                                        prefix = {
                                             Text(
-                                                currencySymbol,
+                                                "$currencySymbol ",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp,
                                                 color = SolidPrimary
                                             )
                                         },
+                                        textStyle = LocalTextStyle.current.copy(
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(48.dp)
+                                        modifier = Modifier.weight(1f)
                                     )
 
                                     // Fill Remaining Shortcut
@@ -664,12 +675,12 @@ fun SplitTransactionDialog(
                                                 )
                                             },
                                             shape = RoundedCornerShape(10.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(48.dp)
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                            modifier = Modifier.align(Alignment.CenterVertically)
                                         ) {
                                             Text(
                                                 text = if (isBangla) "+বাকি" else "+Fill",
-                                                fontSize = 11.5.sp,
+                                                fontSize = 12.sp,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         }
@@ -700,9 +711,7 @@ fun SplitTransactionDialog(
                                     },
                                     singleLine = true,
                                     shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(46.dp)
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                         }
@@ -794,14 +803,14 @@ fun SplitTransactionDialog(
                                     type = it.type,
                                     categoryId = it.categoryId,
                                     subCategoryId = it.subCategoryId,
-                                    debitAccountId = it.debitAccountId,
-                                    creditAccountId = it.creditAccountId ?: defaultAccId,
+                                    debitAccountId = if (it.type == TransactionType.INCOME) (it.debitAccountId ?: defaultAccId) else it.debitAccountId,
+                                    creditAccountId = if (it.type == TransactionType.EXPENSE) (it.creditAccountId ?: defaultAccId) else it.creditAccountId,
                                     amount = it.amountText.toDoubleOrNull() ?: 0.0,
                                     note = it.note.trim(),
                                     payeeOrPayer = it.payeeOrPayer.trim()
                                 )
                             }
-                            val finalTotal = if (overallAmount > 0) overallAmount else sumOfSplits
+                            val finalTotal = sumOfSplits
                             onApplySplit(resultItems, finalTotal)
                             onDismiss()
                         },

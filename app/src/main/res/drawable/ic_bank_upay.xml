@@ -3,16 +3,22 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Upay Vibrant Cyan Circle -->
+    <!-- Upay Signature Deep Navy Blue Circle -->
     <path
-        android:fillColor="#00A3E0"
+        android:fillColor="#002B49"
         android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
-    <!-- White 'u' Swoosh Emblem -->
+    <!-- Upay Iconic Vibrant Golden-Yellow 'u' -->
+    <path
+        android:fillColor="#FFB81C"
+        android:pathData="M15,14 L20.5,14 L20.5,24.5 C20.5,26.5 22,28 24,28 C26,28 27.5,26.5 27.5,24.5 L27.5,14 L33,14 L33,24.5 C33,29.5 29,33.5 24,33.5 C19,33.5 15,29.5 15,24.5 Z" />
+    <!-- Dynamic Upward Spark / Accent Dot in White -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M16,15 L21,15 L21,26 C21,28.5 22.5,30 24.5,30 C26.5,30 28,28.5 28,26 L28,15 L33,15 L33,26 C33,31.5 29.5,35 24.5,35 C19.5,35 16,31.5 16,26 Z" />
-    <!-- Dynamic Arrow / Spark in Navy -->
+        android:pathData="M33,14m-2.5,0a2.5,2.5 0,1,1 5,0a2.5,2.5 0,1,1 -5,0" />
+    <!-- Upay Smile Curve in Gold -->
     <path
-        android:fillColor="#004F9E"
-        android:pathData="M31,12 L37,18 L31,24 Z" />
+        android:strokeColor="#FFB81C"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M18,37 C22,39 26,39 30,37" />
 </vector>

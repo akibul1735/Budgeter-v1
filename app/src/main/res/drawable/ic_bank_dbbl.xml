@@ -3,25 +3,28 @@
     android:height="48dp"
     android:viewportWidth="48"
     android:viewportHeight="48">
-    <!-- Dutch-Bangla Bank Green Circle -->
+    <!-- Dutch-Bangla Bank Signature Green Circle -->
     <path
         android:fillColor="#006738"
         android:pathData="M24,24m-22,0a22,22 0,1,1 44,0a22,22 0,1,1 -44,0" />
-    <!-- White Trunk & Branch Foundation -->
+    <!-- DBBL White Base Pedestal -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M22,26 L26,26 L26,37 L22,37 Z M19,37 L29,37 L29,39 L19,39 Z" />
-    <!-- DBBL Iconic Banyan Canopy in Red & Green/White -->
-    <!-- Red Left Foliage -->
+        android:pathData="M16,36 L32,36 L32,38 L16,38 Z" />
+    <!-- White Trunk & Branch Structure -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M22,25 L26,25 L26,36 L22,36 Z" />
+    <!-- Left Iconic Leaf in DBBL Red -->
     <path
         android:fillColor="#ED1C24"
-        android:pathData="M24,11 C17,11 13,16 13,22 C13,28 19,29 24,25 Z" />
-    <!-- White Right Foliage -->
+        android:pathData="M23.5,12 C16,12 12,17 12,23 C12,28.5 17,29.5 23.5,25 Z" />
+    <!-- Right Iconic Leaf in Pure White -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M24,11 C31,11 35,16 35,22 C35,28 29,29 24,25 Z" />
-    <!-- Central Leaf Division -->
+        android:pathData="M24.5,12 C32,12 36,17 36,23 C36,28.5 31,29.5 24.5,25 Z" />
+    <!-- Central Dividing Stem in Bank Green -->
     <path
         android:fillColor="#006738"
-        android:pathData="M24,13 C23,17 23,23 24,26 C25,23 25,17 24,13 Z" />
+        android:pathData="M23.2,12 L24.8,12 L24.8,26 L23.2,26 Z" />
 </vector>
