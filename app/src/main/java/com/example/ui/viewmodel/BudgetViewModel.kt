@@ -530,7 +530,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun saveBudgetAdjustment(itemType: String, itemId: Long, newAmount: Double, isEnabled: Boolean = true, note: String = "") {
+    fun saveBudgetAdjustment(
+        itemType: String,
+        itemId: Long,
+        newAmount: Double,
+        isEnabled: Boolean = true,
+        note: String = "",
+        initialOriginalBudget: Double = 0.0
+    ) {
         viewModelScope.launch {
             activeRepo.saveBudgetAdjustment(
                 year = _selectedBudgetYear.value,
@@ -539,7 +546,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 itemId = itemId,
                 newAmount = newAmount,
                 isEnabled = isEnabled,
-                note = note
+                note = note,
+                initialOriginalBudget = initialOriginalBudget
             )
         }
     }

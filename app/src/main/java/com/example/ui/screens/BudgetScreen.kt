@@ -2633,7 +2633,7 @@ private fun BudgetHelpDialog(onDismiss: () -> Unit) {
  * 2. Previous Month Expensed / Actual (PE)
  * 3. 3 Frequent suggestions (F1, F2, F3)
  */
-private fun calculateSuggestionsForItem(
+internal fun calculateSuggestionsForItem(
     itemId: Long,
     itemType: String,
     defaultLimit: Double,

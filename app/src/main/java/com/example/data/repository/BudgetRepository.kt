@@ -81,8 +81,23 @@ class BudgetRepository(
     fun getBudgetAdjustmentsForItem(year: Int, month: Int, itemType: String, itemId: Long): Flow<List<BudgetAdjustment>> =
         budgetAdjustmentDao.getAdjustmentsForItem(year, month, itemType, itemId)
 
-    suspend fun saveMonthlyBudget(budget: MonthlyBudget): Long =
-        monthlyBudgetDao.upsertBudget(budget)
+    suspend fun saveMonthlyBudget(budget: MonthlyBudget): Long {
+        val existing = monthlyBudgetDao.getBudget(budget.year, budget.month, budget.itemType, budget.itemId)
+        val updated = MonthlyBudget(
+            id = existing?.id ?: budget.id,
+            year = budget.year,
+            month = budget.month,
+            itemType = budget.itemType,
+            itemId = budget.itemId,
+            budgetedAmount = budget.budgetedAmount,
+            previousAmount = 0.0, // Setting budget sets/changes the actual original budget
+            isEnabled = budget.isEnabled,
+            updatedAt = System.currentTimeMillis()
+        )
+        // Clear old adjustments since actual budget is being reset
+        budgetAdjustmentDao.deleteAdjustmentsForItem(budget.year, budget.month, budget.itemType, budget.itemId)
+        return monthlyBudgetDao.upsertBudget(updated)
+    }
 
     suspend fun saveBudgetAdjustment(
         year: Int,
@@ -91,11 +106,17 @@ class BudgetRepository(
         itemId: Long,
         newAmount: Double,
         isEnabled: Boolean = true,
-        note: String = ""
+        note: String = "",
+        initialOriginalBudget: Double = 0.0
     ): Long {
         val existing = monthlyBudgetDao.getBudget(year, month, itemType, itemId)
-        val oldAmount = existing?.budgetedAmount ?: 0.0
-        val prevAmount = if (existing != null && existing.previousAmount > 0) existing.previousAmount else oldAmount
+        // Find true original baseline budget that must NEVER be overwritten by subsequent adjustments:
+        val originalBaseline = when {
+            existing != null && existing.previousAmount > 0.0 -> existing.previousAmount
+            existing != null && existing.budgetedAmount > 0.0 -> existing.budgetedAmount
+            initialOriginalBudget > 0.0 -> initialOriginalBudget
+            else -> 0.0
+        }
 
         val updatedBudget = MonthlyBudget(
             id = existing?.id ?: 0,
@@ -104,27 +125,26 @@ class BudgetRepository(
             itemType = itemType,
             itemId = itemId,
             budgetedAmount = newAmount,
-            previousAmount = if (prevAmount > 0) prevAmount else oldAmount,
+            previousAmount = originalBaseline,
             isEnabled = isEnabled,
             updatedAt = System.currentTimeMillis()
         )
         val budgetId = monthlyBudgetDao.upsertBudget(updatedBudget)
 
-        if (oldAmount != newAmount) {
-            budgetAdjustmentDao.insertAdjustment(
-                BudgetAdjustment(
-                    year = year,
-                    month = month,
-                    itemType = itemType,
-                    itemId = itemId,
-                    previousAmount = oldAmount,
-                    adjustedAmount = newAmount,
-                    difference = newAmount - oldAmount,
-                    note = note,
-                    timestamp = System.currentTimeMillis()
-                )
+        val baseToCompare = if (originalBaseline > 0.0) originalBaseline else (existing?.budgetedAmount ?: initialOriginalBudget)
+        budgetAdjustmentDao.insertAdjustment(
+            BudgetAdjustment(
+                year = year,
+                month = month,
+                itemType = itemType,
+                itemId = itemId,
+                previousAmount = baseToCompare,
+                adjustedAmount = newAmount,
+                difference = newAmount - baseToCompare,
+                note = note,
+                timestamp = System.currentTimeMillis()
             )
-        }
+        )
         return budgetId
     }
 
