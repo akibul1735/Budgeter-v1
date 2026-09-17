@@ -3074,11 +3074,23 @@ fun AddEditTransactionSheet(
                         selectedCategoryId = firstItem.categoryId
                         selectedSubCategoryId = firstItem.subCategoryId
                     }
-                    if (firstItem.creditAccountId != null) {
-                        creditAccountId = firstItem.creditAccountId
-                    }
-                    if (firstItem.debitAccountId != null) {
-                        debitAccountId = firstItem.debitAccountId
+                    if (txType == TransactionType.EXPENSE) {
+                        if (firstItem.creditAccountId != null) {
+                            creditAccountId = firstItem.creditAccountId
+                        }
+                        debitAccountId = null
+                    } else if (txType == TransactionType.INCOME) {
+                        if (firstItem.debitAccountId != null) {
+                            debitAccountId = firstItem.debitAccountId
+                        }
+                        creditAccountId = null
+                    } else {
+                        if (firstItem.creditAccountId != null) {
+                            creditAccountId = firstItem.creditAccountId
+                        }
+                        if (firstItem.debitAccountId != null) {
+                            debitAccountId = firstItem.debitAccountId
+                        }
                     }
                 }
                 showSplitDialog = false

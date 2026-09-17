@@ -870,8 +870,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         Pair(receivingAcc, null)
                     }
                     com.example.data.model.TransactionType.TRANSFER -> {
-                        val destAcc = item.debitAccountId ?: baseTx.debitAccountId
-                        val srcAcc = item.creditAccountId ?: baseTx.creditAccountId
+                        val destAcc = item.debitAccountId ?: if (baseTx.type == com.example.data.model.TransactionType.TRANSFER) baseTx.debitAccountId else null
+                        val srcAcc = item.creditAccountId ?: baseTx.creditAccountId ?: baseTx.debitAccountId
                         Pair(destAcc, srcAcc)
                     }
                 }
