@@ -296,7 +296,7 @@ fun AppTabHeader(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
-                    .testTag("header_search_input")
+                    .testTag("header_search_bar")
             ) {
                 Row(
                     modifier = Modifier
@@ -339,7 +339,9 @@ fun AppTabHeader(
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("header_search_input")
                         )
                     }
 
