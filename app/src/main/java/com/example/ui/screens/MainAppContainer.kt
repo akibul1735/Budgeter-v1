@@ -236,6 +236,7 @@ fun MainAppContainer(
     val recurringBills by viewModel.recurringBillsWithDetails.collectAsStateWithLifecycle()
     val backupUiState by viewModel.backupUiState.collectAsStateWithLifecycle()
     val monthlyBudgets by viewModel.monthlyBudgets.collectAsStateWithLifecycle()
+    val allMonthlyBudgets by viewModel.allMonthlyBudgets.collectAsStateWithLifecycle()
     val selectedBudgetYear by viewModel.selectedBudgetYear.collectAsStateWithLifecycle()
     val selectedBudgetMonth by viewModel.selectedBudgetMonth.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
@@ -1148,6 +1149,7 @@ fun MainAppContainer(
             accounts = allAccounts,
             categories = allCategories,
             allTransactions = transactionsWithDetails,
+            monthlyBudgets = allMonthlyBudgets,
             languageMode = languageMode,
             existingTransaction = editingTransaction,
             onDismiss = { showAddTransactionSheet = false },

@@ -11,10 +11,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +50,7 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -57,6 +60,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -113,6 +118,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -178,7 +186,7 @@ fun RmManagerScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var isSearchExpanded by remember { mutableStateOf(false) }
-    var isFilterSettingsOpen by remember { mutableStateOf(false) }
+    var isUnifiedFilterOpen by remember { mutableStateOf(false) }
     var selectedFilterCategory by remember { mutableStateOf(RmFilterCategory.ALL) }
     var selectedSortOption by remember { mutableStateOf(RmSortOption.HIGHEST_DUE) }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
@@ -188,7 +196,6 @@ fun RmManagerScreen(
     // Reconcile Sheet State
     var entityToReconcile by remember { mutableStateOf<RmManagerHelper.RmEntityBreakdown?>(null) }
     var transactionForQuickReconcile by remember { mutableStateOf<Transaction?>(null) }
-    var isFilterMenuExpanded by remember { mutableStateOf(false) }
 
     // Recompute RM Data
     val rmData = remember(
@@ -394,60 +401,15 @@ fun RmManagerScreen(
                             }
                         }
 
-                        // Filter Options Dropdown Menu Button
-                        Box {
-                            IconButton(onClick = { isFilterMenuExpanded = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.FilterList,
-                                    contentDescription = "Filter Options",
-                                    tint = if (selectedFilterCategory != RmFilterCategory.ALL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = isFilterMenuExpanded,
-                                onDismissRequest = { isFilterMenuExpanded = false }
-                            ) {
-                                listOf(
-                                    Triple(RmFilterCategory.ALL, if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Entities", Icons.Default.DoneAll),
-                                    Triple(RmFilterCategory.PENDING_ONLY, if (languageMode == LanguageMode.BANGLA) "বকেয়া দেনা" else "Pending Due Only", Icons.AutoMirrored.Filled.TrendingDown),
-                                    Triple(RmFilterCategory.SETTLED_ONLY, if (languageMode == LanguageMode.BANGLA) "পরিশোধিত" else "Settled Only", Icons.Default.CheckCircle),
-                                    Triple(RmFilterCategory.RM_ACCOUNTS, if (languageMode == LanguageMode.BANGLA) "আরএম অ্যাকাউন্ট" else "RM Accounts Only", Icons.Default.AccountBalance),
-                                    Triple(RmFilterCategory.RM_OTHERS, if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য লেবেল" else "RM Others Labels", Icons.AutoMirrored.Filled.ReceiptLong),
-                                    Triple(RmFilterCategory.UNRECONCILED, if (languageMode == LanguageMode.BANGLA) "আমিলকৃত" else "Unreconciled Only", Icons.Default.History),
-                                    Triple(RmFilterCategory.RECONCILED, if (languageMode == LanguageMode.BANGLA) "মিলকৃত" else "Reconciled Only", Icons.Default.Verified),
-                                    Triple(RmFilterCategory.HIGH_LIABILITY, if (languageMode == LanguageMode.BANGLA) "বড় দেনা (> ৳১০,০০০)" else "High Due (> ৳10k)", Icons.Default.Payment),
-                                    Triple(RmFilterCategory.RECENT_WEEK, if (languageMode == LanguageMode.BANGLA) "গত ৭ দিনে সক্রিয়" else "Active (Last 7 Days)", Icons.Default.Timeline)
-                                ).forEach { (cat, title, icon) ->
-                                    DropdownMenuItem(
-                                        text = { Text(title, fontSize = 13.5.sp) },
-                                        onClick = {
-                                            selectedFilterCategory = cat
-                                            isFilterMenuExpanded = false
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = icon,
-                                                contentDescription = null,
-                                                tint = if (selectedFilterCategory == cat) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        },
-                                        trailingIcon = {
-                                            if (selectedFilterCategory == cat) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        // RM Filter Settings Button
-                        IconButton(onClick = { isFilterSettingsOpen = true }) {
+                        // United Single Filter & Settings Button
+                        IconButton(onClick = { isUnifiedFilterOpen = true }) {
                             Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = LanguageHelper.getString("rm_settings", languageMode).ifEmpty { "Filter Settings" },
-                                tint = MaterialTheme.colorScheme.onSurface
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও সেটিংস" else "Filter & Settings",
+                                tint = if (selectedFilterCategory != RmFilterCategory.ALL || filterConfig.includeKeyword != "RM" || filterConfig.excludeKeyword != "RM Others")
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -773,21 +735,24 @@ fun RmManagerScreen(
         )
     }
 
-    // RM Filter Settings Dialog
-    if (isFilterSettingsOpen) {
-        RmFilterSettingsDialog(
+    // Unified RM Filter & Settings Dialog
+    if (isUnifiedFilterOpen) {
+        UnifiedRmFilterDialog(
+            selectedCategory = selectedFilterCategory,
             currentIncludeKeyword = filterConfig.includeKeyword,
             currentExcludeKeyword = filterConfig.excludeKeyword,
             languageMode = languageMode,
-            onDismiss = { isFilterSettingsOpen = false },
-            onSave = { include, exclude ->
-                RmManagerPreferences.getInstance(context).saveConfig(include, exclude)
-                isFilterSettingsOpen = false
+            onDismiss = { isUnifiedFilterOpen = false },
+            onApply = { newCategory, newInclude, newExclude ->
+                selectedFilterCategory = newCategory
+                RmManagerPreferences.getInstance(context).saveConfig(newInclude, newExclude)
+                isUnifiedFilterOpen = false
                 refreshTrigger++
             },
             onReset = {
                 RmManagerPreferences.getInstance(context).resetToDefaults()
-                isFilterSettingsOpen = false
+                selectedFilterCategory = RmFilterCategory.ALL
+                isUnifiedFilterOpen = false
                 refreshTrigger++
             }
         )
@@ -819,6 +784,14 @@ private fun RmModernMainView(
             )
         }
 
+        // --- 1.5. Analytics Graph Card (Liability & Repayment Trend) ---
+        item {
+            RmAnalyticsGraphCard(
+                rmData = rmData,
+                languageMode = languageMode
+            )
+        }
+
         // --- 2. Filter Category Chips ---
         item {
             LazyRow(
@@ -831,7 +804,7 @@ private fun RmModernMainView(
                     FilterChip(
                         selected = selectedFilterCategory == RmFilterCategory.ALL,
                         onClick = { onSelectFilterCategory(RmFilterCategory.ALL) },
-                        label = { Text("${LanguageHelper.getString("all_entities", languageMode)} (${rmData.allEntities.size})") },
+                        label = { Text("${LanguageHelper.getString("all_entities", languageMode)} (${rmData.totalAllCount})") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -842,7 +815,7 @@ private fun RmModernMainView(
                     FilterChip(
                         selected = selectedFilterCategory == RmFilterCategory.PENDING_ONLY,
                         onClick = { onSelectFilterCategory(RmFilterCategory.PENDING_ONLY) },
-                        label = { Text("${LanguageHelper.getString("pending_repayment", languageMode)} (${rmData.pendingCount + rmData.partiallyRepaidCount})") },
+                        label = { Text("${LanguageHelper.getString("pending_repayment", languageMode)} (${rmData.totalPendingCount})") },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
                             selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
@@ -853,21 +826,21 @@ private fun RmModernMainView(
                     FilterChip(
                         selected = selectedFilterCategory == RmFilterCategory.RM_ACCOUNTS,
                         onClick = { onSelectFilterCategory(RmFilterCategory.RM_ACCOUNTS) },
-                        label = { Text("${LanguageHelper.getString("rm_accounts_tab", languageMode)} (${rmData.rmAccounts.size})") }
+                        label = { Text("${LanguageHelper.getString("rm_accounts_tab", languageMode)} (${rmData.totalRmAccountsCount})") }
                     )
                 }
                 item {
                     FilterChip(
                         selected = selectedFilterCategory == RmFilterCategory.RM_OTHERS,
                         onClick = { onSelectFilterCategory(RmFilterCategory.RM_OTHERS) },
-                        label = { Text("${LanguageHelper.getString("rm_others_tab", languageMode)} (${rmData.rmOthers.size})") }
+                        label = { Text("${LanguageHelper.getString("rm_others_tab", languageMode)} (${rmData.totalRmOthersCount})") }
                     )
                 }
                 item {
                     FilterChip(
                         selected = selectedFilterCategory == RmFilterCategory.SETTLED_ONLY,
                         onClick = { onSelectFilterCategory(RmFilterCategory.SETTLED_ONLY) },
-                        label = { Text("${LanguageHelper.getString("fully_settled", languageMode)} (${rmData.settledCount})") }
+                        label = { Text("${LanguageHelper.getString("fully_settled", languageMode)} (${rmData.totalSettledCount})") }
                     )
                 }
             }
@@ -883,7 +856,7 @@ private fun RmModernMainView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "দায় ও খতিয়ান তালিকা" else "Liabilities & Khatian Ledger",
+                    text = if (languageMode == LanguageMode.BANGLA) "খতিয়ান" else "Ledger",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2621,112 +2594,221 @@ private fun copyToClipboard(context: Context, text: String) {
 }
 
 @Composable
-private fun RmFilterSettingsDialog(
+private fun UnifiedRmFilterDialog(
+    selectedCategory: RmFilterCategory,
     currentIncludeKeyword: String,
     currentExcludeKeyword: String,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit,
+    onApply: (RmFilterCategory, String, String) -> Unit,
     onReset: () -> Unit
 ) {
-    var includeKeyword by remember { mutableStateOf(currentIncludeKeyword) }
-    var excludeKeyword by remember { mutableStateOf(currentExcludeKeyword) }
+    var tempCategory by remember { mutableStateOf(selectedCategory) }
+    var tempInclude by remember { mutableStateOf(currentIncludeKeyword) }
+    var tempExclude by remember { mutableStateOf(currentExcludeKeyword) }
+    var showKeywordSettings by remember { mutableStateOf(false) }
+
+    val filterOptions = remember(languageMode) {
+        listOf(
+            Triple(RmFilterCategory.ALL, if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Entities", Icons.Default.DoneAll),
+            Triple(RmFilterCategory.PENDING_ONLY, if (languageMode == LanguageMode.BANGLA) "বকেয়া দেনা" else "Pending Due Only", Icons.AutoMirrored.Filled.TrendingDown),
+            Triple(RmFilterCategory.RM_ACCOUNTS, if (languageMode == LanguageMode.BANGLA) "আরএম অ্যাকাউন্ট" else "RM Accounts Only", Icons.Default.AccountBalance),
+            Triple(RmFilterCategory.RM_OTHERS, if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য লেবেল" else "RM Others Labels", Icons.AutoMirrored.Filled.ReceiptLong),
+            Triple(RmFilterCategory.SETTLED_ONLY, if (languageMode == LanguageMode.BANGLA) "পরিশোধিত" else "Settled Only", Icons.Default.CheckCircle),
+            Triple(RmFilterCategory.UNRECONCILED, if (languageMode == LanguageMode.BANGLA) "আমিলকৃত" else "Unreconciled Only", Icons.Default.History),
+            Triple(RmFilterCategory.RECONCILED, if (languageMode == LanguageMode.BANGLA) "মিলকৃত" else "Reconciled Only", Icons.Default.Verified),
+            Triple(RmFilterCategory.HIGH_LIABILITY, if (languageMode == LanguageMode.BANGLA) "বড় দেনা (> ৳১০,০০০)" else "High Due (> ৳10k)", Icons.Default.Payment),
+            Triple(RmFilterCategory.RECENT_WEEK, if (languageMode == LanguageMode.BANGLA) "গত ৭ দিনে সক্রিয়" else "Active (Last 7 Days)", Icons.Default.Timeline)
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Tune,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = LanguageHelper.getString("rm_filter_settings", languageMode).ifEmpty { "Filter Settings" },
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার ও সেটিংস" else "Filter & Settings",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Include Keyword
-                Column {
-                    Text(
-                        text = LanguageHelper.getString("rm_include_keyword", languageMode).ifEmpty { "Account Filter Keyword" },
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = includeKeyword,
-                        onValueChange = { includeKeyword = it },
-                        placeholder = { Text("RM") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = LanguageHelper.getString("rm_include_keyword_desc", languageMode),
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "বিভাগ ফিল্টার নির্বাচন করুন:" else "Filter by Entity Status:",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                // Exclude Keyword
-                Column {
-                    Text(
-                        text = LanguageHelper.getString("rm_exclude_keyword", languageMode).ifEmpty { "Exclude Account Keyword" },
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = excludeKeyword,
-                        onValueChange = { excludeKeyword = it },
-                        placeholder = { Text("RM Others") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = LanguageHelper.getString("rm_exclude_keyword_desc", languageMode),
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Reset button
-                TextButton(
-                    onClick = onReset,
-                    modifier = Modifier.align(Alignment.End)
+                // Category options
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = LanguageHelper.getString("reset_defaults", languageMode).ifEmpty { "Reset Defaults" },
-                        fontSize = 12.5.sp,
-                        color = MaterialTheme.colorScheme.error
+                    filterOptions.forEach { (cat, title, icon) ->
+                        val isSelected = tempCategory == cat
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { tempCategory = cat }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = title,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                // Collapsible / Expandable Keyword Settings
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showKeywordSettings = !showKeywordSettings }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কি-ওয়ার্ড ফিল্টার সেটিংস" else "Keyword Filter Rules",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = if (showKeywordSettings) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(18.dp)
                     )
+                }
+
+                AnimatedVisibility(visible = showKeywordSettings) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = LanguageHelper.getString("rm_include_keyword", languageMode).ifEmpty { "Account Filter Keyword" },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            OutlinedTextField(
+                                value = tempInclude,
+                                onValueChange = { tempInclude = it },
+                                placeholder = { Text("RM") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = LanguageHelper.getString("rm_exclude_keyword", languageMode).ifEmpty { "Exclude Account Keyword" },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            OutlinedTextField(
+                                value = tempExclude,
+                                onValueChange = { tempExclude = it },
+                                placeholder = { Text("RM Others") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        TextButton(
+                            onClick = onReset,
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text(
+                                text = LanguageHelper.getString("reset_defaults", languageMode).ifEmpty { "Reset Defaults" },
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onSave(includeKeyword, excludeKeyword) },
+                onClick = { onApply(tempCategory, tempInclude, tempExclude) },
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Text(
-                    text = LanguageHelper.getString("save", languageMode).ifEmpty { "Save" },
+                    text = if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply Filter",
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -2741,4 +2823,209 @@ private fun RmFilterSettingsDialog(
         },
         shape = RoundedCornerShape(20.dp)
     )
+}
+
+/**
+ * Visual Analytics Bar Graph Card showing monthly RM Borrowed vs Repaid trends.
+ */
+@Composable
+private fun RmAnalyticsGraphCard(
+    rmData: RmManagerHelper.RmManagerScreenData,
+    languageMode: LanguageMode,
+    modifier: Modifier = Modifier
+) {
+    val bars = rmData.monthlyBars
+    if (bars.isEmpty()) return
+
+    val positiveGreen = Color(0xFF2E7D32)
+    val negativeRed = Color(0xFFD32F2F)
+
+    var isExpanded by remember { mutableStateOf(true) }
+
+    val hasAnyActivity = remember(bars) {
+        bars.any { it.borrowed > 0 || it.repaid > 0 }
+    }
+
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .testTag("rm_analytics_graph_card")
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(14.dp)
+                .fillMaxWidth()
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.BarChart,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "দায় ও পরিশোধ ট্রেন্ড" else "Liability & Repayment Trend",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "গত ৬ মাসের আরএম লেনদেন প্রবাহ" else "Last 6 months RM monthly activity",
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Mini Legend
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(negativeRed))
+                            Text(if (languageMode == LanguageMode.BANGLA) "দায়" else "Due", fontSize = 9.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(positiveGreen))
+                            Text(if (languageMode == LanguageMode.BANGLA) "পরিশোধ" else "Repaid", fontSize = 9.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    IconButton(
+                        onClick = { isExpanded = !isExpanded },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Toggle graph",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                ) {
+                    if (!hasAnyActivity) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(70.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "বিগত ৬ মাসে কোনো আরএম লেনদেন নেই" else "No RM activity in the past 6 months",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    } else {
+                        val maxVal = remember(bars) {
+                            val m = bars.maxOfOrNull { bar -> kotlin.math.max(bar.borrowed, bar.repaid) } ?: 100.0
+                            if (m <= 0.0) 100.0 else m
+                        }
+
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(88.dp)
+                                .padding(vertical = 2.dp)
+                        ) {
+                            val barCount = bars.size
+                            val barWidth = (size.width / (barCount * 3.2f)).coerceAtMost(16.dp.toPx())
+                            val groupSpacing = size.width / barCount
+                            val chartHeight = size.height - 16.dp.toPx()
+
+                            // Base horizontal line
+                            drawLine(
+                                color = Color.LightGray.copy(alpha = 0.4f),
+                                start = Offset(0f, chartHeight),
+                                end = Offset(size.width, chartHeight),
+                                strokeWidth = 1.dp.toPx()
+                            )
+
+                            bars.forEachIndexed { idx, bar ->
+                                val groupCenter = idx * groupSpacing + groupSpacing / 2f
+
+                                // Borrowed / Liability Bar (Red)
+                                val borrowedH = ((bar.borrowed / maxVal) * chartHeight).toFloat().coerceIn(0f, chartHeight)
+                                if (borrowedH > 0f) {
+                                    drawRoundRect(
+                                        color = negativeRed,
+                                        topLeft = Offset(groupCenter - barWidth - 1.5.dp.toPx(), chartHeight - borrowedH),
+                                        size = Size(barWidth, borrowedH),
+                                        cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                                    )
+                                }
+
+                                // Repaid Bar (Green)
+                                val repaidH = ((bar.repaid / maxVal) * chartHeight).toFloat().coerceIn(0f, chartHeight)
+                                if (repaidH > 0f) {
+                                    drawRoundRect(
+                                        color = positiveGreen,
+                                        topLeft = Offset(groupCenter + 1.5.dp.toPx(), chartHeight - repaidH),
+                                        size = Size(barWidth, repaidH),
+                                        cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                                    )
+                                }
+                            }
+                        }
+
+                        // Bar Labels (Month names)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            bars.forEach { bar ->
+                                Text(
+                                    text = bar.label,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

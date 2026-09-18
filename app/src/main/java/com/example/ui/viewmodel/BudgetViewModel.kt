@@ -474,6 +474,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    val allMonthlyBudgets: StateFlow<List<MonthlyBudget>> = _activeRepository
+        .flatMapLatest { repo -> repo.allMonthlyBudgets }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val budgetAdjustments: StateFlow<List<BudgetAdjustment>> = combine(
         _selectedBudgetYear,
         _selectedBudgetMonth,

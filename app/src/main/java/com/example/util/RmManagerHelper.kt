@@ -7,6 +7,7 @@ import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
@@ -24,18 +25,24 @@ import kotlin.math.abs
  */
 object RmManagerHelper {
 
-    // Regex to match "RM" as a standalone word/token (case-insensitive, whole word boundary)
-    private val RM_TOKEN_REGEX = Regex("""(?i)\bRM\b""")
-    private val RM_BN_TOKEN_REGEX = Regex("""(?i)(?:^|[\s_\-/#])(?:আরএম|RM)(?:[\s_\-/#]|$)""")
+    // Regex to match "RM" as a standalone word/token (case-insensitive, whole word or delimiter boundary)
+    private val RM_TOKEN_REGEX = Regex("""(?i)(?:^|[\s_\-/#(),.:;])RM(?:$|[\s_\-/#(),.:;])""")
+    private val RM_BN_TOKEN_REGEX = Regex("""(?i)(?:^|[\s_\-/#(),.:;])(?:আরএম|RM)(?:$|[\s_\-/#(),.:;])""")
 
     /**
-     * Checks if a name matches a filter keyword (strictly whole word boundary).
+     * Checks if a name matches a filter keyword (strictly whole word or delimiter boundary).
      */
     fun isNameMatching(name: String?, keyword: String): Boolean {
         if (name.isNullOrBlank() || keyword.isBlank()) return false
         val trimmed = keyword.trim()
-        val regex = Regex("""(?i)\b${Regex.escape(trimmed)}\b""")
-        return regex.containsMatchIn(name) || (name.equals(trimmed, ignoreCase = true))
+        if (name.equals(trimmed, ignoreCase = true)) return true
+        if (name.contains(trimmed, ignoreCase = true)) {
+            val hasNonAscii = trimmed.any { it.code > 127 }
+            if (hasNonAscii) return true
+            val regex = Regex("""(?i)(?:^|[\s_\-/#(),.:;])${Regex.escape(trimmed)}(?:$|[\s_\-/#(),.:;])""")
+            return regex.containsMatchIn(name)
+        }
+        return false
     }
 
     /**
@@ -43,7 +50,14 @@ object RmManagerHelper {
      */
     fun isRmName(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
-        return RM_TOKEN_REGEX.containsMatchIn(name) || RM_BN_TOKEN_REGEX.containsMatchIn(name) || isNameMatching(name, "RM") || isNameMatching(name, "আরএম")
+        return RM_TOKEN_REGEX.containsMatchIn(name) ||
+                RM_BN_TOKEN_REGEX.containsMatchIn(name) ||
+                isNameMatching(name, "RM") ||
+                isNameMatching(name, "আরএম") ||
+                name.contains("RM ", ignoreCase = true) ||
+                name.contains(" RM", ignoreCase = true) ||
+                name.equals("RM", ignoreCase = true) ||
+                name.contains("আরএম", ignoreCase = true)
     }
 
     /**
@@ -54,17 +68,11 @@ object RmManagerHelper {
         includeKeyword: String = "RM",
         excludeKeyword: String = "RM Others"
     ): Boolean {
+        if (isExcludedAccount(account, excludeKeyword)) return false
         val matchesInclude = isNameMatching(account.nameEn, includeKeyword) ||
                 isNameMatching(account.nameBn, includeKeyword) ||
                 (includeKeyword.equals("RM", ignoreCase = true) && (isRmName(account.nameEn) || isRmName(account.nameBn)))
-        if (!matchesInclude) return false
-        if (excludeKeyword.isNotBlank()) {
-            val matchesExclude = isNameMatching(account.nameEn, excludeKeyword) ||
-                    isNameMatching(account.nameBn, excludeKeyword) ||
-                    (excludeKeyword.equals("RM Others", ignoreCase = true) && (isNameMatching(account.nameEn, "RM Others") || isNameMatching(account.nameBn, "আরএম অন্যান্য")))
-            if (matchesExclude) return false
-        }
-        return true
+        return matchesInclude
     }
 
     /**
@@ -231,12 +239,28 @@ object RmManagerHelper {
     )
 
     /**
+     * Periodic Bar Data for Monthly Borrowed vs Repaid Chart.
+     */
+    data class RmPeriodicBar(
+        val label: String,
+        val yearMonthKey: String,
+        val borrowed: Double,
+        val repaid: Double,
+        val netChange: Double
+    )
+
+    /**
      * Full aggregated data for RM Manager screen.
      */
     data class RmManagerScreenData(
         val allEntities: List<RmEntityBreakdown>,
         val rmAccounts: List<RmEntityBreakdown>,
         val rmOthers: List<RmEntityBreakdown>,
+        val totalAllCount: Int = allEntities.size,
+        val totalRmAccountsCount: Int = rmAccounts.size,
+        val totalRmOthersCount: Int = rmOthers.size,
+        val totalPendingCount: Int = 0,
+        val totalSettledCount: Int = 0,
         val totalOutstandingLiability: Double,
         val totalNetLiabilityBalance: Double, // Negative total (-৳) representing collective liability
         val totalGrossBorrowed: Double,
@@ -245,7 +269,8 @@ object RmManagerHelper {
         val pendingCount: Int,
         val partiallyRepaidCount: Int,
         val settledCount: Int,
-        val globalKhatianRows: List<RmKhatianRow>
+        val globalKhatianRows: List<RmKhatianRow>,
+        val monthlyBars: List<RmPeriodicBar> = emptyList()
     )
 
     /**
@@ -551,6 +576,13 @@ object RmManagerHelper {
         val partiallyRepaidCount = allCombined.count { it.status == RmRepaymentStatus.PARTIALLY_REPAID }
         val settledCount = allCombined.count { it.status == RmRepaymentStatus.SETTLED }
 
+        // Calculate Overall Group Counts (before category-specific filtering)
+        val totalAllCount = allCombined.size
+        val totalRmAccountsCount = rmAccountBreakdowns.size
+        val totalRmOthersCount = rmOthersBreakdowns.size
+        val totalPendingCount = allCombined.count { it.remainingLiability > 0 }
+        val totalSettledCount = allCombined.count { it.status == RmRepaymentStatus.SETTLED }
+
         // Filter by search
         val searchFiltered = if (searchQuery.isBlank()) {
             allCombined
@@ -637,10 +669,58 @@ object RmManagerHelper {
             }
         }
 
+        // Generate Monthly Bars for the Liability vs Repayment Graph
+        val monthYearFormat = SimpleDateFormat("yyyy-MM", Locale.US)
+        val monthLabelFormat = SimpleDateFormat("MMM", Locale.US)
+
+        val cal = Calendar.getInstance()
+        val recentMonths = mutableListOf<Pair<String, String>>()
+        val tempCal = Calendar.getInstance()
+        tempCal.add(Calendar.MONTH, -5)
+        for (i in 0 until 6) {
+            recentMonths.add(Pair(monthYearFormat.format(tempCal.time), monthLabelFormat.format(tempCal.time)))
+            tempCal.add(Calendar.MONTH, 1)
+        }
+
+        // All RM transactions across all entities (not filtered by category so complete history is represented)
+        val allRmTxList = allCombined.flatMap { it.allTransactions }
+            .distinctBy { it.transactionWithDetails.transaction.id }
+
+        val activeMonths = allRmTxList.map {
+            val d = Date(it.dateEpochMs)
+            Pair(monthYearFormat.format(d), monthLabelFormat.format(d))
+        }.distinct().sortedBy { it.first }.takeLast(6)
+
+        val monthsToUse = if (activeMonths.isNotEmpty() && recentMonths.none { rm -> activeMonths.any { it.first == rm.first } }) {
+            activeMonths
+        } else {
+            recentMonths
+        }
+
+        val monthlyBars = monthsToUse.map { (ymKey, label) ->
+            val txInMonth = allRmTxList.filter {
+                monthYearFormat.format(Date(it.dateEpochMs)) == ymKey
+            }
+            val borrowedMonth = txInMonth.filter { it.isDebit }.sumOf { it.amount }
+            val repaidMonth = txInMonth.filter { !it.isDebit }.sumOf { it.amount }
+            RmPeriodicBar(
+                label = label,
+                yearMonthKey = ymKey,
+                borrowed = borrowedMonth,
+                repaid = repaidMonth,
+                netChange = repaidMonth - borrowedMonth
+            )
+        }
+
         return RmManagerScreenData(
             allEntities = sortedList,
             rmAccounts = filteredAccounts,
             rmOthers = filteredOthers,
+            totalAllCount = totalAllCount,
+            totalRmAccountsCount = totalRmAccountsCount,
+            totalRmOthersCount = totalRmOthersCount,
+            totalPendingCount = totalPendingCount,
+            totalSettledCount = totalSettledCount,
             totalOutstandingLiability = totalOutstandingLiability,
             totalNetLiabilityBalance = totalNetLiabilityBalance,
             totalGrossBorrowed = totalGrossBorrowed,
@@ -649,7 +729,8 @@ object RmManagerHelper {
             pendingCount = pendingCount,
             partiallyRepaidCount = partiallyRepaidCount,
             settledCount = settledCount,
-            globalKhatianRows = globalRows.sortedBy { it.dateEpochMs }
+            globalKhatianRows = globalRows.sortedBy { it.dateEpochMs },
+            monthlyBars = monthlyBars
         )
     }
 

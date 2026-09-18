@@ -30,6 +30,9 @@ interface MonthlyBudgetDao {
     suspend fun deleteBudget(year: Int, month: Int, itemType: String, itemId: Long)
 
     @Query("SELECT * FROM monthly_budgets")
+    fun getAllBudgetsFlow(): Flow<List<MonthlyBudget>>
+
+    @Query("SELECT * FROM monthly_budgets")
     suspend fun getAllBudgetsSnapshot(): List<MonthlyBudget>
 
     @Query("DELETE FROM monthly_budgets")

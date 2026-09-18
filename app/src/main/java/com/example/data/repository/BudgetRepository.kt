@@ -71,6 +71,7 @@ class BudgetRepository(
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
     val allBills: Flow<List<RecurringBill>> = recurringBillDao.getAllBills()
+    val allMonthlyBudgets: Flow<List<MonthlyBudget>> = monthlyBudgetDao.getAllBudgetsFlow()
 
     fun getMonthlyBudgets(year: Int, month: Int): Flow<List<MonthlyBudget>> =
         monthlyBudgetDao.getBudgetsForMonth(year, month)

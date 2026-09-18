@@ -169,6 +169,7 @@ import com.example.data.model.AccountType
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
+import com.example.data.model.MonthlyBudget
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionSplitItem
 import com.example.data.model.TransactionStatus
@@ -205,6 +206,7 @@ fun AddEditTransactionSheet(
     accounts: List<Account>,
     categories: List<Category>,
     allTransactions: List<TransactionWithDetails> = emptyList(),
+    monthlyBudgets: List<MonthlyBudget> = emptyList(),
     languageMode: LanguageMode,
     existingTransaction: Transaction? = null,
     onDismiss: () -> Unit,
@@ -722,6 +724,49 @@ fun AddEditTransactionSheet(
         }
     }
     val categoryProjectedTotal = categoryCurrentMonthTotal + liveEffectiveAmount
+
+    // Live Category Budget Limit from Budget Maker / monthly_budgets table
+    val categoryBudgetLimit = remember(
+        monthlyBudgets,
+        selectedDateEpochMs,
+        txType,
+        selectedCategoryId,
+        selectedSubCategoryId,
+        selectedCategory,
+        selectedSubCategory
+    ) {
+        if (txType == TransactionType.TRANSFER) return@remember null
+        val targetType = if (txType == TransactionType.EXPENSE) "EXPENSE" else "INCOME"
+        val cal = Calendar.getInstance().apply { timeInMillis = selectedDateEpochMs }
+        val yr = cal.get(Calendar.YEAR)
+        val mo = cal.get(Calendar.MONTH) + 1
+
+        val subId = selectedSubCategoryId
+        val parentId = selectedCategoryId
+
+        // 1. Check if subcategory has a budget in budget maker
+        val subMonthBudget = if (subId != null) {
+            monthlyBudgets.firstOrNull { it.year == yr && it.month == mo && it.itemType == targetType && it.itemId == subId && it.isEnabled }
+                ?: monthlyBudgets.firstOrNull { it.itemType == targetType && it.itemId == subId && it.isEnabled }
+        } else null
+
+        // 2. Check if parent category has a budget in budget maker
+        val parentMonthBudget = if (parentId != null) {
+            monthlyBudgets.firstOrNull { it.year == yr && it.month == mo && it.itemType == targetType && it.itemId == parentId && it.isEnabled }
+                ?: monthlyBudgets.firstOrNull { it.itemType == targetType && it.itemId == parentId && it.isEnabled }
+        } else null
+
+        when {
+            subMonthBudget != null && subMonthBudget.budgetedAmount > 0.0 -> subMonthBudget.budgetedAmount
+            parentMonthBudget != null && parentMonthBudget.budgetedAmount > 0.0 && subId == null -> parentMonthBudget.budgetedAmount
+            subMonthBudget != null && subMonthBudget.budgetedAmount > 0.0 -> subMonthBudget.budgetedAmount
+            parentMonthBudget != null && parentMonthBudget.budgetedAmount > 0.0 -> parentMonthBudget.budgetedAmount
+            (selectedSubCategory?.budgetLimit ?: 0.0) > 0.0 -> selectedSubCategory?.budgetLimit
+            (selectedCategory?.budgetLimit ?: 0.0) > 0.0 && subId == null -> selectedCategory?.budgetLimit
+            (selectedCategory?.budgetLimit ?: 0.0) > 0.0 -> selectedCategory?.budgetLimit
+            else -> null
+        }
+    }
 
     // Type Colors
     val typePrimaryColor = when (txType) {
@@ -1976,7 +2021,7 @@ fun AddEditTransactionSheet(
                                     title = catTitle,
                                     subTitle = catSub,
                                     isTwoLine = isSplitActive || (isDoubleLine && catSub != null),
-                                    livePreview = if (!isSplitActive && selectedCategory != null) {
+                                    livePreview = if (!isSplitActive && (selectedCategory != null || selectedSubCategory != null)) {
                                         {
                                             LiveImpactPill(
                                                 currentAmount = categoryCurrentMonthTotal,
@@ -1986,7 +2031,7 @@ fun AddEditTransactionSheet(
                                                 tintColor = typePrimaryColor,
                                                 prefix = if (languageMode == LanguageMode.BANGLA) "মাসিক" else "Month",
                                                 hasActiveInput = liveParsedAmount > 0.0,
-                                                budgetLimit = if (selectedCategory.budgetLimit > 0.0) selectedCategory.budgetLimit else null
+                                                budgetLimit = categoryBudgetLimit
                                             )
                                         }
                                     } else null,
@@ -2396,7 +2441,19 @@ fun AddEditTransactionSheet(
                                                 isTwoLine = isDoubleLine && feeCatSub != null,
                                                 livePreview = if (targetFeeCatId != null) {
                                                     {
-                                                        val feeCatBudget = feeCat?.budgetLimit ?: 0.0
+                                                        val cal = Calendar.getInstance().apply { timeInMillis = selectedDateEpochMs }
+                                                        val yr = cal.get(Calendar.YEAR)
+                                                        val mo = cal.get(Calendar.MONTH) + 1
+                                                        val feeCatMonthBudget = monthlyBudgets.firstOrNull {
+                                                            it.year == yr && it.month == mo && it.itemType == "EXPENSE" && it.itemId == targetFeeCatId && it.isEnabled
+                                                        } ?: monthlyBudgets.firstOrNull {
+                                                            it.itemType == "EXPENSE" && it.itemId == targetFeeCatId && it.isEnabled
+                                                        }
+                                                        val feeCatBudget = when {
+                                                            feeCatMonthBudget != null && feeCatMonthBudget.budgetedAmount > 0.0 -> feeCatMonthBudget.budgetedAmount
+                                                            (feeCat?.budgetLimit ?: 0.0) > 0.0 -> feeCat?.budgetLimit
+                                                            else -> null
+                                                        }
                                                         LiveImpactPill(
                                                             currentAmount = feeCatCurrentMonthTotal,
                                                             projectedAmount = feeCatProjectedTotal,
@@ -2405,7 +2462,7 @@ fun AddEditTransactionSheet(
                                                             tintColor = SolidExpense,
                                                             prefix = if (languageMode == LanguageMode.BANGLA) "মাসিক" else "Month",
                                                             hasActiveInput = transferFeeAmount > 0.0,
-                                                            budgetLimit = if (feeCatBudget > 0.0) feeCatBudget else null
+                                                            budgetLimit = feeCatBudget
                                                         )
                                                     }
                                                 } else null,
