@@ -183,7 +183,7 @@ object CashFlowHelper {
         val hasExplicitAccountFilter = selectedAccountIds != null && selectedAccountIds.isNotEmpty()
         val targetAccounts = when {
             hasExplicitAccountFilter -> allAccounts.filter { selectedAccountIds!!.contains(it.id) }
-            else -> allAccounts
+            else -> allAccounts.filter { it.type == AccountType.ASSET }
         }
         val targetAccountIds = targetAccounts.map { it.id }.toSet()
 

@@ -225,18 +225,44 @@ fun CategoriesScreen(
         }
     }
 
-    val parentActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions) {
-        val base = activeCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
-        sortGroups(base)
+    // Search state
+    var searchQuery by remember { mutableStateOf("") }
+
+    fun matchesCategorySearch(cat: Category, query: String): Boolean {
+        if (query.isBlank()) return true
+        val clean = query.trim().lowercase()
+        return cat.nameEn.lowercase().contains(clean) ||
+                cat.nameBn.lowercase().contains(clean)
     }
 
-    val parentInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions) {
+    val parentActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
+        val base = activeCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
+        val searched = if (searchQuery.isBlank()) {
+            base
+        } else {
+            base.filter { parent ->
+                matchesCategorySearch(parent, searchQuery) ||
+                        (subCategoriesMap[parent.id] ?: emptyList()).any { it.isActive && matchesCategorySearch(it, searchQuery) }
+            }
+        }
+        sortGroups(searched)
+    }
+
+    val parentInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
         val base = inactiveCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
-        sortGroups(base)
+        val searched = if (searchQuery.isBlank()) {
+            base
+        } else {
+            base.filter { parent ->
+                matchesCategorySearch(parent, searchQuery) ||
+                        (subCategoriesMap[parent.id] ?: emptyList()).any { matchesCategorySearch(it, searchQuery) }
+            }
+        }
+        sortGroups(searched)
     }
 
     // Flattened Categories for ONLY_CATEGORIES mode
-    val flattenedActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions) {
+    val flattenedActiveCategories = remember(activeCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
         val items = mutableListOf<FlattenedCategoryItem>()
         val filteredParents = activeCategories.filter { it.parentId == null && (selectedTypeFilter == null || it.type == selectedTypeFilter) }
         for (parent in filteredParents) {
@@ -264,18 +290,27 @@ fun CategoriesScreen(
             }
         }
 
+        val searched = if (searchQuery.isBlank()) {
+            items
+        } else {
+            items.filter { item ->
+                matchesCategorySearch(item.category, searchQuery) ||
+                        (item.parentGroup?.let { matchesCategorySearch(it, searchQuery) } == true)
+            }
+        }
+
         when (sortFilter) {
-            CategorySortFilter.DEFAULT -> items
-            CategorySortFilter.BUDGET_HIGH_TO_LOW -> items.sortedByDescending { it.budgetAmount }
-            CategorySortFilter.BUDGET_LOW_TO_HIGH -> items.sortedBy { it.budgetAmount }
-            CategorySortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
-            CategorySortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
-            CategorySortFilter.NAME_AZ -> items.sortedBy { it.category.localizedName(languageMode).lowercase() }
-            CategorySortFilter.NAME_ZA -> items.sortedByDescending { it.category.localizedName(languageMode).lowercase() }
+            CategorySortFilter.DEFAULT -> searched
+            CategorySortFilter.BUDGET_HIGH_TO_LOW -> searched.sortedByDescending { it.budgetAmount }
+            CategorySortFilter.BUDGET_LOW_TO_HIGH -> searched.sortedBy { it.budgetAmount }
+            CategorySortFilter.MOST_USED -> searched.sortedByDescending { it.usageCount }
+            CategorySortFilter.LEAST_USED -> searched.sortedBy { it.usageCount }
+            CategorySortFilter.NAME_AZ -> searched.sortedBy { it.category.localizedName(languageMode).lowercase() }
+            CategorySortFilter.NAME_ZA -> searched.sortedByDescending { it.category.localizedName(languageMode).lowercase() }
         }
     }
 
-    val flattenedInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions) {
+    val flattenedInactiveCategories = remember(inactiveCategories, selectedTypeFilter, sortFilter, allTransactions, searchQuery) {
         val items = mutableListOf<FlattenedCategoryItem>()
         val filteredInactive = inactiveCategories.filter { selectedTypeFilter == null || it.type == selectedTypeFilter }
         for (cat in filteredInactive) {
@@ -289,7 +324,14 @@ fun CategoriesScreen(
                 )
             )
         }
-        items
+        if (searchQuery.isBlank()) {
+            items
+        } else {
+            items.filter { item ->
+                matchesCategorySearch(item.category, searchQuery) ||
+                        (item.parentGroup?.let { matchesCategorySearch(it, searchQuery) } == true)
+            }
+        }
     }
 
     // Scroll state & Bottom Nav visibility
@@ -320,6 +362,10 @@ fun CategoriesScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             AppTabHeader(
                 title = LanguageHelper.getString("categories", languageMode),
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি খুঁজুন..." else "Search categories...",
+                showSearchButton = true,
                 onOpenDrawer = onOpenDrawer
             )
 
@@ -638,8 +684,14 @@ fun CategoriesScreen(
                     } else {
                         items(parentActiveCategories, key = { it.id }) { parent ->
                             val subs = (subCategoriesMap[parent.id] ?: emptyList()).filter { it.isActive }
-                            val sortedSubs = sortSubCategories(subs)
-                            val isExpanded = expandedMap[parent.id] ?: true
+                            val displayedSubs = if (searchQuery.isBlank()) {
+                                subs
+                            } else {
+                                val parentMatches = matchesCategorySearch(parent, searchQuery)
+                                if (parentMatches) subs else subs.filter { matchesCategorySearch(it, searchQuery) }
+                            }
+                            val sortedSubs = sortSubCategories(displayedSubs)
+                            val isExpanded = if (searchQuery.isNotBlank()) true else (expandedMap[parent.id] ?: true)
 
                             val parentColor = remember(parent.colorHex) {
                                 try {

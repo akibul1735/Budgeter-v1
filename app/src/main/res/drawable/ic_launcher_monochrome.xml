@@ -4,43 +4,41 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Coin Disc Outer Rim & Background Silhouette for Material You -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M54,22A32,32 0 1,1 53.99,22Z" />
 
-    <!-- Coin Inner Cutout Details for Taka ৳ Symbol -->
+    <!-- Material You Themed Icon for Budgeter -->
+    <!-- Subtle Crescent Accent Contour (Representing the offset secondary coin disc) -->
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.5"
+        android:strokeColor="#B3FFFFFF"
+        android:strokeWidth="3.2"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M54,26A28,28 0 1,1 53.99,26Z" />
-
-    <!-- Central Bangladeshi Taka (৳) Symbol Vector Cutout -->
-    <!-- Top Loop & Body of Taka -->
-    <path
         android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="4"
+        android:pathData="M 74,32 C 83,38 88,48 88,58 C 88,68 83,78 74,84" />
+
+    <!-- Main Vertical Stem with Cane Hook -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:pathData="M48,42 C44,38 48,35 53,35 C58,35 62,38 62,44 C62,54 44,52 44,60 C44,68 53,69 57,69 C63,69 66,66 66,62" />
-
-    <!-- Horizontal Strike/Bar of ৳ -->
-    <path
         android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round"
-        android:pathData="M40,51 L68,51" />
+        android:pathData="M 41,31 C 38,31 35.5,34 36.5,37.5 C 37.5,41 41,42 45,42 L 49,42 L 49,70 C 49,73 47,75 44,75" />
 
-    <!-- Right Descender/Stem Accent -->
+    <!-- Horizontal Crossbar of Taka (৳) Symbol -->
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="4"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.5"
         android:strokeLineCap="round"
-        android:pathData="M62,44 L62,71" />
+        android:fillColor="#00000000"
+        android:pathData="M 34,48 L 56,48" />
+
+    <!-- Right Signature Flourish with Top Loop and Expansive Crescent Arc -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M 59,50 C 59,44.5 62,42 66,42 C 70,42 72.5,45 72.5,48.5 C 72.5,52.5 69,55 65.5,55 C 62.5,55 60.5,52.5 62.5,50 C 64,48 67,48 69,49.5 C 74,53.5 79,61 79,69 C 79,79 71,86 61,86 C 54,86 50,81.5 48,75" />
 </vector>
+

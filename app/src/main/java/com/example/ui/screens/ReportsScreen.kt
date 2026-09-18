@@ -92,11 +92,14 @@ import com.example.data.repository.FinancialOverview
 import com.example.ui.components.AppTabHeader
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.BudgetDateRangePreset
-import com.example.ui.components.BudgetFilterDialog
-import com.example.ui.components.BudgetFilterState
+import com.example.ui.components.NetEarningsFilterDialog
+import com.example.ui.components.NetEarningsFilterState
+import com.example.ui.components.NetEarningsFlowScope
+import com.example.ui.components.NetEarningsSortOrder
+import com.example.ui.components.ActiveNetEarningsFilterBar
+import com.example.ui.components.calculateNetEarningsFilterRanges
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalHeaderScrollState
-import com.example.ui.components.calculateBudgetFilterRanges
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.util.DateUtils
@@ -180,7 +183,7 @@ fun ReportsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
-    var filterState by remember { mutableStateOf(BudgetFilterState(datePreset = BudgetDateRangePreset.THIS_MONTH)) }
+    var filterState by remember { mutableStateOf(NetEarningsFilterState(datePreset = BudgetDateRangePreset.THIS_MONTH)) }
 
     var selectedCategoryItemForDetail by remember { mutableStateOf<CategoryEarningsTrackingItem?>(null) }
     var showNetSummaryDialog by remember { mutableStateOf(false) }
@@ -214,7 +217,7 @@ fun ReportsScreen(
 
     // Determine current start and end milliseconds for selected month / filter
     val budgetRangeResult = remember(selectedYear, selectedMonth, filterState, languageMode) {
-        calculateBudgetFilterRanges(selectedYear, selectedMonth, filterState, languageMode)
+        calculateNetEarningsFilterRanges(selectedYear, selectedMonth, filterState, languageMode)
     }
     val monthStartMs = budgetRangeResult.primaryRange.first
     val monthEndMs = budgetRangeResult.primaryRange.second
@@ -226,6 +229,18 @@ fun ReportsScreen(
             val tx = details.transaction
             val inDate = tx.dateEpochMs in monthStartMs..monthEndMs
             if (!inDate) return@filter false
+
+            // Flow scope filter (e.g. INCOME_ONLY, EXPENSE_ONLY)
+            when (filterState.flowScope) {
+                NetEarningsFlowScope.INCOME_ONLY -> if (tx.type != TransactionType.INCOME) return@filter false
+                NetEarningsFlowScope.EXPENSE_ONLY -> if (tx.type != TransactionType.EXPENSE) return@filter false
+                else -> {}
+            }
+
+            // Transfer filter
+            if (!filterState.includeTransfers && tx.type == TransactionType.TRANSFER) {
+                return@filter false
+            }
 
             // Category filter
             if (filterState.selectedCategoryIds.isNotEmpty()) {
@@ -239,6 +254,13 @@ fun ReportsScreen(
                 if (accId == null || accId !in filterState.selectedAccountIds) return@filter false
             }
 
+            // Labels filter
+            if (filterState.selectedLabels.isNotEmpty()) {
+                val note = tx.note
+                val hasMatchingLabel = filterState.selectedLabels.any { note.contains(it, ignoreCase = true) }
+                if (!hasMatchingLabel) return@filter false
+            }
+
             // Status filter
             if (filterState.selectedStatusSet.isNotEmpty()) {
                 if (tx.status !in filterState.selectedStatusSet) return@filter false
@@ -246,6 +268,10 @@ fun ReportsScreen(
 
             // Exclude zero amounts
             if (filterState.excludeZeroAmounts && tx.amount <= 0.0) return@filter false
+
+            // Min and Max amounts
+            filterState.minAmount?.let { if (tx.amount < it) return@filter false }
+            filterState.maxAmount?.let { if (tx.amount > it) return@filter false }
 
             true
         }
@@ -476,6 +502,17 @@ fun ReportsScreen(
                 )
             }
         )
+
+        // Active Filter Bar (shown when filters are active)
+        if (filterState.isFilterActive) {
+            ActiveNetEarningsFilterBar(
+                filterState = filterState,
+                onFilterChange = { filterState = it },
+                onOpenFilterDialog = { showFilterDialog = true },
+                languageMode = languageMode,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            )
+        }
 
         // 2. SCROLL-AWARE TOP FIXED SUMMARY CARD (Almost same layout as budget tab)
         if (!isScrolled) {
@@ -1236,9 +1273,9 @@ fun ReportsScreen(
         )
     }
 
-    // BudgetFilterDialog for advanced filtering
+    // NetEarningsFilterDialog for advanced filtering tailored specifically for Net Earnings
     if (showFilterDialog) {
-        BudgetFilterDialog(
+        NetEarningsFilterDialog(
             currentFilter = filterState,
             categories = categories,
             accounts = allAccounts,

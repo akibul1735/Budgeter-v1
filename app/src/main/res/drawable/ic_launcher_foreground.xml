@@ -3,7 +3,8 @@
     <item
         android:width="68dp"
         android:height="68dp"
-        android:drawable="@drawable/coin_gold_taka_tight"
+        android:drawable="@drawable/taka_green_gold_emblem"
         android:gravity="center" />
 </layer-list>
+
 

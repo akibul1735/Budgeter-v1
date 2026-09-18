@@ -497,7 +497,7 @@ fun NetEarningsFilterDialog(
                                         Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = tempFilter.customStartDateMs?.let { DateUtils.formatDisplayDate(it, languageMode) } ?: "Start Date",
+                                            text = tempFilter.customStartDateMs?.let { DateUtils.formatDate(it, languageMode) } ?: "Start Date",
                                             fontSize = 11.5.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -511,7 +511,7 @@ fun NetEarningsFilterDialog(
                                         Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = tempFilter.customEndDateMs?.let { DateUtils.formatDisplayDate(it, languageMode) } ?: "End Date",
+                                            text = tempFilter.customEndDateMs?.let { DateUtils.formatDate(it, languageMode) } ?: "End Date",
                                             fontSize = 11.5.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -1416,7 +1416,7 @@ private fun NetEarningsCategoryPickerDialog(
         if (searchQuery.isBlank()) categories
         else {
             val q = searchQuery.trim().lowercase()
-            categories.filter { it.name.lowercase().contains(q) || (it.banglaName?.lowercase()?.contains(q) == true) }
+            categories.filter { it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q) }
         }
     }
 
@@ -1523,7 +1523,7 @@ private fun NetEarningsAccountPickerDialog(
         if (searchQuery.isBlank()) accounts
         else {
             val q = searchQuery.trim().lowercase()
-            accounts.filter { it.name.lowercase().contains(q) || (it.banglaName?.lowercase()?.contains(q) == true) }
+            accounts.filter { it.nameEn.lowercase().contains(q) || it.nameBn.lowercase().contains(q) }
         }
     }
 

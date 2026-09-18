@@ -263,7 +263,7 @@ fun calculateNetEarningsFilterRanges(
     return BudgetRangeResult(
         primaryRange = Pair(primaryStartMs, primaryEndMs),
         primaryLabel = primaryLabel,
-        comparisonRange = comparisonRange,
-        comparisonLabel = comparisonLabel
+        compareRange = comparisonRange,
+        compareLabel = comparisonLabel ?: ""
     )
 }

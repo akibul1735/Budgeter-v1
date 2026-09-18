@@ -5,7 +5,7 @@
 - Include only the release APK (named `Budgeter-release.apk`). Do NOT include source code zip archive (GitHub automatically attaches source zips), debug APK, `.tar`, or `.aab` bundles in GitHub releases.
 
 ## App Launcher Icon
-- The launcher icon is the gold circular coin emblem with the Bangladeshi Taka symbol (৳).
+- The launcher icon is the emerald green circular emblem with the golden crescent accent and white Bangladeshi Taka symbol (৳), featuring dual-tone green split background and Material You monochrome themed icon support.
 
 ## Code Style & Efficiency
 - When modifying, remove unnecessary codes and layouts to keep the codebase compact, fast, and maintainable.

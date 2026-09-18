@@ -5,32 +5,43 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Rich Golden Metallic Ambient Canvas -->
+
+    <!-- Upper/Right Light Sage Paper Tone -->
     <path
         android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:angle="315"
-                android:startColor="#FFFBEB"
-                android:centerColor="#F59E0B"
-                android:endColor="#78350F"
+                android:startColor="#B8DEC3"
+                android:endColor="#94C6A2"
                 android:type="linear" />
         </aapt:attr>
     </path>
 
-    <!-- Radiant Ambient Gold Glow behind Coin -->
+    <!-- Lower/Left Deep Emerald Forest Green Diagonal Section -->
     <path
-        android:pathData="M54,54m-48,0a48,48 0 1,0 96,0a48,48 0 1,0 -96,0">
+        android:pathData="M0,72 C32,80 64,88 108,94 L108,108 L0,108 Z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:centerX="54"
-                android:centerY="50"
-                android:gradientRadius="48"
-                android:startColor="#80FFFBEB"
-                android:endColor="#00F59E0B"
-                android:type="radial" />
+                android:angle="315"
+                android:startColor="#1A6844"
+                android:endColor="#0F4F31"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- Diagonal Transition Wave -->
+    <path
+        android:pathData="M0,64 L108,24 L108,108 L0,108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:angle="315"
+                android:startColor="#1E754C"
+                android:endColor="#145A38"
+                android:type="linear" />
         </aapt:attr>
     </path>
 </vector>
+
 
 
