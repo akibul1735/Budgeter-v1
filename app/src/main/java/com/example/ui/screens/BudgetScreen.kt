@@ -130,6 +130,10 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
+import com.example.ui.components.BudgetFilterDialog
+import com.example.ui.components.BudgetFilterState
+import com.example.ui.components.BudgetDateRangePreset
+import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -341,6 +345,8 @@ fun BudgetScreen(
     // Search and Filter State
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var showFilterDialog by remember { mutableStateOf(false) }
+    var filterState by remember { mutableStateOf(BudgetFilterState()) }
     var selectedFilter by remember { mutableStateOf(BudgetFilterOption.ALL) }
     var selectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
 
@@ -610,7 +616,7 @@ fun BudgetScreen(
                             )
                         }
 
-                        // Right: Search and Settings (with Copy & Paste moved inside Settings)
+                        // Right: Search, Filter, and Settings (with Copy & Paste moved inside Settings)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -625,6 +631,39 @@ fun BudgetScreen(
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.size(20.dp)
                                 )
+                            }
+
+                            // Menu-based Filter button with active badge
+                            IconButton(
+                                onClick = { showFilterDialog = true },
+                                modifier = Modifier.size(36.dp).testTag("budget_filter_btn")
+                            ) {
+                                if (filterState.isFilterActive) {
+                                    androidx.compose.material3.BadgedBox(
+                                        badge = {
+                                            androidx.compose.material3.Badge(
+                                                containerColor = MaterialTheme.colorScheme.primary,
+                                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                            ) {
+                                                Text(text = "${filterState.activeFilterCount}", fontSize = 9.sp)
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.FilterList,
+                                            contentDescription = "Filter",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = "Filter",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
 
                             Box {
@@ -788,6 +827,67 @@ fun BudgetScreen(
                             }
                         }
                     }
+
+                    // Active Filters Summary Indicator Strip (if any filter is applied)
+                    AnimatedVisibility(visible = filterState.isFilterActive) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 3.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { showFilterDialog = true }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA)
+                                            "ফিল্টার সক্রিয় (${filterState.activeFilterCount}টি নিয়ম)"
+                                        else
+                                            "Active Filter (${filterState.activeFilterCount} rules applied)",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                    onClick = { filterState = BudgetFilterState() },
+                                    modifier = Modifier.size(22.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Clear Filters",
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -888,6 +988,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = { globalExpenseFrequency = it },
                         totalBudgetAmount = totalExpensesBudget,
                         searchQuery = searchQuery,
+                        filterState = filterState,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -930,6 +1031,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = { globalIncomeFrequency = it },
                         totalBudgetAmount = totalIncomesBudget,
                         searchQuery = searchQuery,
+                        filterState = filterState,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -972,6 +1074,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = {},
                         totalBudgetAmount = totalAssetsBudget,
                         searchQuery = searchQuery,
+                        filterState = filterState,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -1014,6 +1117,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = {},
                         totalBudgetAmount = totalLiabilitiesBudget,
                         searchQuery = searchQuery,
+                        filterState = filterState,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -1052,6 +1156,27 @@ fun BudgetScreen(
             onConfirm = { y, m ->
                 viewModel.setBudgetYearMonth(y, m)
                 showMonthYearPicker = false
+            }
+        )
+    }
+
+    // Unified Budget Filter Dialog (Hidden under top-bar menu button by default)
+    if (showFilterDialog) {
+        BudgetFilterDialog(
+            currentFilter = filterState,
+            categories = allCategories,
+            accounts = allAccounts,
+            allLabels = transactionsWithDetails.flatMap { tx ->
+                val note = tx.transaction.note
+                if (note.contains("#")) {
+                    note.split(" ", "\n").filter { it.startsWith("#") && it.length > 1 }.map { it.removePrefix("#") }
+                } else emptyList()
+            }.distinct(),
+            languageMode = languageMode,
+            onDismiss = { showFilterDialog = false },
+            onApply = { newState ->
+                filterState = newState
+                showFilterDialog = false
             }
         )
     }
@@ -1514,6 +1639,7 @@ private fun CategoriesBudgetEntryView(
     onGlobalFrequencyChange: (BudgetFrequency) -> Unit,
     totalBudgetAmount: Double,
     searchQuery: String,
+    filterState: BudgetFilterState = BudgetFilterState(),
     selectedFilter: BudgetFilterOption,
     onFilterChange: (BudgetFilterOption) -> Unit,
     selectedSort: BudgetSortOption,
@@ -1687,7 +1813,7 @@ private fun CategoriesBudgetEntryView(
     val sectionItemType = items.firstOrNull()?.itemType ?: "EXPENSE"
 
     // Apply Filter & Search
-    val filteredItems = remember(enhancedItems, searchQuery, selectedFilter, selectedSort, sectionItemType) {
+    val filteredItems = remember(enhancedItems, searchQuery, selectedFilter, selectedSort, sectionItemType, filterState) {
         var list = enhancedItems
 
         // 1. Search Query
@@ -1700,7 +1826,30 @@ private fun CategoriesBudgetEntryView(
             }
         }
 
-        // 2. Filter Category Selection
+        // 2. Budget Filter State specifics
+        if (filterState.selectedCategoryIds.isNotEmpty()) {
+            list = list.filter { it.item.id in filterState.selectedCategoryIds }
+        }
+        if (filterState.selectedAccountIds.isNotEmpty()) {
+            list = list.filter { it.item.id in filterState.selectedAccountIds }
+        }
+        if (filterState.filterOnlyBudgeted) {
+            list = list.filter { it.currentBudget > 0.0 }
+        }
+        if (filterState.filterOnlyOverBudget) {
+            list = list.filter { it.actualSpent > it.currentBudget && it.currentBudget > 0.0 }
+        }
+        if (filterState.excludeZeroAmounts) {
+            list = list.filter { it.currentBudget > 0.0 || it.actualSpent > 0.0 }
+        }
+        if (filterState.minAmount != null && filterState.minAmount > 0.0) {
+            list = list.filter { it.currentBudget >= filterState.minAmount }
+        }
+        if (filterState.maxAmount != null && filterState.maxAmount > 0.0) {
+            list = list.filter { it.currentBudget <= filterState.maxAmount }
+        }
+
+        // 3. Filter Category Selection
         list = when (selectedFilter) {
             BudgetFilterOption.ALL -> list
             BudgetFilterOption.ONLY_REMAINING -> list.filter {
@@ -1720,9 +1869,19 @@ private fun CategoriesBudgetEntryView(
             BudgetFilterOption.UNBUDGETED -> list.filter { it.currentBudget <= 0.0 }
         }
 
-        // 3. Sorting
+        // 4. Sorting
         when (selectedSort) {
-            BudgetSortOption.DEFAULT -> list
+            BudgetSortOption.DEFAULT -> {
+                when (filterState.sortOrder) {
+                    BudgetSortOrder.BUDGET_DESC -> list.sortedByDescending { it.currentBudget }
+                    BudgetSortOrder.BUDGET_ASC -> list.sortedBy { it.currentBudget }
+                    BudgetSortOrder.SPENT_DESC, BudgetSortOrder.AMOUNT_DESC -> list.sortedByDescending { it.actualSpent }
+                    BudgetSortOrder.AMOUNT_ASC -> list.sortedBy { it.actualSpent }
+                    BudgetSortOrder.UTILIZATION_DESC -> list.sortedByDescending { if (it.currentBudget > 0) it.actualSpent / it.currentBudget else 0.0 }
+                    BudgetSortOrder.NAME_ASC -> list.sortedBy { it.item.nameEn.lowercase() }
+                    BudgetSortOrder.DEFAULT -> list
+                }
+            }
             BudgetSortOption.BUDGET_DESC -> list.sortedByDescending { it.currentBudget }
             BudgetSortOption.BUDGET_ASC -> list.sortedBy { it.currentBudget }
             BudgetSortOption.ACTUAL_DESC -> list.sortedByDescending { it.actualSpent }
