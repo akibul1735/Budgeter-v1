@@ -174,6 +174,7 @@ object RmManagerHelper {
     data class RmKhatianRow(
         val id: String,
         val dateFormatted: String,
+        val miniDateFormatted: String = "",
         val dateEpochMs: Long,
         val particulars: String,
         val categoryOrType: String,
@@ -230,6 +231,15 @@ object RmManagerHelper {
     fun formatRmDate(epochMs: Long, languageMode: LanguageMode = LanguageMode.ENGLISH, includeDayOfWeek: Boolean = true): String {
         val pattern = if (includeDayOfWeek) "MMM dd, yyyy : EEE" else "MMM dd, yyyy"
         val sdf = SimpleDateFormat(pattern, Locale.US)
+        return sdf.format(Date(epochMs))
+    }
+
+    /**
+     * Formats compact mini date for ledger tables (e.g., "04/08/26")
+     */
+    fun formatMiniDate(epochMs: Long): String {
+        if (epochMs <= 0L) return "Init"
+        val sdf = SimpleDateFormat("dd/MM/yy", Locale.US)
         return sdf.format(Date(epochMs))
     }
 
@@ -372,17 +382,11 @@ object RmManagerHelper {
                     (tx.creditAccountId != null && tx.creditAccountId in rmAccountIds)
 
             if (isFromExcludedAcc) {
-                // If it belongs to an excluded account (e.g. RM Others), extract person labels or fallback to payee/note
-                val labels = extractLabelsFromTransaction(item, fallbackToPayeeOrNote = true)
-                if (labels.isNotEmpty()) {
-                    for (lbl in labels) {
-                        labelTransactionsMap.getOrPut(lbl) { mutableListOf() }.add(item)
-                    }
-                } else {
-                    val defaultLabel = tx.payeeOrPayer.ifBlank {
-                        LanguageHelper.getString("rm_others", languageMode).ifEmpty { "RM Others" }
-                    }
-                    labelTransactionsMap.getOrPut(defaultLabel) { mutableListOf() }.add(item)
+                // If it belongs to an excluded account (e.g. RM Others), only include if it has explicit labels (#tag).
+                // Those Rm Others that don't have labels shouldn't be included.
+                val labels = extractLabelsFromTransaction(item, fallbackToPayeeOrNote = false)
+                for (lbl in labels) {
+                    labelTransactionsMap.getOrPut(lbl) { mutableListOf() }.add(item)
                 }
             } else if (!isFromRmAcc) {
                 // Standalone transactions outside RM accounts are ONLY included if explicitly tagged with #RM or #RestingMoney
@@ -604,12 +608,13 @@ object RmManagerHelper {
             pendingCount = pendingCount,
             partiallyRepaidCount = partiallyRepaidCount,
             settledCount = settledCount,
-            globalKhatianRows = globalRows.sortedByDescending { it.dateEpochMs }
+            globalKhatianRows = globalRows.sortedBy { it.dateEpochMs }
         )
     }
 
     /**
      * Builds chronological Khatian (খতিয়ান - জের) ledger rows with running balance.
+     * Oldest first (chronological order) so running balance starts from opening/first entry down to latest.
      * Liability increases -> Balance goes negative (-৳)
      * Repayment occurs -> Balance increases towards 0
      */
@@ -629,6 +634,7 @@ object RmManagerHelper {
                 RmKhatianRow(
                     id = "opening_balance",
                     dateFormatted = LanguageHelper.getString("initial_balance_carried", languageMode),
+                    miniDateFormatted = "Init",
                     dateEpochMs = 0L,
                     particulars = LanguageHelper.getString("initial_balance_carried", languageMode),
                     categoryOrType = "Opening",
@@ -642,7 +648,7 @@ object RmManagerHelper {
             )
         }
 
-        // Combine all items in chronological ascending order
+        // Combine all items in chronological ascending order (oldest first)
         val allSortedChronological = (debitItems + creditItems).sortedWith(
             compareBy<RmTransactionItem> { it.dateEpochMs }
                 .thenBy { it.transactionWithDetails.transaction.id }
@@ -656,6 +662,7 @@ object RmManagerHelper {
                     RmKhatianRow(
                         id = "row_${item.transactionWithDetails.transaction.id}_dr",
                         dateFormatted = item.dateFormatted,
+                        miniDateFormatted = formatMiniDate(item.dateEpochMs),
                         dateEpochMs = item.dateEpochMs,
                         particulars = item.displayName,
                         categoryOrType = item.categoryName,
@@ -674,6 +681,7 @@ object RmManagerHelper {
                     RmKhatianRow(
                         id = "row_${item.transactionWithDetails.transaction.id}_cr",
                         dateFormatted = item.dateFormatted,
+                        miniDateFormatted = formatMiniDate(item.dateEpochMs),
                         dateEpochMs = item.dateEpochMs,
                         particulars = item.displayName,
                         categoryOrType = item.categoryName,
@@ -688,8 +696,8 @@ object RmManagerHelper {
             }
         }
 
-        // Return latest first (descending) for optimal mobile reading, while carrying forward correct historical running balance
-        return rows.sortedByDescending { it.dateEpochMs }
+        // Return oldest first (ascending chronological order)
+        return rows.sortedBy { it.dateEpochMs }
     }
 
     /**

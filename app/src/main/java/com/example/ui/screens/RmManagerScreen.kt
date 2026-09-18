@@ -1182,13 +1182,20 @@ private fun RmModernEntityCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                color = if (entity.isAccount)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                else
+                                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
                             ) {
                                 Text(
-                                    text = if (entity.isAccount) "RM Account" else "Label",
+                                    text = if (entity.isAccount) {
+                                        if (languageMode == LanguageMode.BANGLA) "আরএম একাউন্ট" else "RM Account"
+                                    } else {
+                                        if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য" else "RM Others"
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (entity.isAccount) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                                 )
                             }
@@ -1475,7 +1482,11 @@ private fun RmModernDetailView(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = if (entity.isAccount) "RM Account (Resting Money)" else "RM Label Tracking",
+                                text = if (entity.isAccount) {
+                                    if (languageMode == LanguageMode.BANGLA) "আরএম একাউন্ট (রেস্টিং মানি)" else "RM Account (Resting Money)"
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য (#${entity.name})" else "RM Others (#${entity.name})"
+                                },
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium
@@ -1824,7 +1835,7 @@ private fun RmModernDetailView(
 
 /**
  * Side-by-Side Khatian Ledger Table (খতিয়ানের জের পদ্ধতি).
- * Columns: Date | Particulars & Type | Debit (Dr) | Credit (Cr) | Balance (Jer)
+ * Compact columns: Date (mini date, oldest first) | Dr/Cr | Debit Amount | Credit Amount | Balance
  */
 @Composable
 private fun RmKhatianLedgerTable(
@@ -1838,8 +1849,8 @@ private fun RmKhatianLedgerTable(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -1849,68 +1860,69 @@ private fun RmKhatianLedgerTable(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(horizontalScrollState)
-                .padding(vertical = 10.dp)
+                .padding(vertical = 6.dp)
         ) {
-            // Table Header Row
+            // Table Header Row: Date | Dr/Cr | Debit | Credit | Balance
             Row(
                 modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
-                    .padding(vertical = 10.dp, horizontal = 12.dp),
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+                    .padding(vertical = 7.dp, horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Date Column
+                // 1. Date Column (mini date, oldest first)
                 Text(
                     text = LanguageHelper.getString("date_col", languageMode),
-                    fontSize = 12.5.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(105.dp)
+                    modifier = Modifier.width(66.dp)
                 )
-                // 2. Particulars & Type
+                // 2. Dr / Cr
                 Text(
-                    text = LanguageHelper.getString("particulars_col", languageMode),
-                    fontSize = 12.5.sp,
+                    text = "Dr/Cr",
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(150.dp)
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(42.dp)
                 )
-                // 3. Debit (Dr)
+                // 3. Debit (Dr) Amount
                 Text(
                     text = LanguageHelper.getString("debit_col", languageMode),
-                    fontSize = 12.5.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.width(100.dp)
+                    modifier = Modifier.width(74.dp)
                 )
-                // 4. Credit (Cr)
+                // 4. Credit (Cr) Amount
                 Text(
                     text = LanguageHelper.getString("credit_col", languageMode),
-                    fontSize = 12.5.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = SolidIncome,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.width(100.dp)
+                    modifier = Modifier.width(74.dp)
                 )
                 // 5. Balance / জের
                 Text(
                     text = LanguageHelper.getString("balance_col", languageMode),
-                    fontSize = 12.5.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.width(120.dp)
+                    modifier = Modifier.width(84.dp)
                 )
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
             // Table Rows
             if (entity.khatianLedgerRows.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(32.dp),
+                        .padding(28.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1922,7 +1934,7 @@ private fun RmKhatianLedgerTable(
             } else {
                 entity.khatianLedgerRows.forEachIndexed { index, row ->
                     val isEven = index % 2 == 0
-                    val rowBg = if (isEven) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                    val rowBg = if (isEven) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
 
                     Row(
                         modifier = Modifier
@@ -1930,32 +1942,26 @@ private fun RmKhatianLedgerTable(
                             .clickable {
                                 row.transactionItem?.let { onTransactionClick(it.transactionWithDetails.transaction) }
                             }
-                            .padding(vertical = 9.dp, horizontal = 12.dp),
+                            .padding(vertical = 7.dp, horizontal = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 1. Date
+                        // 1. Date (Mini Date, oldest first)
                         Text(
-                            text = row.dateFormatted,
-                            fontSize = 12.sp,
+                            text = row.miniDateFormatted.ifEmpty { row.dateFormatted },
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.width(105.dp),
+                            modifier = Modifier.width(66.dp),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
 
-                        // 2. Particulars + Type & Reconciled check
+                        // 2. Dr / Cr Badge with optional reconcile icon
                         Row(
-                            modifier = Modifier.width(150.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier.width(42.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            if (row.isReconciled) {
-                                Icon(
-                                    imageVector = Icons.Default.Verified,
-                                    contentDescription = "Reconciled",
-                                    tint = SolidIncome,
-                                    modifier = Modifier.size(13.dp).padding(end = 2.dp)
-                                )
-                            }
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = if (row.isDebit)
@@ -1963,102 +1969,112 @@ private fun RmKhatianLedgerTable(
                                 else
                                     SolidIncome.copy(alpha = 0.15f)
                             ) {
-                                Text(
-                                    text = if (row.isDebit) "Dr" else "Cr",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (row.isDebit) MaterialTheme.colorScheme.error else SolidIncome,
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                )
+                                ) {
+                                    if (row.isReconciled && row.id != "opening_balance") {
+                                        Icon(
+                                            imageVector = Icons.Default.Verified,
+                                            contentDescription = "Reconciled",
+                                            tint = SolidIncome,
+                                            modifier = Modifier.size(10.dp).padding(end = 1.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = if (row.isDebit) "Dr" else "Cr",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (row.isDebit) MaterialTheme.colorScheme.error else SolidIncome
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = row.particulars,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
 
                         // 3. Debit Amount (Dr)
                         Text(
                             text = if (row.debitAmount != null) "৳ ${RmManagerHelper.formatAmount(row.debitAmount)}" else "—",
-                            fontSize = 12.5.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = if (row.debitAmount != null) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (row.debitAmount != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
                             textAlign = TextAlign.End,
-                            modifier = Modifier.width(100.dp)
+                            modifier = Modifier.width(74.dp),
+                            maxLines = 1
                         )
 
                         // 4. Credit Amount (Cr)
                         Text(
                             text = if (row.creditAmount != null) "৳ ${RmManagerHelper.formatAmount(row.creditAmount)}" else "—",
-                            fontSize = 12.5.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = if (row.creditAmount != null) FontWeight.Bold else FontWeight.Normal,
                             color = if (row.creditAmount != null) SolidIncome else MaterialTheme.colorScheme.outline,
                             textAlign = TextAlign.End,
-                            modifier = Modifier.width(100.dp)
+                            modifier = Modifier.width(74.dp),
+                            maxLines = 1
                         )
 
                         // 5. Running Balance ("জের")
                         Text(
                             text = RmManagerHelper.formatSignedLiabilityAmount(row.balanceJer),
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (row.balanceJer < 0) MaterialTheme.colorScheme.error else SolidIncome,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (row.balanceJer < -0.001) MaterialTheme.colorScheme.error else SolidIncome,
                             textAlign = TextAlign.End,
-                            modifier = Modifier.width(120.dp)
+                            modifier = Modifier.width(84.dp),
+                            maxLines = 1
                         )
                     }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
                 }
 
                 // Table Footer Total Row
                 Row(
                     modifier = Modifier
                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
-                        .padding(vertical = 10.dp, horizontal = 12.dp),
+                        .padding(vertical = 8.dp, horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "মোট জের (Total)" else "Total & Balance",
-                        fontSize = 12.5.sp,
+                        text = if (languageMode == LanguageMode.BANGLA) "মোট জের (Total)" else "Total / Net",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.width(255.dp)
+                        modifier = Modifier.width(108.dp),
+                        maxLines = 1
                     )
 
                     // Total Dr Sum
                     Text(
                         text = "৳ ${RmManagerHelper.formatAmount(entity.totalBorrowed)}",
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.End,
-                        modifier = Modifier.width(100.dp)
+                        modifier = Modifier.width(74.dp),
+                        maxLines = 1
                     )
 
                     // Total Cr Sum
                     Text(
                         text = "৳ ${RmManagerHelper.formatAmount(entity.totalRepaid)}",
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = SolidIncome,
                         textAlign = TextAlign.End,
-                        modifier = Modifier.width(100.dp)
+                        modifier = Modifier.width(74.dp),
+                        maxLines = 1
                     )
 
                     // Net Closing Balance
                     Text(
                         text = RmManagerHelper.formatSignedLiabilityAmount(entity.netBalance),
-                        fontSize = 13.5.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (entity.netBalance < 0) MaterialTheme.colorScheme.error else SolidIncome,
+                        color = if (entity.netBalance < -0.001) MaterialTheme.colorScheme.error else SolidIncome,
                         textAlign = TextAlign.End,
-                        modifier = Modifier.width(120.dp)
+                        modifier = Modifier.width(84.dp),
+                        maxLines = 1
                     )
                 }
             }
