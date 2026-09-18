@@ -1706,10 +1706,14 @@ fun DashboardScreen(
                     when (cardType) {
                         DashboardCardType.NET_WORTH -> {
                             item(key = "card_net_worth") {
-                                val allRawAccounts = remember(accountsWithBalances) { accountsWithBalances.map { it.account } }
+                                val allFlatAccounts = remember(accountsWithBalances) {
+                                    accountsWithBalances.flatMap { group ->
+                                        listOf(group.account) + group.subAccounts.map { it.account }
+                                    }
+                                }
                                 DashboardNetWorthTrendCard(
                                     transactions = recentTransactions,
-                                    allAccounts = allRawAccounts,
+                                    allAccounts = allFlatAccounts,
                                     allCategories = allCategories,
                                     calculatedAssets = calculatedAssets,
                                     calculatedLiabilities = calculatedLiabilities,
@@ -1724,10 +1728,14 @@ fun DashboardScreen(
 
                         DashboardCardType.NET_EARNINGS -> {
                             item(key = "card_net_earnings") {
-                                val allRawAccounts = remember(accountsWithBalances) { accountsWithBalances.map { it.account } }
+                                val allFlatAccounts = remember(accountsWithBalances) {
+                                    accountsWithBalances.flatMap { group ->
+                                        listOf(group.account) + group.subAccounts.map { it.account }
+                                    }
+                                }
                                 DashboardNetEarningsCard(
                                     transactions = recentTransactions,
-                                    allAccounts = allRawAccounts,
+                                    allAccounts = allFlatAccounts,
                                     allCategories = allCategories,
                                     languageMode = languageMode,
                                     onNetEarningsClick = { openNetSavingsBreakdown() }
@@ -1842,10 +1850,15 @@ fun DashboardScreen(
 
                         DashboardCardType.CASH_FLOW -> {
                             item(key = "card_cash_flow") {
-                                val allRawAccounts = remember(accountsWithBalances) { accountsWithBalances.map { it.account } }
+                                val allIndividualAccounts = remember(accountsWithBalances) {
+                                    accountsWithBalances.flatMap { group ->
+                                        if (group.subAccounts.isNotEmpty()) group.subAccounts.map { it.account }
+                                        else listOf(group.account)
+                                    }
+                                }
                                 DashboardCashFlowSummaryCard(
                                     transactions = recentTransactions,
-                                    allAccounts = allRawAccounts,
+                                    allAccounts = allIndividualAccounts,
                                     allCategories = allCategories,
                                     languageMode = languageMode,
                                     onNavigateToCashFlow = onNavigateToCashFlow

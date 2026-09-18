@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -77,9 +78,13 @@ import com.example.util.SummaryChartType
 import java.util.Locale
 
 enum class NetWorthTimeframe(val months: Int, val labelEn: String, val labelBn: String) {
+    TWO_MONTHS(2, "2 Months", "২ মাস"),
+    THREE_MONTHS(3, "3 Months", "৩ মাস"),
+    FOUR_MONTHS(4, "4 Months", "৪ মাস"),
+    FIVE_MONTHS(5, "5 Months", "৫ মাস"),
     SIX_MONTHS(6, "6 Months", "৬ মাস"),
-    TWELVE_MONTHS(12, "1 Year", "১ বছর"),
-    TWENTY_FOUR_MONTHS(24, "2 Years", "২ বছর");
+    NINE_MONTHS(9, "9 Months", "৯ মাস"),
+    TWELVE_MONTHS(12, "12 Months", "১২ মাস");
 
     fun getLabel(languageMode: LanguageMode): String =
         if (languageMode == LanguageMode.BANGLA) labelBn else labelEn
@@ -100,24 +105,21 @@ fun DashboardNetWorthTrendCard(
     onLiabilitiesClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var timeframe by remember { mutableStateOf(NetWorthTimeframe.SIX_MONTHS) }
+    var timeframe by remember { mutableStateOf(NetWorthTimeframe.THREE_MONTHS) }
     var chartType by remember { mutableStateOf(SummaryChartType.LINE) }
     var metricFilter by remember { mutableStateOf(NetWorthMetricFilter.ALL) }
+    var showValues by remember { mutableStateOf(true) }
     var showYAxis by remember { mutableStateOf(true) }
     var compactNumbers by remember { mutableStateOf(true) }
     var showGridLines by remember { mutableStateOf(true) }
     var showLegend by remember { mutableStateOf(true) }
     var showTable by remember { mutableStateOf(true) }
 
-    // Account filter state
-    var selectedAccountIds by remember { mutableStateOf<Set<Long>?>(null) }
-
     var showTimeframeDropdown by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
-    var showAccountFilterDialog by remember { mutableStateOf(false) }
     var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
 
-    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, calculatedAssets, calculatedLiabilities, selectedAccountIds, languageMode) {
+    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, calculatedAssets, calculatedLiabilities, languageMode) {
         DashboardChartUtils.computeMonthlyPoints(
             monthCount = timeframe.months,
             transactions = transactions,
@@ -125,8 +127,7 @@ fun DashboardNetWorthTrendCard(
             allCategories = allCategories,
             currentTotalAssets = calculatedAssets,
             currentTotalLiabilities = calculatedLiabilities,
-            languageMode = languageMode,
-            selectedAccountIds = selectedAccountIds
+            languageMode = languageMode
         )
     }
 
@@ -221,41 +222,6 @@ fun DashboardNetWorthTrendCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    // Account filter button
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
-                            MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { showAccountFilterDialog = true }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountBalance,
-                                contentDescription = "Accounts",
-                                modifier = Modifier.size(14.dp),
-                                tint = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
-                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = if (selectedAccountIds == null || selectedAccountIds!!.isEmpty()) {
-                                    if (languageMode == LanguageMode.BANGLA) "সকল হিসাব" else "All"
-                                } else {
-                                    "${selectedAccountIds!!.size}"
-                                },
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
-                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
                     IconButton(
                         onClick = { showSettingsDialog = true },
                         modifier = Modifier.size(34.dp)
@@ -466,14 +432,14 @@ fun DashboardNetWorthTrendCard(
                     val plotHeight = size.height - topPadding - bottomPadding
 
                     val textPaint = android.graphics.Paint().apply {
-                        color = axisTextColor.hashCode()
+                        color = axisTextColor.toArgb()
                         textSize = 9.5.sp.toPx()
                         textAlign = android.graphics.Paint.Align.RIGHT
                         isAntiAlias = true
                     }
 
                     val xTextPaint = android.graphics.Paint().apply {
-                        color = axisTextColor.hashCode()
+                        color = axisTextColor.toArgb()
                         textSize = 10.5.sp.toPx()
                         textAlign = android.graphics.Paint.Align.CENTER
                         isAntiAlias = true
@@ -509,6 +475,14 @@ fun DashboardNetWorthTrendCard(
                                 )
                             }
                         }
+                    }
+
+                    val valueTextPaint = android.graphics.Paint().apply {
+                        color = axisTextColor.toArgb()
+                        textSize = 9.sp.toPx()
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isAntiAlias = true
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
                     }
 
                     val count = monthlyPoints.size
@@ -548,21 +522,57 @@ fun DashboardNetWorthTrendCard(
                                             val left2 = colCenterX - 0.5f * singleBarWidth
                                             val left3 = colCenterX + 0.5f * singleBarWidth + barSpacing
 
-                                            if (astH > 0f) drawRoundRect(color = assetsColor, topLeft = Offset(left1, topPadding + plotHeight - astH), size = Size(singleBarWidth, astH), cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()))
-                                            if (liabH > 0f) drawRoundRect(color = liabilitiesColor, topLeft = Offset(left2, topPadding + plotHeight - liabH), size = Size(singleBarWidth, liabH), cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()))
-                                            if (nwH > 0f) drawRoundRect(color = netWorthColor, topLeft = Offset(left3, topPadding + plotHeight - nwH), size = Size(singleBarWidth, nwH), cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()))
+                                            if (astH > 0f) {
+                                                drawRoundRect(color = assetsColor, topLeft = Offset(left1, topPadding + plotHeight - astH), size = Size(singleBarWidth, astH), cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()))
+                                                if (showValues) {
+                                                    val vStr = DashboardChartUtils.formatCompactAmount(pt.assets, languageMode)
+                                                    drawContext.canvas.nativeCanvas.drawText(vStr, left1 + singleBarWidth / 2f, (topPadding + plotHeight - astH - 3.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()), valueTextPaint)
+                                                }
+                                            }
+                                            if (liabH > 0f) {
+                                                drawRoundRect(color = liabilitiesColor, topLeft = Offset(left2, topPadding + plotHeight - liabH), size = Size(singleBarWidth, liabH), cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()))
+                                                if (showValues) {
+                                                    val vStr = DashboardChartUtils.formatCompactAmount(pt.liabilities, languageMode)
+                                                    drawContext.canvas.nativeCanvas.drawText(vStr, left2 + singleBarWidth / 2f, (topPadding + plotHeight - liabH - 3.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()), valueTextPaint)
+                                                }
+                                            }
+                                            if (nwH > 0f) {
+                                                drawRoundRect(color = netWorthColor, topLeft = Offset(left3, topPadding + plotHeight - nwH), size = Size(singleBarWidth, nwH), cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()))
+                                                if (showValues) {
+                                                    val vStr = DashboardChartUtils.formatCompactAmount(pt.netWorth, languageMode)
+                                                    drawContext.canvas.nativeCanvas.drawText(vStr, left3 + singleBarWidth / 2f, (topPadding + plotHeight - nwH - 3.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()), valueTextPaint)
+                                                }
+                                            }
                                         }
                                         NetWorthMetricFilter.NET_WORTH_ONLY -> {
                                             val nwH = (pt.netWorth / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
-                                            if (nwH > 0f) drawRoundRect(color = netWorthColor, topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - nwH), size = Size(singleBarWidth, nwH), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                                            if (nwH > 0f) {
+                                                drawRoundRect(color = netWorthColor, topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - nwH), size = Size(singleBarWidth, nwH), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                                                if (showValues) {
+                                                    val vStr = DashboardChartUtils.formatCompactAmount(pt.netWorth, languageMode)
+                                                    drawContext.canvas.nativeCanvas.drawText(vStr, colCenterX, (topPadding + plotHeight - nwH - 3.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()), valueTextPaint)
+                                                }
+                                            }
                                         }
                                         NetWorthMetricFilter.ASSETS_ONLY -> {
                                             val astH = (pt.assets / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
-                                            if (astH > 0f) drawRoundRect(color = assetsColor, topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - astH), size = Size(singleBarWidth, astH), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                                            if (astH > 0f) {
+                                                drawRoundRect(color = assetsColor, topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - astH), size = Size(singleBarWidth, astH), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                                                if (showValues) {
+                                                    val vStr = DashboardChartUtils.formatCompactAmount(pt.assets, languageMode)
+                                                    drawContext.canvas.nativeCanvas.drawText(vStr, colCenterX, (topPadding + plotHeight - astH - 3.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()), valueTextPaint)
+                                                }
+                                            }
                                         }
                                         NetWorthMetricFilter.LIABILITIES_ONLY -> {
                                             val liabH = (pt.liabilities / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
-                                            if (liabH > 0f) drawRoundRect(color = liabilitiesColor, topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - liabH), size = Size(singleBarWidth, liabH), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                                            if (liabH > 0f) {
+                                                drawRoundRect(color = liabilitiesColor, topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - liabH), size = Size(singleBarWidth, liabH), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                                                if (showValues) {
+                                                    val vStr = DashboardChartUtils.formatCompactAmount(pt.liabilities, languageMode)
+                                                    drawContext.canvas.nativeCanvas.drawText(vStr, colCenterX, (topPadding + plotHeight - liabH - 3.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()), valueTextPaint)
+                                                }
+                                            }
                                         }
                                     }
 
@@ -599,6 +609,14 @@ fun DashboardNetWorthTrendCard(
                                     if (liabH > 0f) {
                                         val liabTop = (topPadding + plotHeight - astH - liabH).coerceAtLeast(topPadding)
                                         drawRoundRect(color = liabilitiesColor, topLeft = Offset(barLeft, liabTop), size = Size(barWidth, liabH), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
+                                    }
+
+                                    if (showValues) {
+                                        val totalH = (astH + liabH).coerceAtMost(plotHeight)
+                                        if (totalH > 0f) {
+                                            val vStr = DashboardChartUtils.formatCompactAmount(pt.netWorth, languageMode)
+                                            drawContext.canvas.nativeCanvas.drawText(vStr, colCenterX, (topPadding + plotHeight - totalH - 4.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()), valueTextPaint)
+                                        }
                                     }
 
                                     drawContext.canvas.nativeCanvas.drawText(
@@ -643,7 +661,7 @@ fun DashboardNetWorthTrendCard(
                                     )
                                 }
 
-                                fun drawCurve(pointsList: List<Offset>, color: Color, isArea: Boolean) {
+                                fun drawCurve(pointsList: List<Offset>, color: Color, isArea: Boolean, valuesList: List<Double>?) {
                                     if (pointsList.isEmpty()) return
                                     val path = Path().apply {
                                         moveTo(pointsList.first().x, pointsList.first().y)
@@ -682,9 +700,19 @@ fun DashboardNetWorthTrendCard(
                                         )
                                     )
 
-                                    pointsList.forEach { pt ->
+                                    pointsList.forEachIndexed { i, pt ->
                                         drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pt)
                                         drawCircle(color = color, radius = 2.5.dp.toPx(), center = pt)
+
+                                        if (showValues && valuesList != null && i < valuesList.size) {
+                                            val vStr = DashboardChartUtils.formatCompactAmount(valuesList[i], languageMode)
+                                            drawContext.canvas.nativeCanvas.drawText(
+                                                vStr,
+                                                pt.x,
+                                                (pt.y - 6.dp.toPx()).coerceAtLeast(topPadding + 10.dp.toPx()),
+                                                valueTextPaint
+                                            )
+                                        }
                                     }
                                 }
 
@@ -692,13 +720,13 @@ fun DashboardNetWorthTrendCard(
 
                                 when (metricFilter) {
                                     NetWorthMetricFilter.ALL -> {
-                                        drawCurve(astPoints, assetsColor, isArea)
-                                        drawCurve(liabPoints, liabilitiesColor, isArea)
-                                        drawCurve(nwPoints, netWorthColor, isArea)
+                                        drawCurve(astPoints, assetsColor, isArea, monthlyPoints.map { it.assets })
+                                        drawCurve(liabPoints, liabilitiesColor, isArea, monthlyPoints.map { it.liabilities })
+                                        drawCurve(nwPoints, netWorthColor, isArea, monthlyPoints.map { it.netWorth })
                                     }
-                                    NetWorthMetricFilter.NET_WORTH_ONLY -> drawCurve(nwPoints, netWorthColor, isArea)
-                                    NetWorthMetricFilter.ASSETS_ONLY -> drawCurve(astPoints, assetsColor, isArea)
-                                    NetWorthMetricFilter.LIABILITIES_ONLY -> drawCurve(liabPoints, liabilitiesColor, isArea)
+                                    NetWorthMetricFilter.NET_WORTH_ONLY -> drawCurve(nwPoints, netWorthColor, isArea, monthlyPoints.map { it.netWorth })
+                                    NetWorthMetricFilter.ASSETS_ONLY -> drawCurve(astPoints, assetsColor, isArea, monthlyPoints.map { it.assets })
+                                    NetWorthMetricFilter.LIABILITIES_ONLY -> drawCurve(liabPoints, liabilitiesColor, isArea, monthlyPoints.map { it.liabilities })
                                 }
                             }
                         }
@@ -938,31 +966,32 @@ fun DashboardNetWorthTrendCard(
                     // Timeframe
                     item {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Timeframe",
+                            text = if (languageMode == LanguageMode.BANGLA) "সময়কাল (মাস)" else "Timeframe (Months)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(
+                        FlowRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             NetWorthTimeframe.values().forEach { tf ->
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = if (timeframe == tf) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier
-                                        .weight(1f)
+                                        .weight(1f, fill = false)
                                         .clickable { timeframe = tf }
                                 ) {
                                     Text(
                                         text = tf.getLabel(languageMode),
-                                        fontSize = 11.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (timeframe == tf) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(vertical = 8.dp)
+                                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp)
                                     )
                                 }
                             }
@@ -979,6 +1008,14 @@ fun DashboardNetWorthTrendCard(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = if (languageMode == LanguageMode.BANGLA) "চার্ট/বারে মান দেখান" else "Show Values on Bars / Chart", fontSize = 13.sp)
+                                Switch(checked = showValues, onCheckedChange = { showValues = it })
+                            }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1027,20 +1064,6 @@ fun DashboardNetWorthTrendCard(
                 TextButton(onClick = { showSettingsDialog = false }) {
                     Text(LanguageHelper.getString("done", languageMode))
                 }
-            }
-        )
-    }
-
-    // Account Multi-Select Filter Dialog
-    if (showAccountFilterDialog) {
-        AccountMultiSelectFilterDialog(
-            allAccounts = allAccounts,
-            selectedAccountIds = selectedAccountIds,
-            languageMode = languageMode,
-            onDismiss = { showAccountFilterDialog = false },
-            onApply = { newSelected ->
-                selectedAccountIds = newSelected
-                showAccountFilterDialog = false
             }
         )
     }

@@ -180,11 +180,9 @@ object CashFlowHelper {
         languageMode: LanguageMode,
         selectedAccountIds: Set<Long>? = null
     ): CashFlowSummary {
+        val hasExplicitAccountFilter = selectedAccountIds != null && selectedAccountIds.isNotEmpty()
         val targetAccounts = when {
-            selectedAccountIds != null && selectedAccountIds.isNotEmpty() ->
-                allAccounts.filter { selectedAccountIds.contains(it.id) }
-            allAccounts.any { it.type == AccountType.ASSET } ->
-                allAccounts.filter { it.type == AccountType.ASSET }
+            hasExplicitAccountFilter -> allAccounts.filter { selectedAccountIds!!.contains(it.id) }
             else -> allAccounts
         }
         val targetAccountIds = targetAccounts.map { it.id }.toSet()
@@ -256,7 +254,7 @@ object CashFlowHelper {
 
             when (tx.type) {
                 TransactionType.INCOME -> {
-                    val isLiquidDebit = targetAccountIds.isEmpty() || tx.debitAccountId == null || targetAccountIds.contains(tx.debitAccountId)
+                    val isLiquidDebit = !hasExplicitAccountFilter || tx.debitAccountId == null || targetAccountIds.contains(tx.debitAccountId)
                     if (isLiquidDebit) {
                         isRelevantToCash = true
                         if (tx.amount >= 0) {
@@ -278,7 +276,7 @@ object CashFlowHelper {
                     }
                 }
                 TransactionType.EXPENSE -> {
-                    val isLiquidCredit = targetAccountIds.isEmpty() || tx.creditAccountId == null || targetAccountIds.contains(tx.creditAccountId)
+                    val isLiquidCredit = !hasExplicitAccountFilter || tx.creditAccountId == null || targetAccountIds.contains(tx.creditAccountId)
                     if (isLiquidCredit) {
                         isRelevantToCash = true
                         if (tx.amount >= 0) {
@@ -300,11 +298,11 @@ object CashFlowHelper {
                     }
                 }
                 TransactionType.TRANSFER -> {
-                    val isCreditAsset = tx.creditAccountId != null && (targetAccountIds.isEmpty() || targetAccountIds.contains(tx.creditAccountId))
-                    val isDebitAsset = tx.debitAccountId != null && (targetAccountIds.isEmpty() || targetAccountIds.contains(tx.debitAccountId))
+                    val isCreditAsset = tx.creditAccountId != null && (!hasExplicitAccountFilter || targetAccountIds.contains(tx.creditAccountId))
+                    val isDebitAsset = tx.debitAccountId != null && (!hasExplicitAccountFilter || targetAccountIds.contains(tx.debitAccountId))
 
                     if (isCreditAsset && isDebitAsset) {
-                        // Internal cash transfer between two liquid accounts
+                        // Internal cash transfer between tracked accounts
                         isRelevantToCash = true
                         tx.creditAccountId?.let {
                             accountOutflowMap[it] = (accountOutflowMap[it] ?: 0.0) + tx.amount
@@ -313,14 +311,14 @@ object CashFlowHelper {
                             accountInflowMap[it] = (accountInflowMap[it] ?: 0.0) + tx.amount
                         }
                     } else if (isCreditAsset && !isDebitAsset) {
-                        // Funds leaving liquid asset to liability or external (Financing Outflow / Debt pay / Loan given)
+                        // Funds leaving tracked accounts to external / liability
                         isRelevantToCash = true
                         financingOutflow += tx.amount
                         tx.creditAccountId?.let {
                             accountOutflowMap[it] = (accountOutflowMap[it] ?: 0.0) + tx.amount
                         }
                     } else if (!isCreditAsset && isDebitAsset) {
-                        // Funds entering liquid asset from liability / loan receipt (Financing Inflow)
+                        // Funds entering tracked accounts from external / liability
                         isRelevantToCash = true
                         financingInflow += tx.amount
                         tx.debitAccountId?.let {

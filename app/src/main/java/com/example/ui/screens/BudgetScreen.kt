@@ -168,39 +168,47 @@ enum class BudgetFrequency(val labelKey: String, val defaultLabel: String, val m
 /**
  * Type-specific filter options for Budget Maker.
  */
-enum class BudgetFilterOption {
-    ALL,
-    ONLY_GROUPS,
-    ONLY_CATEGORIES,
-    ACTIVE_3_MONTHS,
-    FREQ_BUDGETED,
-    FREQ_ACTIVE,
-    BUDGETED_ONLY,
-    ACTIVE_ONLY,
-    UNBUDGETED;
+/**
+ * Filter groups to organize budget filters by similarities.
+ */
+enum class BudgetFilterGroup(val titleEn: String, val titleBn: String) {
+    GENERAL("General", "সাধারণ"),
+    BUDGET_STATUS("Budget Status", "বাজেট স্থিতি"),
+    ACTIVITY("Activity", "কার্যক্রম"),
+    VIEW_HIERARCHY("Structure", "গঠন");
+
+    fun getTitle(languageMode: LanguageMode): String =
+        if (languageMode == LanguageMode.BANGLA) titleBn else titleEn
+}
+
+/**
+ * Filter options for Budget Maker categorized by logical similarity.
+ */
+enum class BudgetFilterOption(val group: BudgetFilterGroup) {
+    ALL(BudgetFilterGroup.GENERAL),
+    ONLY_REMAINING(BudgetFilterGroup.GENERAL),
+    BUDGETED_ONLY(BudgetFilterGroup.BUDGET_STATUS),
+    UNBUDGETED(BudgetFilterGroup.BUDGET_STATUS),
+    ACTIVE_ONLY(BudgetFilterGroup.ACTIVITY),
+    ACTIVE_3_MONTHS(BudgetFilterGroup.ACTIVITY),
+    FREQ_ACTIVE(BudgetFilterGroup.ACTIVITY),
+    FREQ_BUDGETED(BudgetFilterGroup.ACTIVITY),
+    ONLY_GROUPS(BudgetFilterGroup.VIEW_HIERARCHY),
+    ONLY_CATEGORIES(BudgetFilterGroup.VIEW_HIERARCHY);
 
     fun getTitle(itemType: String, languageMode: LanguageMode): String {
         val isBn = languageMode == LanguageMode.BANGLA
         val isAccount = itemType == "ASSET" || itemType == "LIABILITY"
         return when (this) {
             ALL -> if (isBn) "সব" else "All"
-            ONLY_GROUPS -> if (isBn) "শুধু গ্রুপ" else "Only Groups"
-            ONLY_CATEGORIES -> if (isAccount) (if (isBn) "শুধু একাউন্ট" else "Only Accounts") else (if (isBn) "শুধু ক্যাটাগরি" else "Only Categories")
-            ACTIVE_3_MONTHS -> if (isBn) "সক্রিয় (৩ মাস)" else "Active (3 Months)"
-            FREQ_BUDGETED -> when (itemType) {
-                "ASSET", "LIABILITY" -> if (isBn) "নিয়মিত লক্ষ্য" else "Frequently Targeted"
-                else -> if (isBn) "নিয়মিত বাজেট" else "Frequently Budgeted"
-            }
-            FREQ_ACTIVE -> when (itemType) {
-                "EXPENSE" -> if (isBn) "নিয়মিত খরচ" else "Frequently Expensed"
-                "INCOME" -> if (isBn) "নিয়মিত প্রাপ্ত আয়" else "Frequently Received"
-                "ASSET" -> if (isBn) "নিয়মিত লেনদেন" else "Frequently Active"
-                "LIABILITY" -> if (isBn) "নিয়মিত দেনা/লেনদেন" else "Frequently Active"
-                else -> if (isBn) "নিয়মিত ব্যবহৃত" else "Frequently Active"
-            }
+            ONLY_REMAINING -> if (isBn) "শুধু অবশিষ্ট" else "Only Remaining"
             BUDGETED_ONLY -> when (itemType) {
                 "ASSET", "LIABILITY" -> if (isBn) "শুধু লক্ষ্য" else "Targeted Only"
                 else -> if (isBn) "শুধু বাজেট" else "Budgeted Only"
+            }
+            UNBUDGETED -> when (itemType) {
+                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য ছাড়া" else "No Target"
+                else -> if (isBn) "বাজেট ছাড়া" else "Unbudgeted"
             }
             ACTIVE_ONLY -> when (itemType) {
                 "EXPENSE" -> if (isBn) "শুধু খরচ হওয়া" else "Expensed Only"
@@ -209,10 +217,20 @@ enum class BudgetFilterOption {
                 "LIABILITY" -> if (isBn) "দেনা বা ঋণ আছে" else "Has Debt"
                 else -> if (isBn) "লেনদেন আছে" else "Active Only"
             }
-            UNBUDGETED -> when (itemType) {
-                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য ছাড়া" else "No Target"
-                else -> if (isBn) "বাজেট ছাড়া" else "Unbudgeted"
+            ACTIVE_3_MONTHS -> if (isBn) "সক্রিয় (৩ মাস)" else "Active (3 Months)"
+            FREQ_ACTIVE -> when (itemType) {
+                "EXPENSE" -> if (isBn) "নিয়মিত খরচ" else "Frequently Expensed"
+                "INCOME" -> if (isBn) "নিয়মিত প্রাপ্ত আয়" else "Frequently Received"
+                "ASSET" -> if (isBn) "নিয়মিত লেনদেন" else "Frequently Active"
+                "LIABILITY" -> if (isBn) "নিয়মিত দেনা/লেনদেন" else "Frequently Active"
+                else -> if (isBn) "নিয়মিত ব্যবহৃত" else "Frequently Active"
             }
+            FREQ_BUDGETED -> when (itemType) {
+                "ASSET", "LIABILITY" -> if (isBn) "নিয়মিত লক্ষ্য" else "Frequently Targeted"
+                else -> if (isBn) "নিয়মিত বাজেট" else "Frequently Budgeted"
+            }
+            ONLY_GROUPS -> if (isBn) "শুধু গ্রুপ" else "Only Groups"
+            ONLY_CATEGORIES -> if (isAccount) (if (isBn) "শুধু একাউন্ট" else "Only Accounts") else (if (isBn) "শুধু ক্যাটাগরি" else "Only Categories")
         }
     }
 }
@@ -1685,6 +1703,9 @@ private fun CategoriesBudgetEntryView(
         // 2. Filter Category Selection
         list = when (selectedFilter) {
             BudgetFilterOption.ALL -> list
+            BudgetFilterOption.ONLY_REMAINING -> list.filter {
+                it.currentBudget > 0.0 && (it.currentBudget - it.actualSpent) > 0.0
+            }
             BudgetFilterOption.ONLY_GROUPS -> list
             BudgetFilterOption.ONLY_CATEGORIES -> list
             BudgetFilterOption.ACTIVE_3_MONTHS -> list.filter { it.is3MonthsActive }
@@ -1855,36 +1876,61 @@ private fun CategoriesBudgetEntryView(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Filter Chips Scrollable Row
+                    // Filter Chips Scrollable Row (Grouped by type of similarity)
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.weight(1f)
                     ) {
-                        items(BudgetFilterOption.values().toList()) { opt ->
-                            val isSelected = selectedFilter == opt
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { onFilterChange(opt) },
-                                label = {
+                        BudgetFilterGroup.values().forEach { group ->
+                            val optionsInGroup = BudgetFilterOption.values().filter { it.group == group }
+                            val hasSelectedInGroup = optionsInGroup.any { it == selectedFilter }
+
+                            item(key = "group_header_${group.name}") {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (hasSelectedInGroup) sectionColor.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.padding(end = 2.dp)
+                                ) {
                                     Text(
-                                        text = opt.getTitle(sectionItemType, languageMode),
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        text = group.getTitle(languageMode),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (hasSelectedInGroup) sectionColor else MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                                     )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = sectionColor.copy(alpha = 0.15f),
-                                    selectedLabelColor = sectionColor,
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                border = BorderStroke(
-                                    0.6.dp,
-                                    if (isSelected) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                ),
-                                modifier = Modifier.height(30.dp)
-                            )
+                                }
+                            }
+
+                            items(optionsInGroup, key = { "filter_opt_${it.name}" }) { opt ->
+                                val isSelected = selectedFilter == opt
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onFilterChange(opt) },
+                                    label = {
+                                        Text(
+                                            text = opt.getTitle(sectionItemType, languageMode),
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = sectionColor.copy(alpha = 0.15f),
+                                        selectedLabelColor = sectionColor,
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    border = BorderStroke(
+                                        0.6.dp,
+                                        if (isSelected) sectionColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                    ),
+                                    modifier = Modifier.height(30.dp)
+                                )
+                            }
+
+                            item(key = "group_sep_${group.name}") {
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
                         }
                     }
 

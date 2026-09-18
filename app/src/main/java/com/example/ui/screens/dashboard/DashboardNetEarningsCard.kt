@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -102,23 +103,22 @@ fun DashboardNetEarningsCard(
     var timeframe by remember { mutableStateOf(ChartTimeframe.THREE_MONTHS) }
     var chartType by remember { mutableStateOf(SummaryChartType.GROUPED_BAR) }
     var metricFilter by remember { mutableStateOf(NetEarningsMetricFilter.INCOME_AND_EXPENSE) }
+    var showValues by remember { mutableStateOf(true) }
     var showYAxis by remember { mutableStateOf(true) }
     var compactNumbers by remember { mutableStateOf(true) }
     var showGridLines by remember { mutableStateOf(true) }
     var showLegend by remember { mutableStateOf(true) }
     var showTable by remember { mutableStateOf(true) }
 
-    // Account and Category filters
-    var selectedAccountIds by remember { mutableStateOf<Set<Long>?>(null) }
+    // Category filter
     var selectedCategoryIds by remember { mutableStateOf<Set<Long>?>(null) }
 
     var showTimeframeDropdown by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
-    var showAccountFilterDialog by remember { mutableStateOf(false) }
     var showCategoryFilterDialog by remember { mutableStateOf(false) }
     var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
 
-    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, selectedAccountIds, selectedCategoryIds, languageMode) {
+    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, selectedCategoryIds, languageMode) {
         DashboardChartUtils.computeMonthlyPoints(
             monthCount = timeframe.months,
             transactions = transactions,
@@ -127,7 +127,7 @@ fun DashboardNetEarningsCard(
             currentTotalAssets = 0.0,
             currentTotalLiabilities = 0.0,
             languageMode = languageMode,
-            selectedAccountIds = selectedAccountIds,
+            selectedAccountIds = null,
             selectedCategoryIds = selectedCategoryIds
         )
     }
@@ -223,41 +223,6 @@ fun DashboardNetEarningsCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    // Accounts Filter chip
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
-                            MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { showAccountFilterDialog = true }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountBalance,
-                                contentDescription = "Accounts",
-                                modifier = Modifier.size(13.dp),
-                                tint = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
-                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = if (selectedAccountIds == null || selectedAccountIds!!.isEmpty()) {
-                                    if (languageMode == LanguageMode.BANGLA) "হিসাব" else "Acc"
-                                } else {
-                                    "${selectedAccountIds!!.size}"
-                                },
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
-                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
                     // Category Filter chip
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -504,15 +469,23 @@ fun DashboardNetEarningsCard(
                     val plotHeight = size.height - topPadding - bottomPadding
 
                     val textPaint = android.graphics.Paint().apply {
-                        color = axisTextColor.hashCode()
+                        color = axisTextColor.toArgb()
                         textSize = 9.5.sp.toPx()
                         textAlign = android.graphics.Paint.Align.RIGHT
                         isAntiAlias = true
                     }
 
                     val xTextPaint = android.graphics.Paint().apply {
-                        color = axisTextColor.hashCode()
+                        color = axisTextColor.toArgb()
                         textSize = 10.5.sp.toPx()
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isAntiAlias = true
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+
+                    val valueTextPaint = android.graphics.Paint().apply {
+                        color = axisTextColor.toArgb()
+                        textSize = (if (monthlyPoints.size > 6) 8f else 9.5f).sp.toPx()
                         textAlign = android.graphics.Paint.Align.CENTER
                         isAntiAlias = true
                         typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -588,6 +561,11 @@ fun DashboardNetEarningsCard(
                                                     size = Size(singleBarWidth, expHeight),
                                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                                 )
+                                                if (showValues) {
+                                                    val valText = DashboardChartUtils.formatCompactAmount(pt.expense, languageMode)
+                                                    val yPos = (topPadding + plotHeight - expHeight - 2.dp.toPx()).coerceAtLeast(topPadding)
+                                                    drawContext.canvas.nativeCanvas.drawText(valText, expLeft + singleBarWidth / 2f, yPos, valueTextPaint)
+                                                }
                                             }
                                             if (incHeight > 0f) {
                                                 drawRoundRect(
@@ -596,6 +574,11 @@ fun DashboardNetEarningsCard(
                                                     size = Size(singleBarWidth, incHeight),
                                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                                 )
+                                                if (showValues) {
+                                                    val valText = DashboardChartUtils.formatCompactAmount(pt.income, languageMode)
+                                                    val yPos = (topPadding + plotHeight - incHeight - 2.dp.toPx()).coerceAtLeast(topPadding)
+                                                    drawContext.canvas.nativeCanvas.drawText(valText, incLeft + singleBarWidth / 2f, yPos, valueTextPaint)
+                                                }
                                             }
                                         }
                                         NetEarningsMetricFilter.NET_ONLY -> {
@@ -608,6 +591,11 @@ fun DashboardNetEarningsCard(
                                                     size = Size(singleBarWidth, netH),
                                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                                 )
+                                                if (showValues) {
+                                                    val valText = DashboardChartUtils.formatCompactAmount(pt.netEarnings, languageMode)
+                                                    val yPos = (topPadding + plotHeight - netH - 2.dp.toPx()).coerceAtLeast(topPadding)
+                                                    drawContext.canvas.nativeCanvas.drawText(valText, colCenterX, yPos, valueTextPaint)
+                                                }
                                             }
                                         }
                                         NetEarningsMetricFilter.INCOME_ONLY -> {
@@ -619,6 +607,11 @@ fun DashboardNetEarningsCard(
                                                     size = Size(singleBarWidth, incHeight),
                                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                                 )
+                                                if (showValues) {
+                                                    val valText = DashboardChartUtils.formatCompactAmount(pt.income, languageMode)
+                                                    val yPos = (topPadding + plotHeight - incHeight - 2.dp.toPx()).coerceAtLeast(topPadding)
+                                                    drawContext.canvas.nativeCanvas.drawText(valText, colCenterX, yPos, valueTextPaint)
+                                                }
                                             }
                                         }
                                         NetEarningsMetricFilter.EXPENSE_ONLY -> {
@@ -630,6 +623,11 @@ fun DashboardNetEarningsCard(
                                                     size = Size(singleBarWidth, expHeight),
                                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                                 )
+                                                if (showValues) {
+                                                    val valText = DashboardChartUtils.formatCompactAmount(pt.expense, languageMode)
+                                                    val yPos = (topPadding + plotHeight - expHeight - 2.dp.toPx()).coerceAtLeast(topPadding)
+                                                    drawContext.canvas.nativeCanvas.drawText(valText, colCenterX, yPos, valueTextPaint)
+                                                }
                                             }
                                         }
                                     }
@@ -678,6 +676,12 @@ fun DashboardNetEarningsCard(
                                             cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                         )
                                     }
+                                    if (showValues) {
+                                        val totalVal = pt.income + pt.expense
+                                        val valText = DashboardChartUtils.formatCompactAmount(totalVal, languageMode)
+                                        val yPos = (topPadding + plotHeight - incHeight - expHeight - 2.dp.toPx()).coerceAtLeast(topPadding)
+                                        drawContext.canvas.nativeCanvas.drawText(valText, colCenterX, yPos, valueTextPaint)
+                                    }
 
                                     drawContext.canvas.nativeCanvas.drawText(
                                         pt.getMonthLabel(languageMode),
@@ -721,7 +725,7 @@ fun DashboardNetEarningsCard(
                                     )
                                 }
 
-                                fun drawCurve(pointsList: List<Offset>, color: Color, isArea: Boolean) {
+                                fun drawCurve(pointsList: List<Offset>, color: Color, isArea: Boolean, valuesList: List<Double>? = null) {
                                     if (pointsList.isEmpty()) return
                                     val path = Path().apply {
                                         moveTo(pointsList.first().x, pointsList.first().y)
@@ -760,9 +764,14 @@ fun DashboardNetEarningsCard(
                                         )
                                     )
 
-                                    pointsList.forEach { pt ->
+                                    pointsList.forEachIndexed { idx, pt ->
                                         drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pt)
                                         drawCircle(color = color, radius = 2.5.dp.toPx(), center = pt)
+                                        if (showValues && valuesList != null && idx < valuesList.size) {
+                                            val valText = DashboardChartUtils.formatCompactAmount(valuesList[idx], languageMode)
+                                            val yPos = (pt.y - 6.dp.toPx()).coerceAtLeast(topPadding)
+                                            drawContext.canvas.nativeCanvas.drawText(valText, pt.x, yPos, valueTextPaint)
+                                        }
                                     }
                                 }
 
@@ -770,12 +779,12 @@ fun DashboardNetEarningsCard(
 
                                 when (metricFilter) {
                                     NetEarningsMetricFilter.INCOME_AND_EXPENSE -> {
-                                        drawCurve(incPoints, incomeColor, isArea)
-                                        drawCurve(expPoints, expenseColor, isArea)
+                                        drawCurve(incPoints, incomeColor, isArea, monthlyPoints.map { it.income })
+                                        drawCurve(expPoints, expenseColor, isArea, monthlyPoints.map { it.expense })
                                     }
-                                    NetEarningsMetricFilter.INCOME_ONLY -> drawCurve(incPoints, incomeColor, isArea)
-                                    NetEarningsMetricFilter.EXPENSE_ONLY -> drawCurve(expPoints, expenseColor, isArea)
-                                    NetEarningsMetricFilter.NET_ONLY -> drawCurve(netPoints, netBlueColor, isArea)
+                                    NetEarningsMetricFilter.INCOME_ONLY -> drawCurve(incPoints, incomeColor, isArea, monthlyPoints.map { it.income })
+                                    NetEarningsMetricFilter.EXPENSE_ONLY -> drawCurve(expPoints, expenseColor, isArea, monthlyPoints.map { it.expense })
+                                    NetEarningsMetricFilter.NET_ONLY -> drawCurve(netPoints, netBlueColor, isArea, monthlyPoints.map { it.netEarnings })
                                 }
                             }
                         }
@@ -1064,6 +1073,14 @@ fun DashboardNetEarningsCard(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Text(text = if (languageMode == LanguageMode.BANGLA) "চার্ট/বারে মান দেখান" else "Show Values on Bars/Chart", fontSize = 13.sp)
+                                Switch(checked = showValues, onCheckedChange = { showValues = it })
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(text = if (languageMode == LanguageMode.BANGLA) "Y-অক্ষ লেবেল দেখান" else "Show Vertical (Y) Axis", fontSize = 13.sp)
                                 Switch(checked = showYAxis, onCheckedChange = { showYAxis = it })
                             }
@@ -1107,20 +1124,6 @@ fun DashboardNetEarningsCard(
                 TextButton(onClick = { showSettingsDialog = false }) {
                     Text(LanguageHelper.getString("done", languageMode))
                 }
-            }
-        )
-    }
-
-    // Account Multi-Select Filter Dialog
-    if (showAccountFilterDialog) {
-        AccountMultiSelectFilterDialog(
-            allAccounts = allAccounts,
-            selectedAccountIds = selectedAccountIds,
-            languageMode = languageMode,
-            onDismiss = { showAccountFilterDialog = false },
-            onApply = { newSelected ->
-                selectedAccountIds = newSelected
-                showAccountFilterDialog = false
             }
         )
     }

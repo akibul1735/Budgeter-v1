@@ -850,9 +850,11 @@ fun AddEditTransactionSheet(
         coroutineScope.launch {
             kotlinx.coroutines.delay(60)
             try {
-                amountFocusRequester.requestFocus()
-                keyboardController?.show()
+                focusManager.clearFocus()
+                keyboardController?.hide()
+                showCalculator = true
             } catch (_: Exception) {
+                showCalculator = true
             }
         }
     }
@@ -2837,21 +2839,41 @@ fun AddEditTransactionSheet(
 
                                 Spacer(modifier = Modifier.width(10.dp))
 
-                                // Save button
-                                FloatingActionButton(
-                                    onClick = executeSave,
-                                    containerColor = typePrimaryColor,
-                                    contentColor = Color.White,
+                                // Save button (Wide, sleek, comfortable touch target)
+                                Surface(
                                     shape = RoundedCornerShape(12.dp),
+                                    color = typePrimaryColor,
+                                    shadowElevation = 2.dp,
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .height(38.dp)
+                                        .width(68.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { executeSave() }
                                         .testTag("save_transaction_btn")
                                 ) {
-                                    Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(20.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Save,
+                                            contentDescription = "Save",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         } else {
-                            // Standard Bottom Action Bar: Type Selector Pills + Save FAB
+                            // Standard Bottom Action Bar: Type Selector Pills + Save Button
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -2916,17 +2938,37 @@ fun AddEditTransactionSheet(
 
                                 Spacer(modifier = Modifier.width(10.dp))
 
-                                // Save Floating Action Button
-                                FloatingActionButton(
-                                    onClick = executeSave,
-                                    containerColor = typePrimaryColor,
-                                    contentColor = Color.White,
+                                // Save Button (Wide, prominent, without increasing height)
+                                Surface(
                                     shape = RoundedCornerShape(14.dp),
+                                    color = typePrimaryColor,
+                                    shadowElevation = 3.dp,
                                     modifier = Modifier
-                                        .size(42.dp)
+                                        .height(42.dp)
+                                        .width(76.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .clickable { executeSave() }
                                         .testTag("save_transaction_btn")
                                 ) {
-                                    Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(22.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Save,
+                                            contentDescription = "Save",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2946,6 +2988,7 @@ fun AddEditTransactionSheet(
                 val absAmt = Math.abs(calculatedAmount)
                 amount = absAmt
                 amountText = formatAmountInput(absAmt)
+                amountTextFieldValue = TextFieldValue(amountText, selection = TextRange(0, amountText.length))
                 if (calculatedAmount < 0.0) {
                     selectedSign = if (txType == TransactionType.EXPENSE) "+" else "−"
                 }
