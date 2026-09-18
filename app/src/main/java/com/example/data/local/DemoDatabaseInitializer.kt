@@ -22,7 +22,10 @@ object DemoDatabaseInitializer {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao
     ) {
-        if (accountDao.getAccountCount() > 0) return
+        if (accountDao.getAccountCount() > 0) {
+            ensureRmDemoAccountsAndTransactions(accountDao, transactionDao)
+            return
+        }
 
         // 1. Seed Parent Accounts
         val cashParentId = accountDao.insertAccount(
@@ -195,6 +198,39 @@ object DemoDatabaseInitializer {
                 initialBalance = 25000.0,
                 iconName = "Handshake",
                 colorHex = "#8B5CF6"
+            )
+        )
+        val rmTanvirId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Tanvir",
+                nameBn = "আরএম তানভীর",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 40000.0,
+                iconName = "Handshake",
+                colorHex = "#3B82F6"
+            )
+        )
+        val rmFahimId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Fahim",
+                nameBn = "আরএম ফাহিম",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 18000.0,
+                iconName = "Handshake",
+                colorHex = "#F59E0B"
+            )
+        )
+        val rmMahirId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Mahir",
+                nameBn = "আরএম মাহির",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 50000.0,
+                iconName = "Handshake",
+                colorHex = "#10B981"
             )
         )
         val rmOthersId = accountDao.insertAccount(
@@ -993,43 +1029,83 @@ object DemoDatabaseInitializer {
             ),
 
             // --- Resting Money (RM) Transactions ---
+            // 1. Rm Parash (Initial Liability 25,000 -> Repaid 15,000 -> Net Remaining 10,000)
             Transaction(
                 type = TransactionType.TRANSFER,
                 amount = 10000.0,
-                dateEpochMs = now - (dayMs * 7),
+                dateEpochMs = now - (dayMs * 12),
                 debitAccountId = rmParashId,
                 creditAccountId = bankSalaryId,
-                note = "Repaid partial borrowing to Parash #repay",
+                note = "First installment repayment to Parash #repay",
                 payeeOrPayer = "Rm Parash",
                 status = TransactionStatus.RECONCILED
             ),
             Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 5000.0,
+                dateEpochMs = now - (dayMs * 4),
+                debitAccountId = rmParashId,
+                creditAccountId = bkashId,
+                note = "Second installment repayment via bKash #repay",
+                payeeOrPayer = "Rm Parash",
+                status = TransactionStatus.RECONCILED
+            ),
+
+            // 2. Rm Tanvir (Initial Liability 40,000 -> Repaid 40,000 -> Fully Settled 0)
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 40000.0,
+                dateEpochMs = now - (dayMs * 6),
+                debitAccountId = rmTanvirId,
+                creditAccountId = bankSalaryId,
+                note = "Full clearance repayment to Tanvir #settled",
+                payeeOrPayer = "Rm Tanvir",
+                status = TransactionStatus.RECONCILED
+            ),
+
+            // 3. Rm Mahir (Initial Liability 50,000 -> Repaid 20,000 -> Net Remaining 30,000)
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 20000.0,
+                dateEpochMs = now - (dayMs * 15),
+                debitAccountId = rmMahirId,
+                creditAccountId = bankSalaryId,
+                note = "Monthly installment paid to Mahir #repay",
+                payeeOrPayer = "Rm Mahir",
+                status = TransactionStatus.CLEARED
+            ),
+
+            // 4. RM Others (Breakdown by Individual Person Labels)
+            // Person: Sakib (Borrowed 15,000 -> Repaid 6,000 -> Net Remaining 9,000)
+            Transaction(
                 type = TransactionType.INCOME,
-                amount = 12000.0,
-                dateEpochMs = now - (dayMs * 18),
+                amount = 15000.0,
+                dateEpochMs = now - (dayMs * 22),
                 debitAccountId = rmOthersId,
                 creditAccountId = null,
-                note = "Borrowed for emergency medical #Sakib",
+                note = "Emergency loan received from Sakib #Sakib",
                 payeeOrPayer = "Sakib",
                 status = TransactionStatus.CLEARED
             ),
             Transaction(
                 type = TransactionType.TRANSFER,
-                amount = 4000.0,
+                amount = 6000.0,
                 dateEpochMs = now - (dayMs * 8),
                 debitAccountId = rmOthersId,
                 creditAccountId = bkashId,
-                note = "Partial repayment via bKash #Sakib",
+                note = "Partial repayment sent to Sakib via bKash #Sakib",
                 payeeOrPayer = "Sakib",
                 status = TransactionStatus.RECONCILED
             ),
+
+            // Person: Rafi (Borrowed 8,000 -> Repaid 8,000 -> Fully Settled 0)
             Transaction(
                 type = TransactionType.INCOME,
                 amount = 8000.0,
-                dateEpochMs = now - (dayMs * 25),
+                dateEpochMs = now - (dayMs * 28),
                 debitAccountId = rmOthersId,
                 creditAccountId = null,
-                note = "Temporary short term borrowing #Rafi",
+                note = "Short term bridge borrowing from Rafi #Rafi",
                 payeeOrPayer = "Rafi",
                 status = TransactionStatus.RECONCILED
             ),
@@ -1039,12 +1115,241 @@ object DemoDatabaseInitializer {
                 dateEpochMs = now - (dayMs * 10),
                 debitAccountId = rmOthersId,
                 creditAccountId = bankSalaryId,
-                note = "Full repayment settled #Rafi",
+                note = "Full final settlement to Rafi #Rafi",
                 payeeOrPayer = "Rafi",
+                status = TransactionStatus.RECONCILED
+            ),
+
+            // Person: Mahmud (Borrowed 22,000 -> Repaid 0 -> Net Remaining 22,000 Unpaid)
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 22000.0,
+                dateEpochMs = now - (dayMs * 16),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Personal borrowing for project expenses #Mahmud",
+                payeeOrPayer = "Mahmud",
+                status = TransactionStatus.CLEARED
+            ),
+
+            // Person: Anis (Borrowed 35,000 -> Repaid 20,000 -> Net Remaining 15,000)
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 35000.0,
+                dateEpochMs = now - (dayMs * 30),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Hardware purchase support loan #Anis",
+                payeeOrPayer = "Anis",
+                status = TransactionStatus.CLEARED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 20000.0,
+                dateEpochMs = now - (dayMs * 14),
+                debitAccountId = rmOthersId,
+                creditAccountId = bankSalaryId,
+                note = "Bank transfer repayment installment #Anis",
+                payeeOrPayer = "Anis",
                 status = TransactionStatus.RECONCILED
             )
         )
 
         demoTransactions.forEach { transactionDao.insertTransaction(it) }
+    }
+
+    private suspend fun ensureRmDemoAccountsAndTransactions(
+        accountDao: AccountDao,
+        transactionDao: TransactionDao
+    ) {
+        val allAccounts = accountDao.getAllAccountsSnapshot()
+        val hasRmAccount = allAccounts.any { it.nameEn.contains("Rm Parash", ignoreCase = true) || it.nameEn.contains("RM Others", ignoreCase = true) }
+        if (hasRmAccount) return
+
+        val loanParent = allAccounts.firstOrNull { it.type == AccountType.LIABILITY && it.parentId == null }
+            ?: allAccounts.firstOrNull { it.type == AccountType.LIABILITY }
+        val loanParentId = loanParent?.id
+
+        val bankAccount = allAccounts.firstOrNull { it.nameEn.contains("Salary", ignoreCase = true) || it.nameEn.contains("Checking", ignoreCase = true) }
+            ?: allAccounts.firstOrNull { it.type == AccountType.ASSET && it.parentId != null }
+        val bankSalaryId = bankAccount?.id
+
+        val bkashAccount = allAccounts.firstOrNull { it.nameEn.contains("bKash", ignoreCase = true) }
+            ?: allAccounts.firstOrNull { it.type == AccountType.ASSET && it.parentId != null }
+        val bkashId = bkashAccount?.id
+
+        val rmParashId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Parash",
+                nameBn = "আরএম পরাশ",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 25000.0,
+                iconName = "Handshake",
+                colorHex = "#8B5CF6"
+            )
+        )
+        val rmTanvirId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Tanvir",
+                nameBn = "আরএম তানভীর",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 40000.0,
+                iconName = "Handshake",
+                colorHex = "#3B82F6"
+            )
+        )
+        val rmFahimId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Fahim",
+                nameBn = "আরএম ফাহিম",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 18000.0,
+                iconName = "Handshake",
+                colorHex = "#F59E0B"
+            )
+        )
+        val rmMahirId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Mahir",
+                nameBn = "আরএম মাহির",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 50000.0,
+                iconName = "Handshake",
+                colorHex = "#10B981"
+            )
+        )
+        val rmOthersId = accountDao.insertAccount(
+            Account(
+                nameEn = "RM Others",
+                nameBn = "আরএম অন্যান্য",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 0.0,
+                iconName = "Groups",
+                colorHex = "#EC4899"
+            )
+        )
+
+        val now = System.currentTimeMillis()
+        val dayMs = 86400000L
+
+        val rmTransactions = listOf(
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 10000.0,
+                dateEpochMs = now - (dayMs * 12),
+                debitAccountId = rmParashId,
+                creditAccountId = bankSalaryId,
+                note = "First installment repayment to Parash #repay",
+                payeeOrPayer = "Rm Parash",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 5000.0,
+                dateEpochMs = now - (dayMs * 4),
+                debitAccountId = rmParashId,
+                creditAccountId = bkashId,
+                note = "Second installment repayment via bKash #repay",
+                payeeOrPayer = "Rm Parash",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 40000.0,
+                dateEpochMs = now - (dayMs * 6),
+                debitAccountId = rmTanvirId,
+                creditAccountId = bankSalaryId,
+                note = "Full clearance repayment to Tanvir #settled",
+                payeeOrPayer = "Rm Tanvir",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 20000.0,
+                dateEpochMs = now - (dayMs * 15),
+                debitAccountId = rmMahirId,
+                creditAccountId = bankSalaryId,
+                note = "Monthly installment paid to Mahir #repay",
+                payeeOrPayer = "Rm Mahir",
+                status = TransactionStatus.CLEARED
+            ),
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 15000.0,
+                dateEpochMs = now - (dayMs * 22),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Emergency loan received from Sakib #Sakib",
+                payeeOrPayer = "Sakib",
+                status = TransactionStatus.CLEARED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 6000.0,
+                dateEpochMs = now - (dayMs * 8),
+                debitAccountId = rmOthersId,
+                creditAccountId = bkashId,
+                note = "Partial repayment sent to Sakib via bKash #Sakib",
+                payeeOrPayer = "Sakib",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 8000.0,
+                dateEpochMs = now - (dayMs * 28),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Short term bridge borrowing from Rafi #Rafi",
+                payeeOrPayer = "Rafi",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 8000.0,
+                dateEpochMs = now - (dayMs * 10),
+                debitAccountId = rmOthersId,
+                creditAccountId = bankSalaryId,
+                note = "Full final settlement to Rafi #Rafi",
+                payeeOrPayer = "Rafi",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 22000.0,
+                dateEpochMs = now - (dayMs * 16),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Personal borrowing for project expenses #Mahmud",
+                payeeOrPayer = "Mahmud",
+                status = TransactionStatus.CLEARED
+            ),
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 35000.0,
+                dateEpochMs = now - (dayMs * 30),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Hardware purchase support loan #Anis",
+                payeeOrPayer = "Anis",
+                status = TransactionStatus.CLEARED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 20000.0,
+                dateEpochMs = now - (dayMs * 14),
+                debitAccountId = rmOthersId,
+                creditAccountId = bankSalaryId,
+                note = "Bank transfer repayment installment #Anis",
+                payeeOrPayer = "Anis",
+                status = TransactionStatus.RECONCILED
+            )
+        )
+
+        rmTransactions.forEach { transactionDao.insertTransaction(it) }
     }
 }

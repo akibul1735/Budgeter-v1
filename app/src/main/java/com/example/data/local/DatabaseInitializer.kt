@@ -156,6 +156,28 @@ object DatabaseInitializer {
                 colorHex = "#F59E0B"
             )
         )
+        val rmParashId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Parash",
+                nameBn = "আরএম পরাশ",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 0.0,
+                iconName = "Handshake",
+                colorHex = "#8B5CF6"
+            )
+        )
+        val rmOthersId = accountDao.insertAccount(
+            Account(
+                nameEn = "RM Others",
+                nameBn = "আরএম অন্যান্য",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 0.0,
+                iconName = "Groups",
+                colorHex = "#EC4899"
+            )
+        )
 
         // 3. Seed Income Categories & Sub-Categories
         val catSalaryId = categoryDao.insertCategory(

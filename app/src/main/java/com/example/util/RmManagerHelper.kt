@@ -26,27 +26,24 @@ object RmManagerHelper {
 
     // Regex to match "RM" as a standalone word/token (case-insensitive, whole word boundary)
     private val RM_TOKEN_REGEX = Regex("""(?i)\bRM\b""")
+    private val RM_BN_TOKEN_REGEX = Regex("""(?i)(?:^|[\s_\-/#])(?:আরএম|RM)(?:[\s_\-/#]|$)""")
 
     /**
-     * Checks if a name matches a filter keyword (word boundary or substring).
+     * Checks if a name matches a filter keyword (strictly whole word boundary).
      */
     fun isNameMatching(name: String?, keyword: String): Boolean {
         if (name.isNullOrBlank() || keyword.isBlank()) return false
         val trimmed = keyword.trim()
-        val regex = if (trimmed.contains(" ") || trimmed.length > 4) {
-            Regex("""(?i)\b${Regex.escape(trimmed)}\b|${Regex.escape(trimmed)}""")
-        } else {
-            Regex("""(?i)\b${Regex.escape(trimmed)}\b""")
-        }
-        return regex.containsMatchIn(name) || name.contains(trimmed, ignoreCase = true)
+        val regex = Regex("""(?i)\b${Regex.escape(trimmed)}\b""")
+        return regex.containsMatchIn(name) || (name.equals(trimmed, ignoreCase = true))
     }
 
     /**
-     * Checks if a name contains the standalone word/token "RM".
+     * Checks if a name contains the standalone word/token "RM" or Bengali "আরএম".
      */
     fun isRmName(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
-        return RM_TOKEN_REGEX.containsMatchIn(name) || isNameMatching(name, "RM")
+        return RM_TOKEN_REGEX.containsMatchIn(name) || RM_BN_TOKEN_REGEX.containsMatchIn(name) || isNameMatching(name, "RM") || isNameMatching(name, "আরএম")
     }
 
     /**
@@ -57,10 +54,14 @@ object RmManagerHelper {
         includeKeyword: String = "RM",
         excludeKeyword: String = "RM Others"
     ): Boolean {
-        val matchesInclude = isNameMatching(account.nameEn, includeKeyword) || isNameMatching(account.nameBn, includeKeyword)
+        val matchesInclude = isNameMatching(account.nameEn, includeKeyword) ||
+                isNameMatching(account.nameBn, includeKeyword) ||
+                (includeKeyword.equals("RM", ignoreCase = true) && (isRmName(account.nameEn) || isRmName(account.nameBn)))
         if (!matchesInclude) return false
         if (excludeKeyword.isNotBlank()) {
-            val matchesExclude = isNameMatching(account.nameEn, excludeKeyword) || isNameMatching(account.nameBn, excludeKeyword)
+            val matchesExclude = isNameMatching(account.nameEn, excludeKeyword) ||
+                    isNameMatching(account.nameBn, excludeKeyword) ||
+                    (excludeKeyword.equals("RM Others", ignoreCase = true) && (isNameMatching(account.nameEn, "RM Others") || isNameMatching(account.nameBn, "আরএম অন্যান্য")))
             if (matchesExclude) return false
         }
         return true
@@ -74,7 +75,9 @@ object RmManagerHelper {
         excludeKeyword: String = "RM Others"
     ): Boolean {
         if (excludeKeyword.isBlank()) return false
-        return isNameMatching(account.nameEn, excludeKeyword) || isNameMatching(account.nameBn, excludeKeyword)
+        return isNameMatching(account.nameEn, excludeKeyword) ||
+                isNameMatching(account.nameBn, excludeKeyword) ||
+                (excludeKeyword.equals("RM Others", ignoreCase = true) && (isNameMatching(account.nameEn, "RM Others") || isNameMatching(account.nameBn, "আরএম অন্যান্য")))
     }
 
     /**
