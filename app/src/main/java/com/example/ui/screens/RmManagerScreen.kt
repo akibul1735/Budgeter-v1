@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -184,8 +186,9 @@ fun RmManagerScreen(
     var refreshTrigger by remember { mutableStateOf(0) }
 
     // Reconcile Sheet State
-    var accountToReconcile by remember { mutableStateOf<Account?>(null) }
+    var entityToReconcile by remember { mutableStateOf<RmManagerHelper.RmEntityBreakdown?>(null) }
     var transactionForQuickReconcile by remember { mutableStateOf<Transaction?>(null) }
+    var isFilterMenuExpanded by remember { mutableStateOf(false) }
 
     // Recompute RM Data
     val rmData = remember(
@@ -224,6 +227,7 @@ fun RmManagerScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0.dp),
                 title = {
                     Column {
                         Text(
@@ -280,7 +284,7 @@ fun RmManagerScreen(
                     if (selectedEntity != null) {
                         // Reconcile Account Button (if it's an account)
                         if (selectedEntity.isAccount && selectedEntity.account != null) {
-                            IconButton(onClick = { accountToReconcile = selectedEntity.account }) {
+                            IconButton(onClick = { entityToReconcile = selectedEntity }) {
                                 Icon(
                                     imageVector = Icons.Default.Verified,
                                     contentDescription = LanguageHelper.getString("reconcile_account", languageMode),
@@ -390,6 +394,54 @@ fun RmManagerScreen(
                             }
                         }
 
+                        // Filter Options Dropdown Menu Button
+                        Box {
+                            IconButton(onClick = { isFilterMenuExpanded = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = "Filter Options",
+                                    tint = if (selectedFilterCategory != RmFilterCategory.ALL) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = isFilterMenuExpanded,
+                                onDismissRequest = { isFilterMenuExpanded = false }
+                            ) {
+                                listOf(
+                                    Triple(RmFilterCategory.ALL, if (languageMode == LanguageMode.BANGLA) "সকল আইটেম" else "All Entities", Icons.Default.DoneAll),
+                                    Triple(RmFilterCategory.PENDING_ONLY, if (languageMode == LanguageMode.BANGLA) "বকেয়া দেনা" else "Pending Due Only", Icons.AutoMirrored.Filled.TrendingDown),
+                                    Triple(RmFilterCategory.SETTLED_ONLY, if (languageMode == LanguageMode.BANGLA) "পরিশোধিত" else "Settled Only", Icons.Default.CheckCircle),
+                                    Triple(RmFilterCategory.RM_ACCOUNTS, if (languageMode == LanguageMode.BANGLA) "আরএম অ্যাকাউন্ট" else "RM Accounts Only", Icons.Default.AccountBalance),
+                                    Triple(RmFilterCategory.RM_OTHERS, if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য লেবেল" else "RM Others Labels", Icons.AutoMirrored.Filled.ReceiptLong),
+                                    Triple(RmFilterCategory.UNRECONCILED, if (languageMode == LanguageMode.BANGLA) "আমিলকৃত" else "Unreconciled Only", Icons.Default.History),
+                                    Triple(RmFilterCategory.RECONCILED, if (languageMode == LanguageMode.BANGLA) "মিলকৃত" else "Reconciled Only", Icons.Default.Verified),
+                                    Triple(RmFilterCategory.HIGH_LIABILITY, if (languageMode == LanguageMode.BANGLA) "বড় দেনা (> ৳১০,০০০)" else "High Due (> ৳10k)", Icons.Default.Payment),
+                                    Triple(RmFilterCategory.RECENT_WEEK, if (languageMode == LanguageMode.BANGLA) "গত ৭ দিনে সক্রিয়" else "Active (Last 7 Days)", Icons.Default.Timeline)
+                                ).forEach { (cat, title, icon) ->
+                                    DropdownMenuItem(
+                                        text = { Text(title, fontSize = 13.5.sp) },
+                                        onClick = {
+                                            selectedFilterCategory = cat
+                                            isFilterMenuExpanded = false
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = null,
+                                                tint = if (selectedFilterCategory == cat) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        trailingIcon = {
+                                            if (selectedFilterCategory == cat) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         // RM Filter Settings Button
                         IconButton(onClick = { isFilterSettingsOpen = true }) {
                             Icon(
@@ -398,14 +450,6 @@ fun RmManagerScreen(
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                    }
-
-                    IconButton(onClick = { refreshTrigger++ }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -524,10 +568,8 @@ fun RmManagerScreen(
                     onRecordBorrowClick = {
                         onAddTransactionClick(TransactionType.INCOME)
                     },
-                    onReconcileAccountClick = {
-                        if (selectedEntity.isAccount && selectedEntity.account != null) {
-                            accountToReconcile = selectedEntity.account
-                        }
+                    onReconcileEntityClick = {
+                        entityToReconcile = selectedEntity
                     },
                     onQuickReconcileTransaction = { tx ->
                         transactionForQuickReconcile = tx
@@ -554,9 +596,7 @@ fun RmManagerScreen(
                         onExecuteRepayTransfer(entity.account, if (!entity.isAccount) entity.name else null, entity.remainingLiability)
                     },
                     onReconcileEntity = { entity ->
-                        if (entity.isAccount && entity.account != null) {
-                            accountToReconcile = entity.account
-                        }
+                        entityToReconcile = entity
                     }
                 )
             }
@@ -630,46 +670,92 @@ fun RmManagerScreen(
         )
     }
 
-    // Account Balance Reconciliation BottomSheet
-    if (accountToReconcile != null) {
-        val targetAcc = accountToReconcile!!
-        val accBreakdown = rmData.rmAccounts.firstOrNull { it.id == "acc_${targetAcc.id}" }
-        val currentLiability = accBreakdown?.remainingLiability ?: 0.0
+    // Entity Balance Reconciliation BottomSheet (Accounts & RM Others Labels)
+    if (entityToReconcile != null) {
+        val targetEntity = entityToReconcile!!
+        val currentLiability = targetEntity.remainingLiability
 
-        RmAccountReconcileBottomSheet(
-            account = targetAcc,
+        RmEntityReconcileBottomSheet(
+            entity = targetEntity,
             currentOutstandingLiability = currentLiability,
             languageMode = languageMode,
-            onDismiss = { accountToReconcile = null },
+            onDismiss = { entityToReconcile = null },
             onConfirm = { targetRemainingDue ->
                 val diff = targetRemainingDue - currentLiability
                 if (abs(diff) >= 0.01) {
-                    // If target liability is greater than current -> increase liability (Income/Debit)
-                    // If target liability is less than current -> decrease liability / repaid (Expense/Credit)
-                    val adjustmentTx = if (diff > 0) {
-                        Transaction(
-                            type = TransactionType.INCOME,
-                            amount = abs(diff),
-                            debitAccountId = targetAcc.id,
-                            creditAccountId = null,
-                            note = "RM Balance Adjustment (Reconciliation)",
-                            payeeOrPayer = "RM Adjustment",
-                            status = TransactionStatus.RECONCILED,
-                            dateEpochMs = System.currentTimeMillis()
-                        )
+                    if (targetEntity.isAccount && targetEntity.account != null) {
+                        val targetAcc = targetEntity.account
+                        val adjustmentTx = if (diff > 0) {
+                            Transaction(
+                                type = TransactionType.INCOME,
+                                amount = abs(diff),
+                                debitAccountId = targetAcc.id,
+                                creditAccountId = null,
+                                note = "RM Balance Adjustment (Reconciliation)",
+                                payeeOrPayer = "${targetAcc.localizedName(languageMode)} Debit",
+                                status = TransactionStatus.RECONCILED,
+                                dateEpochMs = System.currentTimeMillis()
+                            )
+                        } else {
+                            Transaction(
+                                type = TransactionType.EXPENSE,
+                                amount = abs(diff),
+                                debitAccountId = null,
+                                creditAccountId = targetAcc.id,
+                                note = "RM Repayment Adjustment (Reconciliation)",
+                                payeeOrPayer = "${targetAcc.localizedName(languageMode)} Debit",
+                                status = TransactionStatus.RECONCILED,
+                                dateEpochMs = System.currentTimeMillis()
+                            )
+                        }
+                        onSaveTransaction(adjustmentTx)
                     } else {
-                        Transaction(
-                            type = TransactionType.EXPENSE,
-                            amount = abs(diff),
-                            debitAccountId = null,
-                            creditAccountId = targetAcc.id,
-                            note = "RM Repayment Adjustment (Reconciliation)",
-                            payeeOrPayer = "RM Adjustment",
-                            status = TransactionStatus.RECONCILED,
-                            dateEpochMs = System.currentTimeMillis()
-                        )
+                        // Label Reconciliation in RM Others:
+                        // Only adjusts and reconciles this specific label (#targetEntity.name),
+                        // keeping other RM Others balances intact!
+                        val rmOthersAcc = allAccounts.firstOrNull { RmManagerHelper.isExcludedAccount(it) }
+                            ?: allAccounts.firstOrNull { it.nameEn.contains("RM Others", ignoreCase = true) || it.nameBn.contains("আরএম অন্যান্য", ignoreCase = true) }
+                            ?: allAccounts.firstOrNull()
+
+                        val rmAccId = rmOthersAcc?.id
+                        val adjustmentTx = if (diff > 0) {
+                            Transaction(
+                                type = TransactionType.INCOME,
+                                amount = abs(diff),
+                                debitAccountId = rmAccId,
+                                creditAccountId = null,
+                                referenceNo = targetEntity.name,
+                                note = "#${targetEntity.name} Reconcile Adjustment",
+                                payeeOrPayer = "${targetEntity.name} Debit",
+                                status = TransactionStatus.RECONCILED,
+                                dateEpochMs = System.currentTimeMillis()
+                            )
+                        } else {
+                            Transaction(
+                                type = TransactionType.EXPENSE,
+                                amount = abs(diff),
+                                debitAccountId = null,
+                                creditAccountId = rmAccId,
+                                referenceNo = targetEntity.name,
+                                note = "#${targetEntity.name} Repay Adjustment",
+                                payeeOrPayer = "${targetEntity.name} Debit",
+                                status = TransactionStatus.RECONCILED,
+                                dateEpochMs = System.currentTimeMillis()
+                            )
+                        }
+                        onSaveTransaction(adjustmentTx)
                     }
-                    onSaveTransaction(adjustmentTx)
+                    refreshTrigger++
+                }
+
+                // Also mark all existing transactions of this specific entity (account or label) as RECONCILED
+                val unreconciledTxs = targetEntity.allTransactions
+                    .map { it.transactionWithDetails.transaction }
+                    .filter { it.status != TransactionStatus.RECONCILED }
+
+                if (unreconciledTxs.isNotEmpty()) {
+                    val updated = unreconciledTxs.map { it.copy(status = TransactionStatus.RECONCILED) }
+                    onUpdateTransactions(updated)
                     refreshTrigger++
                 }
 
@@ -678,7 +764,7 @@ fun RmManagerScreen(
                     LanguageHelper.getString("reconcile_success", languageMode),
                     Toast.LENGTH_SHORT
                 ).show()
-                accountToReconcile = null
+                entityToReconcile = null
             }
         )
     }
@@ -876,8 +962,8 @@ private fun RmExecutiveHeroCard(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(22.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -897,7 +983,7 @@ private fun RmExecutiveHeroCard(
                         )
                     )
                 )
-                .padding(18.dp)
+                .padding(12.dp)
         ) {
             // Header row with Icon & Pending Badge
             Row(
@@ -912,28 +998,28 @@ private fun RmExecutiveHeroCard(
                             MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
                         else
                             SolidIncome.copy(alpha = 0.15f),
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.AccountBalance,
                                 contentDescription = null,
                                 tint = if (rmData.totalOutstandingLiability > 0) MaterialTheme.colorScheme.error else SolidIncome,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = LanguageHelper.getString("total_resting_liability", languageMode),
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = if (rmData.totalOutstandingLiability > 0)
                         MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
                     else
@@ -944,87 +1030,87 @@ private fun RmExecutiveHeroCard(
                             "${rmData.pendingCount + rmData.partiallyRepaidCount} ${if (languageMode == LanguageMode.BANGLA) "টি বকেয়া" else "Pending"}"
                         else
                             if (languageMode == LanguageMode.BANGLA) "সব পরিশোধিত" else "All Settled",
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (rmData.totalOutstandingLiability > 0)
                             MaterialTheme.colorScheme.onErrorContainer
                         else
                             SolidIncome,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Big Bold Negative Outstanding Liability (-৳ X,XXX)
+            // Negative Outstanding Liability (-৳ X,XXX)
             Row(
                 verticalAlignment = Alignment.Bottom,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = if (rmData.totalOutstandingLiability > 0) "-৳" else "৳",
-                    fontSize = 24.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (rmData.totalOutstandingLiability > 0) MaterialTheme.colorScheme.error else SolidIncome,
-                    modifier = Modifier.padding(bottom = 4.dp, end = 4.dp)
+                    modifier = Modifier.padding(bottom = 2.dp, end = 3.dp)
                 )
                 Text(
                     text = RmManagerHelper.formatAmount(rmData.totalOutstandingLiability),
-                    fontSize = 32.sp,
+                    fontSize = 25.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = if (rmData.totalOutstandingLiability > 0) MaterialTheme.colorScheme.error else SolidIncome
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) "পরিশোধ বাকি (জের)" else "due liability",
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(bottom = 6.dp)
+                    modifier = Modifier.padding(bottom = 3.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Dual Inflow (Liability Created) vs Repaid (Settled) Container
+            // Dual Inflow (Dr) vs Repaid (Cr)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Total Borrowed / Inflow (Dr)
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                     modifier = Modifier.weight(1f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.ArrowDownward,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(13.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Column {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "গৃহীত দেনা (Dr)" else "Total Liability (Dr)",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
                             Text(
                                 text = "৳ ${RmManagerHelper.formatAmount(rmData.totalGrossBorrowed)}",
-                                fontSize = 13.5.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -1034,38 +1120,38 @@ private fun RmExecutiveHeroCard(
 
                 // Total Repaid / Settled (Cr)
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                     modifier = Modifier.weight(1f)
                 ) {
                     Row(
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
                             shape = CircleShape,
                             color = SolidIncome.copy(alpha = 0.15f),
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = null,
                                     tint = SolidIncome,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(13.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Column {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "পরিশোধিত (Cr)" else "Total Repaid (Cr)",
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
                             Text(
                                 text = "৳ ${RmManagerHelper.formatAmount(rmData.totalGrossRepaid)}",
-                                fontSize = 13.5.sp,
+                                fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = SolidIncome
                             )
@@ -1074,7 +1160,7 @@ private fun RmExecutiveHeroCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Overall Repayment Progress Bar
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -1085,24 +1171,24 @@ private fun RmExecutiveHeroCard(
                 ) {
                     Text(
                         text = LanguageHelper.getString("repayment_progress", languageMode),
-                        fontSize = 12.5.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "${(rmData.overallRepaymentProgress * 100).toInt()}% ${if (languageMode == LanguageMode.BANGLA) "পরিশোধিত" else "Repaid"}",
-                        fontSize = 12.5.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (rmData.overallRepaymentProgress >= 1f) SolidIncome else MaterialTheme.colorScheme.primary
                     )
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 LinearProgressIndicator(
                     progress = { rmData.overallRepaymentProgress },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp)),
                     color = if (rmData.overallRepaymentProgress >= 1f) SolidIncome else MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -1374,32 +1460,30 @@ private fun RmModernEntityCard(
                     )
                 }
 
-                // 2. Reconciled Button (Middle, for accounts)
-                if (entity.isAccount) {
-                    OutlinedButton(
-                        onClick = onReconcileClick,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Verified,
-                            contentDescription = null,
-                            tint = SolidIncome,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "মিলকরণ" else "Reconciled",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = SolidIncome,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                // 2. Reconciled Button (Middle)
+                OutlinedButton(
+                    onClick = onReconcileClick,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Verified,
+                        contentDescription = null,
+                        tint = SolidIncome,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "মিলকরণ" else "Reconciled",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SolidIncome,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
                 // 3. Transfer Button (Right)
@@ -1450,7 +1534,7 @@ private fun RmModernDetailView(
     onTransactionClick: (Transaction) -> Unit,
     onRepayClick: () -> Unit,
     onRecordBorrowClick: () -> Unit,
-    onReconcileAccountClick: () -> Unit,
+    onReconcileEntityClick: () -> Unit,
     onQuickReconcileTransaction: (Transaction) -> Unit,
     onShareStatement: () -> Unit
 ) {
@@ -1636,49 +1720,115 @@ private fun RmModernDetailView(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Quick Action Buttons
+                    // Quick Action Buttons: from left Ledger, Reconciled, Transfer
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Transfer Repay Button
-                        Button(
-                            onClick = onRepayClick,
+                        // 1. Ledger Button (Left)
+                        val isLedgerSelected = detailViewMode == RmDetailViewMode.KHATIAN_LEDGER
+                        OutlinedButton(
+                            onClick = { detailViewMode = RmDetailViewMode.KHATIAN_LEDGER },
                             shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.weight(1f).height(40.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (isLedgerSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                contentColor = if (isLedgerSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isLedgerSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = LanguageHelper.getString("repay_in_transfer_mode", languageMode),
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold
+                                text = if (languageMode == LanguageMode.BANGLA) "খতিয়ান" else "Ledger",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
 
-                        if (entity.isAccount) {
-                            OutlinedButton(
-                                onClick = onReconcileAccountClick,
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.height(40.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Verified, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = LanguageHelper.getString("reconcile_account", languageMode),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                        // 2. Reconciled Button (Middle)
+                        OutlinedButton(
+                            onClick = onReconcileEntityClick,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = SolidIncome.copy(alpha = 0.12f),
+                                contentColor = SolidIncome
+                            ),
+                            border = BorderStroke(1.dp, SolidIncome.copy(alpha = 0.45f)),
+                            modifier = Modifier
+                                .weight(1.05f)
+                                .height(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Verified,
+                                contentDescription = null,
+                                tint = SolidIncome,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "মিলকরণ" else "Reconciled",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                color = SolidIncome
+                            )
                         }
 
-                        OutlinedButton(
-                            onClick = onShareStatement,
+                        // 3. Transfer Button (Right)
+                        Button(
+                            onClick = onRepayClick,
                             shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.height(40.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            modifier = Modifier
+                                .weight(1.05f)
+                                .height(38.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(
+                                imageVector = Icons.Default.SwapHoriz,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার" else "Transfer",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+
+                        // Share / Statement
+                        IconButton(
+                            onClick = onShareStatement,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -2217,12 +2367,12 @@ private fun RmTimelineCard(
 }
 
 /**
- * Reconcile Balance BottomSheet for RM Accounts.
+ * Reconcile Balance BottomSheet for RM Accounts and RM Others Labels.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RmAccountReconcileBottomSheet(
-    account: Account,
+private fun RmEntityReconcileBottomSheet(
+    entity: RmEntityBreakdown,
     currentOutstandingLiability: Double,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
@@ -2256,12 +2406,29 @@ private fun RmAccountReconcileBottomSheet(
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "${LanguageHelper.getString("reconcile_account", languageMode)} - ${account.localizedName(languageMode)}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Column {
+                    Text(
+                        text = if (entity.isAccount) {
+                            "${LanguageHelper.getString("reconcile_account", languageMode)} - ${entity.name}"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "লেবেল মিলকরণ - #${entity.name}" else "Reconcile Label - #${entity.name}"
+                        },
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (!entity.isAccount) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA)
+                                "শুধুমাত্র #${entity.name} লেবেলের বকেয়া সমন্বয় ও মিলকরণ হবে"
+                            else
+                                "Only #${entity.name} label balance & transactions will be reconciled",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

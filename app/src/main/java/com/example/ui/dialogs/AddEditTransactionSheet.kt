@@ -2423,8 +2423,24 @@ fun AddEditTransactionSheet(
                             }
 
                             // Row C: Split
-                            if (txType != TransactionType.TRANSFER) {
-                                val splitSubtitle = if (isSplitActive && splitItems.isNotEmpty()) {
+                            val splitSubtitle = if (isSplitActive && splitItems.isNotEmpty()) {
+                                if (txType == TransactionType.TRANSFER) {
+                                    val summaries = splitItems.take(2).mapNotNull { item ->
+                                        val srcAcc = accounts.firstOrNull { it.id == item.creditAccountId }
+                                        val destAcc = accounts.firstOrNull { it.id == item.debitAccountId }
+                                        val srcName = srcAcc?.localizedName(languageMode) ?: ""
+                                        val destName = destAcc?.localizedName(languageMode) ?: ""
+                                        val title = when {
+                                            srcName.isNotBlank() && destName.isNotBlank() -> "$srcName → $destName"
+                                            srcName.isNotBlank() -> srcName
+                                            destName.isNotBlank() -> destName
+                                            else -> "Transfer"
+                                        }
+                                        "$title: ${LanguageHelper.formatCurrency(item.amount, languageMode)}"
+                                    }.joinToString(" • ")
+                                    val extra = if (splitItems.size > 2) " +${splitItems.size - 2}" else ""
+                                    "$summaries$extra"
+                                } else {
                                     val catSummaries = splitItems.take(2).mapNotNull { item ->
                                         val cat = categories.firstOrNull { it.id == item.categoryId }
                                         val lineAccId = item.creditAccountId ?: item.debitAccountId
@@ -2441,62 +2457,62 @@ fun AddEditTransactionSheet(
                                     }.joinToString(" • ")
                                     val extra = if (splitItems.size > 2) " +${splitItems.size - 2}" else ""
                                     "$catSummaries$extra"
-                                } else null
+                                }
+                            } else null
 
-                                OptionRowItem(
-                                    icon = {
-                                        Icon(
-                                            imageVector = Icons.Default.CallSplit,
-                                            contentDescription = "Split",
-                                            tint = if (isSplitActive) SolidPrimary else MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    title = if (isSplitActive) {
-                                        if (languageMode == LanguageMode.BANGLA) "বিভাজন (${splitItems.size}টি আইটেম)" else "Split (${splitItems.size} items)"
-                                    } else {
-                                        LanguageHelper.getString("split", languageMode)
-                                    },
-                                    subTitle = splitSubtitle,
-                                    isTwoLine = isSplitActive && splitSubtitle != null,
-                                    trailingContent = {
-                                        if (isSplitActive) {
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = SolidPrimary.copy(alpha = 0.12f)
-                                            ) {
-                                                Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA) "সম্পাদনা" else "Edit",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = SolidPrimary,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                                )
-                                            }
-                                        } else {
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                            ) {
-                                                Text(
-                                                    text = "+",
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                                )
-                                            }
+                            OptionRowItem(
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.CallSplit,
+                                        contentDescription = "Split",
+                                        tint = if (isSplitActive) SolidPrimary else MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                title = if (isSplitActive) {
+                                    if (languageMode == LanguageMode.BANGLA) "বিভাজন (${splitItems.size}টি আইটেম)" else "Split (${splitItems.size} items)"
+                                } else {
+                                    LanguageHelper.getString("split", languageMode)
+                                },
+                                subTitle = splitSubtitle,
+                                isTwoLine = isSplitActive && splitSubtitle != null,
+                                trailingContent = {
+                                    if (isSplitActive) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = SolidPrimary.copy(alpha = 0.12f)
+                                        ) {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "সম্পাদনা" else "Edit",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = SolidPrimary,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
                                         }
-                                    },
-                                    onClick = { showSplitDialog = true }
-                                )
+                                    } else {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        ) {
+                                            Text(
+                                                text = "+",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = { showSplitDialog = true }
+                            )
 
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 48.dp, end = 12.dp),
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                )
-                            }
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 48.dp, end = 12.dp),
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
 
                             // Row D: Status (None / Cleared / Void / Reconciled - Default: None)
                             Row(

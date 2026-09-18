@@ -120,25 +120,44 @@ fun SplitTransactionDialog(
                 val defaultDepositAcc = defaultDebitAccountId ?: defaultAccId
                 val defaultPaymentAcc = defaultCreditAccountId ?: defaultAccId
 
-                add(
-                    EditableSplitLine(
-                        type = txType,
-                        categoryId = defaultCat1,
-                        subCategoryId = defaultSubCategoryId,
-                        creditAccountId = if (txType == TransactionType.INCOME) null else defaultPaymentAcc,
-                        debitAccountId = if (txType == TransactionType.INCOME) defaultDepositAcc else null,
-                        amountText = halfStr
+                if (txType == TransactionType.TRANSFER) {
+                    add(
+                        EditableSplitLine(
+                            type = TransactionType.TRANSFER,
+                            creditAccountId = defaultPaymentAcc,
+                            debitAccountId = defaultDepositAcc,
+                            amountText = halfStr
+                        )
                     )
-                )
-                add(
-                    EditableSplitLine(
-                        type = txType,
-                        categoryId = defaultCat2,
-                        creditAccountId = if (txType == TransactionType.INCOME) null else defaultPaymentAcc,
-                        debitAccountId = if (txType == TransactionType.INCOME) defaultDepositAcc else null,
-                        amountText = restStr
+                    add(
+                        EditableSplitLine(
+                            type = TransactionType.TRANSFER,
+                            creditAccountId = defaultPaymentAcc,
+                            debitAccountId = defaultDepositAcc,
+                            amountText = restStr
+                        )
                     )
-                )
+                } else {
+                    add(
+                        EditableSplitLine(
+                            type = txType,
+                            categoryId = defaultCat1,
+                            subCategoryId = defaultSubCategoryId,
+                            creditAccountId = if (txType == TransactionType.INCOME) null else defaultPaymentAcc,
+                            debitAccountId = if (txType == TransactionType.INCOME) defaultDepositAcc else null,
+                            amountText = halfStr
+                        )
+                    )
+                    add(
+                        EditableSplitLine(
+                            type = txType,
+                            categoryId = defaultCat2,
+                            creditAccountId = if (txType == TransactionType.INCOME) null else defaultPaymentAcc,
+                            debitAccountId = if (txType == TransactionType.INCOME) defaultDepositAcc else null,
+                            amountText = restStr
+                        )
+                    )
+                }
             }
         }
     }
@@ -146,6 +165,7 @@ fun SplitTransactionDialog(
     // Modal pickers state
     var pickingCategoryLineIndex by remember { mutableStateOf<Int?>(null) }
     var pickingAccountLineIndex by remember { mutableStateOf<Int?>(null) }
+    var pickingAccountTarget by remember { mutableStateOf(0) }
     var pickingSharedCategory by remember { mutableStateOf(false) }
     var pickingSharedAccount by remember { mutableStateOf(false) }
     var activeCalculatorLineIndex by remember { mutableStateOf<Int?>(null) }
@@ -153,15 +173,25 @@ fun SplitTransactionDialog(
     // Split mode detection and state
     var currentMode by remember {
         val initialMode = if (initialItems.isNotEmpty()) {
-            val distinctCats = initialItems.mapNotNull { it.categoryId }.distinct()
-            val distinctAccs = initialItems.mapNotNull { if (it.type == TransactionType.INCOME) it.debitAccountId else it.creditAccountId }.distinct()
-            when {
-                distinctCats.size <= 1 && distinctAccs.size > 1 -> SplitMode.ONE_CAT_MULTI_ACC
-                distinctCats.size > 1 && distinctAccs.size <= 1 -> SplitMode.MULTI_CAT_ONE_ACC
-                else -> SplitMode.MULTI_CAT_ONE_ACC
+            if (txType == TransactionType.TRANSFER) {
+                val distinctCredits = initialItems.mapNotNull { it.creditAccountId }.distinct()
+                val distinctDebits = initialItems.mapNotNull { it.debitAccountId }.distinct()
+                when {
+                    distinctCredits.size > 1 && distinctDebits.size <= 1 -> SplitMode.ONE_CAT_MULTI_ACC // Multi Sources -> 1 Dest
+                    distinctCredits.size <= 1 && distinctDebits.size > 1 -> SplitMode.MULTI_CAT_ONE_ACC // 1 Source -> Multi Dests
+                    else -> SplitMode.ONE_CAT_MULTI_ACC
+                }
+            } else {
+                val distinctCats = initialItems.mapNotNull { it.categoryId }.distinct()
+                val distinctAccs = initialItems.mapNotNull { if (it.type == TransactionType.INCOME) it.debitAccountId else it.creditAccountId }.distinct()
+                when {
+                    distinctCats.size <= 1 && distinctAccs.size > 1 -> SplitMode.ONE_CAT_MULTI_ACC
+                    distinctCats.size > 1 && distinctAccs.size <= 1 -> SplitMode.MULTI_CAT_ONE_ACC
+                    else -> SplitMode.MULTI_CAT_ONE_ACC
+                }
             }
         } else {
-            SplitMode.MULTI_CAT_ONE_ACC
+            if (txType == TransactionType.TRANSFER) SplitMode.ONE_CAT_MULTI_ACC else SplitMode.MULTI_CAT_ONE_ACC
         }
         mutableStateOf(initialMode)
     }
@@ -173,7 +203,9 @@ fun SplitTransactionDialog(
         mutableStateOf(defaultSubCategoryId ?: lines.firstOrNull()?.subCategoryId)
     }
     var sharedAccountId by remember {
-        val initialAcc = if (txType == TransactionType.INCOME) {
+        val initialAcc = if (txType == TransactionType.TRANSFER) {
+            defaultDebitAccountId ?: defaultAccId ?: lines.firstOrNull()?.debitAccountId ?: accounts.firstOrNull()?.id
+        } else if (txType == TransactionType.INCOME) {
             defaultDebitAccountId ?: defaultAccId ?: lines.firstOrNull()?.debitAccountId ?: accounts.firstOrNull()?.id
         } else {
             defaultCreditAccountId ?: defaultAccId ?: lines.firstOrNull()?.creditAccountId ?: accounts.firstOrNull()?.id
@@ -235,9 +267,17 @@ fun SplitTransactionDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (isBangla) {
-                                    if (txType == TransactionType.INCOME) "আয় বিভাজন" else "লেনদেন বিভাজন"
+                                    when (txType) {
+                                        TransactionType.INCOME -> "আয় বিভাজন"
+                                        TransactionType.TRANSFER -> "ট্রান্সফার বিভাজন"
+                                        TransactionType.EXPENSE -> "ব্যয় বিভাজন"
+                                    }
                                 } else {
-                                    if (txType == TransactionType.INCOME) "Split Income" else "Split Transaction"
+                                    when (txType) {
+                                        TransactionType.INCOME -> "Split Income"
+                                        TransactionType.TRANSFER -> "Split Transfer"
+                                        TransactionType.EXPENSE -> "Split Expense"
+                                    }
                                 },
                                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                                 fontWeight = FontWeight.Bold,
@@ -245,9 +285,21 @@ fun SplitTransactionDialog(
                                 overflow = TextOverflow.Ellipsis
                             )
                             val modeSubtitle = when (currentMode) {
-                                SplitMode.ONE_CAT_MULTI_ACC -> if (isBangla) "১টি ক্যাটাগরি • একাধিক অ্যাকাউন্ট" else "1 Category • Multi Accounts"
-                                SplitMode.MULTI_CAT_ONE_ACC -> if (isBangla) "একাধিক ক্যাটাগরি • ১টি অ্যাকাউন্ট" else "Multi Categories • 1 Account"
-                                SplitMode.MULTI_CAT_MULTI_ACC -> if (isBangla) "উভয়ই একাধিক (কাস্টম)" else "Custom • Multi Categories & Accounts"
+                                SplitMode.ONE_CAT_MULTI_ACC -> {
+                                    if (txType == TransactionType.TRANSFER) {
+                                        if (isBangla) "একাধিক উৎস • ১টি গন্তব্য" else "Multi Sources • 1 Destination"
+                                    } else {
+                                        if (isBangla) "১টি ক্যাটাগরি • একাধিক অ্যাকাউন্ট" else "1 Category • Multi Accounts"
+                                    }
+                                }
+                                SplitMode.MULTI_CAT_ONE_ACC -> {
+                                    if (txType == TransactionType.TRANSFER) {
+                                        if (isBangla) "১টি উৎস • একাধিক গন্তব্য" else "1 Source • Multi Destinations"
+                                    } else {
+                                        if (isBangla) "একাধিক ক্যাটাগরি • ১টি অ্যাকাউন্ট" else "Multi Categories • 1 Account"
+                                    }
+                                }
+                                SplitMode.MULTI_CAT_MULTI_ACC -> if (isBangla) "উভয়ই একাধিক (কাস্টম)" else "Custom • Multi Sources & Destinations"
                             }
                             Text(
                                 text = modeSubtitle,
@@ -284,7 +336,7 @@ fun SplitTransactionDialog(
                 }
 
                 // Global Shared Selector Bar for Fixed Category or Fixed Account
-                if (currentMode == SplitMode.ONE_CAT_MULTI_ACC) {
+                if (currentMode == SplitMode.ONE_CAT_MULTI_ACC && txType != TransactionType.TRANSFER) {
                     Spacer(modifier = Modifier.height(4.dp))
                     val selectedGlobalCat = categories.firstOrNull { it.id == sharedCategoryId }
                     val selectedGlobalSub = categories.firstOrNull { it.id == sharedSubCategoryId }
@@ -352,17 +404,28 @@ fun SplitTransactionDialog(
                             )
                         }
                     }
-                } else if (currentMode == SplitMode.MULTI_CAT_ONE_ACC) {
+                } else if (currentMode == SplitMode.MULTI_CAT_ONE_ACC || (currentMode == SplitMode.ONE_CAT_MULTI_ACC && txType == TransactionType.TRANSFER)) {
                     Spacer(modifier = Modifier.height(4.dp))
                     val selectedGlobalAcc = accounts.firstOrNull { it.id == sharedAccountId }
                     val isGlobalIncome = txType == TransactionType.INCOME
+                    val isTransferDest = txType == TransactionType.TRANSFER && currentMode == SplitMode.ONE_CAT_MULTI_ACC
+                    val isTransferSrc = txType == TransactionType.TRANSFER && currentMode == SplitMode.MULTI_CAT_ONE_ACC
+                    
+                    val bannerHeader = when {
+                        isTransferDest -> if (isBangla) "স্থির গন্তব্য অ্যাকাউন্ট (জমা)" else "Fixed Destination Account (To)"
+                        isTransferSrc -> if (isBangla) "স্থির উৎস অ্যাকাউন্ট (উত্তোলন)" else "Fixed Source Account (From)"
+                        isGlobalIncome -> if (isBangla) "স্থির জমা অ্যাকাউন্ট" else "Fixed Deposit Account"
+                        else -> if (isBangla) "স্থির পেমেন্ট অ্যাকাউন্ট" else "Fixed Payment Account"
+                    }
+                    val bannerTint = if (isTransferDest || isGlobalIncome) SolidIncome else SolidPrimary
+
                     val accLabel = selectedGlobalAcc?.localizedName(languageMode)
-                        ?: (if (isBangla) (if (isGlobalIncome) "জমা অ্যাকাউন্ট নির্বাচন করুন" else "পেমেন্ট অ্যাকাউন্ট নির্বাচন করুন")
-                            else (if (isGlobalIncome) "Select Deposit Account" else "Select Payment Account"))
+                        ?: (if (isBangla) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Account")
+
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                        border = BorderStroke(1.dp, (if (isGlobalIncome) SolidIncome else SolidPrimary).copy(alpha = 0.35f)),
+                        border = BorderStroke(1.dp, bannerTint.copy(alpha = 0.35f)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { pickingSharedAccount = true }
@@ -391,14 +454,13 @@ fun SplitTransactionDialog(
                                     IconHelper.AppIcon(
                                         iconName = selectedGlobalAcc?.iconName ?: "AccountBalance",
                                         modifier = Modifier.size(14.dp),
-                                        tint = if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex) else (if (isGlobalIncome) SolidIncome else SolidPrimary)
+                                        tint = if (selectedGlobalAcc != null) IconHelper.parseColorHex(selectedGlobalAcc.colorHex) else bannerTint
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = if (isBangla) (if (isGlobalIncome) "স্থির জমা অ্যাকাউন্ট" else "স্থির পেমেন্ট অ্যাকাউন্ট")
-                                               else (if (isGlobalIncome) "Fixed Deposit Account" else "Fixed Payment Account"),
+                                        text = bannerHeader,
                                         fontSize = 8.5.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
@@ -908,12 +970,40 @@ fun SplitTransactionDialog(
                                     }
 
                                     @Composable
-                                    fun AccountBox(boxModifier: Modifier) {
+                                    fun AccountBox(
+                                        boxModifier: Modifier,
+                                        isDestination: Boolean = false,
+                                        targetAccountId: Long? = if (isDestination) line.debitAccountId else line.creditAccountId
+                                    ) {
+                                        val lineAccount = accounts.firstOrNull { it.id == targetAccountId }
+                                        val boxTitle = if (txType == TransactionType.TRANSFER) {
+                                            if (isDestination) {
+                                                if (isBangla) "গন্তব্য (To)" else "Destination (To)"
+                                            } else {
+                                                if (isBangla) "উৎস (From)" else "Source (From)"
+                                            }
+                                        } else {
+                                            if (isBangla) (if (isLineIncome) "জমা অ্যাকাউন্ট" else "পরিশোধ অ্যাকাউন্ট")
+                                            else (if (isLineIncome) "Deposit Account" else "Payment Account")
+                                        }
+
+                                        val displayedAccName = lineAccount?.localizedName(languageMode)
+                                            ?: (if (txType == TransactionType.TRANSFER) {
+                                                if (isDestination) (if (isBangla) "গন্তব্য নির্বাচন করুন" else "Select Destination")
+                                                else (if (isBangla) "উৎস নির্বাচন করুন" else "Select Source")
+                                            } else {
+                                                if (isBangla) (if (isLineIncome) "জমা অ্যাকাউন্ট" else "পেমেন্ট অ্যাকাউন্ট")
+                                                else (if (isLineIncome) "Deposit Account" else "Payment Account")
+                                            })
+
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
                                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                            modifier = boxModifier.clickable { pickingAccountLineIndex = index }
+                                            modifier = boxModifier.clickable {
+                                                pickingAccountTarget = if (isDestination) 1 else 0
+                                                pickingAccountLineIndex = index
+                                            }
                                         ) {
                                             Row(
                                                 modifier = Modifier
@@ -931,34 +1021,33 @@ fun SplitTransactionDialog(
                                                             .size(20.dp)
                                                             .clip(CircleShape)
                                                             .background(
-                                                                if (selectedAccount != null) IconHelper.parseColorHex(selectedAccount.colorHex).copy(alpha = 0.15f)
+                                                                if (lineAccount != null) IconHelper.parseColorHex(lineAccount.colorHex).copy(alpha = 0.15f)
                                                                 else MaterialTheme.colorScheme.surfaceVariant
                                                             ),
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         IconHelper.AppIcon(
-                                                            iconName = selectedAccount?.iconName ?: "AccountBalance",
+                                                            iconName = lineAccount?.iconName ?: "AccountBalance",
                                                             modifier = Modifier.size(12.dp),
-                                                            tint = if (selectedAccount != null) IconHelper.parseColorHex(selectedAccount.colorHex) else (if (isLineIncome) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant)
+                                                            tint = if (lineAccount != null) IconHelper.parseColorHex(lineAccount.colorHex) else (if (isLineIncome) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant)
                                                         )
                                                     }
                                                     Spacer(modifier = Modifier.width(5.dp))
                                                     Column(modifier = Modifier.weight(1f)) {
                                                         Text(
-                                                            text = if (isBangla) (if (isLineIncome) "জমা অ্যাকাউন্ট" else "পরিশোধ অ্যাকাউন্ট")
-                                                                   else (if (isLineIncome) "Deposit Account" else "Payment Account"),
+                                                            text = boxTitle,
                                                             fontSize = 8.sp,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
                                                         Text(
-                                                            text = accTitle,
+                                                            text = displayedAccName,
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Medium,
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis,
-                                                            color = if (selectedAccount != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                                            color = if (lineAccount != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
                                                         )
                                                     }
                                                 }
@@ -973,8 +1062,62 @@ fun SplitTransactionDialog(
                                         }
                                     }
 
-                                    // Amount and Category or Account in ONE row
-                                    if (showCatSelector && showAccSelector) {
+                                    // Amount and Category or Account row layout
+                                    if (txType == TransactionType.TRANSFER) {
+                                        when (currentMode) {
+                                            SplitMode.ONE_CAT_MULTI_ACC -> {
+                                                // Multi Sources -> 1 Dest (Source on line, Dest fixed above)
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    AmountField(fieldModifier = Modifier.weight(1f))
+                                                    AccountBox(
+                                                        boxModifier = Modifier.weight(1.15f),
+                                                        isDestination = false,
+                                                        targetAccountId = line.creditAccountId
+                                                    )
+                                                }
+                                            }
+                                            SplitMode.MULTI_CAT_ONE_ACC -> {
+                                                // 1 Source -> Multi Dests (Dest on line, Source fixed above)
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    AmountField(fieldModifier = Modifier.weight(1f))
+                                                    AccountBox(
+                                                        boxModifier = Modifier.weight(1.15f),
+                                                        isDestination = true,
+                                                        targetAccountId = line.debitAccountId
+                                                    )
+                                                }
+                                            }
+                                            SplitMode.MULTI_CAT_MULTI_ACC -> {
+                                                // Custom: Amount on top, Source and Dest in row 2
+                                                AmountField(fieldModifier = Modifier.fillMaxWidth())
+                                                Spacer(modifier = Modifier.height(3.5.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    AccountBox(
+                                                        boxModifier = Modifier.weight(1f),
+                                                        isDestination = false,
+                                                        targetAccountId = line.creditAccountId
+                                                    )
+                                                    AccountBox(
+                                                        boxModifier = Modifier.weight(1f),
+                                                        isDestination = true,
+                                                        targetAccountId = line.debitAccountId
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else if (showCatSelector && showAccSelector) {
                                         // Custom mode: Amount + Category in row 1, Account in row 2
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
@@ -1020,7 +1163,7 @@ fun SplitTransactionDialog(
                                         },
                                         placeholder = {
                                             Text(
-                                                if (isBangla) "নোট / বিবরণ (যেমন: বন্ধুর অংশ / ওষুধ)" else "Note / Description (e.g. Friend share / Medicine)",
+                                                if (isBangla) "নোট / বিবরণ (যেমন: নগদ পরিশোধ / বাকি)" else "Note / Description (e.g. Cash payment / Due)",
                                                 fontSize = 10.5.sp
                                             )
                                         },
@@ -1044,33 +1187,52 @@ fun SplitTransactionDialog(
                         item {
                             OutlinedButton(
                                 onClick = {
-                                    val nextCat = when (currentMode) {
-                                        SplitMode.ONE_CAT_MULTI_ACC -> sharedCategoryId
-                                        else -> {
-                                            val pool = if (txType == TransactionType.INCOME) categories.filter { it.type == CategoryType.INCOME && it.parentId == null }
-                                                       else categories.filter { it.parentId == null }
-                                            pool.getOrNull(lines.size)?.id ?: pool.firstOrNull()?.id
-                                        }
-                                    }
-                                    val nextSubCat = when (currentMode) {
-                                        SplitMode.ONE_CAT_MULTI_ACC -> sharedSubCategoryId
-                                        else -> null
-                                    }
-                                    val nextAcc = when (currentMode) {
-                                        SplitMode.MULTI_CAT_ONE_ACC -> sharedAccountId
-                                        else -> accounts.getOrNull(lines.size)?.id ?: (if (txType == TransactionType.INCOME) defaultDebitAccountId ?: defaultAccId else defaultCreditAccountId ?: defaultAccId)
-                                    }
                                     val autoFillAmount = if (remaining > 0.0) String.format(Locale.US, "%.2f", remaining) else ""
-                                    lines.add(
-                                        EditableSplitLine(
-                                            type = txType,
-                                            categoryId = nextCat,
-                                            subCategoryId = nextSubCat,
-                                            creditAccountId = if (txType == TransactionType.INCOME) null else nextAcc,
-                                            debitAccountId = if (txType == TransactionType.INCOME) nextAcc else null,
-                                            amountText = autoFillAmount
+                                    if (txType == TransactionType.TRANSFER) {
+                                        val nextCreditAcc = when (currentMode) {
+                                            SplitMode.MULTI_CAT_ONE_ACC -> sharedAccountId
+                                            else -> accounts.getOrNull(lines.size)?.id ?: defaultCreditAccountId ?: defaultAccId
+                                        }
+                                        val nextDebitAcc = when (currentMode) {
+                                            SplitMode.ONE_CAT_MULTI_ACC -> sharedAccountId
+                                            else -> defaultDebitAccountId ?: defaultAccId
+                                        }
+                                        lines.add(
+                                            EditableSplitLine(
+                                                type = TransactionType.TRANSFER,
+                                                creditAccountId = nextCreditAcc,
+                                                debitAccountId = nextDebitAcc,
+                                                amountText = autoFillAmount
+                                            )
                                         )
-                                    )
+                                    } else {
+                                        val nextCat = when (currentMode) {
+                                            SplitMode.ONE_CAT_MULTI_ACC -> sharedCategoryId
+                                            else -> {
+                                                val pool = if (txType == TransactionType.INCOME) categories.filter { it.type == CategoryType.INCOME && it.parentId == null }
+                                                           else categories.filter { it.parentId == null }
+                                                pool.getOrNull(lines.size)?.id ?: pool.firstOrNull()?.id
+                                            }
+                                        }
+                                        val nextSubCat = when (currentMode) {
+                                            SplitMode.ONE_CAT_MULTI_ACC -> sharedSubCategoryId
+                                            else -> null
+                                        }
+                                        val nextAcc = when (currentMode) {
+                                            SplitMode.MULTI_CAT_ONE_ACC -> sharedAccountId
+                                            else -> accounts.getOrNull(lines.size)?.id ?: (if (txType == TransactionType.INCOME) defaultDebitAccountId ?: defaultAccId else defaultCreditAccountId ?: defaultAccId)
+                                        }
+                                        lines.add(
+                                            EditableSplitLine(
+                                                type = txType,
+                                                categoryId = nextCat,
+                                                subCategoryId = nextSubCat,
+                                                creditAccountId = if (txType == TransactionType.INCOME) null else nextAcc,
+                                                debitAccountId = if (txType == TransactionType.INCOME) nextAcc else null,
+                                                amountText = autoFillAmount
+                                            )
+                                        )
+                                    }
                                 },
                                 shape = RoundedCornerShape(10.dp),
                                 border = BorderStroke(1.2.dp, accentColor.copy(alpha = 0.6f)),
@@ -1106,11 +1268,21 @@ fun SplitTransactionDialog(
                             horizontalArrangement = Arrangement.spacedBy(3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            listOf(
-                                Triple(SplitMode.MULTI_CAT_ONE_ACC, if (isBangla) "১ অ্যাকাউন্ট" else "1 Account", Icons.Default.AccountBalance),
-                                Triple(SplitMode.ONE_CAT_MULTI_ACC, if (isBangla) "১ ক্যাটাগরি" else "1 Category", Icons.Default.Category),
-                                Triple(SplitMode.MULTI_CAT_MULTI_ACC, if (isBangla) "কাস্টম" else "Custom", Icons.Default.Tune)
-                            ).forEach { (mode, label, icon) ->
+                            val modeItems = if (txType == TransactionType.TRANSFER) {
+                                listOf(
+                                    Triple(SplitMode.ONE_CAT_MULTI_ACC, if (isBangla) "একাধিক উৎস" else "Multi Sources", Icons.Default.CallReceived),
+                                    Triple(SplitMode.MULTI_CAT_ONE_ACC, if (isBangla) "একাধিক গন্তব্য" else "Multi Dests", Icons.Default.CallMade),
+                                    Triple(SplitMode.MULTI_CAT_MULTI_ACC, if (isBangla) "কাস্টম" else "Custom", Icons.Default.Tune)
+                                )
+                            } else {
+                                listOf(
+                                    Triple(SplitMode.MULTI_CAT_ONE_ACC, if (isBangla) "১ অ্যাকাউন্ট" else "1 Account", Icons.Default.AccountBalance),
+                                    Triple(SplitMode.ONE_CAT_MULTI_ACC, if (isBangla) "১ ক্যাটাগরি" else "1 Category", Icons.Default.Category),
+                                    Triple(SplitMode.MULTI_CAT_MULTI_ACC, if (isBangla) "কাস্টম" else "Custom", Icons.Default.Tune)
+                                )
+                            }
+
+                            modeItems.forEach { (mode, label, icon) ->
                                 val isSelected = currentMode == mode
                                 Surface(
                                     shape = CircleShape,
@@ -1118,20 +1290,32 @@ fun SplitTransactionDialog(
                                     border = if (isSelected) null else BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                                     modifier = Modifier.clickable {
                                         currentMode = mode
-                                        // Synchronize lines when switching to single-category or single-account mode
-                                        if (mode == SplitMode.ONE_CAT_MULTI_ACC && sharedCategoryId != null) {
-                                            for (i in lines.indices) {
-                                                lines[i] = lines[i].copy(
-                                                    categoryId = sharedCategoryId,
-                                                    subCategoryId = sharedSubCategoryId
-                                                )
+                                        // Synchronize lines when switching mode
+                                        if (txType == TransactionType.TRANSFER) {
+                                            if (mode == SplitMode.ONE_CAT_MULTI_ACC && sharedAccountId != null) {
+                                                for (i in lines.indices) {
+                                                    lines[i] = lines[i].copy(debitAccountId = sharedAccountId)
+                                                }
+                                            } else if (mode == SplitMode.MULTI_CAT_ONE_ACC && sharedAccountId != null) {
+                                                for (i in lines.indices) {
+                                                    lines[i] = lines[i].copy(creditAccountId = sharedAccountId)
+                                                }
                                             }
-                                        } else if (mode == SplitMode.MULTI_CAT_ONE_ACC && sharedAccountId != null) {
-                                            for (i in lines.indices) {
-                                                if (lines[i].type == TransactionType.INCOME || txType == TransactionType.INCOME) {
-                                                    lines[i] = lines[i].copy(debitAccountId = sharedAccountId, creditAccountId = null)
-                                                } else {
-                                                    lines[i] = lines[i].copy(creditAccountId = sharedAccountId, debitAccountId = null)
+                                        } else {
+                                            if (mode == SplitMode.ONE_CAT_MULTI_ACC && sharedCategoryId != null) {
+                                                for (i in lines.indices) {
+                                                    lines[i] = lines[i].copy(
+                                                        categoryId = sharedCategoryId,
+                                                        subCategoryId = sharedSubCategoryId
+                                                    )
+                                                }
+                                            } else if (mode == SplitMode.MULTI_CAT_ONE_ACC && sharedAccountId != null) {
+                                                for (i in lines.indices) {
+                                                    if (lines[i].type == TransactionType.INCOME || txType == TransactionType.INCOME) {
+                                                        lines[i] = lines[i].copy(debitAccountId = sharedAccountId, creditAccountId = null)
+                                                    } else {
+                                                        lines[i] = lines[i].copy(creditAccountId = sharedAccountId, debitAccountId = null)
+                                                    }
                                                 }
                                             }
                                         }
@@ -1306,13 +1490,17 @@ fun SplitTransactionDialog(
             txType = currentLine.type,
             creditAccountId = if (currentLine.type == TransactionType.INCOME) null else (currentLine.creditAccountId ?: defaultCreditAccountId ?: defaultAccId),
             debitAccountId = if (currentLine.type == TransactionType.INCOME) (currentLine.debitAccountId ?: defaultDebitAccountId ?: defaultAccId) else (if (currentLine.type == TransactionType.TRANSFER) currentLine.debitAccountId else null),
-            initialTarget = if (currentLine.type == TransactionType.INCOME) 1 else 0,
+            initialTarget = if (currentLine.type == TransactionType.TRANSFER) pickingAccountTarget else if (currentLine.type == TransactionType.INCOME) 1 else 0,
             languageMode = languageMode,
             onAccountSelected = { srcAccId, destAccId ->
                 if (currentLine.type == TransactionType.INCOME) {
                     lines[accLineIdx] = currentLine.copy(debitAccountId = destAccId ?: srcAccId, creditAccountId = null)
                 } else if (currentLine.type == TransactionType.TRANSFER) {
-                    lines[accLineIdx] = currentLine.copy(creditAccountId = srcAccId, debitAccountId = destAccId)
+                    if (pickingAccountTarget == 1) {
+                        lines[accLineIdx] = currentLine.copy(debitAccountId = destAccId ?: srcAccId)
+                    } else {
+                        lines[accLineIdx] = currentLine.copy(creditAccountId = srcAccId ?: destAccId)
+                    }
                 } else {
                     lines[accLineIdx] = currentLine.copy(creditAccountId = srcAccId ?: destAccId, debitAccountId = null)
                 }
@@ -1323,7 +1511,11 @@ fun SplitTransactionDialog(
                 if (currentLine.type == TransactionType.INCOME) {
                     lines[accLineIdx] = currentLine.copy(debitAccountId = newAcc.id, creditAccountId = null)
                 } else if (currentLine.type == TransactionType.TRANSFER) {
-                    lines[accLineIdx] = currentLine.copy(creditAccountId = newAcc.id)
+                    if (pickingAccountTarget == 1) {
+                        lines[accLineIdx] = currentLine.copy(debitAccountId = newAcc.id)
+                    } else {
+                        lines[accLineIdx] = currentLine.copy(creditAccountId = newAcc.id)
+                    }
                 } else {
                     lines[accLineIdx] = currentLine.copy(creditAccountId = newAcc.id, debitAccountId = null)
                 }
@@ -1364,21 +1556,28 @@ fun SplitTransactionDialog(
         )
     }
 
-    // Modal account picker for shared fixed account (MULTI_CAT_ONE_ACC mode)
+    // Modal account picker for shared fixed account (MULTI_CAT_ONE_ACC mode or Transfer Fixed Dest/Source)
     if (pickingSharedAccount) {
+        val isTransferFixedDest = txType == TransactionType.TRANSFER && currentMode == SplitMode.ONE_CAT_MULTI_ACC
         AccountPickerModalDialog(
             accounts = accounts,
             allAccounts = accounts,
             txType = txType,
-            creditAccountId = if (txType == TransactionType.INCOME) null else (sharedAccountId ?: defaultCreditAccountId ?: defaultAccId),
-            debitAccountId = if (txType == TransactionType.INCOME) (sharedAccountId ?: defaultDebitAccountId ?: defaultAccId) else null,
-            initialTarget = if (txType == TransactionType.INCOME) 1 else 0,
+            creditAccountId = if (txType == TransactionType.INCOME || isTransferFixedDest) null else (sharedAccountId ?: defaultCreditAccountId ?: defaultAccId),
+            debitAccountId = if (txType == TransactionType.INCOME || isTransferFixedDest) (sharedAccountId ?: defaultDebitAccountId ?: defaultAccId) else null,
+            initialTarget = if (txType == TransactionType.INCOME || isTransferFixedDest) 1 else 0,
             languageMode = languageMode,
             onAccountSelected = { srcAccId, destAccId ->
-                val chosenAcc = if (txType == TransactionType.INCOME) (destAccId ?: srcAccId) else (srcAccId ?: destAccId)
+                val chosenAcc = if (txType == TransactionType.INCOME || isTransferFixedDest) (destAccId ?: srcAccId) else (srcAccId ?: destAccId)
                 sharedAccountId = chosenAcc
                 for (i in lines.indices) {
-                    if (lines[i].type == TransactionType.INCOME || txType == TransactionType.INCOME) {
+                    if (lines[i].type == TransactionType.TRANSFER) {
+                        if (currentMode == SplitMode.ONE_CAT_MULTI_ACC) {
+                            lines[i] = lines[i].copy(debitAccountId = chosenAcc)
+                        } else if (currentMode == SplitMode.MULTI_CAT_ONE_ACC) {
+                            lines[i] = lines[i].copy(creditAccountId = chosenAcc)
+                        }
+                    } else if (lines[i].type == TransactionType.INCOME || txType == TransactionType.INCOME) {
                         lines[i] = lines[i].copy(debitAccountId = chosenAcc, creditAccountId = null)
                     } else {
                         lines[i] = lines[i].copy(creditAccountId = chosenAcc, debitAccountId = null)
@@ -1390,7 +1589,13 @@ fun SplitTransactionDialog(
                 onAddNewAccount?.invoke(newAcc)
                 sharedAccountId = newAcc.id
                 for (i in lines.indices) {
-                    if (lines[i].type == TransactionType.INCOME || txType == TransactionType.INCOME) {
+                    if (lines[i].type == TransactionType.TRANSFER) {
+                        if (currentMode == SplitMode.ONE_CAT_MULTI_ACC) {
+                            lines[i] = lines[i].copy(debitAccountId = newAcc.id)
+                        } else if (currentMode == SplitMode.MULTI_CAT_ONE_ACC) {
+                            lines[i] = lines[i].copy(creditAccountId = newAcc.id)
+                        }
+                    } else if (lines[i].type == TransactionType.INCOME || txType == TransactionType.INCOME) {
                         lines[i] = lines[i].copy(debitAccountId = newAcc.id, creditAccountId = null)
                     } else {
                         lines[i] = lines[i].copy(creditAccountId = newAcc.id, debitAccountId = null)

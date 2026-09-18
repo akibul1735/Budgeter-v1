@@ -415,7 +415,9 @@ fun MainAppContainer(
         AppView.INCOME,
         AppView.BACKUP_SYNC,
         AppView.BUDGET_MAKER,
-        AppView.SETTINGS
+        AppView.SETTINGS,
+        AppView.RM_MANAGER,
+        AppView.ACCOUNTS
     )
 
     // Window Width Adaptive Layout Container
@@ -576,11 +578,13 @@ fun MainAppContainer(
                                                 }
                                                 else -> "RM Debit"
                                             }
+                                            val targetDebitAccId = acc?.id ?: allAccounts.firstOrNull { com.example.util.RmManagerHelper.isExcludedAccount(it) }?.id
+                                                ?: allAccounts.firstOrNull { it.nameEn.contains("RM Others", ignoreCase = true) || it.nameBn.contains("আরএম অন্যান্য", ignoreCase = true) }?.id
                                             editingTransaction = Transaction(
                                                 type = TransactionType.TRANSFER,
                                                 amount = if (defaultAmt > 0) defaultAmt else 0.0,
                                                 creditAccountId = null,
-                                                debitAccountId = acc?.id,
+                                                debitAccountId = targetDebitAccId,
                                                 dateEpochMs = System.currentTimeMillis(),
                                                 note = if (!label.isNullOrBlank()) "#$label" else "",
                                                 referenceNo = label ?: "",
@@ -691,14 +695,29 @@ fun MainAppContainer(
                                     },
                                     onExecuteRepayTransfer = { acc, label, defaultAmt ->
                                         presetTxType = TransactionType.TRANSFER
+                                        val nameTitle = when {
+                                            !label.isNullOrBlank() -> {
+                                                val clean = label.replace(Regex("""(?i)\s*Debit\s*$"""), "").trim()
+                                                "$clean Debit"
+                                            }
+                                            acc != null -> {
+                                                val rawName = acc.localizedName(languageMode).ifBlank { acc.nameEn }
+                                                val clean = rawName.replace(Regex("""(?i)\s*Debit\s*$"""), "").trim()
+                                                "$clean Debit"
+                                            }
+                                            else -> "RM Debit"
+                                        }
+                                        val targetDebitAccId = acc?.id ?: allAccounts.firstOrNull { com.example.util.RmManagerHelper.isExcludedAccount(it) }?.id
+                                            ?: allAccounts.firstOrNull { it.nameEn.contains("RM Others", ignoreCase = true) || it.nameBn.contains("আরএম অন্যান্য", ignoreCase = true) }?.id
                                         editingTransaction = Transaction(
                                             type = TransactionType.TRANSFER,
                                             amount = if (defaultAmt > 0) defaultAmt else 0.0,
                                             creditAccountId = null,
-                                            debitAccountId = acc?.id,
+                                            debitAccountId = targetDebitAccId,
                                             dateEpochMs = System.currentTimeMillis(),
-                                            note = if (!label.isNullOrBlank()) "#$label Repayment" else "RM Repayment",
-                                            payeeOrPayer = label ?: (acc?.localizedName(languageMode) ?: "")
+                                            note = if (!label.isNullOrBlank()) "#$label" else "",
+                                            referenceNo = label ?: "",
+                                            payeeOrPayer = nameTitle
                                         )
                                         showAddTransactionSheet = true
                                     },
@@ -875,14 +894,29 @@ fun MainAppContainer(
                                 },
                                 onExecuteRepayTransfer = { acc, label, defaultAmt ->
                                     presetTxType = TransactionType.TRANSFER
+                                    val nameTitle = when {
+                                        !label.isNullOrBlank() -> {
+                                            val clean = label.replace(Regex("""(?i)\s*Debit\s*$"""), "").trim()
+                                            "$clean Debit"
+                                        }
+                                        acc != null -> {
+                                            val rawName = acc.localizedName(languageMode).ifBlank { acc.nameEn }
+                                            val clean = rawName.replace(Regex("""(?i)\s*Debit\s*$"""), "").trim()
+                                            "$clean Debit"
+                                        }
+                                        else -> "RM Debit"
+                                    }
+                                    val targetDebitAccId = acc?.id ?: allAccounts.firstOrNull { com.example.util.RmManagerHelper.isExcludedAccount(it) }?.id
+                                        ?: allAccounts.firstOrNull { it.nameEn.contains("RM Others", ignoreCase = true) || it.nameBn.contains("আরএম অন্যান্য", ignoreCase = true) }?.id
                                     editingTransaction = Transaction(
                                         type = TransactionType.TRANSFER,
                                         amount = if (defaultAmt > 0) defaultAmt else 0.0,
                                         creditAccountId = null,
-                                        debitAccountId = acc?.id,
+                                        debitAccountId = targetDebitAccId,
                                         dateEpochMs = System.currentTimeMillis(),
-                                        note = if (!label.isNullOrBlank()) "#$label Repayment" else "RM Repayment",
-                                        payeeOrPayer = label ?: (acc?.localizedName(languageMode) ?: "")
+                                        note = if (!label.isNullOrBlank()) "#$label" else "",
+                                        referenceNo = label ?: "",
+                                        payeeOrPayer = nameTitle
                                     )
                                     showAddTransactionSheet = true
                                 },
@@ -1014,14 +1048,29 @@ fun MainAppContainer(
                                 },
                                 onExecuteRepayTransfer = { acc, label, defaultAmt ->
                                     presetTxType = TransactionType.TRANSFER
+                                    val nameTitle = when {
+                                        !label.isNullOrBlank() -> {
+                                            val clean = label.replace(Regex("""(?i)\s*Debit\s*$"""), "").trim()
+                                            "$clean Debit"
+                                        }
+                                        acc != null -> {
+                                            val rawName = acc.localizedName(languageMode).ifBlank { acc.nameEn }
+                                            val clean = rawName.replace(Regex("""(?i)\s*Debit\s*$"""), "").trim()
+                                            "$clean Debit"
+                                        }
+                                        else -> "RM Debit"
+                                    }
+                                    val targetDebitAccId = acc?.id ?: allAccounts.firstOrNull { com.example.util.RmManagerHelper.isExcludedAccount(it) }?.id
+                                        ?: allAccounts.firstOrNull { it.nameEn.contains("RM Others", ignoreCase = true) || it.nameBn.contains("আরএম অন্যান্য", ignoreCase = true) }?.id
                                     editingTransaction = Transaction(
                                         type = TransactionType.TRANSFER,
                                         amount = if (defaultAmt > 0) defaultAmt else 0.0,
                                         creditAccountId = null,
-                                        debitAccountId = acc?.id,
+                                        debitAccountId = targetDebitAccId,
                                         dateEpochMs = System.currentTimeMillis(),
-                                        note = if (!label.isNullOrBlank()) "#$label Repayment" else "RM Repayment",
-                                        payeeOrPayer = label ?: (acc?.localizedName(languageMode) ?: "")
+                                        note = if (!label.isNullOrBlank()) "#$label" else "",
+                                        referenceNo = label ?: "",
+                                        payeeOrPayer = nameTitle
                                     )
                                     showAddTransactionSheet = true
                                 },

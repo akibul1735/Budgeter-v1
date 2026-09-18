@@ -166,7 +166,11 @@ object RmManagerHelper {
         PENDING_ONLY,
         RM_ACCOUNTS,
         RM_OTHERS,
-        SETTLED_ONLY
+        SETTLED_ONLY,
+        UNRECONCILED,
+        RECONCILED,
+        HIGH_LIABILITY,
+        RECENT_WEEK
     }
 
     /**
@@ -558,12 +562,22 @@ object RmManagerHelper {
         }
 
         // Filter by category
+        val now = System.currentTimeMillis()
+        val sevenDaysAgo = now - 7L * 24 * 60 * 60 * 1000L
         val categoryFiltered = when (filterCategory) {
             RmFilterCategory.ALL -> searchFiltered
             RmFilterCategory.PENDING_ONLY -> searchFiltered.filter { it.remainingLiability > 0 }
             RmFilterCategory.RM_ACCOUNTS -> searchFiltered.filter { it.isAccount }
             RmFilterCategory.RM_OTHERS -> searchFiltered.filter { !it.isAccount }
             RmFilterCategory.SETTLED_ONLY -> searchFiltered.filter { it.status == RmRepaymentStatus.SETTLED }
+            RmFilterCategory.UNRECONCILED -> searchFiltered.filter { entity ->
+                entity.allTransactions.any { !it.isReconciled } || entity.remainingLiability > 0
+            }
+            RmFilterCategory.RECONCILED -> searchFiltered.filter { entity ->
+                entity.allTransactions.isNotEmpty() && entity.allTransactions.all { it.isReconciled } && entity.remainingLiability <= 0
+            }
+            RmFilterCategory.HIGH_LIABILITY -> searchFiltered.filter { it.remainingLiability >= 10000.0 }
+            RmFilterCategory.RECENT_WEEK -> searchFiltered.filter { it.lastActivityEpochMs >= sevenDaysAgo }
         }
 
         // Apply Sorting
