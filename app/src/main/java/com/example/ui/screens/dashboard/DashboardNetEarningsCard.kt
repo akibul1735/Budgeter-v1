@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -33,14 +32,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,7 +53,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Account
@@ -65,32 +61,20 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
 import com.example.util.DashboardChartUtils
 import com.example.util.LanguageHelper
-import java.util.Locale
-
-enum class ChartTimeframe(val months: Int, val labelEn: String, val labelBn: String) {
-    THREE_MONTHS(3, "3 Months", "৩ মাস"),
-    SIX_MONTHS(6, "6 Months", "৬ মাস"),
-    NINE_MONTHS(9, "9 Months", "৯ মাস"),
-    TWELVE_MONTHS(12, "12 Months", "১২ মাস");
-
-    fun getLabel(languageMode: LanguageMode): String =
-        if (languageMode == LanguageMode.BANGLA) labelBn else labelEn
-}
 
 @Composable
-fun DashboardCashFlowSummaryCard(
+fun DashboardNetEarningsCard(
     transactions: List<TransactionWithDetails>,
     allAccounts: List<Account>,
     allCategories: List<Category>,
     languageMode: LanguageMode,
-    onNavigateToCashFlow: () -> Unit,
+    onNetEarningsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var timeframe by remember { mutableStateOf(ChartTimeframe.THREE_MONTHS) }
     var showTimeframeDropdown by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTable by remember { mutableStateOf(true) }
-    var showAverages by remember { mutableStateOf(false) }
     var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
 
     val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, languageMode) {
@@ -105,8 +89,8 @@ fun DashboardCashFlowSummaryCard(
         )
     }
 
-    val outflowColor = Color(0xFFE83F6F) // Magenta / Coral Pink
-    val inflowColor = Color(0xFF00C988)  // Emerald / Teal Green
+    val expenseColor = Color(0xFFE83F6F) // Magenta / Coral Pink
+    val incomeColor = Color(0xFF00C988)  // Emerald / Teal Green
     val netBlueColor = Color(0xFF38BDF8) // Cyan / Blue
 
     val latestMonth = monthlyPoints.lastOrNull()
@@ -120,7 +104,7 @@ fun DashboardCashFlowSummaryCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         modifier = modifier
             .fillMaxWidth()
-            .testTag("dashboard_cash_flow_card")
+            .testTag("dashboard_net_earnings_card")
     ) {
         Column(
             modifier = Modifier
@@ -145,7 +129,7 @@ fun DashboardCashFlowSummaryCard(
                             .padding(vertical = 4.dp, horizontal = 2.dp)
                     ) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "নগদ প্রবাহ (Cash Flow)" else "Cash Flow",
+                            text = if (languageMode == LanguageMode.BANGLA) "নেট আয় (Net Earnings)" else "Net Earnings",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -191,7 +175,7 @@ fun DashboardCashFlowSummaryCard(
                     }
                 }
 
-                // Filter / Customize Button & Navigate Arrow
+                // Filter / Customize Button & Breakdown Action
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { showFilterDialog = true },
@@ -206,12 +190,12 @@ fun DashboardCashFlowSummaryCard(
                     }
 
                     IconButton(
-                        onClick = onNavigateToCashFlow,
+                        onClick = onNetEarningsClick,
                         modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "View Cash Flow Screen",
+                            contentDescription = "View Net Earnings Details",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
@@ -222,6 +206,7 @@ fun DashboardCashFlowSummaryCard(
             // Interactive Tooltip if month selected
             if (selectedMonthIndex != null && selectedMonthIndex in monthlyPoints.indices) {
                 val pt = monthlyPoints[selectedMonthIndex!!]
+                val savingsRate = if (pt.income > 0) ((pt.netEarnings / pt.income) * 100).toInt() else 0
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
@@ -235,24 +220,31 @@ fun DashboardCashFlowSummaryCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "${pt.getMonthFullLabel(languageMode)} ${pt.year}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column {
                             Text(
-                                text = "In: +${LanguageHelper.formatCurrency(pt.cashInflow, languageMode)}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = inflowColor
+                                text = "${pt.getMonthFullLabel(languageMode)} ${pt.year}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Out: -${LanguageHelper.formatCurrency(pt.cashOutflow, languageMode)}",
+                                text = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় হার: $savingsRate%" else "Savings Rate: $savingsRate%",
+                                fontSize = 10.5.sp,
+                                color = if (pt.netEarnings >= 0) incomeColor else expenseColor
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Inc: +${LanguageHelper.formatCurrency(pt.income, languageMode)}",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = outflowColor
+                                color = incomeColor
+                            )
+                            Text(
+                                text = "Exp: -${LanguageHelper.formatCurrency(pt.expense, languageMode)}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = expenseColor
                             )
                         }
                     }
@@ -261,7 +253,7 @@ fun DashboardCashFlowSummaryCard(
 
             // 2. Multi-Month Dual-Bar Chart Canvas
             val maxVal = remember(monthlyPoints) {
-                val max = monthlyPoints.maxOfOrNull { maxOf(it.cashInflow, it.cashOutflow) } ?: 0.0
+                val max = monthlyPoints.maxOfOrNull { maxOf(it.income, it.expense) } ?: 0.0
                 if (max <= 0.0) 1000.0 else max * 1.12
             }
             val scaleValues = remember(maxVal) {
@@ -362,28 +354,28 @@ fun DashboardCashFlowSummaryCard(
                                 )
                             }
 
-                            val outHeight = (pt.cashOutflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
-                            val inHeight = (pt.cashInflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                            val expHeight = (pt.expense / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                            val incHeight = (pt.income / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
 
-                            val outLeft = colCenterX - singleBarWidth - barSpacing / 2f
-                            val inLeft = colCenterX + barSpacing / 2f
+                            val expLeft = colCenterX - singleBarWidth - barSpacing / 2f
+                            val incLeft = colCenterX + barSpacing / 2f
 
-                            // Outflow Bar (Left - Pink/Coral)
-                            if (outHeight > 0f) {
+                            // Expense Bar (Left - Pink/Coral)
+                            if (expHeight > 0f) {
                                 drawRoundRect(
-                                    color = outflowColor,
-                                    topLeft = Offset(outLeft, topPadding + plotHeight - outHeight),
-                                    size = Size(singleBarWidth, outHeight),
+                                    color = expenseColor,
+                                    topLeft = Offset(expLeft, topPadding + plotHeight - expHeight),
+                                    size = Size(singleBarWidth, expHeight),
                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                 )
                             }
 
-                            // Inflow Bar (Right - Green/Teal)
-                            if (inHeight > 0f) {
+                            // Income Bar (Right - Green/Teal)
+                            if (incHeight > 0f) {
                                 drawRoundRect(
-                                    color = inflowColor,
-                                    topLeft = Offset(inLeft, topPadding + plotHeight - inHeight),
-                                    size = Size(singleBarWidth, inHeight),
+                                    color = incomeColor,
+                                    topLeft = Offset(incLeft, topPadding + plotHeight - incHeight),
+                                    size = Size(singleBarWidth, incHeight),
                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                                 )
                             }
@@ -436,7 +428,7 @@ fun DashboardCashFlowSummaryCard(
                         )
                     }
 
-                    // Row 1: Cash Inflow (Green Dot)
+                    // Row 1: Income (Green Dot)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -451,34 +443,34 @@ fun DashboardCashFlowSummaryCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(inflowColor)
+                                    .background(incomeColor)
                             )
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "নগদ অন্তর্গমন" else "Cash Inflow",
+                                text = if (languageMode == LanguageMode.BANGLA) "মোট আয়" else "Income",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Text(
-                            text = LanguageHelper.formatCurrency(prevMonth.cashInflow, languageMode),
+                            text = LanguageHelper.formatCurrency(prevMonth.income, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.End,
-                            color = inflowColor,
+                            color = incomeColor,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = LanguageHelper.formatCurrency(latestMonth.cashInflow, languageMode),
+                            text = LanguageHelper.formatCurrency(latestMonth.income, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.End,
-                            color = inflowColor,
+                            color = incomeColor,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    // Row 2: Cash Outflow (Orange/Coral Dot)
+                    // Row 2: Expense (Orange/Coral Dot)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -493,34 +485,34 @@ fun DashboardCashFlowSummaryCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(outflowColor)
+                                    .background(expenseColor)
                             )
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "নগদ বহির্গমন" else "Cash Outflow",
+                                text = if (languageMode == LanguageMode.BANGLA) "মোট ব্যয়" else "Expense",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Text(
-                            text = "-${LanguageHelper.formatCurrency(prevMonth.cashOutflow, languageMode)}",
+                            text = "-${LanguageHelper.formatCurrency(prevMonth.expense, languageMode)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.End,
-                            color = outflowColor,
+                            color = expenseColor,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "-${LanguageHelper.formatCurrency(latestMonth.cashOutflow, languageMode)}",
+                            text = "-${LanguageHelper.formatCurrency(latestMonth.expense, languageMode)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.End,
-                            color = outflowColor,
+                            color = expenseColor,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    // Row 3: Cash Flow (Blue Dot)
+                    // Row 3: Net Earnings (Blue Dot)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -538,17 +530,17 @@ fun DashboardCashFlowSummaryCard(
                                     .background(netBlueColor)
                             )
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "নিট প্রবাহ" else "Cash Flow",
+                                text = if (languageMode == LanguageMode.BANGLA) "নেট আয়" else "Net Earnings",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        val prevNetColor = if (prevMonth.netCashFlow >= 0) inflowColor else outflowColor
-                        val latestNetColor = if (latestMonth.netCashFlow >= 0) inflowColor else outflowColor
+                        val prevNetColor = if (prevMonth.netEarnings >= 0) incomeColor else expenseColor
+                        val latestNetColor = if (latestMonth.netEarnings >= 0) incomeColor else expenseColor
 
                         Text(
-                            text = (if (prevMonth.netCashFlow > 0) "+" else "") + LanguageHelper.formatCurrency(prevMonth.netCashFlow, languageMode),
+                            text = (if (prevMonth.netEarnings > 0) "+" else "") + LanguageHelper.formatCurrency(prevMonth.netEarnings, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.End,
@@ -556,7 +548,7 @@ fun DashboardCashFlowSummaryCard(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = (if (latestMonth.netCashFlow > 0) "+" else "") + LanguageHelper.formatCurrency(latestMonth.netCashFlow, languageMode),
+                            text = (if (latestMonth.netEarnings > 0) "+" else "") + LanguageHelper.formatCurrency(latestMonth.netEarnings, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.End,
@@ -575,7 +567,7 @@ fun DashboardCashFlowSummaryCard(
             onDismissRequest = { showFilterDialog = false },
             title = {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "ক্যাশ ফ্লো চার্ট সেটিংস" else "Cash Flow Chart Settings",
+                    text = if (languageMode == LanguageMode.BANGLA) "নেট আয় চার্ট সেটিংস" else "Net Earnings Chart Settings",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )

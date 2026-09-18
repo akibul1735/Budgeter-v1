@@ -28,7 +28,8 @@ enum class DashboardCardType(
     FAVORITE_ACCOUNTS("favorite_accounts", "Favorite Accounts", "পছন্দের অ্যাকাউন্ট"),
     CALENDAR_VIEW("calendar_view", "Calendar View", "ক্যালেন্ডার ভিউ"),
     NET_WORTH("net_worth", "Net Worth Card", "নেট ওয়ার্থ কার্ড"),
-    CASH_FLOW("cash_flow", "Cash Flow (Income/Expense)", "ক্যাশ ফ্লো"),
+    NET_EARNINGS("net_earnings", "Net Earnings", "নেট আয় ও ব্যয়"),
+    CASH_FLOW("cash_flow", "Cash Flow", "নগদ প্রবাহ (Cash Flow)"),
     FINANCIAL_OVERVIEW("financial_overview", "Financial Overview & Expendable", "আর্থিক বিবরণ ও অতিরিক্ত খরচ"),
     QUICK_ACTIONS("quick_actions", "Quick Action Buttons", "দ্রুত অ্যাকশন বাটন"),
     RECENT_TRANSACTIONS("recent_transactions", "Recent Transactions", "সাম্প্রতিক লেনদেন");
@@ -40,6 +41,7 @@ enum class DashboardCardType(
             FAVORITE_ACCOUNTS -> Icons.Default.Star
             CALENDAR_VIEW -> Icons.Default.CalendarMonth
             NET_WORTH -> Icons.Default.AccountBalance
+            NET_EARNINGS -> Icons.Default.BarChart
             CASH_FLOW -> Icons.AutoMirrored.Filled.TrendingUp
             FINANCIAL_OVERVIEW -> Icons.Default.Payments
             QUICK_ACTIONS -> Icons.Default.TouchApp
@@ -196,23 +198,25 @@ enum class CalendarDisplayMode(val labelEn: String, val labelBn: String) {
 data class DashboardConfig(
     val cardOrder: List<DashboardCardType> = listOf(
         DashboardCardType.FINANCIAL_OVERVIEW,
+        DashboardCardType.CASH_FLOW,
+        DashboardCardType.NET_EARNINGS,
+        DashboardCardType.NET_WORTH,
         DashboardCardType.DAILY_SUMMARY,
         DashboardCardType.BUDGET_SUMMARY,
         DashboardCardType.FAVORITE_ACCOUNTS,
         DashboardCardType.CALENDAR_VIEW,
-        DashboardCardType.NET_WORTH,
-        DashboardCardType.CASH_FLOW,
         DashboardCardType.QUICK_ACTIONS,
         DashboardCardType.RECENT_TRANSACTIONS
     ),
     val visibleCards: Set<DashboardCardType> = setOf(
         DashboardCardType.FINANCIAL_OVERVIEW,
+        DashboardCardType.CASH_FLOW,
+        DashboardCardType.NET_EARNINGS,
+        DashboardCardType.NET_WORTH,
         DashboardCardType.DAILY_SUMMARY,
         DashboardCardType.BUDGET_SUMMARY,
         DashboardCardType.FAVORITE_ACCOUNTS,
         DashboardCardType.CALENDAR_VIEW,
-        DashboardCardType.NET_WORTH,
-        DashboardCardType.CASH_FLOW,
         DashboardCardType.QUICK_ACTIONS,
         DashboardCardType.RECENT_TRANSACTIONS
     ),
@@ -251,12 +255,13 @@ class DashboardPreferences private constructor(context: Context) {
     private fun loadConfig(): DashboardConfig {
         val defaultCards = listOf(
             DashboardCardType.FINANCIAL_OVERVIEW,
+            DashboardCardType.CASH_FLOW,
+            DashboardCardType.NET_EARNINGS,
+            DashboardCardType.NET_WORTH,
             DashboardCardType.DAILY_SUMMARY,
             DashboardCardType.BUDGET_SUMMARY,
             DashboardCardType.FAVORITE_ACCOUNTS,
             DashboardCardType.CALENDAR_VIEW,
-            DashboardCardType.NET_WORTH,
-            DashboardCardType.CASH_FLOW,
             DashboardCardType.QUICK_ACTIONS,
             DashboardCardType.RECENT_TRANSACTIONS
         )

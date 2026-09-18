@@ -22,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -33,14 +32,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,12 +48,15 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Account
@@ -65,49 +65,51 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
 import com.example.util.DashboardChartUtils
 import com.example.util.LanguageHelper
-import java.util.Locale
 
-enum class ChartTimeframe(val months: Int, val labelEn: String, val labelBn: String) {
-    THREE_MONTHS(3, "3 Months", "৩ মাস"),
+enum class NetWorthTimeframe(val months: Int, val labelEn: String, val labelBn: String) {
     SIX_MONTHS(6, "6 Months", "৬ মাস"),
-    NINE_MONTHS(9, "9 Months", "৯ মাস"),
-    TWELVE_MONTHS(12, "12 Months", "১২ মাস");
+    TWELVE_MONTHS(12, "1 Year", "১ বছর"),
+    TWENTY_FOUR_MONTHS(24, "2 Years", "২ বছর");
 
     fun getLabel(languageMode: LanguageMode): String =
         if (languageMode == LanguageMode.BANGLA) labelBn else labelEn
 }
 
 @Composable
-fun DashboardCashFlowSummaryCard(
+fun DashboardNetWorthTrendCard(
     transactions: List<TransactionWithDetails>,
     allAccounts: List<Account>,
     allCategories: List<Category>,
+    calculatedAssets: Double,
+    calculatedLiabilities: Double,
+    calculatedNetWorth: Double,
     languageMode: LanguageMode,
-    onNavigateToCashFlow: () -> Unit,
+    onNetWorthClick: () -> Unit = {},
+    onAssetsClick: () -> Unit = {},
+    onLiabilitiesClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var timeframe by remember { mutableStateOf(ChartTimeframe.THREE_MONTHS) }
+    var timeframe by remember { mutableStateOf(NetWorthTimeframe.SIX_MONTHS) }
     var showTimeframeDropdown by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var showTable by remember { mutableStateOf(true) }
-    var showAverages by remember { mutableStateOf(false) }
     var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
 
-    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, languageMode) {
+    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, calculatedAssets, calculatedLiabilities, languageMode) {
         DashboardChartUtils.computeMonthlyPoints(
             monthCount = timeframe.months,
             transactions = transactions,
             allAccounts = allAccounts,
             allCategories = allCategories,
-            currentTotalAssets = 0.0,
-            currentTotalLiabilities = 0.0,
+            currentTotalAssets = calculatedAssets,
+            currentTotalLiabilities = calculatedLiabilities,
             languageMode = languageMode
         )
     }
 
-    val outflowColor = Color(0xFFE83F6F) // Magenta / Coral Pink
-    val inflowColor = Color(0xFF00C988)  // Emerald / Teal Green
-    val netBlueColor = Color(0xFF38BDF8) // Cyan / Blue
+    val assetsColor = Color(0xFF00C988)      // Emerald / Teal Green
+    val liabilitiesColor = Color(0xFFE83F6F) // Magenta / Coral Pink
+    val netWorthColor = Color(0xFF38BDF8)    // Cyan / Blue
 
     val latestMonth = monthlyPoints.lastOrNull()
     val prevMonth = if (monthlyPoints.size >= 2) monthlyPoints[monthlyPoints.size - 2] else null
@@ -120,7 +122,7 @@ fun DashboardCashFlowSummaryCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
         modifier = modifier
             .fillMaxWidth()
-            .testTag("dashboard_cash_flow_card")
+            .testTag("dashboard_net_worth_card")
     ) {
         Column(
             modifier = Modifier
@@ -145,7 +147,7 @@ fun DashboardCashFlowSummaryCard(
                             .padding(vertical = 4.dp, horizontal = 2.dp)
                     ) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "নগদ প্রবাহ (Cash Flow)" else "Cash Flow",
+                            text = if (languageMode == LanguageMode.BANGLA) "নেট ওয়ার্থ (Net Worth)" else "Net Worth",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -162,7 +164,7 @@ fun DashboardCashFlowSummaryCard(
                         expanded = showTimeframeDropdown,
                         onDismissRequest = { showTimeframeDropdown = false }
                     ) {
-                        ChartTimeframe.values().forEach { tf ->
+                        NetWorthTimeframe.values().forEach { tf ->
                             DropdownMenuItem(
                                 text = {
                                     Row(
@@ -191,7 +193,7 @@ fun DashboardCashFlowSummaryCard(
                     }
                 }
 
-                // Filter / Customize Button & Navigate Arrow
+                // Filter / Customize Button & Navigate Action
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = { showFilterDialog = true },
@@ -206,12 +208,12 @@ fun DashboardCashFlowSummaryCard(
                     }
 
                     IconButton(
-                        onClick = onNavigateToCashFlow,
+                        onClick = onNetWorthClick,
                         modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "View Cash Flow Screen",
+                            contentDescription = "View Net Worth Details",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
@@ -235,34 +237,42 @@ fun DashboardCashFlowSummaryCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "${pt.getMonthFullLabel(languageMode)} ${pt.year}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column {
                             Text(
-                                text = "In: +${LanguageHelper.formatCurrency(pt.cashInflow, languageMode)}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = inflowColor
+                                text = "${pt.getMonthFullLabel(languageMode)} ${pt.year}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Out: -${LanguageHelper.formatCurrency(pt.cashOutflow, languageMode)}",
+                                text = "NW: ${LanguageHelper.formatCurrency(pt.netWorth, languageMode)}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = netWorthColor
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Assets: ${LanguageHelper.formatCurrency(pt.assets, languageMode)}",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = outflowColor
+                                color = assetsColor
+                            )
+                            Text(
+                                text = "Liab: -${LanguageHelper.formatCurrency(pt.liabilities, languageMode)}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = liabilitiesColor
                             )
                         }
                     }
                 }
             }
 
-            // 2. Multi-Month Dual-Bar Chart Canvas
+            // 2. Multi-Line Trend Chart with Circular Markers Canvas
             val maxVal = remember(monthlyPoints) {
-                val max = monthlyPoints.maxOfOrNull { maxOf(it.cashInflow, it.cashOutflow) } ?: 0.0
-                if (max <= 0.0) 1000.0 else max * 1.12
+                val max = monthlyPoints.maxOfOrNull { maxOf(it.assets, it.liabilities, Math.abs(it.netWorth)) } ?: 0.0
+                if (max <= 0.0) 1000.0 else max * 1.15
             }
             val scaleValues = remember(maxVal) {
                 DashboardChartUtils.computeNiceScale(maxVal, 4)
@@ -284,8 +294,8 @@ fun DashboardCashFlowSummaryCard(
                             val plotWidth = size.width - leftPadding - rightPadding
                             val count = monthlyPoints.size
                             if (count > 0 && offset.x >= leftPadding && offset.x <= size.width - rightPadding) {
-                                val colWidth = plotWidth / count
-                                val tappedIndex = ((offset.x - leftPadding) / colWidth).toInt().coerceIn(0, count - 1)
+                                val colWidth = if (count > 1) plotWidth / (count - 1) else plotWidth
+                                val tappedIndex = (((offset.x - leftPadding) + (colWidth / 2f)) / colWidth).toInt().coerceIn(0, count - 1)
                                 selectedMonthIndex = if (selectedMonthIndex == tappedIndex) null else tappedIndex
                             } else {
                                 selectedMonthIndex = null
@@ -312,7 +322,7 @@ fun DashboardCashFlowSummaryCard(
 
                     val xTextPaint = android.graphics.Paint().apply {
                         color = axisTextColor.hashCode()
-                        textSize = 10.5.sp.toPx()
+                        textSize = 10.sp.toPx()
                         textAlign = android.graphics.Paint.Align.CENTER
                         isAntiAlias = true
                         typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -340,67 +350,107 @@ fun DashboardCashFlowSummaryCard(
                         )
                     }
 
-                    // Draw Monthly Dual Bars
+                    // Draw Trend Lines
                     val count = monthlyPoints.size
                     if (count > 0) {
-                        val colWidth = plotWidth / count
-                        val barGroupWidth = colWidth * 0.72f
-                        val singleBarWidth = barGroupWidth / 2.1f
-                        val barSpacing = 2.dp.toPx()
+                        val stepX = if (count > 1) plotWidth / (count - 1) else plotWidth
+
+                        // Highlight selected point column
+                        if (selectedMonthIndex != null && selectedMonthIndex in 0 until count) {
+                            val colX = leftPadding + selectedMonthIndex!! * stepX
+                            drawLine(
+                                color = selectionHighlight.copy(alpha = 0.5f),
+                                start = Offset(colX, topPadding),
+                                end = Offset(colX, topPadding + plotHeight),
+                                strokeWidth = 18.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                        }
+
+                        val assetsPath = Path()
+                        val liabilitiesPath = Path()
+                        val netWorthPath = Path()
+
+                        val assetPoints = mutableListOf<Offset>()
+                        val liabilityPoints = mutableListOf<Offset>()
+                        val netWorthPoints = mutableListOf<Offset>()
 
                         monthlyPoints.forEachIndexed { index, pt ->
-                            val colCenterX = leftPadding + index * colWidth + colWidth / 2f
-                            val isSelected = selectedMonthIndex == index
+                            val xPos = leftPadding + index * stepX
 
-                            // Highlight selected month column
-                            if (isSelected) {
-                                drawRoundRect(
-                                    color = selectionHighlight,
-                                    topLeft = Offset(colCenterX - colWidth / 2f + 2.dp.toPx(), topPadding),
-                                    size = Size(colWidth - 4.dp.toPx(), plotHeight),
-                                    cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-                                )
+                            val assetY = topPadding + plotHeight * (1f - (pt.assets / chartScaleMax).toFloat().coerceIn(0f, 1f))
+                            val liabY = topPadding + plotHeight * (1f - (pt.liabilities / chartScaleMax).toFloat().coerceIn(0f, 1f))
+                            val nwY = topPadding + plotHeight * (1f - (pt.netWorth.coerceAtLeast(0.0) / chartScaleMax).toFloat().coerceIn(0f, 1f))
+
+                            val aPt = Offset(xPos, assetY)
+                            val lPt = Offset(xPos, liabY)
+                            val nPt = Offset(xPos, nwY)
+
+                            assetPoints.add(aPt)
+                            liabilityPoints.add(lPt)
+                            netWorthPoints.add(nPt)
+
+                            if (index == 0) {
+                                assetsPath.moveTo(aPt.x, aPt.y)
+                                liabilitiesPath.moveTo(lPt.x, lPt.y)
+                                netWorthPath.moveTo(nPt.x, nPt.y)
+                            } else {
+                                assetsPath.lineTo(aPt.x, aPt.y)
+                                liabilitiesPath.lineTo(lPt.x, lPt.y)
+                                netWorthPath.lineTo(nPt.x, nPt.y)
                             }
 
-                            val outHeight = (pt.cashOutflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
-                            val inHeight = (pt.cashInflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
-
-                            val outLeft = colCenterX - singleBarWidth - barSpacing / 2f
-                            val inLeft = colCenterX + barSpacing / 2f
-
-                            // Outflow Bar (Left - Pink/Coral)
-                            if (outHeight > 0f) {
-                                drawRoundRect(
-                                    color = outflowColor,
-                                    topLeft = Offset(outLeft, topPadding + plotHeight - outHeight),
-                                    size = Size(singleBarWidth, outHeight),
-                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                            // Draw X-Axis label
+                            val shouldDrawLabel = when {
+                                count <= 6 -> true
+                                count <= 12 -> index % 2 == 0 || index == count - 1
+                                else -> index % 3 == 0 || index == count - 1
+                            }
+                            if (shouldDrawLabel) {
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    pt.getMonthLabel(languageMode),
+                                    xPos,
+                                    size.height - 4.dp.toPx(),
+                                    xTextPaint
                                 )
                             }
+                        }
 
-                            // Inflow Bar (Right - Green/Teal)
-                            if (inHeight > 0f) {
-                                drawRoundRect(
-                                    color = inflowColor,
-                                    topLeft = Offset(inLeft, topPadding + plotHeight - inHeight),
-                                    size = Size(singleBarWidth, inHeight),
-                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                                )
-                            }
+                        // Draw Lines
+                        drawPath(
+                            path = liabilitiesPath,
+                            color = liabilitiesColor,
+                            style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                        drawPath(
+                            path = assetsPath,
+                            color = assetsColor,
+                            style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                        drawPath(
+                            path = netWorthPath,
+                            color = netWorthColor,
+                            style = Stroke(width = 2.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
 
-                            // X-Axis Month Label
-                            drawContext.canvas.nativeCanvas.drawText(
-                                pt.getMonthLabel(languageMode),
-                                colCenterX,
-                                size.height - 4.dp.toPx(),
-                                xTextPaint
-                            )
+                        // Draw Dot Markers
+                        liabilityPoints.forEach { pt ->
+                            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pt)
+                            drawCircle(color = liabilitiesColor, radius = 2.8.dp.toPx(), center = pt)
+                        }
+                        assetPoints.forEach { pt ->
+                            drawCircle(color = Color.White, radius = 4.dp.toPx(), center = pt)
+                            drawCircle(color = assetsColor, radius = 2.8.dp.toPx(), center = pt)
+                        }
+                        netWorthPoints.forEach { pt ->
+                            drawCircle(color = Color.White, radius = 4.5.dp.toPx(), center = pt)
+                            drawCircle(color = netWorthColor, radius = 3.2.dp.toPx(), center = pt)
                         }
                     }
                 }
             }
 
-            // 3. Comparison Table (Type, Prev Month, Current Month) exactly as shown in screenshot
+            // 3. Comparison Table (Type, Prev Month, Current Month) exactly matching the screenshot
             if (showTable && latestMonth != null && prevMonth != null) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
@@ -436,9 +486,11 @@ fun DashboardCashFlowSummaryCard(
                         )
                     }
 
-                    // Row 1: Cash Inflow (Green Dot)
+                    // Row 1: Assets (Green Dot)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onAssetsClick() },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -451,36 +503,38 @@ fun DashboardCashFlowSummaryCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(inflowColor)
+                                    .background(assetsColor)
                             )
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "নগদ অন্তর্গমন" else "Cash Inflow",
+                                text = if (languageMode == LanguageMode.BANGLA) "সম্পদ (Assets)" else "Assets",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Text(
-                            text = LanguageHelper.formatCurrency(prevMonth.cashInflow, languageMode),
+                            text = LanguageHelper.formatCurrency(prevMonth.assets, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.End,
-                            color = inflowColor,
+                            color = assetsColor,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = LanguageHelper.formatCurrency(latestMonth.cashInflow, languageMode),
+                            text = LanguageHelper.formatCurrency(latestMonth.assets, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.End,
-                            color = inflowColor,
+                            color = assetsColor,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    // Row 2: Cash Outflow (Orange/Coral Dot)
+                    // Row 2: Liabilities (Orange/Coral Dot)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onLiabilitiesClick() },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -493,36 +547,38 @@ fun DashboardCashFlowSummaryCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(outflowColor)
+                                    .background(liabilitiesColor)
                             )
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "নগদ বহির্গমন" else "Cash Outflow",
+                                text = if (languageMode == LanguageMode.BANGLA) "দায় (Liabilities)" else "Liabilities",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Normal,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Text(
-                            text = "-${LanguageHelper.formatCurrency(prevMonth.cashOutflow, languageMode)}",
+                            text = "-${LanguageHelper.formatCurrency(prevMonth.liabilities, languageMode)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.End,
-                            color = outflowColor,
+                            color = liabilitiesColor,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "-${LanguageHelper.formatCurrency(latestMonth.cashOutflow, languageMode)}",
+                            text = "-${LanguageHelper.formatCurrency(latestMonth.liabilities, languageMode)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.End,
-                            color = outflowColor,
+                            color = liabilitiesColor,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    // Row 3: Cash Flow (Blue Dot)
+                    // Row 3: Net Worth (Blue Dot)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNetWorthClick() },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -535,20 +591,20 @@ fun DashboardCashFlowSummaryCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(netBlueColor)
+                                    .background(netWorthColor)
                             )
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "নিট প্রবাহ" else "Cash Flow",
+                                text = if (languageMode == LanguageMode.BANGLA) "নেট ওয়ার্থ" else "Net Worth",
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                        val prevNetColor = if (prevMonth.netCashFlow >= 0) inflowColor else outflowColor
-                        val latestNetColor = if (latestMonth.netCashFlow >= 0) inflowColor else outflowColor
+                        val prevNetColor = if (prevMonth.netWorth >= 0) netWorthColor else liabilitiesColor
+                        val latestNetColor = if (latestMonth.netWorth >= 0) netWorthColor else liabilitiesColor
 
                         Text(
-                            text = (if (prevMonth.netCashFlow > 0) "+" else "") + LanguageHelper.formatCurrency(prevMonth.netCashFlow, languageMode),
+                            text = LanguageHelper.formatCurrency(prevMonth.netWorth, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.End,
@@ -556,7 +612,7 @@ fun DashboardCashFlowSummaryCard(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = (if (latestMonth.netCashFlow > 0) "+" else "") + LanguageHelper.formatCurrency(latestMonth.netCashFlow, languageMode),
+                            text = LanguageHelper.formatCurrency(latestMonth.netWorth, languageMode),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.End,
@@ -575,7 +631,7 @@ fun DashboardCashFlowSummaryCard(
             onDismissRequest = { showFilterDialog = false },
             title = {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "ক্যাশ ফ্লো চার্ট সেটিংস" else "Cash Flow Chart Settings",
+                    text = if (languageMode == LanguageMode.BANGLA) "নেট ওয়ার্থ চার্ট সেটিংস" else "Net Worth Chart Settings",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -583,7 +639,7 @@ fun DashboardCashFlowSummaryCard(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "সময়কাল (মাস)" else "Timeframe (Months)",
+                        text = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Timeframe",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary
@@ -592,7 +648,7 @@ fun DashboardCashFlowSummaryCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        ChartTimeframe.values().forEach { tf ->
+                        NetWorthTimeframe.values().forEach { tf ->
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (timeframe == tf) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,

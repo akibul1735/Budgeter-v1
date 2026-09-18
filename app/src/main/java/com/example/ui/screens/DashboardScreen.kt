@@ -102,6 +102,8 @@ import com.example.ui.screens.dashboard.CustomizeDashboardCardsDialog
 import com.example.ui.screens.dashboard.DailySummaryCard
 import com.example.ui.screens.dashboard.DailySummarySettingsDialog
 import com.example.ui.screens.dashboard.DashboardCashFlowSummaryCard
+import com.example.ui.screens.dashboard.DashboardNetEarningsCard
+import com.example.ui.screens.dashboard.DashboardNetWorthTrendCard
 import com.example.ui.screens.dashboard.FavoriteAccountsCard
 import com.example.ui.screens.dashboard.FavoriteAccountsSelectionDialog
 import com.example.ui.theme.SolidExpense
@@ -1704,15 +1706,31 @@ fun DashboardScreen(
                     when (cardType) {
                         DashboardCardType.NET_WORTH -> {
                             item(key = "card_net_worth") {
-                                RedesignedNetWorthCard(
-                                    overview = overview,
-                                    calculatedNetWorth = calculatedNetWorth,
+                                val allRawAccounts = remember(accountsWithBalances) { accountsWithBalances.map { it.account } }
+                                DashboardNetWorthTrendCard(
+                                    transactions = recentTransactions,
+                                    allAccounts = allRawAccounts,
+                                    allCategories = allCategories,
                                     calculatedAssets = calculatedAssets,
                                     calculatedLiabilities = calculatedLiabilities,
+                                    calculatedNetWorth = calculatedNetWorth,
                                     languageMode = languageMode,
                                     onNetWorthClick = { openNetWorthBreakdown(0) },
                                     onAssetsClick = { openAssetsBreakdown(0) },
                                     onLiabilitiesClick = { openLiabilitiesBreakdown(0) }
+                                )
+                            }
+                        }
+
+                        DashboardCardType.NET_EARNINGS -> {
+                            item(key = "card_net_earnings") {
+                                val allRawAccounts = remember(accountsWithBalances) { accountsWithBalances.map { it.account } }
+                                DashboardNetEarningsCard(
+                                    transactions = recentTransactions,
+                                    allAccounts = allRawAccounts,
+                                    allCategories = allCategories,
+                                    languageMode = languageMode,
+                                    onNetEarningsClick = { openNetSavingsBreakdown() }
                                 )
                             }
                         }
