@@ -686,24 +686,26 @@ fun RmManagerScreen(
                     if (targetEntity.isAccount && targetEntity.account != null) {
                         val targetAcc = targetEntity.account
                         val adjustmentTx = if (diff > 0) {
-                            Transaction(
-                                type = TransactionType.INCOME,
-                                amount = abs(diff),
-                                debitAccountId = targetAcc.id,
-                                creditAccountId = null,
-                                note = "RM Balance Adjustment (Reconciliation)",
-                                payeeOrPayer = "${targetAcc.localizedName(languageMode)} Debit",
-                                status = TransactionStatus.RECONCILED,
-                                dateEpochMs = System.currentTimeMillis()
-                            )
-                        } else {
+                            // diff > 0: Liability increases -> Expense credited out of RM account (adds to Dr / borrowed in RM manager)
                             Transaction(
                                 type = TransactionType.EXPENSE,
                                 amount = abs(diff),
                                 debitAccountId = null,
                                 creditAccountId = targetAcc.id,
-                                note = "RM Repayment Adjustment (Reconciliation)",
+                                note = "RM Liability Adjustment (Reconciliation)",
                                 payeeOrPayer = "${targetAcc.localizedName(languageMode)} Debit",
+                                status = TransactionStatus.RECONCILED,
+                                dateEpochMs = System.currentTimeMillis()
+                            )
+                        } else {
+                            // diff < 0: Liability decreases (e.g. from 550 to 0) -> Income debited into RM account (adds to Cr / repaid in RM manager)
+                            Transaction(
+                                type = TransactionType.INCOME,
+                                amount = abs(diff),
+                                debitAccountId = targetAcc.id,
+                                creditAccountId = null,
+                                note = "RM Repayment Adjustment (Reconciliation)",
+                                payeeOrPayer = "${targetAcc.localizedName(languageMode)} Credit",
                                 status = TransactionStatus.RECONCILED,
                                 dateEpochMs = System.currentTimeMillis()
                             )
@@ -719,11 +721,12 @@ fun RmManagerScreen(
 
                         val rmAccId = rmOthersAcc?.id
                         val adjustmentTx = if (diff > 0) {
+                            // diff > 0: Liability increases -> Expense credited out of RM account
                             Transaction(
-                                type = TransactionType.INCOME,
+                                type = TransactionType.EXPENSE,
                                 amount = abs(diff),
-                                debitAccountId = rmAccId,
-                                creditAccountId = null,
+                                debitAccountId = null,
+                                creditAccountId = rmAccId,
                                 referenceNo = targetEntity.name,
                                 note = "#${targetEntity.name} Reconcile Adjustment",
                                 payeeOrPayer = "${targetEntity.name} Debit",
@@ -731,14 +734,15 @@ fun RmManagerScreen(
                                 dateEpochMs = System.currentTimeMillis()
                             )
                         } else {
+                            // diff < 0: Liability decreases (repaid) -> Income debited into RM account
                             Transaction(
-                                type = TransactionType.EXPENSE,
+                                type = TransactionType.INCOME,
                                 amount = abs(diff),
-                                debitAccountId = null,
-                                creditAccountId = rmAccId,
+                                debitAccountId = rmAccId,
+                                creditAccountId = null,
                                 referenceNo = targetEntity.name,
                                 note = "#${targetEntity.name} Repay Adjustment",
-                                payeeOrPayer = "${targetEntity.name} Debit",
+                                payeeOrPayer = "${targetEntity.name} Credit",
                                 status = TransactionStatus.RECONCILED,
                                 dateEpochMs = System.currentTimeMillis()
                             )
@@ -1545,13 +1549,13 @@ private fun RmModernDetailView(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 96.dp)
     ) {
-        // --- 1. Entity Hero Summary Card ---
+        // --- 1. Entity Hero Summary Card (Exact compact size & padding matching front card) ---
         item {
             ElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                shape = RoundedCornerShape(20.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
@@ -1571,62 +1575,86 @@ private fun RmModernDetailView(
                                 )
                             )
                         )
-                        .padding(18.dp)
+                        .padding(12.dp)
                 ) {
-                    // Name & Type
+                    // Header: Name & Type + Status Badge
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = entity.name,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = if (entity.isAccount) {
-                                    if (languageMode == LanguageMode.BANGLA) "আরএম একাউন্ট (রেস্টিং মানি)" else "RM Account (Resting Money)"
-                                } else {
-                                    if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য (#${entity.name})" else "RM Others (#${entity.name})"
-                                },
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = if (entity.isAccount)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                else
+                                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = entity.name.take(2).uppercase(),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (entity.isAccount) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = entity.name,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = if (entity.isAccount) {
+                                        if (languageMode == LanguageMode.BANGLA) "আরএম একাউন্ট" else "RM Account"
+                                    } else {
+                                        if (languageMode == LanguageMode.BANGLA) "আরএম অন্যান্য" else "RM Others"
+                                    },
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
 
                         // Status Badge
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             color = when (entity.status) {
                                 RmRepaymentStatus.SETTLED -> SolidIncome.copy(alpha = 0.15f)
                                 RmRepaymentStatus.PARTIALLY_REPAID -> Color(0xFFFFF3E0)
-                                RmRepaymentStatus.UNPAID -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                                RmRepaymentStatus.UNPAID -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
                             }
                         ) {
                             Text(
                                 text = when (entity.status) {
                                     RmRepaymentStatus.SETTLED -> LanguageHelper.getString("fully_settled", languageMode)
-                                    RmRepaymentStatus.PARTIALLY_REPAID -> "${(entity.repaymentProgressPercent * 100).toInt()}% ${LanguageHelper.getString("repay_liability", languageMode)}"
-                                    RmRepaymentStatus.UNPAID -> LanguageHelper.getString("pending_repayment", languageMode)
+                                    RmRepaymentStatus.PARTIALLY_REPAID -> "${(entity.repaymentProgressPercent * 100).toInt()}% ${if (languageMode == LanguageMode.BANGLA) "পরিশোধ" else "Repaid"}"
+                                    RmRepaymentStatus.UNPAID -> if (languageMode == LanguageMode.BANGLA) "বকেয়া" else "Pending"
                                 },
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = when (entity.status) {
                                     RmRepaymentStatus.SETTLED -> SolidIncome
                                     RmRepaymentStatus.PARTIALLY_REPAID -> Color(0xFFE65100)
                                     RmRepaymentStatus.UNPAID -> MaterialTheme.colorScheme.onErrorContainer
                                 },
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Negative Net Balance (জের)
                     Row(
@@ -1635,92 +1663,153 @@ private fun RmModernDetailView(
                     ) {
                         Text(
                             text = if (entity.netBalance < 0) "-৳" else "৳",
-                            fontSize = 22.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (entity.netBalance < 0) MaterialTheme.colorScheme.error else SolidIncome,
-                            modifier = Modifier.padding(bottom = 3.dp, end = 4.dp)
+                            modifier = Modifier.padding(bottom = 2.dp, end = 3.dp)
                         )
                         Text(
                             text = RmManagerHelper.formatAmount(entity.netBalance),
-                            fontSize = 30.sp,
+                            fontSize = 25.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = if (entity.netBalance < 0) MaterialTheme.colorScheme.error else SolidIncome
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "বর্তমান জের (বকেয়া)" else "Current Balance (Jer)",
-                            fontSize = 12.5.sp,
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(bottom = 5.dp)
+                            modifier = Modifier.padding(bottom = 3.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Dr vs Cr Summary
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // Total Dr
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text(
-                                    text = LanguageHelper.getString("debit_col", languageMode),
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                                Text(
-                                    text = "৳ ${RmManagerHelper.formatAmount(entity.totalBorrowed)}",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.ArrowDownward,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = LanguageHelper.getString("debit_col", languageMode),
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Text(
+                                        text = "৳ ${RmManagerHelper.formatAmount(entity.totalBorrowed)}",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
 
                         // Total Cr
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text(
-                                    text = LanguageHelper.getString("credit_col", languageMode),
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                                Text(
-                                    text = "৳ ${RmManagerHelper.formatAmount(entity.totalRepaid)}",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SolidIncome
-                                )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SolidIncome.copy(alpha = 0.15f),
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = SolidIncome,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = LanguageHelper.getString("credit_col", languageMode),
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Text(
+                                        text = "৳ ${RmManagerHelper.formatAmount(entity.totalRepaid)}",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SolidIncome
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Progress Bar
-                    LinearProgressIndicator(
-                        progress = { entity.repaymentProgressPercent },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = if (entity.status == RmRepaymentStatus.SETTLED) SolidIncome else MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = LanguageHelper.getString("repayment_progress", languageMode),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${(entity.repaymentProgressPercent * 100).toInt()}% ${if (languageMode == LanguageMode.BANGLA) "পরিশোধিত" else "Repaid"}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (entity.status == RmRepaymentStatus.SETTLED) SolidIncome else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { entity.repaymentProgressPercent },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(5.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = if (entity.status == RmRepaymentStatus.SETTLED) SolidIncome else MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Quick Action Buttons: from left Ledger, Reconciled, Transfer
+                    // Quick Action Buttons: from left Ledger, Reconciled, Transfer, Share
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1742,7 +1831,7 @@ private fun RmModernDetailView(
                             ),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp)
+                                .height(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
@@ -1771,7 +1860,7 @@ private fun RmModernDetailView(
                             border = BorderStroke(1.dp, SolidIncome.copy(alpha = 0.45f)),
                             modifier = Modifier
                                 .weight(1.05f)
-                                .height(38.dp)
+                                .height(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Verified,
@@ -1801,7 +1890,7 @@ private fun RmModernDetailView(
                             ),
                             modifier = Modifier
                                 .weight(1.05f)
-                                .height(38.dp)
+                                .height(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.SwapHoriz,
@@ -1821,7 +1910,7 @@ private fun RmModernDetailView(
                         // Share / Statement
                         IconButton(
                             onClick = onShareStatement,
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Share,
@@ -2380,7 +2469,7 @@ private fun RmEntityReconcileBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var amountInput by remember { mutableStateOf("") }
-    val parsedAmount = amountInput.toDoubleOrNull() ?: 0.0
+    val parsedAmount = abs(amountInput.trim().replace(",", "").toDoubleOrNull() ?: 0.0)
     val diff = parsedAmount - currentOutstandingLiability
 
     ModalBottomSheet(
