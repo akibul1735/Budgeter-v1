@@ -79,8 +79,14 @@ object RmManagerHelper {
 
     /**
      * Extract tags/labels from transaction note, reference, or payee.
+     * When fallbackToPayeeOrNote is false (default), only explicit hashtags (#tag) are extracted.
+     * When fallbackToPayeeOrNote is true (used for transactions strictly inside excluded accounts like RM Others),
+     * payee or note is used as fallback to identify the person/label.
      */
-    fun extractLabelsFromTransaction(item: TransactionWithDetails): List<String> {
+    fun extractLabelsFromTransaction(
+        item: TransactionWithDetails,
+        fallbackToPayeeOrNote: Boolean = false
+    ): List<String> {
         val tx = item.transaction
         val note = tx.note.trim()
         val ref = tx.referenceNo.trim()
@@ -98,20 +104,21 @@ object RmManagerHelper {
             }
         }
 
-        // 2. If no hashtag found, use payee if present
-        if (labels.isEmpty() && payee.isNotBlank()) {
-            val cleanPayee = payee.replace(Regex("""(?i)\b(Debit|Credit|Dr|Cr)\b"""), "").trim()
-            if (cleanPayee.isNotBlank()) {
-                labels.add(cleanPayee)
+        // 2. Only fallback to payee or note when explicitly requested (e.g. within RM Others account)
+        if (fallbackToPayeeOrNote && labels.isEmpty()) {
+            if (payee.isNotBlank()) {
+                val cleanPayee = payee.replace(Regex("""(?i)\b(Debit|Credit|Dr|Cr)\b"""), "").trim()
+                if (cleanPayee.isNotBlank()) {
+                    labels.add(cleanPayee)
+                }
             }
-        }
 
-        // 3. If still empty and note is short, use note
-        if (labels.isEmpty() && note.isNotBlank()) {
-            val cleanNote = note.lines().firstOrNull()?.trim() ?: ""
-            val strippedNote = cleanNote.replace(Regex("""(?i)\b(Debit|Credit|Dr|Cr)\b"""), "").trim()
-            if (strippedNote.length in 1..30 && !strippedNote.startsWith("http")) {
-                labels.add(strippedNote.removePrefix("#"))
+            if (labels.isEmpty() && note.isNotBlank()) {
+                val cleanNote = note.lines().firstOrNull()?.trim() ?: ""
+                val strippedNote = cleanNote.replace(Regex("""(?i)\b(Debit|Credit|Dr|Cr)\b"""), "").trim()
+                if (strippedNote.length in 1..30 && !strippedNote.startsWith("http")) {
+                    labels.add(strippedNote.removePrefix("#"))
+                }
             }
         }
 
@@ -361,10 +368,9 @@ object RmManagerHelper {
             val isFromRmAcc = (tx.debitAccountId != null && tx.debitAccountId in rmAccountIds) ||
                     (tx.creditAccountId != null && tx.creditAccountId in rmAccountIds)
 
-            val labels = extractLabelsFromTransaction(item)
-
             if (isFromExcludedAcc) {
-                // If it belongs to an excluded account (e.g. RM Others), assign to extracted labels or default
+                // If it belongs to an excluded account (e.g. RM Others), extract person labels or fallback to payee/note
+                val labels = extractLabelsFromTransaction(item, fallbackToPayeeOrNote = true)
                 if (labels.isNotEmpty()) {
                     for (lbl in labels) {
                         labelTransactionsMap.getOrPut(lbl) { mutableListOf() }.add(item)
@@ -375,9 +381,13 @@ object RmManagerHelper {
                     }
                     labelTransactionsMap.getOrPut(defaultLabel) { mutableListOf() }.add(item)
                 }
-            } else if (!isFromRmAcc && labels.isNotEmpty()) {
-                // Standalone labeled transactions not attached to included RM accounts
-                for (lbl in labels) {
+            } else if (!isFromRmAcc) {
+                // Standalone transactions outside RM accounts are ONLY included if explicitly tagged with #RM or #RestingMoney
+                val explicitHashtags = extractLabelsFromTransaction(item, fallbackToPayeeOrNote = false)
+                val rmExplicitTags = explicitHashtags.filter { tag ->
+                    isNameMatching(tag, includeKeyword) || tag.equals("RestingMoney", ignoreCase = true) || tag.startsWith("RM_", ignoreCase = true)
+                }
+                for (lbl in rmExplicitTags) {
                     labelTransactionsMap.getOrPut(lbl) { mutableListOf() }.add(item)
                 }
             }

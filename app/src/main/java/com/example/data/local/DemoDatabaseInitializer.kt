@@ -186,6 +186,28 @@ object DemoDatabaseInitializer {
                 colorHex = "#F59E0B"
             )
         )
+        val rmParashId = accountDao.insertAccount(
+            Account(
+                nameEn = "Rm Parash",
+                nameBn = "আরএম পরাশ",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 25000.0,
+                iconName = "Handshake",
+                colorHex = "#8B5CF6"
+            )
+        )
+        val rmOthersId = accountDao.insertAccount(
+            Account(
+                nameEn = "RM Others",
+                nameBn = "আরএম অন্যান্য",
+                type = AccountType.LIABILITY,
+                parentId = loanParentId,
+                initialBalance = 0.0,
+                iconName = "Groups",
+                colorHex = "#EC4899"
+            )
+        )
 
         // 3. Seed Income Categories & Sub-Categories
         val catSalaryId = categoryDao.insertCategory(
@@ -968,6 +990,58 @@ object DemoDatabaseInitializer {
                 note = "Monthly dry bazar, rice and spices #groceries #bazar",
                 payeeOrPayer = "Mina Bazar / মীনা বাজার",
                 status = TransactionStatus.CLEARED
+            ),
+
+            // --- Resting Money (RM) Transactions ---
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 10000.0,
+                dateEpochMs = now - (dayMs * 7),
+                debitAccountId = rmParashId,
+                creditAccountId = bankSalaryId,
+                note = "Repaid partial borrowing to Parash #repay",
+                payeeOrPayer = "Rm Parash",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 12000.0,
+                dateEpochMs = now - (dayMs * 18),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Borrowed for emergency medical #Sakib",
+                payeeOrPayer = "Sakib",
+                status = TransactionStatus.CLEARED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 4000.0,
+                dateEpochMs = now - (dayMs * 8),
+                debitAccountId = rmOthersId,
+                creditAccountId = bkashId,
+                note = "Partial repayment via bKash #Sakib",
+                payeeOrPayer = "Sakib",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.INCOME,
+                amount = 8000.0,
+                dateEpochMs = now - (dayMs * 25),
+                debitAccountId = rmOthersId,
+                creditAccountId = null,
+                note = "Temporary short term borrowing #Rafi",
+                payeeOrPayer = "Rafi",
+                status = TransactionStatus.RECONCILED
+            ),
+            Transaction(
+                type = TransactionType.TRANSFER,
+                amount = 8000.0,
+                dateEpochMs = now - (dayMs * 10),
+                debitAccountId = rmOthersId,
+                creditAccountId = bankSalaryId,
+                note = "Full repayment settled #Rafi",
+                payeeOrPayer = "Rafi",
+                status = TransactionStatus.RECONCILED
             )
         )
 
