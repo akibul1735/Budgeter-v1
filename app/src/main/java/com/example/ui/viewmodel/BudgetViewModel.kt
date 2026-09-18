@@ -394,6 +394,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         _activeRepository.value = newRepo
         viewModelScope.launch {
             newRepo.ensureOthersGroupIntegrity()
+            newRepo.syncCategoryIcons()
         }
     }
 

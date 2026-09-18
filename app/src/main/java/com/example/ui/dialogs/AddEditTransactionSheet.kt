@@ -133,8 +133,10 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -220,6 +222,8 @@ fun AddEditTransactionSheet(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val nameFocusRequester = remember { FocusRequester() }
+    val amountFocusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
     val txPrefs = remember { TransactionPreferences.getInstance(context) }
     val txConfig by txPrefs.config.collectAsStateWithLifecycle()
     val autofillPrefs = remember { AutofillPreferences.getInstance(context) }
@@ -842,6 +846,15 @@ fun AddEditTransactionSheet(
         if (latestMatch != null) {
             applyAutofillFromTransaction(latestMatch)
         }
+
+        coroutineScope.launch {
+            kotlinx.coroutines.delay(60)
+            try {
+                amountFocusRequester.requestFocus()
+                keyboardController?.show()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     val executeSave: () -> Unit = {
@@ -1390,10 +1403,22 @@ fun AddEditTransactionSheet(
                                 }
                                 .testTag("tx_payee_input"),
                             keyboardOptions = KeyboardOptions(
-                                imeAction = ImeAction.Done
+                                imeAction = ImeAction.Next
                             ),
                             keyboardActions = KeyboardActions(
-                                onDone = { focusManager.clearFocus() }
+                                onNext = {
+                                    showNameDropdown = false
+                                    try {
+                                        amountFocusRequester.requestFocus()
+                                        keyboardController?.show()
+                                    } catch (_: Exception) {
+                                        focusManager.clearFocus()
+                                    }
+                                },
+                                onDone = {
+                                    showNameDropdown = false
+                                    focusManager.clearFocus()
+                                }
                             ),
                             placeholder = {
                                 Text(
@@ -1830,6 +1855,7 @@ fun AddEditTransactionSheet(
                                     singleLine = true,
                                     modifier = Modifier
                                         .weight(1f)
+                                        .focusRequester(amountFocusRequester)
                                         .testTag("tx_amount_input")
                                         .onFocusChanged { focusState ->
                                             if (focusState.isFocused && amountTextFieldValue.text.isNotEmpty()) {

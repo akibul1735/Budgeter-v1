@@ -48,6 +48,10 @@ object IconHelper {
         "Transport",
         "Bills & Housing",
         "Health",
+        "Education & Study",
+        "Islamic & Charity",
+        "Celebrations & Social",
+        "Repairs & Maintenance",
         "Life & Work",
         "Entertainment",
         "Sports",
@@ -662,6 +666,84 @@ object IconHelper {
         IconItem("Share", "Symbols", listOf("share with friends", "export link", "share"), false),
         IconItem("Brush", "Symbols", listOf("paint", "decor", "drawing", "brush"), false),
         IconItem("Palette", "Symbols", listOf("colors", "theme", "art", "palette"), false),
+
+        // Education & Study
+        IconItem("School", "Education & Study", listOf("students", "study", "exam travel", "study essentials", "school", "college", "university", "আবেদন ফি", "ছাত্র", "শিক্ষার্থী"), false),
+        IconItem("AutoStories", "Education & Study", listOf("books", "story", "teaching materials", "reading", "বই", "শিক্ষা"), false),
+        IconItem("MenuBook", "Education & Study", listOf("books", "study", "cookbook", "syllabus", "বই"), true),
+        IconItem("Class", "Education & Study", listOf("classroom", "lecture", "course", "ক্লাস"), false),
+        IconItem("CastForEducation", "Education & Study", listOf("online class", "study", "learning", "ই-লার্নিং"), false),
+        IconItem("HistoryEdu", "Education & Study", listOf("certificate", "study", "degree", "শিক্ষা"), false),
+        IconItem("Draw", "Education & Study", listOf("drawing", "study essentials", "art", "আঁকা"), false),
+        IconItem("Create", "Education & Study", listOf("write", "study essentials", "draft", "লেখা"), false),
+        IconItem("Edit", "Education & Study", listOf("pencil", "study essentials", "notes", "নোট"), false),
+        IconItem("DriveFileRenameOutline", "Education & Study", listOf("pen", "study essentials", "signature", "কলম"), false),
+        IconItem("Assignment", "Education & Study", listOf("application fees", "exam", "assignment", "homework", "আবেদন"), true),
+        IconItem("FactCheck", "Education & Study", listOf("test", "medical test", "exam", "verification", "পরীক্ষা"), true),
+
+        // Islamic & Charity
+        IconItem("VolunteerActivism", "Islamic & Charity", listOf("charity", "zakat", "mosque donation", "salami", "others (charity)", "imam's remuneration", "দান", "যাকাত", "মসজিদ", "অনুদান", "সালামি"), false),
+        IconItem("CardGiftcard", "Islamic & Charity", listOf("gifts & presents", "salami", "presents", "উপহার", "সালামি"), false),
+        IconItem("Pets", "Islamic & Charity", listOf("qurbani", "sacrificial animal", "গরু", "খাসি", "কুরবানি", "কোরবানি"), false),
+        IconItem("Handshake", "Islamic & Charity", listOf("loan repayment", "parental debt", "deal", "ঋণ", "কর্জ"), false),
+
+        // Celebrations & Social
+        IconItem("Cake", "Celebrations & Social", listOf("birthday", "party", "home snacks & sweets", "sweets", "জন্মদিন", "মিষ্টি"), false),
+        IconItem("Celebration", "Celebrations & Social", listOf("celebrations", "farewell ceremony", "party", "eid", "fest", "অনুষ্ঠান", "বিদায়"), false),
+        IconItem("Festival", "Celebrations & Social", listOf("festival", "celebrations", "fair", "উৎসব"), false),
+        IconItem("Attractions", "Celebrations & Social", listOf("picnic", "fair", "amusement", "পিকনিক"), false),
+        IconItem("Park", "Celebrations & Social", listOf("picnic", "park", "garden", "nature", "বনভোজন", "পিকনিক"), false),
+        IconItem("Groups", "Celebrations & Social", listOf("farewell ceremony", "others (social)", "others (friends)", "meeting", "বন্ধু", "আড্ডা", "সামাজিক"), false),
+        IconItem("Diversity1", "Celebrations & Social", listOf("mkt expenses (visits)", "visit treats", "family visit", "দেখা করা", "সাক্ষাৎ"), false),
+        IconItem("Diversity2", "Celebrations & Social", listOf("others (friends)", "social gathering", "friends", "বন্ধু"), false),
+        IconItem("VolumeUp", "Celebrations & Social", listOf("mahfil", "waz", "speaker", "announcement", "মাহফিল", "ওয়াজ"), true),
+        IconItem("EmojiEmotions", "Celebrations & Social", listOf("visit treats", "happiness", "joy", "আনন্দ"), false),
+
+        // Repairs & Maintenance
+        IconItem("Build", "Repairs & Maintenance", listOf("others (repairs)", "household items (m&r)", "maintenance", "tool", "মেরামত"), false),
+        IconItem("Handyman", "Repairs & Maintenance", listOf("shoe repair", "household items (m&r)", "repairman", "মিস্ত্রি", "জুতা মেরামত"), false),
+        IconItem("Hardware", "Repairs & Maintenance", listOf("hardware", "tools", "screws", "যন্ত্রপাতি"), false),
+        IconItem("Construction", "Repairs & Maintenance", listOf("repairs", "construction", "building", "সংস্কার"), false),
+        IconItem("PhoneAndroid", "Repairs & Maintenance", listOf("mobile (m&r)", "mobile recharge", "smartphone", "মোবাইল মেরামত", "রিচার্জ"), false),
+        IconItem("TwoWheeler", "Repairs & Maintenance", listOf("motorcycle (m&r)", "bike", "motorcycle", "মোটরসাইকেল", "বাইক"), false),
+        IconItem("Motorcycle", "Repairs & Maintenance", listOf("motorcycle (m&r)", "bike repair", "বাইক মেরামত"), false),
+        IconItem("Watch", "Repairs & Maintenance", listOf("watch (m&r)", "wrist watch", "clock", "ঘড়ি মেরামত"), false),
+        IconItem("TireRepair", "Repairs & Maintenance", listOf("puncture", "tire repair", "motorcycle (m&r)", "টায়ার"), false),
+        IconItem("CarRepair", "Repairs & Maintenance", listOf("vehicle repair", "servicing", "গাড়ি মেরামত"), false),
+        IconItem("Plumbing", "Repairs & Maintenance", listOf("plumbing", "pipe repair", "water repair", "প্লাম্বিং"), false),
+        IconItem("ElectricalServices", "Repairs & Maintenance", listOf("electrician", "wiring", "electrical repair", "ইলেকট্রিক"), false),
+
+        // Personal Care & Lifestyle
+        IconItem("ContentCut", "Shopping", listOf("hair cuts", "tailoring", "barber", "scissors", "salon", "চুল কাটা", "টেইলারিং", "দর্জি"), false),
+        IconItem("CleanHands", "Health", listOf("care essentials", "toiletries", "hygiene", "পরিচ্ছন্নতা", "হাত ধোয়া"), false),
+        IconItem("Sanitizer", "Health", listOf("care essentials", "toiletries", "sanitizer", "জীবাণুনাশক"), false),
+        IconItem("Soap", "Bills & Housing", listOf("toiletries", "care essentials", "soap", "bath", "সাবান"), false),
+        IconItem("Spa", "Health", listOf("skincare", "lifestyle maintenance", "others (care)", "wellness", "ত্বকের যত্ন", "স্পা"), false),
+        IconItem("AutoFixHigh", "Health", listOf("skincare", "beauty", "cosmetics", "গ্লো"), false),
+        IconItem("LocalHospital", "Health", listOf("doctor fees", "patient visit", "hospital", "clinic", "ডাক্তার ফি", "রোগী দেখা"), false),
+        IconItem("Biotech", "Health", listOf("medical test", "lab test", "pathology", "রক্ত পরীক্ষা"), false),
+        IconItem("Medication", "Health", listOf("medicine", "medicines & pharmacy", "drugs", "ওষুধ", "ঔষধ"), false),
+        IconItem("Science", "Health", listOf("medical test", "research", "lab", "বিজ্ঞান"), false),
+        IconItem("MonitorHeart", "Health", listOf("medical test", "heart", "ecg", "হৃদযন্ত্র"), false),
+        IconItem("Favorite", "Health", listOf("sexual wellness", "heart", "care", "wellness", "ভালোবাসা"), false),
+
+        // Tech, Gadgets & Subscriptions
+        IconItem("Subscriptions", "Finance", listOf("apps & subscriptions", "apps subscriptions", "netflix", "youtube", "সাবস্ক্রিপশন"), false),
+        IconItem("Devices", "Tech & Tools", listOf("devices & gadgets", "electronics", "gadgets", "যন্ত্রপাতি", "গ্যাজেট"), false),
+        IconItem("Sms", "Finance", listOf("sms charges (bank)", "bank sms", "text message", "মেসেজ চার্জ"), false),
+        IconItem("SwapHoriz", "Finance", listOf("transfer charges", "fund transfer", "send money", "ট্রান্সফার চার্জ"), false),
+        IconItem("MoneyOff", "Finance", listOf("bad debt exp", "debt loss", "waived", "মন্দ ঋণ", "অনাদায়ী"), false),
+        IconItem("FamilyRestroom", "Life & Work", listOf("parental debt", "family", "parents", "পিতামাতা", "পরিবার"), false),
+
+        // Market & Groceries
+        IconItem("LocalGroceryStore", "Food & Drinks", listOf("fixed mkt exp", "groceries", "others (market)", "raw bazar", "কাঁচাবাজার", "মুদি"), false),
+        IconItem("Eco", "Food & Drinks", listOf("fruits", "fresh organic", "nature", "ফলমূল", "ফল"), false),
+        IconItem("CleaningServices", "Bills & Housing", listOf("clean bill", "cleaning", "housekeeping", "পরিষ্কার"), false),
+        IconItem("GasMeter", "Bills & Housing", listOf("gas bill", "titas gas", "cylinder", "গ্যাস বিল"), false),
+        IconItem("Propane", "Bills & Housing", listOf("gas cylinder", "lpg", "gas bill", "সিলিন্ডার"), false),
+        IconItem("ElectricBolt", "Bills & Housing", listOf("electricity", "power bill", "current", "বিদ্যুৎ বিল"), false),
+        IconItem("Wifi", "Bills & Housing", listOf("wifi bill", "broadband", "internet", "ওয়াইফাই বিল"), false),
+        IconItem("Router", "Bills & Housing", listOf("wifi bill", "router", "modem", "রাউটার"), false),
     )
 
     /**
@@ -1224,11 +1306,145 @@ object IconHelper {
             "Share" -> Icons.Default.Share
             "Brush" -> Icons.Default.Brush
             "Palette" -> Icons.Default.Palette
+            "School" -> Icons.Default.School
+            "ContentCut" -> Icons.Default.ContentCut
+            "VolunteerActivism" -> Icons.Default.VolunteerActivism
+            "Sms" -> Icons.Default.Sms
+            "SwapHoriz" -> Icons.Default.SwapHoriz
+            "Weekend" -> Icons.Default.Weekend
+            "Apps" -> Icons.Default.Apps
+            "Handshake" -> Icons.Default.Handshake
+            "CleanHands" -> Icons.Default.CleanHands
+            "Sanitizer" -> Icons.Default.Sanitizer
+            "GasMeter" -> Icons.Default.GasMeter
+            "Propane" -> Icons.Default.Propane
+            "FamilyRestroom" -> Icons.Default.FamilyRestroom
+            "CleaningServices" -> Icons.Default.CleaningServices
             "BankBkash", "BankBkashAlt", "BankNagad", "BankNagadAlt", "BankRocket", "BankRocketAlt",
             "BankUpay", "BankUpayAlt", "BankCellfin", "BankCellfinAlt" -> Icons.Default.Payments
             "BankDBBL", "BankDBBLAlt", "BankIBBL", "BankIBBLAlt", "BankBRAC", "BankAstha",
             "BankCity", "BankCitytouch", "BankSonali", "BankSonaliSheba", "BankEBL", "BankSkybanking" -> Icons.Default.AccountBalance
             else -> Icons.Default.Category
+        }
+    }
+
+    /**
+     * Intelligently suggests an icon name based on category/subcategory title keywords in English or Bengali.
+     */
+    fun suggestIconForName(name: String?): String {
+        if (name.isNullOrBlank()) return "Category"
+        val clean = name.trim().lowercase()
+
+        return when {
+            // Apps & Subscriptions
+            clean.contains("app") || clean.contains("subscription") || clean.contains("সাবস্ক্রিপশন") -> "Subscriptions"
+            // Devices & Gadgets
+            clean.contains("device") || clean.contains("gadget") || clean.contains("গ্যাজেট") || clean.contains("ইলেকট্রনিক্স") -> "Devices"
+            // Booster Foods / Energy / Gym snacks
+            clean.contains("booster") || clean.contains("energy") || clean.contains("পুষ্টি") -> "ElectricBolt"
+            // Hair Cuts / Grooming
+            clean.contains("hair") || clean.contains("cut") || clean.contains("বার্বার") || clean.contains("চুল") || clean.contains("সেলুন") -> "ContentCut"
+            // Skincare / Beauty
+            clean.contains("skin") || clean.contains("skincare") || clean.contains("স্কিন") || clean.contains("ত্বক") || clean.contains("সৌন্দর্য") -> "Spa"
+            // Care Essentials / Care / Hygiene
+            clean.contains("care essential") || clean.contains("যত্ন") -> "CleanHands"
+            clean.contains("care") || clean.contains("লাইফস্টাইল") -> "Spa"
+            // Bad Debt Exp
+            clean.contains("bad debt") || clean.contains("মন্দ ঋণ") || clean.contains("অনাদায়ী") || clean.contains("ক্ষতি") -> "MoneyOff"
+            // Loan Repayment
+            clean.contains("loan") || clean.contains("repayment") || clean.contains("ঋণ পরিশোধ") || clean.contains("কর্জ") -> "Handshake"
+            // Parental debt
+            clean.contains("parent") || clean.contains("পিতামাতা") || clean.contains("বাবার ঋণ") || clean.contains("মায়ের ঋণ") -> "FamilyRestroom"
+            // Cash Given
+            clean.contains("cash given") || clean.contains("নগদ প্রদান") || clean.contains("টাকা দেওয়া") || clean.contains("নগদ দান") -> "Payments"
+            // Street Foods
+            clean.contains("street") || clean.contains("ফুচকা") || clean.contains("চটপটি") || clean.contains("স্ট্রিট ফুড") -> "Fastfood"
+            // Training Snacks
+            clean.contains("training") || clean.contains("workout") || clean.contains("ব্যায়াম") || clean.contains("জিম") -> "FitnessCenter"
+            // Dining Out / Restaurant
+            clean.contains("dining") || clean.contains("restaurant") || clean.contains("রেস্তোরাঁ") || clean.contains("হোটেল") || clean.contains("খাবার") -> "DinnerDining"
+            // Friends
+            clean.contains("friend") || clean.contains("বন্ধু") || clean.contains("আড্ডা") -> "Diversity2"
+            // Doctor Fees
+            clean.contains("doctor") || clean.contains("fees") || clean.contains("ডাক্তার") || clean.contains("ফি") -> "LocalHospital"
+            // Medical Test
+            clean.contains("medical test") || clean.contains("test") || clean.contains("ল্যাব") || clean.contains("পরীক্ষা") -> "Biotech"
+            // Medicine
+            clean.contains("med") || clean.contains("medicine") || clean.contains("ওষুধ") || clean.contains("ঔষধ") || clean.contains("ফার্মেসি") -> "Medication"
+            // Sexual Wellness
+            clean.contains("sexual") || clean.contains("wellness") || clean.contains("যৌন") -> "Favorite"
+            // Health general
+            clean.contains("health") || clean.contains("স্বাস্থ্য") || clean.contains("চিকিৎসা") -> "MedicalServices"
+            // Furnitures
+            clean.contains("furniture") || clean.contains("ফার্নিচার") || clean.contains("আসবাবপত্র") || clean.contains("চেয়ার") || clean.contains("সোফা") -> "Chair"
+            // Home Decor
+            clean.contains("decor") || clean.contains("সাজসজ্জা") || clean.contains("ঘর সাজানো") -> "Palette"
+            // Household Items
+            clean.contains("household") || clean.contains("গৃহস্থালি") || clean.contains("ঘরকন্না") -> "Kitchen"
+            // Job / Work Expenses
+            clean.contains("job") || clean.contains("work") || clean.contains("অফিস") || clean.contains("চাকরি") || clean.contains("কর্মক্ষেত্র") -> "Work"
+            // Students
+            clean.contains("student") || clean.contains("ছাত্র") || clean.contains("শিক্ষার্থী") -> "School"
+            // Teaching Materials
+            clean.contains("teaching") || clean.contains("শিক্ষা উপকরণ") || clean.contains("পড়ানো") || clean.contains("শিক্ষক") -> "AutoStories"
+            // Repairs & Maintenance
+            clean.contains("shoe repair") || clean.contains("জুতা মেরামত") -> "Handyman"
+            clean.contains("mobile (m&r)") || clean.contains("mobile repair") || clean.contains("মোবাইল মেরামত") -> "PhoneAndroid"
+            clean.contains("motorcycle") || clean.contains("bike") || clean.contains("বাইক") || clean.contains("মোটরসাইকেল") -> "TwoWheeler"
+            clean.contains("watch") || clean.contains("ঘড়ি") -> "Watch"
+            clean.contains("m&r") || clean.contains("repair") || clean.contains("মেরামত") || clean.contains("সার্ভিসিং") -> "Build"
+            // Market / Groceries / Fruits
+            clean.contains("fruit") || clean.contains("ফল") || clean.contains("ফলমূল") -> "Eco"
+            clean.contains("grocer") || clean.contains("মুদি") || clean.contains("চাল") || clean.contains("ডাল") -> "LocalGroceryStore"
+            clean.contains("home snacks") || clean.contains("sweet") || clean.contains("মিষ্টি") || clean.contains("নাস্তা") || clean.contains("স্ন্যাক্স") -> "Cake"
+            clean.contains("toilet") || clean.contains("টয়লেট্রিজ") || clean.contains("সাবান") || clean.contains("শ্যাম্পু") -> "Soap"
+            clean.contains("mkt") || clean.contains("market") || clean.contains("বাজার") || clean.contains("সওদা") -> "ShoppingCart"
+            // Charity & Islamic
+            clean.contains("imam") || clean.contains("ইমাম") || clean.contains("মুয়াজ্জিন") -> "AccountBalance"
+            clean.contains("mosque") || clean.contains("মসজিদ") || clean.contains("মাদ্রাসা") -> "AccountBalance"
+            clean.contains("qurbani") || clean.contains("কোরবানি") || clean.contains("কুরবানি") -> "Pets"
+            clean.contains("zakat") || clean.contains("যাকাত") || clean.contains("জাকাত") -> "VolunteerActivism"
+            clean.contains("charity") || clean.contains("দান") || clean.contains("সদকা") || clean.contains("অনুদান") -> "VolunteerActivism"
+            // Bank Charges
+            clean.contains("cheque") || clean.contains("চেক") -> "ReceiptLong"
+            clean.contains("excise") || clean.contains("শুল্ক") || clean.contains("আবগারি") -> "Gavel"
+            clean.contains("sms") || clean.contains("মেসেজ") -> "Sms"
+            clean.contains("transfer charge") || clean.contains("ট্রান্সফার") -> "SwapHoriz"
+            clean.contains("vat") || clean.contains("ভ্যাট") || clean.contains("tax") || clean.contains("ট্যাক্স") -> "Percent"
+            clean.contains("bank charge") || clean.contains("চার্জ") || clean.contains("ফি") -> "Receipt"
+            // Celebrations & Social
+            clean.contains("birthday") || clean.contains("জন্মদিন") -> "Cake"
+            clean.contains("farewell") || clean.contains("বিদায়") -> "Groups"
+            clean.contains("gift") || clean.contains("present") || clean.contains("উপহার") -> "CardGiftcard"
+            clean.contains("mahfil") || clean.contains("মাহফিল") || clean.contains("ওয়াজ") -> "VolumeUp"
+            clean.contains("patient visit") || clean.contains("রোগী দেখা") -> "LocalHospital"
+            clean.contains("visit") || clean.contains("দেখা করা") || clean.contains("সাক্ষাৎ") -> "Diversity1"
+            clean.contains("picnic") || clean.contains("পিকনিক") || clean.contains("বনভোজন") -> "Park"
+            clean.contains("salami") || clean.contains("সালামি") || clean.contains("ঈদি") -> "Paid"
+            clean.contains("treat") || clean.contains("ট্রিট") -> "LocalCafe"
+            clean.contains("celebrat") || clean.contains("উৎসব") || clean.contains("অনুষ্ঠান") -> "Celebration"
+            clean.contains("social") || clean.contains("সামাজিক") -> "People"
+            // Study & Books
+            clean.contains("application fee") || clean.contains("ভর্তি") || clean.contains("আবেদন") -> "Assignment"
+            clean.contains("book") || clean.contains("বই") -> "AutoStories"
+            clean.contains("study") || clean.contains("পড়াশোনা") || clean.contains("লেখাপড়া") -> "School"
+            // Travel & Transport
+            clean.contains("fuel") || clean.contains("জ্বালানি") || clean.contains("তেল") || clean.contains("পেট্রোল") || clean.contains("অকটেন") || clean.contains("সিএনজি") -> "LocalGasStation"
+            clean.contains("tour") || clean.contains("ভ্রমণ") || clean.contains("ট্যুর") || clean.contains("ছুটি") -> "FlightTakeoff"
+            clean.contains("travel") || clean.contains("যাতায়াত") || clean.contains("সফর") || clean.contains("ভাড়া") -> "Commute"
+            clean.contains("transport") || clean.contains("পরিবহন") || clean.contains("বাস") || clean.contains("গাড়ি") -> "DirectionsCar"
+            // Utilities & Bills
+            clean.contains("clean bill") || clean.contains("পরিষ্কার") || clean.contains("ঝাড়ু") -> "CleaningServices"
+            clean.contains("electric") || clean.contains("বিদ্যুৎ") || clean.contains("কারেন্ট") -> "ElectricBolt"
+            clean.contains("gas") || clean.contains("গ্যাস") -> "GasMeter"
+            clean.contains("recharge") || clean.contains("রিচার্জ") -> "PhoneAndroid"
+            clean.contains("wifi") || clean.contains("ওয়াইফাই") || clean.contains("ইন্টারনেট") -> "Wifi"
+            clean.contains("utilit") || clean.contains("ইউটিলিটি") || clean.contains("বিল") -> "Power"
+            // Wearables & Clothes
+            clean.contains("cloth") || clean.contains("পোশাক") || clean.contains("কাপড়") || clean.contains("জামা") -> "Checkroom"
+            clean.contains("tailor") || clean.contains("দর্জি") || clean.contains("টেইলার") -> "ContentCut"
+            clean.contains("wearable") || clean.contains("style") || clean.contains("ফ্যাশন") -> "Style"
+            else -> "Category"
         }
     }
 

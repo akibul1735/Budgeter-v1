@@ -947,6 +947,19 @@ class BudgetRepository(
                 transactionDao = transactionDao
             )
         }
+        syncCategoryIcons()
+    }
+
+    suspend fun syncCategoryIcons() {
+        try {
+            val categories = categoryDao.getAllCategoriesSnapshot()
+            for (category in categories) {
+                val suggestedIcon = com.example.util.IconHelper.suggestIconForName(category.nameEn)
+                if (suggestedIcon != "Category" && (category.iconName == "Category" || category.iconName.isBlank() || category.iconName == "MoreHoriz" || category.iconName != suggestedIcon)) {
+                    categoryDao.updateCategory(category.copy(iconName = suggestedIcon))
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     suspend fun deleteAllAccounts() {

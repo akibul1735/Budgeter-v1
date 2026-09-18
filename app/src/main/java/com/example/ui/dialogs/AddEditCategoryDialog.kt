@@ -107,6 +107,7 @@ fun AddEditCategoryDialog(
         )
     }
     var showIconPicker by remember { mutableStateOf(false) }
+    var hasUserChangedIcon by remember { mutableStateOf(existingCategory != null) }
     var parentDropdownExpanded by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
@@ -386,7 +387,15 @@ fun AddEditCategoryDialog(
                 // Name English
                 OutlinedTextField(
                     value = nameEn,
-                    onValueChange = { nameEn = it },
+                    onValueChange = {
+                        nameEn = it
+                        if (!hasUserChangedIcon) {
+                            val suggested = IconHelper.suggestIconForName(it.ifBlank { nameBn })
+                            if (suggested != "Category") {
+                                iconName = suggested
+                            }
+                        }
+                    },
                     label = { Text(LanguageHelper.getString("name_en", languageMode)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -398,7 +407,15 @@ fun AddEditCategoryDialog(
                 // Name Bangla
                 OutlinedTextField(
                     value = nameBn,
-                    onValueChange = { nameBn = it },
+                    onValueChange = {
+                        nameBn = it
+                        if (!hasUserChangedIcon) {
+                            val suggested = IconHelper.suggestIconForName(it.ifBlank { nameEn })
+                            if (suggested != "Category") {
+                                iconName = suggested
+                            }
+                        }
+                    },
                     label = { Text(LanguageHelper.getString("name_bn", languageMode)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -479,6 +496,7 @@ fun AddEditCategoryDialog(
             selectedIconName = iconName,
             onIconSelected = { selected ->
                 iconName = selected
+                hasUserChangedIcon = true
                 showIconPicker = false
             },
             onDismiss = { showIconPicker = false }
