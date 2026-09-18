@@ -75,16 +75,22 @@ object RmManagerHelper {
         excludeKeyword: String = "RM Others"
     ): Boolean {
         if (excludeKeyword.isBlank()) return false
-        return isNameMatching(account.nameEn, excludeKeyword) ||
-                isNameMatching(account.nameBn, excludeKeyword) ||
-                (excludeKeyword.equals("RM Others", ignoreCase = true) && (isNameMatching(account.nameEn, "RM Others") || isNameMatching(account.nameBn, "আরএম অন্যান্য")))
+        val nameEn = account.nameEn.trim()
+        val nameBn = account.nameBn.trim()
+        return isNameMatching(nameEn, excludeKeyword) ||
+                isNameMatching(nameBn, excludeKeyword) ||
+                (excludeKeyword.equals("RM Others", ignoreCase = true) && (
+                    nameEn.contains("RM Others", ignoreCase = true) ||
+                    (nameEn.contains("Others", ignoreCase = true) && isRmName(nameEn)) ||
+                    nameBn.contains("আরএম অন্যান্য", ignoreCase = true) ||
+                    (nameBn.contains("অন্যান্য", ignoreCase = true) && isRmName(nameBn))
+                ))
     }
 
     /**
-     * Extract tags/labels from transaction note, reference, or payee.
-     * When fallbackToPayeeOrNote is false (default), only explicit hashtags (#tag) are extracted.
-     * When fallbackToPayeeOrNote is true (used for transactions strictly inside excluded accounts like RM Others),
-     * payee or note is used as fallback to identify the person/label.
+     * Extract tags/labels from transaction referenceNo (label tag), note, or payee.
+     * When fallbackToPayeeOrNote is false (default), explicit labels in referenceNo or hashtags (#tag) are extracted.
+     * When fallbackToPayeeOrNote is true, payee or note is used as fallback.
      */
     fun extractLabelsFromTransaction(
         item: TransactionWithDetails,
@@ -97,9 +103,22 @@ object RmManagerHelper {
 
         val labels = mutableSetOf<String>()
 
-        // 1. Extract hashtags (#tag)
+        // 1. Extract from referenceNo (which is the direct Label/Tag field in this app)
+        if (ref.isNotBlank()) {
+            val parts = ref.split(Regex("[,;]")).map { it.trim().removePrefix("#").trim() }.filter { it.isNotBlank() }
+            for (p in parts) {
+                val hashtagMatches = Regex("#[\\w\\u0980-\\u09FF]+").findAll(p).map { it.value.removePrefix("#").trim() }.toList()
+                if (hashtagMatches.isNotEmpty()) {
+                    labels.addAll(hashtagMatches)
+                } else {
+                    labels.add(p)
+                }
+            }
+        }
+
+        // 2. Extract hashtags (#tag) from note and payee
         val hashtagRegex = Regex("#[\\w\\u0980-\\u09FF]+")
-        val matches = hashtagRegex.findAll("$note $ref $payee")
+        val matches = hashtagRegex.findAll("$note $payee")
         for (m in matches) {
             val clean = m.value.removePrefix("#").trim()
             if (clean.isNotBlank()) {
@@ -107,7 +126,7 @@ object RmManagerHelper {
             }
         }
 
-        // 2. Only fallback to payee or note when explicitly requested (e.g. within RM Others account)
+        // 3. Only fallback to payee or note when explicitly requested
         if (fallbackToPayeeOrNote && labels.isEmpty()) {
             if (payee.isNotBlank()) {
                 val cleanPayee = payee.replace(Regex("""(?i)\b(Debit|Credit|Dr|Cr)\b"""), "").trim()
@@ -283,8 +302,8 @@ object RmManagerHelper {
                 val catName = item.category?.localizedName(languageMode) ?: item.transaction.type.name
                 val isReconciled = tx.status == TransactionStatus.RECONCILED
 
-                if (tx.debitAccountId == acc.id) {
-                    // Debit: Money taken in / Resting Money received (Liability generated)
+                if (tx.creditAccountId == acc.id) {
+                    // Credit on RM Account: Funds taken from RM account (Transfer to Cash or Expense paid) -> Liability created (Debit / Dr in RM Manager)
                     val nameStr = buildTransactionDisplayName(item, isDebit = true, defaultName = accName)
                     val debitItem = RmTransactionItem(
                         transactionWithDetails = item,
@@ -302,8 +321,8 @@ object RmManagerHelper {
                     debitItems.add(debitItem)
                 }
 
-                if (tx.creditAccountId == acc.id) {
-                    // Credit: Repayment / Money paid back (Liability settled)
+                if (tx.debitAccountId == acc.id) {
+                    // Debit on RM Account: Funds returned to RM account (Repayment from Cash or Income deposited) -> Liability settled (Credit / Cr in RM Manager)
                     val nameStr = buildTransactionDisplayName(item, isDebit = false, defaultName = accName)
                     val creditItem = RmTransactionItem(
                         transactionWithDetails = item,
@@ -415,11 +434,12 @@ object RmManagerHelper {
                 val isReconciled = tx.status == TransactionStatus.RECONCILED
 
                 // Check if Debit or Credit for this label:
-                // If from excluded account: debitAccountId == excludedAccount -> Debit (Liability created)
-                // creditAccountId == excludedAccount -> Credit (Liability repaid)
+                // If from excluded account (e.g. RM Others):
+                // - creditAccountId in excludedAccounts: Money transferred FROM RM Others to Cash / Expense paid -> Debit (Liability created / Borrowed)
+                // - debitAccountId in excludedAccounts: Money transferred TO RM Others from Cash / Income deposited -> Credit (Liability settled / Repaid)
                 val isDebit = when {
-                    tx.debitAccountId != null && tx.debitAccountId in excludedAccountIds -> true
-                    tx.creditAccountId != null && tx.creditAccountId in excludedAccountIds -> false
+                    tx.creditAccountId != null && tx.creditAccountId in excludedAccountIds -> true
+                    tx.debitAccountId != null && tx.debitAccountId in excludedAccountIds -> false
                     else -> isTransactionDebitForLabel(item, labelName)
                 }
 
@@ -482,12 +502,19 @@ object RmManagerHelper {
                 languageMode = languageMode
             )
 
+            val associatedExcludedAccount = txList.mapNotNull { item ->
+                val tx = item.transaction
+                if (tx.debitAccountId != null && tx.debitAccountId in excludedAccountIds) allAccounts.firstOrNull { it.id == tx.debitAccountId }
+                else if (tx.creditAccountId != null && tx.creditAccountId in excludedAccountIds) allAccounts.firstOrNull { it.id == tx.creditAccountId }
+                else null
+            }.firstOrNull() ?: excludedAccountsList.firstOrNull()
+
             rmOthersBreakdowns.add(
                 RmEntityBreakdown(
                     id = "label_$labelName",
                     name = labelName,
                     isAccount = false,
-                    account = excludedAccountsList.firstOrNull(),
+                    account = associatedExcludedAccount,
                     totalBorrowed = totalDr,
                     totalRepaid = totalCr,
                     remainingLiability = remainingDue,

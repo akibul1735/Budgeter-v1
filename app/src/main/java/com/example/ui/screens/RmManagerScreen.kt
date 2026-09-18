@@ -1344,16 +1344,69 @@ private fun RmModernEntityCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Action Buttons: "Transfer to Repay" & "Khatian Ledger / Statement"
+            // Action Buttons: From left: Ledger, Reconciled, Transfer
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Transfer Repay Button
+                // 1. Ledger Button (Left)
+                OutlinedButton(
+                    onClick = onClick,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TableChart,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "খতিয়ান" else "Ledger",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // 2. Reconciled Button (Middle, for accounts)
+                if (entity.isAccount) {
+                    OutlinedButton(
+                        onClick = onReconcileClick,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Verified,
+                            contentDescription = null,
+                            tint = SolidIncome,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "মিলকরণ" else "Reconciled",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SolidIncome,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // 3. Transfer Button (Right)
                 Button(
                     onClick = onRepayClick,
                     shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (entity.remainingLiability > 0)
                             MaterialTheme.colorScheme.primary
@@ -1364,53 +1417,22 @@ private fun RmModernEntityCard(
                         else
                             MaterialTheme.colorScheme.onSurfaceVariant
                     ),
-                    modifier = Modifier.weight(1f).height(38.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.SwapHoriz,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
-                        text = LanguageHelper.getString("repay_in_transfer_mode", languageMode),
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                // Reconcile Button (if account)
-                if (entity.isAccount) {
-                    OutlinedButton(
-                        onClick = onReconcileClick,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.height(38.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Verified,
-                            contentDescription = null,
-                            tint = SolidIncome,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                // View Khatian Button
-                OutlinedButton(
-                    onClick = onClick,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.TableChart,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = LanguageHelper.getString("khatian_view", languageMode),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার" else "Transfer",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
