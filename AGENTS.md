@@ -2,8 +2,7 @@
 
 ## GitHub Releases
 - Always configure GitHub workflow to publish new releases with release name **"Budgeter-release"** (never "app-release").
-- Include only the release APK (named `Budgeter-release.apk`) and source code zip archive.
-- Do NOT include debug APK, `.tar`, or `.aab` bundles in GitHub releases.
+- Include only the release APK (named `Budgeter-release.apk`). Do NOT include source code zip archive (GitHub automatically attaches source zips), debug APK, `.tar`, or `.aab` bundles in GitHub releases.
 
 ## App Launcher Icon
 - The launcher icon is the gold circular coin emblem with the Bangladeshi Taka symbol (৳).

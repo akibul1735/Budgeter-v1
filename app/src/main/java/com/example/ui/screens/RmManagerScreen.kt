@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -101,6 +102,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -141,6 +143,7 @@ import com.example.util.RmManagerHelper.RmKhatianRow
 import com.example.util.RmManagerHelper.RmRepaymentStatus
 import com.example.util.RmManagerHelper.RmSortOption
 import com.example.util.RmManagerHelper.RmTransactionItem
+import com.example.util.RmManagerPreferences
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.abs
@@ -169,8 +172,11 @@ fun RmManagerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
 
+    val filterConfig by RmManagerPreferences.getInstance(context).config.collectAsState()
+
     var searchQuery by remember { mutableStateOf("") }
     var isSearchExpanded by remember { mutableStateOf(false) }
+    var isFilterSettingsOpen by remember { mutableStateOf(false) }
     var selectedFilterCategory by remember { mutableStateOf(RmFilterCategory.ALL) }
     var selectedSortOption by remember { mutableStateOf(RmSortOption.HIGHEST_DUE) }
     var isSortMenuExpanded by remember { mutableStateOf(false) }
@@ -189,6 +195,7 @@ fun RmManagerScreen(
         selectedFilterCategory,
         selectedSortOption,
         languageMode,
+        filterConfig,
         refreshTrigger
     ) {
         RmManagerHelper.computeRmManagerData(
@@ -197,7 +204,9 @@ fun RmManagerScreen(
             searchQuery = searchQuery,
             filterCategory = selectedFilterCategory,
             sortOption = selectedSortOption,
-            languageMode = languageMode
+            languageMode = languageMode,
+            includeKeyword = filterConfig.includeKeyword,
+            excludeKeyword = filterConfig.excludeKeyword
         )
     }
 
@@ -379,6 +388,15 @@ fun RmManagerScreen(
                                     }
                                 )
                             }
+                        }
+
+                        // RM Filter Settings Button
+                        IconButton(onClick = { isFilterSettingsOpen = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = LanguageHelper.getString("rm_settings", languageMode).ifEmpty { "Filter Settings" },
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
 
@@ -661,6 +679,26 @@ fun RmManagerScreen(
                     Toast.LENGTH_SHORT
                 ).show()
                 accountToReconcile = null
+            }
+        )
+    }
+
+    // RM Filter Settings Dialog
+    if (isFilterSettingsOpen) {
+        RmFilterSettingsDialog(
+            currentIncludeKeyword = filterConfig.includeKeyword,
+            currentExcludeKeyword = filterConfig.excludeKeyword,
+            languageMode = languageMode,
+            onDismiss = { isFilterSettingsOpen = false },
+            onSave = { include, exclude ->
+                RmManagerPreferences.getInstance(context).saveConfig(include, exclude)
+                isFilterSettingsOpen = false
+                refreshTrigger++
+            },
+            onReset = {
+                RmManagerPreferences.getInstance(context).resetToDefaults()
+                isFilterSettingsOpen = false
+                refreshTrigger++
             }
         )
     }
@@ -2286,4 +2324,127 @@ private fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText("Resting Money Statement", text)
     clipboard.setPrimaryClip(clip)
+}
+
+@Composable
+private fun RmFilterSettingsDialog(
+    currentIncludeKeyword: String,
+    currentExcludeKeyword: String,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit,
+    onReset: () -> Unit
+) {
+    var includeKeyword by remember { mutableStateOf(currentIncludeKeyword) }
+    var excludeKeyword by remember { mutableStateOf(currentExcludeKeyword) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Tune,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = LanguageHelper.getString("rm_filter_settings", languageMode).ifEmpty { "Filter Settings" },
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Include Keyword
+                Column {
+                    Text(
+                        text = LanguageHelper.getString("rm_include_keyword", languageMode).ifEmpty { "Account Filter Keyword" },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = includeKeyword,
+                        onValueChange = { includeKeyword = it },
+                        placeholder = { Text("RM") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = LanguageHelper.getString("rm_include_keyword_desc", languageMode),
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Exclude Keyword
+                Column {
+                    Text(
+                        text = LanguageHelper.getString("rm_exclude_keyword", languageMode).ifEmpty { "Exclude Account Keyword" },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = excludeKeyword,
+                        onValueChange = { excludeKeyword = it },
+                        placeholder = { Text("RM Others") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = LanguageHelper.getString("rm_exclude_keyword_desc", languageMode),
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Reset button
+                TextButton(
+                    onClick = onReset,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        text = LanguageHelper.getString("reset_defaults", languageMode).ifEmpty { "Reset Defaults" },
+                        fontSize = 12.5.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(includeKeyword, excludeKeyword) },
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(
+                    text = LanguageHelper.getString("save", languageMode).ifEmpty { "Save" },
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(LanguageHelper.getString("cancel", languageMode).ifEmpty { "Cancel" })
+            }
+        },
+        shape = RoundedCornerShape(20.dp)
+    )
 }

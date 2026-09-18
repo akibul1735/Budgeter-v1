@@ -28,18 +28,53 @@ object RmManagerHelper {
     private val RM_TOKEN_REGEX = Regex("""(?i)\bRM\b""")
 
     /**
+     * Checks if a name matches a filter keyword (word boundary or substring).
+     */
+    fun isNameMatching(name: String?, keyword: String): Boolean {
+        if (name.isNullOrBlank() || keyword.isBlank()) return false
+        val trimmed = keyword.trim()
+        val regex = if (trimmed.contains(" ") || trimmed.length > 4) {
+            Regex("""(?i)\b${Regex.escape(trimmed)}\b|${Regex.escape(trimmed)}""")
+        } else {
+            Regex("""(?i)\b${Regex.escape(trimmed)}\b""")
+        }
+        return regex.containsMatchIn(name) || name.contains(trimmed, ignoreCase = true)
+    }
+
+    /**
      * Checks if a name contains the standalone word/token "RM".
      */
     fun isRmName(name: String?): Boolean {
         if (name.isNullOrBlank()) return false
-        return RM_TOKEN_REGEX.containsMatchIn(name)
+        return RM_TOKEN_REGEX.containsMatchIn(name) || isNameMatching(name, "RM")
     }
 
     /**
-     * Checks if an account is an RM (Resting Money) account.
+     * Checks if an account is an included RM (Resting Money) account.
      */
-    fun isRmAccount(account: Account): Boolean {
-        return isRmName(account.nameEn) || isRmName(account.nameBn)
+    fun isRmAccount(
+        account: Account,
+        includeKeyword: String = "RM",
+        excludeKeyword: String = "RM Others"
+    ): Boolean {
+        val matchesInclude = isNameMatching(account.nameEn, includeKeyword) || isNameMatching(account.nameBn, includeKeyword)
+        if (!matchesInclude) return false
+        if (excludeKeyword.isNotBlank()) {
+            val matchesExclude = isNameMatching(account.nameEn, excludeKeyword) || isNameMatching(account.nameBn, excludeKeyword)
+            if (matchesExclude) return false
+        }
+        return true
+    }
+
+    /**
+     * Checks if an account matches the exclusion filter (e.g. "RM Others").
+     */
+    fun isExcludedAccount(
+        account: Account,
+        excludeKeyword: String = "RM Others"
+    ): Boolean {
+        if (excludeKeyword.isBlank()) return false
+        return isNameMatching(account.nameEn, excludeKeyword) || isNameMatching(account.nameBn, excludeKeyword)
     }
 
     /**
@@ -65,14 +100,18 @@ object RmManagerHelper {
 
         // 2. If no hashtag found, use payee if present
         if (labels.isEmpty() && payee.isNotBlank()) {
-            labels.add(payee)
+            val cleanPayee = payee.replace(Regex("""(?i)\b(Debit|Credit|Dr|Cr)\b"""), "").trim()
+            if (cleanPayee.isNotBlank()) {
+                labels.add(cleanPayee)
+            }
         }
 
         // 3. If still empty and note is short, use note
         if (labels.isEmpty() && note.isNotBlank()) {
             val cleanNote = note.lines().firstOrNull()?.trim() ?: ""
-            if (cleanNote.length <= 30 && !cleanNote.startsWith("http")) {
-                labels.add(cleanNote)
+            val strippedNote = cleanNote.replace(Regex("""(?i)\b(Debit|Credit|Dr|Cr)\b"""), "").trim()
+            if (strippedNote.length in 1..30 && !strippedNote.startsWith("http")) {
+                labels.add(strippedNote.removePrefix("#"))
             }
         }
 
@@ -193,11 +232,16 @@ object RmManagerHelper {
         searchQuery: String = "",
         filterCategory: RmFilterCategory = RmFilterCategory.ALL,
         sortOption: RmSortOption = RmSortOption.HIGHEST_DUE,
-        languageMode: LanguageMode = LanguageMode.ENGLISH
+        languageMode: LanguageMode = LanguageMode.ENGLISH,
+        includeKeyword: String = "RM",
+        excludeKeyword: String = "RM Others"
     ): RmManagerScreenData {
-        val rmAccountsList = allAccounts.filter { isRmAccount(it) }
+        val rmAccountsList = allAccounts.filter { isRmAccount(it, includeKeyword, excludeKeyword) }
+        val excludedAccountsList = allAccounts.filter { isExcludedAccount(it, excludeKeyword) }
+        val excludedAccountIds = excludedAccountsList.map { it.id }.toSet()
+        val rmAccountIds = rmAccountsList.map { it.id }.toSet()
 
-        // 1. Process RM Accounts
+        // 1. Process Included RM Accounts (e.g., "Rm Parash")
         val rmAccountBreakdowns = mutableListOf<RmEntityBreakdown>()
 
         for (acc in rmAccountsList) {
@@ -304,14 +348,38 @@ object RmManagerHelper {
             )
         }
 
-        // 2. Process RM Others (Grouped by Label)
+        // 2. Process Excluded Accounts (e.g. "RM Others") & Labels (e.g. "Sakib")
+        // Transactions from excluded accounts are split by label so each person/label has their own card.
         val labelTransactionsMap = mutableMapOf<String, MutableList<TransactionWithDetails>>()
 
         for (item in allTransactions) {
-            if (item.transaction.status == TransactionStatus.VOID) continue
+            val tx = item.transaction
+            if (tx.status == TransactionStatus.VOID) continue
+
+            val isFromExcludedAcc = (tx.debitAccountId != null && tx.debitAccountId in excludedAccountIds) ||
+                    (tx.creditAccountId != null && tx.creditAccountId in excludedAccountIds)
+            val isFromRmAcc = (tx.debitAccountId != null && tx.debitAccountId in rmAccountIds) ||
+                    (tx.creditAccountId != null && tx.creditAccountId in rmAccountIds)
+
             val labels = extractLabelsFromTransaction(item)
-            for (lbl in labels) {
-                labelTransactionsMap.getOrPut(lbl) { mutableListOf() }.add(item)
+
+            if (isFromExcludedAcc) {
+                // If it belongs to an excluded account (e.g. RM Others), assign to extracted labels or default
+                if (labels.isNotEmpty()) {
+                    for (lbl in labels) {
+                        labelTransactionsMap.getOrPut(lbl) { mutableListOf() }.add(item)
+                    }
+                } else {
+                    val defaultLabel = tx.payeeOrPayer.ifBlank {
+                        LanguageHelper.getString("rm_others", languageMode).ifEmpty { "RM Others" }
+                    }
+                    labelTransactionsMap.getOrPut(defaultLabel) { mutableListOf() }.add(item)
+                }
+            } else if (!isFromRmAcc && labels.isNotEmpty()) {
+                // Standalone labeled transactions not attached to included RM accounts
+                for (lbl in labels) {
+                    labelTransactionsMap.getOrPut(lbl) { mutableListOf() }.add(item)
+                }
             }
         }
 
@@ -327,8 +395,16 @@ object RmManagerHelper {
                 if (tx.dateEpochMs > latestTimestamp) latestTimestamp = tx.dateEpochMs
                 val dateStr = formatRmDate(tx.dateEpochMs, languageMode)
                 val catName = item.category?.localizedName(languageMode) ?: tx.type.name
-                val isDebit = isTransactionDebitForLabel(item, labelName)
                 val isReconciled = tx.status == TransactionStatus.RECONCILED
+
+                // Check if Debit or Credit for this label:
+                // If from excluded account: debitAccountId == excludedAccount -> Debit (Liability created)
+                // creditAccountId == excludedAccount -> Credit (Liability repaid)
+                val isDebit = when {
+                    tx.debitAccountId != null && tx.debitAccountId in excludedAccountIds -> true
+                    tx.creditAccountId != null && tx.creditAccountId in excludedAccountIds -> false
+                    else -> isTransactionDebitForLabel(item, labelName)
+                }
 
                 if (isDebit) {
                     val displayName = buildTransactionDisplayName(item, isDebit = true, defaultName = labelName)
@@ -394,6 +470,7 @@ object RmManagerHelper {
                     id = "label_$labelName",
                     name = labelName,
                     isAccount = false,
+                    account = excludedAccountsList.firstOrNull(),
                     totalBorrowed = totalDr,
                     totalRepaid = totalCr,
                     remainingLiability = remainingDue,
