@@ -20,9 +20,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -61,6 +62,16 @@ import com.example.ui.theme.SolidPrimary
 import com.example.util.AccountCalcConfig
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import kotlin.math.abs
+
+private data class ExcludedItem(
+    val account: Account,
+    val baseBalance: Double,
+    val calculatedBalance: Double,
+    val isFullyExcluded: Boolean,
+    val isAdjusted: Boolean,
+    val excludedAmount: Double
+)
 
 @Composable
 fun ExcludedAccountsDialog(
@@ -71,6 +82,7 @@ fun ExcludedAccountsDialog(
     onDismiss: () -> Unit,
     onToggleIncludeStatus: (Account, Boolean) -> Unit,
     onAdjustCalculation: ((Account, Double) -> Unit)? = null,
+    onResetAccountCalculation: ((Account) -> Unit)? = null,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -95,19 +107,54 @@ fun ExcludedAccountsDialog(
         }
     }
 
-    // Filter excluded accounts
-    val excludedAccounts = remember(allAccounts, accountCalcConfig, searchQuery) {
+    // Map and filter excluded or adjusted accounts
+    val excludedItems = remember(allAccounts, accountCalcConfig, searchQuery, transactions) {
         allAccounts.filter { acc ->
             val isExcluded = !accountCalcConfig.isIncluded(acc.id)
+            val setting = accountCalcConfig.getSetting(acc.id)
+            val isAdjusted = setting.adjustmentAmount != 0.0
             val matchesSearch = searchQuery.isBlank() ||
                 acc.nameEn.contains(searchQuery, ignoreCase = true) ||
                 acc.nameBn.contains(searchQuery, ignoreCase = true)
-            isExcluded && matchesSearch
+            (isExcluded || isAdjusted) && matchesSearch
+        }.map { acc ->
+            val isExcluded = !accountCalcConfig.isIncluded(acc.id)
+            val setting = accountCalcConfig.getSetting(acc.id)
+            val baseBal = getAccountBalance(acc)
+            val isAdjusted = setting.adjustmentAmount != 0.0
+            val calcBal = if (isExcluded) 0.0 else (baseBal + setting.adjustmentAmount)
+            // Excluded portion: if fully excluded, the entire baseBal is excluded.
+            // If adjusted, the difference between baseBal and calcBal is the excluded/adjusted portion
+            val excludedAmt = if (isExcluded) baseBal else -setting.adjustmentAmount
+            ExcludedItem(
+                account = acc,
+                baseBalance = baseBal,
+                calculatedBalance = calcBal,
+                isFullyExcluded = isExcluded,
+                isAdjusted = isAdjusted,
+                excludedAmount = excludedAmt
+            )
         }
     }
 
     val totalExcludedCount = remember(allAccounts, accountCalcConfig) {
-        allAccounts.count { !accountCalcConfig.isIncluded(it.id) }
+        allAccounts.count { !accountCalcConfig.isIncluded(it.id) || accountCalcConfig.getSetting(it.id).adjustmentAmount != 0.0 }
+    }
+
+    val totalExcludedAmount = remember(allAccounts, accountCalcConfig, transactions) {
+        allAccounts.sumOf { acc ->
+            val isExcluded = !accountCalcConfig.isIncluded(acc.id)
+            val setting = accountCalcConfig.getSetting(acc.id)
+            if (isExcluded) {
+                getAccountBalance(acc)
+            } else if (setting.adjustmentAmount != 0.0) {
+                // If user adjusted balance downwards (e.g. from 10k to 8k, adjustment is -2k),
+                // 2k is excluded/omitted from net worth
+                abs(setting.adjustmentAmount)
+            } else {
+                0.0
+            }
+        }
     }
 
     AlertDialog(
@@ -143,14 +190,17 @@ fun ExcludedAccountsDialog(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া অ্যাকাউন্ট" else "Excluded Accounts",
-                            fontSize = 17.sp,
+                            text = if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া / সমন্বিত অ্যাকাউন্ট" else "Excluded & Adjusted",
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "$totalExcludedCount টি অ্যাকাউন্ট বাদ রয়েছে" else "$totalExcludedCount accounts excluded",
-                            fontSize = 11.5.sp,
+                            text = if (languageMode == LanguageMode.BANGLA)
+                                "$totalExcludedCount টি অ্যাকাউন্ট • বাদ দেওয়া: ${LanguageHelper.formatCurrency(totalExcludedAmount, languageMode)}"
+                            else
+                                "$totalExcludedCount accounts • Excluded: ${LanguageHelper.formatCurrency(totalExcludedAmount, languageMode)}",
+                            fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -169,7 +219,7 @@ fun ExcludedAccountsDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = 440.dp)
             ) {
                 if (totalExcludedCount > 0) {
                     // Search box
@@ -181,7 +231,7 @@ fun ExcludedAccountsDialog(
                             .padding(bottom = 8.dp),
                         placeholder = {
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search excluded accounts...",
+                                text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts...",
                                 fontSize = 13.sp
                             )
                         },
@@ -212,7 +262,7 @@ fun ExcludedAccountsDialog(
                         )
                     )
 
-                    // Action Bar: Include All
+                    // Action Bar: Include / Reset All
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -221,20 +271,27 @@ fun ExcludedAccountsDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "হিসাবে পুনরায় অন্তর্ভুক্ত করুন:" else "Re-include in balance sheet:",
+                            text = if (languageMode == LanguageMode.BANGLA) "পুনরায় অন্তর্ভুক্ত করুন:" else "Restore to calculations:",
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         TextButton(
                             onClick = {
-                                allAccounts.filter { !accountCalcConfig.isIncluded(it.id) }.forEach { acc ->
-                                    onToggleIncludeStatus(acc, true)
+                                allAccounts.forEach { acc ->
+                                    val isExcluded = !accountCalcConfig.isIncluded(acc.id)
+                                    val isAdjusted = accountCalcConfig.getSetting(acc.id).adjustmentAmount != 0.0
+                                    if (isExcluded) {
+                                        onToggleIncludeStatus(acc, true)
+                                    }
+                                    if (isAdjusted) {
+                                        onResetAccountCalculation?.invoke(acc)
+                                    }
                                 }
                             }
                         ) {
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সবগুলো অন্তর্ভুক্ত করুন" else "Include All",
+                                text = if (languageMode == LanguageMode.BANGLA) "সবগুলো অন্তর্ভুক্ত করুন" else "Include / Reset All",
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -243,7 +300,7 @@ fun ExcludedAccountsDialog(
                     }
                 }
 
-                if (excludedAccounts.isEmpty()) {
+                if (excludedItems.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -274,7 +331,10 @@ fun ExcludedAccountsDialog(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সকল অ্যাকাউন্ট বর্তমানে ব্যালেন্স শিটে অন্তর্ভুক্ত রয়েছে।" else "All accounts are currently included in the Balance Sheet.",
+                                text = if (languageMode == LanguageMode.BANGLA)
+                                    "সকল অ্যাকাউন্ট এবং ব্যালেন্স বর্তমানে হিসাবে অন্তর্ভুক্ত রয়েছে।"
+                                else
+                                    "All accounts and balances are currently included in calculations.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -285,8 +345,8 @@ fun ExcludedAccountsDialog(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(excludedAccounts, key = { it.id }) { acc ->
-                            val currentBalance = getAccountBalance(acc)
+                        items(excludedItems, key = { it.account.id }) { item ->
+                            val acc = item.account
                             val parentAcc = acc.parentId?.let { parentMap[it] }
                             val iconVector = IconHelper.getIconByName(acc.iconName)
                             val accColor = IconHelper.parseColorHex(acc.colorHex, MaterialTheme.colorScheme.primary)
@@ -305,108 +365,173 @@ fun ExcludedAccountsDialog(
                                         }
                                     }
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(10.dp)
                                 ) {
-                                    // Account Icon
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(accColor.copy(alpha = 0.15f)),
-                                        contentAlignment = Alignment.Center
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = iconVector,
-                                            contentDescription = null,
-                                            tint = accColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(10.dp))
-
-                                    // Account Name and Group info
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) acc.nameBn else acc.nameEn,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-
-                                        if (parentAcc != null) {
-                                            Text(
-                                                text = "${if (languageMode == LanguageMode.BANGLA) "গ্রুপ" else "Group"}: ${if (languageMode == LanguageMode.BANGLA) parentAcc.nameBn else parentAcc.nameEn}",
-                                                fontSize = 10.5.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-
-                                        // Balance & Type tag
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(top = 2.dp)
+                                        // Account Icon
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(accColor.copy(alpha = 0.15f)),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = when (acc.type) {
-                                                    AccountType.ASSET -> SolidIncome.copy(alpha = 0.12f)
-                                                    AccountType.LIABILITY -> SolidExpense.copy(alpha = 0.12f)
-                                                    else -> SolidPrimary.copy(alpha = 0.12f)
-                                                }
+                                            Icon(
+                                                imageVector = iconVector,
+                                                contentDescription = null,
+                                                tint = accColor,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        // Account Name and Group info
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                                             ) {
                                                 Text(
-                                                    text = when (acc.type) {
-                                                        AccountType.ASSET -> if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "ASSET"
-                                                        AccountType.LIABILITY -> if (languageMode == LanguageMode.BANGLA) "দায়" else "LIABILITY"
-                                                        else -> acc.type.name
-                                                    },
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = when (acc.type) {
-                                                        AccountType.ASSET -> SolidIncome
-                                                        AccountType.LIABILITY -> SolidExpense
-                                                        else -> SolidPrimary
-                                                    },
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    text = if (languageMode == LanguageMode.BANGLA) acc.nameBn else acc.nameEn,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+
+                                                // Exclusion / Adjustment Status Tag
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = if (item.isFullyExcluded) SolidExpense.copy(alpha = 0.15f) else Color(0xFFF59E0B).copy(alpha = 0.15f)
+                                                ) {
+                                                    Text(
+                                                        text = if (item.isFullyExcluded) {
+                                                            if (languageMode == LanguageMode.BANGLA) "সম্পূর্ণ বাদ" else "Fully Excluded"
+                                                        } else {
+                                                            if (languageMode == LanguageMode.BANGLA) "সমন্বিত অংশ" else "Adjusted Portion"
+                                                        },
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (item.isFullyExcluded) SolidExpense else Color(0xFFD97706),
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            if (parentAcc != null) {
+                                                Text(
+                                                    text = "${if (languageMode == LanguageMode.BANGLA) "গ্রুপ" else "Group"}: ${if (languageMode == LanguageMode.BANGLA) parentAcc.nameBn else parentAcc.nameEn}",
+                                                    fontSize = 10.5.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = LanguageHelper.formatCurrency(currentBalance, languageMode),
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (currentBalance >= 0) MaterialTheme.colorScheme.onSurface else SolidExpense
+                                        }
+
+                                        Spacer(modifier = Modifier.width(6.dp))
+
+                                        // Action Button or Switch
+                                        if (item.isFullyExcluded) {
+                                            Switch(
+                                                checked = false, // It is currently excluded
+                                                onCheckedChange = { isChecked ->
+                                                    if (isChecked) {
+                                                        onToggleIncludeStatus(acc, true)
+                                                    }
+                                                },
+                                                colors = SwitchDefaults.colors(
+                                                    checkedThumbColor = SolidIncome,
+                                                    checkedTrackColor = SolidIncome.copy(alpha = 0.4f)
+                                                ),
+                                                modifier = Modifier.size(36.dp)
                                             )
+                                        } else {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                // Edit Adjustment button
+                                                IconButton(
+                                                    onClick = {
+                                                        onAdjustCalculation?.invoke(acc, item.baseBalance)
+                                                    },
+                                                    modifier = Modifier.size(30.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Edit,
+                                                        contentDescription = "Edit Adjustment",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                // Reset Adjustment button
+                                                IconButton(
+                                                    onClick = {
+                                                        onResetAccountCalculation?.invoke(acc)
+                                                    },
+                                                    modifier = Modifier.size(30.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.RestartAlt,
+                                                        contentDescription = "Reset Adjustment",
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.height(6.dp))
 
-                                    // Switch to re-include
-                                    Switch(
-                                        checked = false, // It is currently excluded
-                                        onCheckedChange = { isChecked ->
-                                            if (isChecked) {
-                                                onToggleIncludeStatus(acc, true)
+                                    // Balance Details & Prominent Excluded Amount Row
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "${if (languageMode == LanguageMode.BANGLA) "মূল ব্যালেন্স" else "Actual"}: ${LanguageHelper.formatCurrency(item.baseBalance, languageMode)}",
+                                                fontSize = 10.5.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            if (item.isAdjusted) {
+                                                Text(
+                                                    text = "${if (languageMode == LanguageMode.BANGLA) "গণনাকৃত" else "Calculated"}: ${LanguageHelper.formatCurrency(item.calculatedBalance, languageMode)}",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
                                             }
-                                        },
-                                        colors = SwitchDefaults.colors(
-                                            checkedThumbColor = SolidIncome,
-                                            checkedTrackColor = SolidIncome.copy(alpha = 0.4f)
-                                        ),
-                                        modifier = Modifier.size(36.dp)
-                                    )
+                                        }
+
+                                        // Prominently show the Excluded Portion Amount
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া পরিমাণ:" else "Excluded Amount:",
+                                                fontSize = 10.sp,
+                                                color = SolidExpense.copy(alpha = 0.85f),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Text(
+                                                text = LanguageHelper.formatCurrency(abs(item.excludedAmount), languageMode),
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = SolidExpense
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

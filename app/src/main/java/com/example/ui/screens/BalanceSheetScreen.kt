@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -350,7 +351,7 @@ fun BalanceSheetScreen(
 
     // Counts for Excluded and Inactive accounts
     val excludedAccountsCount = remember(accounts, accountCalcConfig) {
-        accounts.count { !accountCalcConfig.isIncluded(it.id) }
+        accounts.count { !accountCalcConfig.isIncluded(it.id) || accountCalcConfig.getSetting(it.id).adjustmentAmount != 0.0 }
     }
     val inactiveAccountsCount = remember(accounts) {
         accounts.count { !it.isActive }
@@ -639,6 +640,10 @@ fun BalanceSheetScreen(
                             horizontalArrangement = Arrangement.End
                         ) {
                             Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    showInactiveAccountsDialog = true
+                                },
                                 shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.surface,
                                 shadowElevation = 3.dp,
@@ -684,6 +689,10 @@ fun BalanceSheetScreen(
                             horizontalArrangement = Arrangement.End
                         ) {
                             Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    showExcludedAccountsDialog = true
+                                },
                                 shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.surface,
                                 shadowElevation = 3.dp,
@@ -729,6 +738,10 @@ fun BalanceSheetScreen(
                             horizontalArrangement = Arrangement.End
                         ) {
                             Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    onAddAccountClick()
+                                },
                                 shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.surface,
                                 shadowElevation = 3.dp,
@@ -769,6 +782,10 @@ fun BalanceSheetScreen(
                             horizontalArrangement = Arrangement.End
                         ) {
                             Surface(
+                                onClick = {
+                                    isSpeedDialExpanded = false
+                                    onAddTransactionClick()
+                                },
                                 shape = RoundedCornerShape(8.dp),
                                 color = MaterialTheme.colorScheme.surface,
                                 shadowElevation = 3.dp,
@@ -805,7 +822,7 @@ fun BalanceSheetScreen(
                     }
                 }
 
-                // Main Floating Action Button
+                // Main Floating Action Button (Three horizontal lines menu icon)
                 Surface(
                     onClick = { isSpeedDialExpanded = !isSpeedDialExpanded },
                     shape = CircleShape,
@@ -815,12 +832,12 @@ fun BalanceSheetScreen(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Default.Add,
+                            imageVector = if (isSpeedDialExpanded) Icons.Default.Close else Icons.Default.Menu,
                             contentDescription = "Quick Actions",
                             tint = Color.White,
                             modifier = Modifier
-                                .size(28.dp)
-                                .rotate(rotationAngle)
+                                .size(26.dp)
+                                .rotate(if (isSpeedDialExpanded) rotationAngle else 0f)
                         )
                     }
                 }
@@ -944,6 +961,9 @@ fun BalanceSheetScreen(
             onAdjustCalculation = { acc, bal ->
                 calcDialogTarget = Pair(acc, bal)
                 showExcludedAccountsDialog = false
+            },
+            onResetAccountCalculation = { acc ->
+                onResetAccountCalculation?.invoke(acc)
             },
             onAccountClick = onAccountClick
         )

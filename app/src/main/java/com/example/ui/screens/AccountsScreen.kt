@@ -158,6 +158,7 @@ fun AccountsScreen(
     var sortFilter by remember { mutableStateOf(AccountSortFilter.DEFAULT) }
     var statusFilter by remember { mutableStateOf(AccountActiveStatusFilter.ALL) }
     var excludeZeroBalance by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val expandedMap = remember { mutableStateMapOf<Long, Boolean>() }
 
     // State for Adjust Calculation Dialog
@@ -300,14 +301,29 @@ fun AccountsScreen(
         statusFilter,
         excludeZeroBalance,
         accountCalcConfig,
-        allTransactions
+        allTransactions,
+        searchQuery,
+        languageMode
     ) {
         if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
             emptyList()
         } else {
             val base = if (selectedTypeFilter == null) activeAccounts else activeAccounts.filter { it.account.type == selectedTypeFilter }
             val zeroFiltered = filterZeroBalanceGroups(base)
-            sortGroups(zeroFiltered)
+            val searchFiltered = if (searchQuery.isBlank()) zeroFiltered else zeroFiltered.mapNotNull { group ->
+                val groupMatches = group.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
+                    group.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                    group.account.nameBn.contains(searchQuery, ignoreCase = true)
+                val matchingSubs = group.subAccounts.filter { sub ->
+                    sub.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
+                    sub.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                    sub.account.nameBn.contains(searchQuery, ignoreCase = true)
+                }
+                if (groupMatches) group
+                else if (matchingSubs.isNotEmpty()) group.copy(subAccounts = matchingSubs)
+                else null
+            }
+            sortGroups(searchFiltered)
         }
     }
 
@@ -318,18 +334,33 @@ fun AccountsScreen(
         statusFilter,
         excludeZeroBalance,
         accountCalcConfig,
-        allTransactions
+        allTransactions,
+        searchQuery,
+        languageMode
     ) {
         if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
             emptyList()
         } else {
             val base = if (selectedTypeFilter == null) inactiveAccounts else inactiveAccounts.filter { it.account.type == selectedTypeFilter }
             val zeroFiltered = filterZeroBalanceGroups(base)
-            sortGroups(zeroFiltered)
+            val searchFiltered = if (searchQuery.isBlank()) zeroFiltered else zeroFiltered.mapNotNull { group ->
+                val groupMatches = group.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
+                    group.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                    group.account.nameBn.contains(searchQuery, ignoreCase = true)
+                val matchingSubs = group.subAccounts.filter { sub ->
+                    sub.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
+                    sub.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                    sub.account.nameBn.contains(searchQuery, ignoreCase = true)
+                }
+                if (groupMatches) group
+                else if (matchingSubs.isNotEmpty()) group.copy(subAccounts = matchingSubs)
+                else null
+            }
+            sortGroups(searchFiltered)
         }
     }
 
-    // Excluded accounts view filter
+    // Excluded accounts view filter (both fully excluded and accounts with balance adjustments)
     val displayedExcludedGroups = remember(
         displayedActiveGroups,
         displayedInactiveGroups,
@@ -344,8 +375,11 @@ fun AccountsScreen(
         }
         baseGroups.mapNotNull { groupItem ->
             val isGroupExcluded = !accountCalcConfig.isIncluded(groupItem.account.id)
-            val excludedSubs = groupItem.subAccounts.filter { !accountCalcConfig.isIncluded(it.account.id) }
-            if (isGroupExcluded) {
+            val isGroupAdjusted = accountCalcConfig.getSetting(groupItem.account.id).adjustmentAmount != 0.0
+            val excludedSubs = groupItem.subAccounts.filter {
+                !accountCalcConfig.isIncluded(it.account.id) || accountCalcConfig.getSetting(it.account.id).adjustmentAmount != 0.0
+            }
+            if (isGroupExcluded || isGroupAdjusted) {
                 groupItem
             } else if (excludedSubs.isNotEmpty()) {
                 groupItem.copy(subAccounts = sortSubAccounts(excludedSubs))
@@ -363,7 +397,9 @@ fun AccountsScreen(
         statusFilter,
         excludeZeroBalance,
         accountCalcConfig,
-        allTransactions
+        allTransactions,
+        searchQuery,
+        languageMode
     ) {
         if (statusFilter == AccountActiveStatusFilter.INACTIVE_ONLY) {
             emptyList()
@@ -400,14 +436,19 @@ fun AccountsScreen(
                     }
                 }
             }
+            val searchFiltered = if (searchQuery.isBlank()) items else items.filter {
+                it.accountWithBalance.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
+                it.accountWithBalance.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                it.accountWithBalance.account.nameBn.contains(searchQuery, ignoreCase = true)
+            }
             when (sortFilter) {
-                AccountSortFilter.DEFAULT -> items
-                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> items.sortedByDescending { it.effectiveBalance }
-                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> items.sortedBy { it.effectiveBalance }
-                AccountSortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
-                AccountSortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
-                AccountSortFilter.NAME_AZ -> items.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-                AccountSortFilter.NAME_ZA -> items.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+                AccountSortFilter.DEFAULT -> searchFiltered
+                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> searchFiltered.sortedByDescending { it.effectiveBalance }
+                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> searchFiltered.sortedBy { it.effectiveBalance }
+                AccountSortFilter.MOST_USED -> searchFiltered.sortedByDescending { it.usageCount }
+                AccountSortFilter.LEAST_USED -> searchFiltered.sortedBy { it.usageCount }
+                AccountSortFilter.NAME_AZ -> searchFiltered.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+                AccountSortFilter.NAME_ZA -> searchFiltered.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
             }
         }
     }
@@ -419,7 +460,9 @@ fun AccountsScreen(
         statusFilter,
         excludeZeroBalance,
         accountCalcConfig,
-        allTransactions
+        allTransactions,
+        searchQuery,
+        languageMode
     ) {
         if (statusFilter == AccountActiveStatusFilter.ACTIVE_ONLY) {
             emptyList()
@@ -455,14 +498,19 @@ fun AccountsScreen(
                     }
                 }
             }
+            val searchFiltered = if (searchQuery.isBlank()) items else items.filter {
+                it.accountWithBalance.account.localizedName(languageMode).contains(searchQuery, ignoreCase = true) ||
+                it.accountWithBalance.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                it.accountWithBalance.account.nameBn.contains(searchQuery, ignoreCase = true)
+            }
             when (sortFilter) {
-                AccountSortFilter.DEFAULT -> items
-                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> items.sortedByDescending { it.effectiveBalance }
-                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> items.sortedBy { it.effectiveBalance }
-                AccountSortFilter.MOST_USED -> items.sortedByDescending { it.usageCount }
-                AccountSortFilter.LEAST_USED -> items.sortedBy { it.usageCount }
-                AccountSortFilter.NAME_AZ -> items.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
-                AccountSortFilter.NAME_ZA -> items.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+                AccountSortFilter.DEFAULT -> searchFiltered
+                AccountSortFilter.AMOUNT_HIGH_TO_LOW -> searchFiltered.sortedByDescending { it.effectiveBalance }
+                AccountSortFilter.AMOUNT_LOW_TO_HIGH -> searchFiltered.sortedBy { it.effectiveBalance }
+                AccountSortFilter.MOST_USED -> searchFiltered.sortedByDescending { it.usageCount }
+                AccountSortFilter.LEAST_USED -> searchFiltered.sortedBy { it.usageCount }
+                AccountSortFilter.NAME_AZ -> searchFiltered.sortedBy { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
+                AccountSortFilter.NAME_ZA -> searchFiltered.sortedByDescending { it.accountWithBalance.account.localizedName(languageMode).lowercase() }
             }
         }
     }
@@ -574,7 +622,11 @@ fun AccountsScreen(
         ) {
             AppTabHeader(
                 title = LanguageHelper.getString("accounts", languageMode),
-                onOpenDrawer = onOpenDrawer
+                onOpenDrawer = onOpenDrawer,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                showSearchButton = true,
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট খুঁজুন..." else "Search accounts..."
             )
 
             LazyColumn(
@@ -1046,12 +1098,82 @@ fun AccountsScreen(
 
                 // --- 2. Accounts List Based on Hierarchy Filter ---
                 if (hierarchyFilter == AccountViewHierarchyFilter.EXCLUDED) {
-                    // Excluded Accounts Mode
+                    // Excluded Accounts Mode (both fully excluded and accounts with balance adjustments)
                     if (displayedExcludedGroups.isEmpty()) {
                         item {
                             EmptyExcludedCard(languageMode)
                         }
                     } else {
+                        item {
+                            val totalExcludedCount = remember(displayedExcludedGroups, accountCalcConfig) {
+                                displayedExcludedGroups.sumOf { g ->
+                                    (if (!accountCalcConfig.isIncluded(g.account.id) || accountCalcConfig.getSetting(g.account.id).adjustmentAmount != 0.0) 1 else 0) +
+                                    g.subAccounts.count { !accountCalcConfig.isIncluded(it.account.id) || accountCalcConfig.getSetting(it.account.id).adjustmentAmount != 0.0 }
+                                }
+                            }
+                            val totalExcludedSum = remember(displayedExcludedGroups, accountCalcConfig) {
+                                displayedExcludedGroups.sumOf { g ->
+                                    val gExcluded = if (!accountCalcConfig.isIncluded(g.account.id)) g.currentBalance
+                                        else kotlin.math.abs(accountCalcConfig.getSetting(g.account.id).adjustmentAmount)
+                                    val subsExcluded = g.subAccounts.sumOf { sub ->
+                                        if (!accountCalcConfig.isIncluded(sub.account.id)) sub.currentBalance
+                                        else kotlin.math.abs(accountCalcConfig.getSetting(sub.account.id).adjustmentAmount)
+                                    }
+                                    gExcluded + subsExcluded
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.VisibilityOff,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া / সমন্বিত হিসাব" else "Excluded & Adjusted",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                            )
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "$totalExcludedCount টি অ্যাকাউন্ট বাদ রয়েছে" else "$totalExcludedCount accounts excluded",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                            )
+                                        }
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া পরিমাণ" else "Excluded Amount",
+                                            fontSize = 10.5.sp,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = LanguageHelper.formatCurrency(totalExcludedSum, languageMode),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp,
+                                            color = SolidExpense
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         items(displayedExcludedGroups, key = { "excl_${it.account.id}" }) { groupItem ->
                             val sortedGroupItem = remember(groupItem, sortFilter) {
                                 groupItem.copy(subAccounts = sortSubAccounts(groupItem.subAccounts))
@@ -1673,6 +1795,17 @@ fun SingleAccountCard(
                                     .background(SolidExpense.copy(alpha = 0.12f))
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             )
+                        } else if (isAdjusted) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "সমন্বিত" else "Adjusted",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD97706),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
                         }
                     }
 
@@ -1732,6 +1865,12 @@ fun SingleAccountCard(
                             text = "Base: ${LanguageHelper.formatCurrency(accItem.currentBalance, languageMode)}",
                             fontSize = 9.sp,
                             color = MaterialTheme.colorScheme.outline
+                        )
+                        Text(
+                            text = "${if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excl"}: ${LanguageHelper.formatCurrency(kotlin.math.abs(adjustment), languageMode)}",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SolidExpense
                         )
                     }
                 }
@@ -1908,6 +2047,17 @@ fun AccountGroupCard(
                                         .background(SolidExpense.copy(alpha = 0.12f))
                                         .padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
+                            } else if (isAdjusted) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "সমন্বিত" else "Adjusted",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFD97706),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
                             }
                         }
 
@@ -1968,6 +2118,12 @@ fun AccountGroupCard(
                                 text = "Base: ${LanguageHelper.formatCurrency(groupItem.currentBalance, languageMode)}",
                                 fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.outline
+                            )
+                            Text(
+                                text = "${if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excl"}: ${LanguageHelper.formatCurrency(kotlin.math.abs(adjustment), languageMode)}",
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SolidExpense
                             )
                         }
                     }
@@ -2129,6 +2285,14 @@ fun AccountGroupCard(
                                                             color = SolidExpense,
                                                             fontWeight = FontWeight.Bold
                                                         )
+                                                    } else if (subAdjusted) {
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = if (languageMode == LanguageMode.BANGLA) "সমন্বিত" else "Adjusted",
+                                                            fontSize = 9.sp,
+                                                            color = Color(0xFFD97706),
+                                                            fontWeight = FontWeight.Bold
+                                                        )
                                                     }
                                                 }
                                                 if (subAdjusted && subIncluded) {
@@ -2155,6 +2319,14 @@ fun AccountGroupCard(
                                                     color = if (!sub.isActive || !subIncluded) MaterialTheme.colorScheme.outline
                                                     else MaterialTheme.colorScheme.onSurface
                                                 )
+                                                if (subAdjusted && subIncluded) {
+                                                    Text(
+                                                        text = "${if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excl"}: ${LanguageHelper.formatCurrency(kotlin.math.abs(subAdjustment), languageMode)}",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = SolidExpense
+                                                    )
+                                                }
                                             }
 
                                             Spacer(modifier = Modifier.width(4.dp))
