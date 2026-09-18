@@ -8,6 +8,42 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import java.util.Calendar
 
+enum class SummaryChartType(val titleEn: String, val titleBn: String) {
+    GROUPED_BAR("Bar Chart", "বার চার্ট"),
+    STACKED_BAR("Stacked Bar", "স্ট্যাকড বার"),
+    LINE("Line Trend", "লাইন ট্রেন্ড"),
+    AREA("Area Curve", "এরিয়া কার্ভ");
+
+    fun getLabel(languageMode: LanguageMode): String = if (languageMode == LanguageMode.BANGLA) titleBn else titleEn
+}
+
+enum class CashFlowMetricFilter(val titleEn: String, val titleBn: String) {
+    INFLOW_AND_OUTFLOW("Inflow & Outflow", "ইনফ্লো ও আউটফ্লো"),
+    NET_ONLY("Net Cash Flow", "নিট ক্যাশ ফ্লো"),
+    INFLOW_ONLY("Inflow Only", "শুধু ইনফ্লো"),
+    OUTFLOW_ONLY("Outflow Only", "শুধু আউটফ্লো");
+
+    fun getLabel(languageMode: LanguageMode): String = if (languageMode == LanguageMode.BANGLA) titleBn else titleEn
+}
+
+enum class NetEarningsMetricFilter(val titleEn: String, val titleBn: String) {
+    INCOME_AND_EXPENSE("Income & Expense", "আয় ও ব্যয়"),
+    NET_ONLY("Net Earnings", "নিট আয়"),
+    INCOME_ONLY("Income Only", "শুধু আয়"),
+    EXPENSE_ONLY("Expense Only", "শুধু ব্যয়");
+
+    fun getLabel(languageMode: LanguageMode): String = if (languageMode == LanguageMode.BANGLA) titleBn else titleEn
+}
+
+enum class NetWorthMetricFilter(val titleEn: String, val titleBn: String) {
+    ALL("Assets, Liabilities & Net Worth", "সম্পদ, দায় ও নিট সম্পদ"),
+    NET_WORTH_ONLY("Net Worth Only", "শুধু নিট সম্পদ"),
+    ASSETS_ONLY("Assets Only", "শুধু সম্পদ"),
+    LIABILITIES_ONLY("Liabilities Only", "শুধু দায়");
+
+    fun getLabel(languageMode: LanguageMode): String = if (languageMode == LanguageMode.BANGLA) titleBn else titleEn
+}
+
 data class MonthlyFinancialPoint(
     val year: Int,
     val month: Int, // 0-based: 0 = Jan, 11 = Dec
@@ -68,7 +104,9 @@ object DashboardChartUtils {
         allCategories: List<Category>,
         currentTotalAssets: Double,
         currentTotalLiabilities: Double,
-        languageMode: LanguageMode
+        languageMode: LanguageMode,
+        selectedAccountIds: Set<Long>? = null,
+        selectedCategoryIds: Set<Long>? = null
     ): List<MonthlyFinancialPoint> {
         val count = monthCount.coerceIn(2, 24)
         val cal = DateUtils.getCalendar()
@@ -111,7 +149,25 @@ object DashboardChartUtils {
             // Filter transactions in this month
             val monthTx = transactions.filter {
                 val t = it.transaction.dateEpochMs
-                t in startMs..endMs
+                val inRange = t in startMs..endMs
+                if (!inRange) return@filter false
+
+                val accMatch = if (selectedAccountIds == null || selectedAccountIds.isEmpty()) {
+                    true
+                } else {
+                    val dId = it.transaction.debitAccountId
+                    val cId = it.transaction.creditAccountId
+                    (dId != null && selectedAccountIds.contains(dId)) || (cId != null && selectedAccountIds.contains(cId))
+                }
+
+                val catMatch = if (selectedCategoryIds == null || selectedCategoryIds.isEmpty()) {
+                    true
+                } else {
+                    val catId = it.transaction.categoryId
+                    catId != null && selectedCategoryIds.contains(catId)
+                }
+
+                accMatch && catMatch
             }
 
             val income = monthTx.filter { it.transaction.type == TransactionType.INCOME }
@@ -127,7 +183,8 @@ object DashboardChartUtils {
                 allCategories = allCategories,
                 startMs = startMs,
                 endMs = endMs,
-                languageMode = languageMode
+                languageMode = languageMode,
+                selectedAccountIds = selectedAccountIds
             )
 
             // Net Worth as of this month's end

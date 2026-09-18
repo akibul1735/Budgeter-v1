@@ -177,14 +177,21 @@ object CashFlowHelper {
         allCategories: List<Category>,
         startMs: Long,
         endMs: Long,
-        languageMode: LanguageMode
+        languageMode: LanguageMode,
+        selectedAccountIds: Set<Long>? = null
     ): CashFlowSummary {
-        val assetAccounts = allAccounts.filter { it.type == AccountType.ASSET }
-        val assetAccountIds = assetAccounts.map { it.id }.toSet()
+        val targetAccounts = when {
+            selectedAccountIds != null && selectedAccountIds.isNotEmpty() ->
+                allAccounts.filter { selectedAccountIds.contains(it.id) }
+            allAccounts.any { it.type == AccountType.ASSET } ->
+                allAccounts.filter { it.type == AccountType.ASSET }
+            else -> allAccounts
+        }
+        val targetAccountIds = targetAccounts.map { it.id }.toSet()
 
-        // 1. Calculate opening balance for each asset account before startMs
+        // 1. Calculate opening balance for each target account before startMs
         val accountOpeningMap = mutableMapOf<Long, Double>()
-        for (acc in assetAccounts) {
+        for (acc in targetAccounts) {
             accountOpeningMap[acc.id] = acc.initialBalance
         }
 
@@ -194,30 +201,30 @@ object CashFlowHelper {
             when (tx.type) {
                 TransactionType.INCOME -> {
                     val debitId = tx.debitAccountId
-                    if (debitId != null && assetAccountIds.contains(debitId)) {
+                    if (debitId != null && targetAccountIds.contains(debitId)) {
                         accountOpeningMap[debitId] = (accountOpeningMap[debitId] ?: 0.0) + tx.amount
                     }
                 }
                 TransactionType.EXPENSE -> {
                     val creditId = tx.creditAccountId
-                    if (creditId != null && assetAccountIds.contains(creditId)) {
+                    if (creditId != null && targetAccountIds.contains(creditId)) {
                         accountOpeningMap[creditId] = (accountOpeningMap[creditId] ?: 0.0) - tx.amount
                     }
                 }
                 TransactionType.TRANSFER -> {
                     val creditId = tx.creditAccountId
                     val debitId = tx.debitAccountId
-                    if (creditId != null && assetAccountIds.contains(creditId)) {
+                    if (creditId != null && targetAccountIds.contains(creditId)) {
                         accountOpeningMap[creditId] = (accountOpeningMap[creditId] ?: 0.0) - tx.amount
                     }
-                    if (debitId != null && assetAccountIds.contains(debitId)) {
+                    if (debitId != null && targetAccountIds.contains(debitId)) {
                         accountOpeningMap[debitId] = (accountOpeningMap[debitId] ?: 0.0) + tx.amount
                     }
                 }
             }
         }
 
-        val totalOpeningBalance = assetAccounts.sumOf { accountOpeningMap[it.id] ?: 0.0 }
+        val totalOpeningBalance = targetAccounts.sumOf { accountOpeningMap[it.id] ?: 0.0 }
 
         // 2. Filter transactions in the active period
         val periodTransactions = allTransactions
@@ -249,7 +256,7 @@ object CashFlowHelper {
 
             when (tx.type) {
                 TransactionType.INCOME -> {
-                    val isLiquidDebit = tx.debitAccountId == null || assetAccountIds.contains(tx.debitAccountId)
+                    val isLiquidDebit = targetAccountIds.isEmpty() || tx.debitAccountId == null || targetAccountIds.contains(tx.debitAccountId)
                     if (isLiquidDebit) {
                         isRelevantToCash = true
                         if (tx.amount >= 0) {
@@ -271,7 +278,7 @@ object CashFlowHelper {
                     }
                 }
                 TransactionType.EXPENSE -> {
-                    val isLiquidCredit = tx.creditAccountId == null || assetAccountIds.contains(tx.creditAccountId)
+                    val isLiquidCredit = targetAccountIds.isEmpty() || tx.creditAccountId == null || targetAccountIds.contains(tx.creditAccountId)
                     if (isLiquidCredit) {
                         isRelevantToCash = true
                         if (tx.amount >= 0) {
@@ -293,8 +300,8 @@ object CashFlowHelper {
                     }
                 }
                 TransactionType.TRANSFER -> {
-                    val isCreditAsset = tx.creditAccountId != null && assetAccountIds.contains(tx.creditAccountId)
-                    val isDebitAsset = tx.debitAccountId != null && assetAccountIds.contains(tx.debitAccountId)
+                    val isCreditAsset = tx.creditAccountId != null && (targetAccountIds.isEmpty() || targetAccountIds.contains(tx.creditAccountId))
+                    val isDebitAsset = tx.debitAccountId != null && (targetAccountIds.isEmpty() || targetAccountIds.contains(tx.debitAccountId))
 
                     if (isCreditAsset && isDebitAsset) {
                         // Internal cash transfer between two liquid accounts
@@ -369,7 +376,7 @@ object CashFlowHelper {
         }.sortedByDescending { it.totalAmount }
 
         // 4. Account Breakdown list
-        val accountBreakdowns = assetAccounts.map { acc ->
+        val accountBreakdowns = targetAccounts.map { acc ->
             val op = accountOpeningMap[acc.id] ?: 0.0
             val inf = accountInflowMap[acc.id] ?: 0.0
             val out = accountOutflowMap[acc.id] ?: 0.0
@@ -399,8 +406,8 @@ object CashFlowHelper {
         val runwayMonths = runwayDays / 30.0
 
         // 6. Periodic Bars & Trajectory Points
-        val periodicBars = buildPeriodicBars(relevantTransactions, assetAccountIds, startMs, endMs, languageMode)
-        val dailyPoints = buildDailyPoints(relevantTransactions, assetAccountIds, totalOpeningBalance, startMs, endMs, languageMode)
+        val periodicBars = buildPeriodicBars(relevantTransactions, targetAccountIds, startMs, endMs, languageMode)
+        val dailyPoints = buildDailyPoints(relevantTransactions, targetAccountIds, totalOpeningBalance, startMs, endMs, languageMode)
 
         return CashFlowSummary(
             startMs = startMs,

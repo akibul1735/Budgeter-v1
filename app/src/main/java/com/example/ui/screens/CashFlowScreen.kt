@@ -83,6 +83,7 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
+import com.example.ui.screens.dashboard.AccountMultiSelectFilterDialog
 import com.example.util.CashFlowAccountItem
 import com.example.util.CashFlowCategoryItem
 import com.example.util.CashFlowDailyPoint
@@ -128,6 +129,8 @@ fun CashFlowScreen(
     var selectedSection by remember { mutableStateOf(CashFlowTabSection.OVERVIEW) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedTxFilter by remember { mutableStateOf<TransactionType?>(null) }
+    var selectedAccountIds by remember { mutableStateOf<Set<Long>?>(null) }
+    var showAccountFilterDialog by remember { mutableStateOf(false) }
 
     // Date range resolution
     val dateRange = remember(selectedPreset, customStartMs, customEndMs) {
@@ -135,14 +138,15 @@ fun CashFlowScreen(
     }
 
     // Cash flow calculation
-    val summary = remember(transactionsWithDetails, allAccounts, allCategories, dateRange, languageMode) {
+    val summary = remember(transactionsWithDetails, allAccounts, allCategories, dateRange, selectedAccountIds, languageMode) {
         CashFlowHelper.calculateCashFlow(
             allTransactions = transactionsWithDetails,
             allAccounts = allAccounts,
             allCategories = allCategories,
             startMs = dateRange.first,
             endMs = dateRange.second,
-            languageMode = languageMode
+            languageMode = languageMode,
+            selectedAccountIds = selectedAccountIds
         )
     }
 
@@ -267,6 +271,75 @@ fun CashFlowScreen(
                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // Account Filter Selection Bar
+            item {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { showAccountFilterDialog = true }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = null,
+                                tint = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
+                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "হিসাব নির্বাচন (Accounts Filter)" else "Cash Flow Accounts",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = if (selectedAccountIds == null || selectedAccountIds!!.isEmpty()) {
+                                        if (languageMode == LanguageMode.BANGLA) "সকল হিসাব অন্তর্ভুক্ত (${LanguageHelper.toBanglaDigits(allAccounts.size.toString())}টি)" else "All Accounts Included (${allAccounts.size})"
+                                    } else {
+                                        if (languageMode == LanguageMode.BANGLA) "${LanguageHelper.toBanglaDigits(selectedAccountIds!!.size.toString())}টি হিসাব ফিল্টার করা হয়েছে" else "${selectedAccountIds!!.size} Accounts Filtered"
+                                    },
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
+                                        MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "পরিবর্তন" else "Change",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
                         }
                     }
                 }
@@ -448,6 +521,19 @@ fun CashFlowScreen(
             item {
                 Spacer(modifier = Modifier.height(72.dp))
             }
+        }
+
+        if (showAccountFilterDialog) {
+            AccountMultiSelectFilterDialog(
+                allAccounts = allAccounts,
+                selectedAccountIds = selectedAccountIds,
+                languageMode = languageMode,
+                onDismiss = { showAccountFilterDialog = false },
+                onApply = { newSelected ->
+                    selectedAccountIds = newSelected
+                    showAccountFilterDialog = false
+                }
+            )
         }
     }
 }

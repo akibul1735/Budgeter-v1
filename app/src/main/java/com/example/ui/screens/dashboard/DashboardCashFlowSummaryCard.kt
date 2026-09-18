@@ -1,5 +1,6 @@
 package com.example.ui.screens.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -9,38 +10,55 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -50,7 +68,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
@@ -59,24 +82,31 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
+import com.example.util.CashFlowMetricFilter
 import com.example.util.DashboardChartUtils
+import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.MonthlyFinancialPoint
+import com.example.util.SummaryChartType
 import java.util.Locale
 
 enum class ChartTimeframe(val months: Int, val labelEn: String, val labelBn: String) {
     THREE_MONTHS(3, "3 Months", "৩ মাস"),
     SIX_MONTHS(6, "6 Months", "৬ মাস"),
     NINE_MONTHS(9, "9 Months", "৯ মাস"),
-    TWELVE_MONTHS(12, "12 Months", "১২ মাস");
+    TWELVE_MONTHS(12, "12 Months", "১২ মাস"),
+    TWENTY_FOUR_MONTHS(24, "24 Months", "২৪ মাস");
 
     fun getLabel(languageMode: LanguageMode): String =
         if (languageMode == LanguageMode.BANGLA) labelBn else labelEn
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DashboardCashFlowSummaryCard(
     transactions: List<TransactionWithDetails>,
@@ -87,13 +117,23 @@ fun DashboardCashFlowSummaryCard(
     modifier: Modifier = Modifier
 ) {
     var timeframe by remember { mutableStateOf(ChartTimeframe.THREE_MONTHS) }
-    var showTimeframeDropdown by remember { mutableStateOf(false) }
-    var showFilterDialog by remember { mutableStateOf(false) }
+    var chartType by remember { mutableStateOf(SummaryChartType.GROUPED_BAR) }
+    var metricFilter by remember { mutableStateOf(CashFlowMetricFilter.INFLOW_AND_OUTFLOW) }
+    var showYAxis by remember { mutableStateOf(true) }
+    var compactNumbers by remember { mutableStateOf(true) }
+    var showGridLines by remember { mutableStateOf(true) }
+    var showLegend by remember { mutableStateOf(true) }
     var showTable by remember { mutableStateOf(true) }
-    var showAverages by remember { mutableStateOf(false) }
+
+    // Account filtering state
+    var selectedAccountIds by remember { mutableStateOf<Set<Long>?>(null) }
+
+    var showTimeframeDropdown by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var showAccountFilterDialog by remember { mutableStateOf(false) }
     var selectedMonthIndex by remember { mutableStateOf<Int?>(null) }
 
-    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, languageMode) {
+    val monthlyPoints = remember(timeframe, transactions, allAccounts, allCategories, selectedAccountIds, languageMode) {
         DashboardChartUtils.computeMonthlyPoints(
             monthCount = timeframe.months,
             transactions = transactions,
@@ -101,13 +141,14 @@ fun DashboardCashFlowSummaryCard(
             allCategories = allCategories,
             currentTotalAssets = 0.0,
             currentTotalLiabilities = 0.0,
-            languageMode = languageMode
+            languageMode = languageMode,
+            selectedAccountIds = selectedAccountIds
         )
     }
 
     val outflowColor = Color(0xFFE83F6F) // Magenta / Coral Pink
     val inflowColor = Color(0xFF00C988)  // Emerald / Teal Green
-    val netBlueColor = Color(0xFF38BDF8) // Cyan / Blue
+    val netBlueColor = Color(0xFF38BDF8) // Cyan / Sky Blue
 
     val latestMonth = monthlyPoints.lastOrNull()
     val prevMonth = if (monthlyPoints.size >= 2) monthlyPoints[monthlyPoints.size - 2] else null
@@ -128,7 +169,7 @@ fun DashboardCashFlowSummaryCard(
                 .animateContentSize(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 1. Header: Title + Dropdown Timeframe + Filter Icon
+            // 1. Header: Title + Dropdown Timeframe + Account Filter Badge + Settings Button + Arrow
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -191,15 +232,53 @@ fun DashboardCashFlowSummaryCard(
                     }
                 }
 
-                // Filter / Customize Button & Navigate Arrow
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Header Action Buttons
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    // Account filter shortcut chip button
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
+                            MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showAccountFilterDialog = true }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalance,
+                                contentDescription = "Accounts",
+                                modifier = Modifier.size(14.dp),
+                                tint = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
+                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (selectedAccountIds == null || selectedAccountIds!!.isEmpty()) {
+                                    if (languageMode == LanguageMode.BANGLA) "সকল হিসাব" else "All Accounts"
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA) "${LanguageHelper.toBanglaDigits(selectedAccountIds!!.size.toString())}টি হিসাব" else "${selectedAccountIds!!.size} Accounts"
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (selectedAccountIds != null && selectedAccountIds!!.isNotEmpty())
+                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     IconButton(
-                        onClick = { showFilterDialog = true },
+                        onClick = { showSettingsDialog = true },
                         modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Tune,
-                            contentDescription = "Customize Chart",
+                            contentDescription = "Chart Settings",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(19.dp)
                         )
@@ -214,6 +293,36 @@ fun DashboardCashFlowSummaryCard(
                             contentDescription = "View Cash Flow Screen",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            // Quick Chart Type & Metric Filter Bar
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Metric filter pills
+                CashFlowMetricFilter.values().forEach { filter ->
+                    val isSelected = metricFilter == filter
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        ),
+                        modifier = Modifier
+                            .clickable { metricFilter = filter }
+                    ) {
+                        Text(
+                            text = filter.getLabel(languageMode),
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -242,27 +351,98 @@ fun DashboardCashFlowSummaryCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (metricFilter == CashFlowMetricFilter.INFLOW_AND_OUTFLOW || metricFilter == CashFlowMetricFilter.INFLOW_ONLY) {
+                                Text(
+                                    text = "In: +${LanguageHelper.formatCurrency(pt.cashInflow, languageMode)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = inflowColor
+                                )
+                            }
+                            if (metricFilter == CashFlowMetricFilter.INFLOW_AND_OUTFLOW || metricFilter == CashFlowMetricFilter.OUTFLOW_ONLY) {
+                                Text(
+                                    text = "Out: -${LanguageHelper.formatCurrency(pt.cashOutflow, languageMode)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = outflowColor
+                                )
+                            }
+                            if (metricFilter == CashFlowMetricFilter.NET_ONLY) {
+                                val netCol = if (pt.netCashFlow >= 0) inflowColor else outflowColor
+                                Text(
+                                    text = "Net: ${LanguageHelper.formatCurrency(pt.netCashFlow, languageMode)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = netCol
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Interactive Chart Legend
+            if (showLegend) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (metricFilter == CashFlowMetricFilter.INFLOW_AND_OUTFLOW || metricFilter == CashFlowMetricFilter.INFLOW_ONLY) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(inflowColor))
                             Text(
-                                text = "In: +${LanguageHelper.formatCurrency(pt.cashInflow, languageMode)}",
+                                text = if (languageMode == LanguageMode.BANGLA) "ইনফ্লো" else "Inflow",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = inflowColor
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+                    if (metricFilter == CashFlowMetricFilter.INFLOW_AND_OUTFLOW || metricFilter == CashFlowMetricFilter.OUTFLOW_ONLY) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(outflowColor))
                             Text(
-                                text = "Out: -${LanguageHelper.formatCurrency(pt.cashOutflow, languageMode)}",
+                                text = if (languageMode == LanguageMode.BANGLA) "আউটফ্লো" else "Outflow",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = outflowColor
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (metricFilter == CashFlowMetricFilter.NET_ONLY || chartType == SummaryChartType.LINE) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(netBlueColor))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "নিট ক্যাশ" else "Net Cash",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
             }
 
-            // 2. Multi-Month Dual-Bar Chart Canvas
-            val maxVal = remember(monthlyPoints) {
-                val max = monthlyPoints.maxOfOrNull { maxOf(it.cashInflow, it.cashOutflow) } ?: 0.0
-                if (max <= 0.0) 1000.0 else max * 1.12
+            // 2. Multi-Mode Chart Canvas (Grouped Bar, Stacked Bar, Line, Area)
+            val maxVal = remember(monthlyPoints, metricFilter) {
+                val max = when (metricFilter) {
+                    CashFlowMetricFilter.INFLOW_AND_OUTFLOW ->
+                        monthlyPoints.maxOfOrNull { maxOf(it.cashInflow, it.cashOutflow) } ?: 0.0
+                    CashFlowMetricFilter.NET_ONLY ->
+                        monthlyPoints.maxOfOrNull { Math.abs(it.netCashFlow) } ?: 0.0
+                    CashFlowMetricFilter.INFLOW_ONLY ->
+                        monthlyPoints.maxOfOrNull { it.cashInflow } ?: 0.0
+                    CashFlowMetricFilter.OUTFLOW_ONLY ->
+                        monthlyPoints.maxOfOrNull { it.cashOutflow } ?: 0.0
+                }
+                if (max <= 0.0) 1000.0 else max * 1.15
             }
             val scaleValues = remember(maxVal) {
                 DashboardChartUtils.computeNiceScale(maxVal, 4)
@@ -273,13 +453,15 @@ fun DashboardCashFlowSummaryCard(
             val gridLineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
             val selectionHighlight = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
 
+            val leftPadDp = if (showYAxis) 52.dp else 12.dp
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(175.dp)
                     .pointerInput(monthlyPoints) {
                         detectTapGestures { offset ->
-                            val leftPadding = 52.dp.toPx()
+                            val leftPadding = leftPadDp.toPx()
                             val rightPadding = 12.dp.toPx()
                             val plotWidth = size.width - leftPadding - rightPadding
                             val count = monthlyPoints.size
@@ -293,8 +475,8 @@ fun DashboardCashFlowSummaryCard(
                         }
                     }
             ) {
-                Canvas(modifier = Modifier.fillMaxWidth().height(175.dp)) {
-                    val leftPadding = 52.dp.toPx()
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val leftPadding = leftPadDp.toPx()
                     val rightPadding = 12.dp.toPx()
                     val topPadding = 12.dp.toPx()
                     val bottomPadding = 24.dp.toPx()
@@ -318,89 +500,288 @@ fun DashboardCashFlowSummaryCard(
                         typeface = android.graphics.Typeface.DEFAULT_BOLD
                     }
 
-                    scaleValues.forEach { scaleVal ->
-                        val yRatio = (scaleVal / chartScaleMax).toFloat().coerceIn(0f, 1f)
-                        val yPos = topPadding + plotHeight * (1f - yRatio)
+                    if (showGridLines || showYAxis) {
+                        scaleValues.forEach { scaleVal ->
+                            val yRatio = (scaleVal / chartScaleMax).toFloat().coerceIn(0f, 1f)
+                            val yPos = topPadding + plotHeight * (1f - yRatio)
 
-                        // Grid line
-                        drawLine(
-                            color = gridLineColor,
-                            start = Offset(leftPadding, yPos),
-                            end = Offset(size.width - rightPadding, yPos),
-                            strokeWidth = 1.dp.toPx()
-                        )
+                            // Grid line
+                            if (showGridLines) {
+                                drawLine(
+                                    color = gridLineColor,
+                                    start = Offset(leftPadding, yPos),
+                                    end = Offset(size.width - rightPadding, yPos),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                            }
 
-                        // Label
-                        val label = DashboardChartUtils.formatCompactAmount(scaleVal, languageMode)
-                        drawContext.canvas.nativeCanvas.drawText(
-                            label,
-                            leftPadding - 8.dp.toPx(),
-                            yPos + 3.5.dp.toPx(),
-                            textPaint
-                        )
+                            // Y-axis Label
+                            if (showYAxis) {
+                                val label = if (compactNumbers) {
+                                    DashboardChartUtils.formatCompactAmount(scaleVal, languageMode)
+                                } else {
+                                    val formatted = String.format(Locale.US, "%,.0f", scaleVal)
+                                    if (languageMode == LanguageMode.BANGLA) LanguageHelper.toBanglaDigits(formatted) else formatted
+                                }
+                                drawContext.canvas.nativeCanvas.drawText(
+                                    label,
+                                    leftPadding - 6.dp.toPx(),
+                                    yPos + 3.5.dp.toPx(),
+                                    textPaint
+                                )
+                            }
+                        }
                     }
 
-                    // Draw Monthly Dual Bars
                     val count = monthlyPoints.size
                     if (count > 0) {
                         val colWidth = plotWidth / count
-                        val barGroupWidth = colWidth * 0.72f
-                        val singleBarWidth = barGroupWidth / 2.1f
-                        val barSpacing = 2.dp.toPx()
 
-                        monthlyPoints.forEachIndexed { index, pt ->
-                            val colCenterX = leftPadding + index * colWidth + colWidth / 2f
-                            val isSelected = selectedMonthIndex == index
+                        // Render based on selected chart type
+                        when (chartType) {
+                            SummaryChartType.GROUPED_BAR -> {
+                                val barGroupWidth = colWidth * 0.72f
+                                val isDual = metricFilter == CashFlowMetricFilter.INFLOW_AND_OUTFLOW
+                                val singleBarWidth = if (isDual) barGroupWidth / 2.1f else barGroupWidth * 0.6f
+                                val barSpacing = 2.dp.toPx()
 
-                            // Highlight selected month column
-                            if (isSelected) {
-                                drawRoundRect(
-                                    color = selectionHighlight,
-                                    topLeft = Offset(colCenterX - colWidth / 2f + 2.dp.toPx(), topPadding),
-                                    size = Size(colWidth - 4.dp.toPx(), plotHeight),
-                                    cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-                                )
+                                monthlyPoints.forEachIndexed { index, pt ->
+                                    val colCenterX = leftPadding + index * colWidth + colWidth / 2f
+                                    val isSelected = selectedMonthIndex == index
+
+                                    if (isSelected) {
+                                        drawRoundRect(
+                                            color = selectionHighlight,
+                                            topLeft = Offset(colCenterX - colWidth / 2f + 2.dp.toPx(), topPadding),
+                                            size = Size(colWidth - 4.dp.toPx(), plotHeight),
+                                            cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                                        )
+                                    }
+
+                                    when (metricFilter) {
+                                        CashFlowMetricFilter.INFLOW_AND_OUTFLOW -> {
+                                            val outHeight = (pt.cashOutflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                                            val inHeight = (pt.cashInflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+
+                                            val outLeft = colCenterX - singleBarWidth - barSpacing / 2f
+                                            val inLeft = colCenterX + barSpacing / 2f
+
+                                            if (outHeight > 0f) {
+                                                drawRoundRect(
+                                                    color = outflowColor,
+                                                    topLeft = Offset(outLeft, topPadding + plotHeight - outHeight),
+                                                    size = Size(singleBarWidth, outHeight),
+                                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                                )
+                                            }
+                                            if (inHeight > 0f) {
+                                                drawRoundRect(
+                                                    color = inflowColor,
+                                                    topLeft = Offset(inLeft, topPadding + plotHeight - inHeight),
+                                                    size = Size(singleBarWidth, inHeight),
+                                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                                )
+                                            }
+                                        }
+                                        CashFlowMetricFilter.NET_ONLY -> {
+                                            val netH = (Math.abs(pt.netCashFlow) / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                                            val netCol = if (pt.netCashFlow >= 0) inflowColor else outflowColor
+                                            if (netH > 0f) {
+                                                drawRoundRect(
+                                                    color = netCol,
+                                                    topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - netH),
+                                                    size = Size(singleBarWidth, netH),
+                                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                                )
+                                            }
+                                        }
+                                        CashFlowMetricFilter.INFLOW_ONLY -> {
+                                            val inHeight = (pt.cashInflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                                            if (inHeight > 0f) {
+                                                drawRoundRect(
+                                                    color = inflowColor,
+                                                    topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - inHeight),
+                                                    size = Size(singleBarWidth, inHeight),
+                                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                                )
+                                            }
+                                        }
+                                        CashFlowMetricFilter.OUTFLOW_ONLY -> {
+                                            val outHeight = (pt.cashOutflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                                            if (outHeight > 0f) {
+                                                drawRoundRect(
+                                                    color = outflowColor,
+                                                    topLeft = Offset(colCenterX - singleBarWidth / 2f, topPadding + plotHeight - outHeight),
+                                                    size = Size(singleBarWidth, outHeight),
+                                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // X-Axis Month Label
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        pt.getMonthLabel(languageMode),
+                                        colCenterX,
+                                        size.height - 4.dp.toPx(),
+                                        xTextPaint
+                                    )
+                                }
                             }
+                            SummaryChartType.STACKED_BAR -> {
+                                val barWidth = colWidth * 0.55f
+                                monthlyPoints.forEachIndexed { index, pt ->
+                                    val colCenterX = leftPadding + index * colWidth + colWidth / 2f
+                                    val isSelected = selectedMonthIndex == index
 
-                            val outHeight = (pt.cashOutflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
-                            val inHeight = (pt.cashInflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                                    if (isSelected) {
+                                        drawRoundRect(
+                                            color = selectionHighlight,
+                                            topLeft = Offset(colCenterX - colWidth / 2f + 2.dp.toPx(), topPadding),
+                                            size = Size(colWidth - 4.dp.toPx(), plotHeight),
+                                            cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                                        )
+                                    }
 
-                            val outLeft = colCenterX - singleBarWidth - barSpacing / 2f
-                            val inLeft = colCenterX + barSpacing / 2f
+                                    val inHeight = (pt.cashInflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
+                                    val outHeight = (pt.cashOutflow / chartScaleMax).toFloat().coerceIn(0f, 1f) * plotHeight
 
-                            // Outflow Bar (Left - Pink/Coral)
-                            if (outHeight > 0f) {
-                                drawRoundRect(
-                                    color = outflowColor,
-                                    topLeft = Offset(outLeft, topPadding + plotHeight - outHeight),
-                                    size = Size(singleBarWidth, outHeight),
-                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                                )
+                                    val barLeft = colCenterX - barWidth / 2f
+
+                                    // Draw Inflow bar (base)
+                                    if (inHeight > 0f) {
+                                        drawRoundRect(
+                                            color = inflowColor,
+                                            topLeft = Offset(barLeft, topPadding + plotHeight - inHeight),
+                                            size = Size(barWidth, inHeight),
+                                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                        )
+                                    }
+                                    // Draw Outflow bar on top
+                                    if (outHeight > 0f) {
+                                        val outTop = (topPadding + plotHeight - inHeight - outHeight).coerceAtLeast(topPadding)
+                                        drawRoundRect(
+                                            color = outflowColor,
+                                            topLeft = Offset(barLeft, outTop),
+                                            size = Size(barWidth, outHeight),
+                                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                                        )
+                                    }
+
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        pt.getMonthLabel(languageMode),
+                                        colCenterX,
+                                        size.height - 4.dp.toPx(),
+                                        xTextPaint
+                                    )
+                                }
                             }
+                            SummaryChartType.LINE, SummaryChartType.AREA -> {
+                                val inPoints = mutableListOf<Offset>()
+                                val outPoints = mutableListOf<Offset>()
+                                val netPoints = mutableListOf<Offset>()
 
-                            // Inflow Bar (Right - Green/Teal)
-                            if (inHeight > 0f) {
-                                drawRoundRect(
-                                    color = inflowColor,
-                                    topLeft = Offset(inLeft, topPadding + plotHeight - inHeight),
-                                    size = Size(singleBarWidth, inHeight),
-                                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                                )
+                                monthlyPoints.forEachIndexed { index, pt ->
+                                    val colCenterX = leftPadding + index * colWidth + colWidth / 2f
+
+                                    val inY = topPadding + plotHeight * (1f - (pt.cashInflow / chartScaleMax).toFloat().coerceIn(0f, 1f))
+                                    val outY = topPadding + plotHeight * (1f - (pt.cashOutflow / chartScaleMax).toFloat().coerceIn(0f, 1f))
+                                    val netY = topPadding + plotHeight * (1f - (Math.abs(pt.netCashFlow) / chartScaleMax).toFloat().coerceIn(0f, 1f))
+
+                                    inPoints.add(Offset(colCenterX, inY))
+                                    outPoints.add(Offset(colCenterX, outY))
+                                    netPoints.add(Offset(colCenterX, netY))
+
+                                    val isSelected = selectedMonthIndex == index
+                                    if (isSelected) {
+                                        drawRoundRect(
+                                            color = selectionHighlight,
+                                            topLeft = Offset(colCenterX - colWidth / 2f + 2.dp.toPx(), topPadding),
+                                            size = Size(colWidth - 4.dp.toPx(), plotHeight),
+                                            cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
+                                        )
+                                    }
+
+                                    drawContext.canvas.nativeCanvas.drawText(
+                                        pt.getMonthLabel(languageMode),
+                                        colCenterX,
+                                        size.height - 4.dp.toPx(),
+                                        xTextPaint
+                                    )
+                                }
+
+                                fun drawCurve(pointsList: List<Offset>, color: Color, isArea: Boolean) {
+                                    if (pointsList.isEmpty()) return
+                                    val path = Path().apply {
+                                        moveTo(pointsList.first().x, pointsList.first().y)
+                                        for (i in 0 until pointsList.size - 1) {
+                                            val p0 = pointsList[i]
+                                            val p1 = pointsList[i + 1]
+                                            val cx = (p0.x + p1.x) / 2f
+                                            cubicTo(cx, p0.y, cx, p1.y, p1.x, p1.y)
+                                        }
+                                    }
+
+                                    if (isArea) {
+                                        val fillPath = Path().apply {
+                                            addPath(path)
+                                            lineTo(pointsList.last().x, topPadding + plotHeight)
+                                            lineTo(pointsList.first().x, topPadding + plotHeight)
+                                            close()
+                                        }
+                                        drawPath(
+                                            path = fillPath,
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(color.copy(alpha = 0.35f), color.copy(alpha = 0.02f)),
+                                                startY = topPadding,
+                                                endY = topPadding + plotHeight
+                                            )
+                                        )
+                                    }
+
+                                    drawPath(
+                                        path = path,
+                                        color = color,
+                                        style = Stroke(
+                                            width = 3.dp.toPx(),
+                                            cap = StrokeCap.Round,
+                                            join = StrokeJoin.Round
+                                        )
+                                    )
+
+                                    // Draw node dots
+                                    pointsList.forEach { pt ->
+                                        drawCircle(
+                                            color = Color.White,
+                                            radius = 4.dp.toPx(),
+                                            center = pt
+                                        )
+                                        drawCircle(
+                                            color = color,
+                                            radius = 2.5.dp.toPx(),
+                                            center = pt
+                                        )
+                                    }
+                                }
+
+                                val isArea = chartType == SummaryChartType.AREA
+
+                                when (metricFilter) {
+                                    CashFlowMetricFilter.INFLOW_AND_OUTFLOW -> {
+                                        drawCurve(inPoints, inflowColor, isArea)
+                                        drawCurve(outPoints, outflowColor, isArea)
+                                    }
+                                    CashFlowMetricFilter.INFLOW_ONLY -> drawCurve(inPoints, inflowColor, isArea)
+                                    CashFlowMetricFilter.OUTFLOW_ONLY -> drawCurve(outPoints, outflowColor, isArea)
+                                    CashFlowMetricFilter.NET_ONLY -> drawCurve(netPoints, netBlueColor, isArea)
+                                }
                             }
-
-                            // X-Axis Month Label
-                            drawContext.canvas.nativeCanvas.drawText(
-                                pt.getMonthLabel(languageMode),
-                                colCenterX,
-                                size.height - 4.dp.toPx(),
-                                xTextPaint
-                            )
                         }
                     }
                 }
             }
 
-            // 3. Comparison Table (Type, Prev Month, Current Month) exactly as shown in screenshot
+            // 3. Comparison Table (Type, Prev Month, Current Month)
             if (showTable && latestMonth != null && prevMonth != null) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
@@ -569,72 +950,417 @@ fun DashboardCashFlowSummaryCard(
         }
     }
 
-    // Filter & Customization Dialog
-    if (showFilterDialog) {
+    // Chart Settings & Customization Dialog
+    if (showSettingsDialog) {
         AlertDialog(
-            onDismissRequest = { showFilterDialog = false },
+            onDismissRequest = { showSettingsDialog = false },
             title = {
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) "ক্যাশ ফ্লো চার্ট সেটিংস" else "Cash Flow Chart Settings",
-                    fontSize = 16.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "সময়কাল (মাস)" else "Timeframe (Months)",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ChartTimeframe.values().forEach { tf ->
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (timeframe == tf) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { timeframe = tf }
-                            ) {
-                                Text(
-                                    text = tf.getLabel(languageMode),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (timeframe == tf) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Chart Type Selection
+                    item {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "চার্টের ধরণ" else "Chart Type",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            SummaryChartType.values().forEach { type ->
+                                val isSelected = chartType == type
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { chartType = type }
+                                ) {
+                                    Text(
+                                        text = type.getLabel(languageMode),
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    // Chart Values / Metric Filter
+                    item {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক টেবিল দেখান" else "Show Comparison Table",
-                            fontSize = 13.sp
+                            text = if (languageMode == LanguageMode.BANGLA) "চার্ট মান ও ফিল্টার" else "Chart Values & Metrics",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        Switch(
-                            checked = showTable,
-                            onCheckedChange = { showTable = it }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            CashFlowMetricFilter.values().forEach { filter ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { metricFilter = filter }
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.RadioButton(
+                                        selected = metricFilter == filter,
+                                        onClick = { metricFilter = filter }
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(text = filter.getLabel(languageMode), fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    // Timeframe Selector
+                    item {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সময়কাল (মাস)" else "Timeframe (Months)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            ChartTimeframe.values().forEach { tf ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (timeframe == tf) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { timeframe = tf }
+                                ) {
+                                    Text(
+                                        text = tf.getLabel(languageMode),
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (timeframe == tf) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Axis & Display Toggles
+                    item {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "অক্ষ ও ডিসপ্লে বিকল্প" else "Axis & Display Options",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = if (languageMode == LanguageMode.BANGLA) "Y-অক্ষ লেবেল দেখান" else "Show Vertical (Y) Axis", fontSize = 13.sp)
+                                Switch(checked = showYAxis, onCheckedChange = { showYAxis = it })
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = if (languageMode == LanguageMode.BANGLA) "সংক্ষিপ্ত সংখ্যা (Compact Axis)" else "Compact Values (e.g. 15k)", fontSize = 13.sp)
+                                Switch(checked = compactNumbers, onCheckedChange = { compactNumbers = it })
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = if (languageMode == LanguageMode.BANGLA) "গ্রিড লাইন দেখান" else "Show Grid Lines", fontSize = 13.sp)
+                                Switch(checked = showGridLines, onCheckedChange = { showGridLines = it })
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = if (languageMode == LanguageMode.BANGLA) "লেজেন্ড দেখান" else "Show Legend", fontSize = 13.sp)
+                                Switch(checked = showLegend, onCheckedChange = { showLegend = it })
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক টেবিল দেখান" else "Show Comparison Table", fontSize = 13.sp)
+                                Switch(checked = showTable, onCheckedChange = { showTable = it })
+                            }
+                        }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showFilterDialog = false }) {
+                TextButton(onClick = { showSettingsDialog = false }) {
                     Text(LanguageHelper.getString("done", languageMode))
                 }
             }
         )
+    }
+
+    // Account Multi-Select Filter Dialog
+    if (showAccountFilterDialog) {
+        AccountMultiSelectFilterDialog(
+            allAccounts = allAccounts,
+            selectedAccountIds = selectedAccountIds,
+            languageMode = languageMode,
+            onDismiss = { showAccountFilterDialog = false },
+            onApply = { newSelected ->
+                selectedAccountIds = newSelected
+                showAccountFilterDialog = false
+            }
+        )
+    }
+}
+
+/**
+ * Reusable dialog for multi-selecting accounts with search and Select All / Clear All
+ */
+@Composable
+fun AccountMultiSelectFilterDialog(
+    allAccounts: List<Account>,
+    selectedAccountIds: Set<Long>?,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onApply: (Set<Long>?) -> Unit
+) {
+    // If null, it means all accounts are selected
+    val initialSelection = remember(selectedAccountIds, allAccounts) {
+        if (selectedAccountIds == null || selectedAccountIds.isEmpty()) {
+            allAccounts.map { it.id }.toSet()
+        } else {
+            selectedAccountIds
+        }
+    }
+    var currentSelection by remember { mutableStateOf(initialSelection) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredAccounts = remember(allAccounts, searchQuery) {
+        if (searchQuery.isBlank()) allAccounts
+        else {
+            val q = searchQuery.trim().lowercase()
+            allAccounts.filter {
+                it.nameEn.lowercase().contains(q) ||
+                        it.nameBn.lowercase().contains(q) ||
+                        it.type.name.lowercase().contains(q)
+            }
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(18.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "হিসাব নির্বাচন করুন" else "Select Accounts for Cash Flow",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Search Bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "হিসাব খুঁজুন..." else "Search accounts...",
+                            fontSize = 13.sp
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Select All / Clear All bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "${LanguageHelper.toBanglaDigits(currentSelection.size.toString())}/${LanguageHelper.toBanglaDigits(allAccounts.size.toString())} নির্বাচিত"
+                        else
+                            "${currentSelection.size}/${allAccounts.size} selected",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TextButton(
+                            onClick = { currentSelection = allAccounts.map { it.id }.toSet() },
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(text = if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = { currentSelection = emptySet() },
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(text = if (languageMode == LanguageMode.BANGLA) "মুছুন" else "Clear", fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+
+                // Account items list
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(filteredAccounts, key = { it.id }) { acc ->
+                        val isChecked = currentSelection.contains(acc.id)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    currentSelection = if (isChecked) {
+                                        currentSelection - acc.id
+                                    } else {
+                                        currentSelection + acc.id
+                                    }
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = isChecked,
+                                onCheckedChange = { checked ->
+                                    currentSelection = if (checked) {
+                                        currentSelection + acc.id
+                                    } else {
+                                        currentSelection - acc.id
+                                    }
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(android.graphics.Color.parseColor(acc.colorHex.ifBlank { "#1976D2" }))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = IconHelper.getIconByName(acc.iconName),
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) acc.nameBn else acc.nameEn,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = acc.type.name,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Bottom Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(text = LanguageHelper.getString("cancel", languageMode))
+                    }
+
+                    Button(
+                        onClick = {
+                            if (currentSelection.size == allAccounts.size) {
+                                onApply(null) // null = all
+                            } else {
+                                onApply(currentSelection)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text(text = LanguageHelper.getString("apply", languageMode))
+                    }
+                }
+            }
+        }
     }
 }
