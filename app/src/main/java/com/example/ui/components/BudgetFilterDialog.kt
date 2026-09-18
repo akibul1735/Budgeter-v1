@@ -830,7 +830,59 @@ fun BudgetFilterDialog(
 
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
 
-                            // Row 1b: Hide empty / 0 amount groups
+                            // Row 1a: Show only remaining balance category
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র অবশিষ্ট ব্যালেন্সের ক্যাটাগরি দেখান" else "Show only remaining balance category",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = tempFilter.showOnlyRemainingBalance,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyRemainingBalance = it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = BrandGreen
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 1b: Show only actual
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র প্রকৃত খরচ/আয় দেখান" else "Show only actual",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = tempFilter.showOnlyActual,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyActual = it) },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = BrandGreen
+                                    )
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                            // Row 1c: Hide empty / 0 amount groups
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()

@@ -1561,49 +1561,84 @@ fun AdvancedTransactionsFilterDialog(
     var showAccPicker by remember { mutableStateOf(false) }
     var showLabelPicker by remember { mutableStateOf(false) }
 
+    val activeCount = remember(tempPreset, tempType, tempMinStr, tempMaxStr, tempCategoryId, tempAccountId, tempLabel, tempStatus) {
+        var count = 0
+        if (tempPreset != LedgerDatePreset.LAST_12_MONTHS) count++
+        if (tempType != null) count++
+        if (tempMinStr.isNotBlank() || tempMaxStr.isNotBlank()) count++
+        if (tempCategoryId != null) count++
+        if (tempAccountId != null) count++
+        if (tempLabel != null) count++
+        if (tempStatus != null) count++
+        count
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp)
+                .fillMaxWidth(0.95f)
+                .padding(vertical = 16.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(18.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Top Header with Row style, Reset & Preset icons
+                // Top Handle Bar
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .width(36.dp)
+                        .height(4.dp)
+                        .background(
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                            RoundedCornerShape(2.dp)
+                        )
+                )
+
+                // Dialog Header: Title, Badge, Row style & Actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AssistChip(
-                        onClick = {
-                            tempRowStyle = when (tempRowStyle) {
-                                LedgerRowStyle.STANDARD -> LedgerRowStyle.COMPACT
-                                LedgerRowStyle.COMPACT -> LedgerRowStyle.DETAILED
-                                LedgerRowStyle.DETAILED -> LedgerRowStyle.STANDARD
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.FilterAlt,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "লেনদেন ফিল্টার" else "Transactions Filter",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (activeCount > 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "$activeCount",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                        },
-                        label = { Text("Row style: ${tempRowStyle.name.lowercase().replaceFirstChar { it.uppercase() }}", fontSize = 11.sp) },
-                        leadingIcon = {
-                            Icon(
-                                when (tempRowStyle) {
-                                    LedgerRowStyle.STANDARD -> Icons.Default.ViewAgenda
-                                    LedgerRowStyle.COMPACT -> Icons.Default.TableRows
-                                    LedgerRowStyle.DETAILED -> Icons.Default.GridView
-                                },
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp)
-                            )
                         }
-                    )
+                    }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
@@ -1623,101 +1658,54 @@ fun AdvancedTransactionsFilterDialog(
                         }
 
                         IconButton(
-                            onClick = { /* Quick Favorite / Preset */ },
+                            onClick = onDismiss,
                             modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Default.Folder, contentDescription = "Presets", tint = SolidPrimary)
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                // Amount Range (Amount from / Amount to with Calculator)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedTextField(
-                        value = tempMinStr,
-                        onValueChange = { tempMinStr = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Amount from", fontSize = 11.sp) },
-                        trailingIcon = {
-                            IconButton(onClick = { showFromCalc = true }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    OutlinedTextField(
-                        value = tempMaxStr,
-                        onValueChange = { tempMaxStr = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Amount to", fontSize = 11.sp) },
-                        trailingIcon = {
-                            IconButton(onClick = { showToCalc = true }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
                 // Date Range Section
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Date Range", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Period",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.LAST_12_MONTHS,
                             onClick = { tempPreset = LedgerDatePreset.LAST_12_MONTHS },
-                            label = { Text("Last 12 Months", fontSize = 10.sp) }
+                            label = { Text("Last 12 Mo", fontSize = 11.sp) }
                         )
-                        FilterChip(
-                            selected = tempPreset == LedgerDatePreset.ALL_TIME,
-                            onClick = { tempPreset = LedgerDatePreset.ALL_TIME },
-                            label = { Text("All Time", fontSize = 10.sp) }
-                        )
-                        FilterChip(
-                            selected = tempPreset == LedgerDatePreset.TODAY,
-                            onClick = { tempPreset = LedgerDatePreset.TODAY },
-                            label = { Text("Today", fontSize = 10.sp) }
-                        )
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        FilterChip(
-                            selected = tempPreset == LedgerDatePreset.YESTERDAY,
-                            onClick = { tempPreset = LedgerDatePreset.YESTERDAY },
-                            label = { Text("Yesterday", fontSize = 10.sp) }
-                        )
-                        FilterChip(
-                            selected = tempPreset == LedgerDatePreset.THIS_WEEK,
-                            onClick = { tempPreset = LedgerDatePreset.THIS_WEEK },
-                            label = { Text("This Week", fontSize = 10.sp) }
-                        )
-                        FilterChip(
-                            selected = tempPreset == LedgerDatePreset.LAST_WEEK,
-                            onClick = { tempPreset = LedgerDatePreset.LAST_WEEK },
-                            label = { Text("Last Week", fontSize = 10.sp) }
-                        )
-                    }
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.THIS_MONTH,
                             onClick = { tempPreset = LedgerDatePreset.THIS_MONTH },
-                            label = { Text("This Month", fontSize = 10.sp) }
+                            label = { Text("This Month", fontSize = 11.sp) }
                         )
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.LAST_MONTH,
                             onClick = { tempPreset = LedgerDatePreset.LAST_MONTH },
-                            label = { Text("Last Month", fontSize = 10.sp) }
+                            label = { Text("Last Month", fontSize = 11.sp) }
+                        )
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FilterChip(
+                            selected = tempPreset == LedgerDatePreset.TODAY,
+                            onClick = { tempPreset = LedgerDatePreset.TODAY },
+                            label = { Text("Today", fontSize = 11.sp) }
+                        )
+                        FilterChip(
+                            selected = tempPreset == LedgerDatePreset.ALL_TIME,
+                            onClick = { tempPreset = LedgerDatePreset.ALL_TIME },
+                            label = { Text("All Time", fontSize = 11.sp) }
                         )
                         FilterChip(
                             selected = tempPreset == LedgerDatePreset.CUSTOM,
@@ -1725,107 +1713,203 @@ fun AdvancedTransactionsFilterDialog(
                                 tempPreset = LedgerDatePreset.CUSTOM
                                 onSelectCustomDates()
                             },
-                            label = { Text("Custom 📅", fontSize = 10.sp) }
+                            label = { Text("Custom 📅", fontSize = 11.sp) }
                         )
                     }
                 }
 
                 // Transaction Type
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Transaction Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন" else "Transaction Flow",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempType == null,
                             onClick = { tempType = null },
-                            label = { Text("All", fontSize = 10.sp) }
+                            label = { Text("All", fontSize = 11.sp) }
                         )
                         FilterChip(
                             selected = tempType == TransactionType.EXPENSE,
                             onClick = { tempType = TransactionType.EXPENSE },
-                            label = { Text("Expense", fontSize = 10.sp) }
+                            label = { Text("Expense", fontSize = 11.sp) }
                         )
                         FilterChip(
                             selected = tempType == TransactionType.INCOME,
                             onClick = { tempType = TransactionType.INCOME },
-                            label = { Text("Income", fontSize = 10.sp) }
+                            label = { Text("Income", fontSize = 11.sp) }
                         )
                         FilterChip(
                             selected = tempType == TransactionType.TRANSFER,
                             onClick = { tempType = TransactionType.TRANSFER },
-                            label = { Text("Transfer", fontSize = 10.sp) }
+                            label = { Text("Transfer", fontSize = 11.sp) }
                         )
                     }
                 }
 
-                // Category Selector Row with Side Filter Icon
+                // Amount Range
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "পরিমাণের সীমা" else "Amount Range",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = tempMinStr,
+                            onValueChange = { tempMinStr = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text("Min (৳)", fontSize = 11.sp) },
+                            trailingIcon = {
+                                IconButton(onClick = { showFromCalc = true }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        OutlinedTextField(
+                            value = tempMaxStr,
+                            onValueChange = { tempMaxStr = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text("Max (৳)", fontSize = 11.sp) },
+                            trailingIcon = {
+                                IconButton(onClick = { showToCalc = true }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Calculate, contentDescription = "Calc", modifier = Modifier.size(16.dp))
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // Category Selector Row
                 FilterSelectorRow(
-                    label = "Category",
+                    label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
                     selectedValue = if (tempCategoryId == null) "(All Categories)" else allCategories.firstOrNull { it.id == tempCategoryId }?.nameEn ?: "Category",
                     isFiltered = tempCategoryId != null,
                     onOpenPicker = { showCatPicker = true },
                     onClear = { tempCategoryId = null }
                 )
 
-                // Account Selector Row with Side Filter Icon
+                // Account Selector Row
                 FilterSelectorRow(
-                    label = "Account",
+                    label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
                     selectedValue = if (tempAccountId == null) "(All Accounts)" else allAccounts.firstOrNull { it.id == tempAccountId }?.nameEn ?: "Account",
                     isFiltered = tempAccountId != null,
                     onOpenPicker = { showAccPicker = true },
                     onClear = { tempAccountId = null }
                 )
 
-                // Labels Selector Row with Side Filter Icon
+                // Labels Selector Row
                 FilterSelectorRow(
-                    label = "Labels",
+                    label = if (languageMode == LanguageMode.BANGLA) "লেবেল" else "Labels",
                     selectedValue = tempLabel ?: "(No Filter)",
                     isFiltered = tempLabel != null,
                     onOpenPicker = { showLabelPicker = true },
                     onClear = { tempLabel = null }
                 )
 
-                // Status Selector Row with Side Filter Icon
+                // Status Selector Row
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Status", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = tempStatus == null,
                             onClick = { tempStatus = null },
-                            label = { Text("All", fontSize = 10.sp) }
-                        )
-                        FilterChip(
-                            selected = tempStatus == TransactionStatus.RECONCILED,
-                            onClick = { tempStatus = TransactionStatus.RECONCILED },
-                            label = { Text("Reconciled", fontSize = 10.sp) }
+                            label = { Text("All", fontSize = 11.sp) }
                         )
                         FilterChip(
                             selected = tempStatus == TransactionStatus.CLEARED,
                             onClick = { tempStatus = TransactionStatus.CLEARED },
-                            label = { Text("Cleared", fontSize = 10.sp) }
+                            label = { Text("Cleared", fontSize = 11.sp) }
+                        )
+                        FilterChip(
+                            selected = tempStatus == TransactionStatus.RECONCILED,
+                            onClick = { tempStatus = TransactionStatus.RECONCILED },
+                            label = { Text("Reconciled", fontSize = 11.sp) }
                         )
                         FilterChip(
                             selected = tempStatus == TransactionStatus.VOID,
                             onClick = { tempStatus = TransactionStatus.VOID },
-                            label = { Text("Void", fontSize = 10.sp) }
+                            label = { Text("Void", fontSize = 11.sp) }
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Bottom Actions (Cancel / OK)
+                // Layout / Row Style
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "সারি প্রদর্শন ভিউ" else "Row Layout Style",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    AssistChip(
+                        onClick = {
+                            tempRowStyle = when (tempRowStyle) {
+                                LedgerRowStyle.STANDARD -> LedgerRowStyle.COMPACT
+                                LedgerRowStyle.COMPACT -> LedgerRowStyle.DETAILED
+                                LedgerRowStyle.DETAILED -> LedgerRowStyle.STANDARD
+                            }
+                        },
+                        label = { Text(tempRowStyle.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 11.sp) },
+                        leadingIcon = {
+                            Icon(
+                                when (tempRowStyle) {
+                                    LedgerRowStyle.STANDARD -> Icons.Default.ViewAgenda
+                                    LedgerRowStyle.COMPACT -> Icons.Default.TableRows
+                                    LedgerRowStyle.DETAILED -> Icons.Default.GridView
+                                },
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                // Bottom Actions (Reset All & Apply)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            tempPreset = LedgerDatePreset.LAST_12_MONTHS
+                            tempType = null
+                            tempMinStr = ""
+                            tempMaxStr = ""
+                            tempCategoryId = null
+                            tempAccountId = null
+                            tempLabel = null
+                            tempStatus = null
+                        }
                     ) {
-                        Text("Cancel")
+                        Text(if (languageMode == LanguageMode.BANGLA) "রিসেট করুন" else "Reset All")
                     }
 
                     Button(
@@ -1834,11 +1918,17 @@ fun AdvancedTransactionsFilterDialog(
                             val maxAmt = tempMaxStr.toDoubleOrNull() ?: 0.0
                             onApply(tempPreset, tempType, minAmt, maxAmt, tempCategoryId, tempAccountId, tempLabel, tempStatus, tempRowStyle)
                         },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
                     ) {
-                        Text("OK")
+                        Text(
+                            text = if (activeCount > 0) {
+                                if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন ($activeCount)" else "Apply ($activeCount)"
+                            } else {
+                                if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

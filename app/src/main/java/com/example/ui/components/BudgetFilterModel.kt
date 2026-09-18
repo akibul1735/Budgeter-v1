@@ -88,7 +88,9 @@ data class BudgetFilterState(
     val showExpenseCategoriesFirst: Boolean = true,
     val sortOrder: BudgetSortOrder = BudgetSortOrder.AMOUNT_DESC,
 
-    // 8. Other Useful Filters
+    // 8. Other Useful Filters & Specific Toggles
+    val showOnlyRemainingBalance: Boolean = false,
+    val showOnlyActual: Boolean = false,
     val filterOnlyBudgeted: Boolean = false,
     val filterOnlyOverBudget: Boolean = false,
     val minAmount: Double? = null,
@@ -112,6 +114,8 @@ data class BudgetFilterState(
                 !sortByAmount ||
                 !showExpenseCategoriesFirst ||
                 (sortOrder != BudgetSortOrder.DEFAULT && sortOrder != BudgetSortOrder.AMOUNT_DESC) ||
+                showOnlyRemainingBalance ||
+                showOnlyActual ||
                 filterOnlyBudgeted ||
                 filterOnlyOverBudget ||
                 minAmount != null ||
@@ -130,6 +134,8 @@ data class BudgetFilterState(
             if (showOnlyCategoriesWithoutGroups) count++
             if (!displayCurrency || !displayCurrencySymbol) count++
             if (!sortByAmount || !showExpenseCategoriesFirst || (sortOrder != BudgetSortOrder.DEFAULT && sortOrder != BudgetSortOrder.AMOUNT_DESC)) count++
+            if (showOnlyRemainingBalance) count++
+            if (showOnlyActual) count++
             if (filterOnlyBudgeted || filterOnlyOverBudget) count++
             if (minAmount != null || maxAmount != null) count++
             return count

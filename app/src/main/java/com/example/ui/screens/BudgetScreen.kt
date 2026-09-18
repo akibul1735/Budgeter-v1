@@ -1833,6 +1833,12 @@ private fun CategoriesBudgetEntryView(
         if (filterState.selectedAccountIds.isNotEmpty()) {
             list = list.filter { it.item.id in filterState.selectedAccountIds }
         }
+        if (filterState.showOnlyRemainingBalance) {
+            list = list.filter { (it.currentBudget - it.actualSpent) > 0.0 }
+        }
+        if (filterState.showOnlyActual) {
+            list = list.filter { it.actualSpent > 0.0 }
+        }
         if (filterState.filterOnlyBudgeted) {
             list = list.filter { it.currentBudget > 0.0 }
         }

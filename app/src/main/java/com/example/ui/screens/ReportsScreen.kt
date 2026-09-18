@@ -305,6 +305,8 @@ fun ReportsScreen(
         totalFlowAmount,
         searchQuery,
         sortOption,
+        filterState.excludeZeroAmounts,
+        filterState.hideEmptyGroups,
         languageMode
     ) {
         val relevantCategories = categories.filter { it.type == targetType }
@@ -313,7 +315,7 @@ fun ReportsScreen(
 
         val flowTransactions = monthTransactions.filter { it.transaction.type == targetTxType }
 
-        val groups = parentCategories.map { parent ->
+        val groups = parentCategories.mapNotNull { parent ->
             val children = childCategories.filter { it.parentId == parent.id }
             val items = children.map { child ->
                 val childTx = flowTransactions.filter {
@@ -350,16 +352,26 @@ fun ReportsScreen(
                 )
             } else items
 
-            val groupTotal = allItems.sumOf { it.actualAmount }
+            val filteredItems = if (filterState.excludeZeroAmounts) {
+                allItems.filter { it.actualAmount > 0.0 }
+            } else {
+                allItems
+            }
+
+            val groupTotal = filteredItems.sumOf { it.actualAmount }
             val groupShare = if (totalFlowAmount > 0) (groupTotal / totalFlowAmount) * 100.0 else 0.0
 
-            CategoryGroupEarningsTracking(
-                parentCategory = parent,
-                groupNameEn = parent.nameEn,
-                groupNameBn = parent.nameBn,
-                items = allItems,
-                percentageShare = groupShare
-            )
+            if (filterState.excludeZeroAmounts && groupTotal <= 0.0 && filteredItems.isEmpty()) {
+                null
+            } else {
+                CategoryGroupEarningsTracking(
+                    parentCategory = parent,
+                    groupNameEn = parent.nameEn,
+                    groupNameBn = parent.nameBn,
+                    items = filteredItems,
+                    percentageShare = groupShare
+                )
+            }
         }
 
         // Catch transactions in categories without a recognized parent group (Uncategorized)
@@ -381,20 +393,30 @@ fun ReportsScreen(
                 colorHex = "#94A3B8",
                 iconName = "Category"
             )
-            groups + CategoryGroupEarningsTracking(
-                parentCategory = orphanCat,
-                groupNameEn = "Uncategorized",
-                groupNameBn = "শ্রেণীবিহীন",
-                items = listOf(
-                    CategoryEarningsTrackingItem(
-                        category = orphanCat,
-                        actualAmount = orphanAmt,
-                        transactions = orphanTx,
-                        percentageShare = orphanShare
-                    )
-                ),
-                percentageShare = orphanShare
+            val orphanItems = listOf(
+                CategoryEarningsTrackingItem(
+                    category = orphanCat,
+                    actualAmount = orphanAmt,
+                    transactions = orphanTx,
+                    percentageShare = orphanShare
+                )
             )
+            val filteredOrphanItems = if (filterState.excludeZeroAmounts) {
+                orphanItems.filter { it.actualAmount > 0.0 }
+            } else {
+                orphanItems
+            }
+            if (!filterState.excludeZeroAmounts || orphanAmt > 0.0) {
+                groups + CategoryGroupEarningsTracking(
+                    parentCategory = orphanCat,
+                    groupNameEn = "Uncategorized",
+                    groupNameBn = "শ্রেণীবিহীন",
+                    items = filteredOrphanItems,
+                    percentageShare = orphanShare
+                )
+            } else {
+                groups
+            }
         } else groups
 
         // Filter by search query if any
