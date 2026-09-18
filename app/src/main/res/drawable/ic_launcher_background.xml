@@ -31,12 +31,6 @@
                 android:type="radial" />
         </aapt:attr>
     </path>
-
-    <!-- Concentric Ambient Gold Accents -->
-    <path
-        android:pathData="M54,54m-36,0a36,36 0 1,0 72,0a36,36 0 1,0 -72,0"
-        android:strokeWidth="1.0"
-        android:strokeColor="#66FDE047" />
 </vector>
 
 
