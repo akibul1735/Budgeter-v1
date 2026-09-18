@@ -1,6 +1,7 @@
 package com.example.ui.screens.settings
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,9 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.model.LanguageMode
 import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.SolidPrimary
@@ -86,21 +89,17 @@ fun AboutSettingsPage(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Gold Coin Emblem
+                    // Official App Launcher Icon Emblem
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFFFFD700),
-                        shadowElevation = 3.dp,
-                        modifier = Modifier.size(60.dp)
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.size(68.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "৳",
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF4A3800)
-                            )
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.app_icon_512),
+                            contentDescription = "Budgeter App Icon",
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
