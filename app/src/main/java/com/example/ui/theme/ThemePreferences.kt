@@ -8,19 +8,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-enum class ThemePalette(val displayNameEn: String, val displayNameBn: String, val primaryColor: Color) {
-    PREMIUM_GREEN("Emerald Wealth", "প্রিমিয়াম গ্রিন", Color(0xFF059669)),
-    ELEGANT_BLUE("Royal Sapphire", "এলিগ্যান্ট ব্লু", Color(0xFF1D4ED8)),
-    MODERN_INDIGO("Modern Indigo", "মডার্ন ইন্ডিগো", Color(0xFF4338CA)),
-    WARM_NEUTRAL("Warm Amber Gold", "ওয়ার্ম গোল্ডেন", Color(0xFFB45309)),
-    CRIMSON_ROYAL("Royal Crimson", "রয়্যাল ক্রিমসন", Color(0xFFBE123C)),
-    CALM_SAGE("Nordic Sage", "কাম সেইজ", Color(0xFF2E6546)),
-    CYAN_BREEZE("Ocean Cyan", "ওশেন সায়ান", Color(0xFF0284C7)),
-    DEEP_PURPLE("Electric Violet", "ইলেক্ট্রিক ভায়োলেট", Color(0xFF7E22CE)),
-    SUNSET_ORANGE("Sunset Coral", "সানসেট কোরাল", Color(0xFFC2410C)),
-    SOFT_PASTEL("Lavender Velvet", "সফট ল্যাভেন্ডার", Color(0xFF6D28D9)),
-    SOPHISTICATED_DARK("Obsidian Luxe", "সোফিস্টিকেটেড অবসিডিয়ান", Color(0xFF18181B)),
-    MINIMAL_MONO("Titanium Monochrome", "মিনিমাল টাইটানিয়াম", Color(0xFF212529))
+enum class ThemePalette(
+    val displayNameEn: String,
+    val displayNameBn: String,
+    val primaryColor: Color,
+    val isNightTheme: Boolean = false
+) {
+    // 3 Day Themes
+    EMERALD_WEALTH("Emerald Mint", "এমারেল্ড মিন্ট", Color(0xFF059669), false),
+    ROYAL_SAPPHIRE("Ocean Sapphire", "ওশেন স্যাফায়ার", Color(0xFF1D4ED8), false),
+    WARM_AMBER("Warm Amber", "ওয়ার্ম অ্যাম্বার", Color(0xFFB45309), false),
+
+    // 2 Night Themes
+    MIDNIGHT_SLATE("Midnight Slate", "মিডনাইট স্লেট", Color(0xFF38BDF8), true),
+    OBSIDIAN_NIGHT("Obsidian OLED", "অবসিডিয়ান ওলেড", Color(0xFF10B981), true)
 }
 
 enum class ThemeMode(val titleEn: String, val titleBn: String) {
@@ -145,22 +146,29 @@ data class CustomTheme(
     val name: String,
     val primaryColorHex: Long,
     val secondaryColorHex: Long? = null,
+    val surfaceColorHex: Long? = null,
+    val headerColorHex: Long? = null,
     val incomeColorHex: Long? = null,
     val expenseColorHex: Long? = null,
+    val transferColorHex: Long? = null,
+    val shadeIntensity: Int = 100,
     val isDarkOptimized: Boolean = true
 ) {
     val primaryColor: Color get() = Color(primaryColorHex)
     val secondaryColor: Color get() = secondaryColorHex?.let { Color(it) } ?: primaryColor
+    val customSurfaceColor: Color? get() = surfaceColorHex?.let { Color(it) }
+    val customHeaderColor: Color? get() = headerColorHex?.let { Color(it) }
     val customIncomeColor: Color? get() = incomeColorHex?.let { Color(it) }
     val customExpenseColor: Color? get() = expenseColorHex?.let { Color(it) }
+    val customTransferColor: Color? get() = transferColorHex?.let { Color(it) }
 }
 
 data class AppThemeConfig(
-    val palette: ThemePalette = ThemePalette.PREMIUM_GREEN,
+    val palette: ThemePalette = ThemePalette.EMERALD_WEALTH,
     val customThemeId: String? = null,
     val customThemes: List<CustomTheme> = emptyList(),
     val mode: ThemeMode = ThemeMode.SYSTEM,
-    val colorIntensity: ColorIntensity = ColorIntensity.VIVID,
+    val colorIntensity: ColorIntensity = ColorIntensity.STANDARD,
     val dynamicColor: Boolean = false,
     val fontPreset: FontPreset = FontPreset.DEFAULT,
     val cornerRadius: AppCornerRadius = AppCornerRadius.STANDARD,
@@ -181,7 +189,7 @@ data class AppThemeConfig(
         get() = activeCustomTheme?.customExpenseColor ?: semanticPalette.expenseColor
 
     val activeTransferColor: Color
-        get() = semanticPalette.transferColor
+        get() = activeCustomTheme?.customTransferColor ?: semanticPalette.transferColor
 }
 
 class ThemePreferences(context: Context) {
@@ -191,13 +199,13 @@ class ThemePreferences(context: Context) {
     val themeConfig: StateFlow<AppThemeConfig> = _themeConfig.asStateFlow()
 
     private fun loadConfig(): AppThemeConfig {
-        val paletteName = prefs.getString(KEY_PALETTE, ThemePalette.PREMIUM_GREEN.name) ?: ThemePalette.PREMIUM_GREEN.name
+        val paletteName = prefs.getString(KEY_PALETTE, ThemePalette.EMERALD_WEALTH.name) ?: ThemePalette.EMERALD_WEALTH.name
         val selectedCustomThemeId = prefs.getString(KEY_SELECTED_CUSTOM_THEME_ID, null)
         val customThemesJson = prefs.getString(KEY_CUSTOM_THEMES, null)
         val customThemes = deserializeCustomThemes(customThemesJson)
 
         val modeName = prefs.getString(KEY_MODE, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
-        val intensityName = prefs.getString(KEY_INTENSITY, ColorIntensity.VIVID.name) ?: ColorIntensity.VIVID.name
+        val intensityName = prefs.getString(KEY_INTENSITY, ColorIntensity.STANDARD.name) ?: ColorIntensity.STANDARD.name
         val dynamicColor = prefs.getBoolean(KEY_DYNAMIC_COLOR, false)
         val fontName = prefs.getString(KEY_FONT, FontPreset.DEFAULT.name) ?: FontPreset.DEFAULT.name
         val cornerRadiusName = prefs.getString(KEY_CORNER_RADIUS, AppCornerRadius.STANDARD.name) ?: AppCornerRadius.STANDARD.name
@@ -206,17 +214,15 @@ class ThemePreferences(context: Context) {
         val darkSurfaceToneName = prefs.getString(KEY_DARK_SURFACE_TONE, DarkSurfaceTone.SLATE_BLUE.name) ?: DarkSurfaceTone.SLATE_BLUE.name
 
         val palette = when (paletteName) {
-            "EMERALD" -> ThemePalette.PREMIUM_GREEN
-            "SAPPHIRE" -> ThemePalette.ELEGANT_BLUE
-            "AMETHYST" -> ThemePalette.SOFT_PASTEL
-            "GOLDEN" -> ThemePalette.WARM_NEUTRAL
-            "CRIMSON" -> ThemePalette.CRIMSON_ROYAL
-            "TEAL" -> ThemePalette.CALM_SAGE
-            "SUNSET" -> ThemePalette.SUNSET_ORANGE
-            else -> try { ThemePalette.valueOf(paletteName) } catch (_: Exception) { ThemePalette.PREMIUM_GREEN }
+            "EMERALD_WEALTH", "PREMIUM_GREEN", "CALM_SAGE", "EMERALD", "TEAL" -> ThemePalette.EMERALD_WEALTH
+            "ROYAL_SAPPHIRE", "ELEGANT_BLUE", "MODERN_INDIGO", "CYAN_BREEZE", "SAPPHIRE" -> ThemePalette.ROYAL_SAPPHIRE
+            "WARM_AMBER", "WARM_NEUTRAL", "SUNSET_ORANGE", "SOFT_PASTEL", "CRIMSON_ROYAL", "DEEP_PURPLE", "GOLDEN", "CRIMSON", "AMETHYST", "SUNSET" -> ThemePalette.WARM_AMBER
+            "MIDNIGHT_SLATE", "SOPHISTICATED_DARK" -> ThemePalette.MIDNIGHT_SLATE
+            "OBSIDIAN_NIGHT", "MINIMAL_MONO" -> ThemePalette.OBSIDIAN_NIGHT
+            else -> try { ThemePalette.valueOf(paletteName) } catch (_: Exception) { ThemePalette.EMERALD_WEALTH }
         }
         val mode = try { ThemeMode.valueOf(modeName) } catch (_: Exception) { ThemeMode.SYSTEM }
-        val intensity = try { ColorIntensity.valueOf(intensityName) } catch (_: Exception) { ColorIntensity.VIVID }
+        val intensity = try { ColorIntensity.valueOf(intensityName) } catch (_: Exception) { ColorIntensity.STANDARD }
         val font = try { FontPreset.valueOf(fontName) } catch (_: Exception) { FontPreset.DEFAULT }
         val cornerRadius = try { AppCornerRadius.valueOf(cornerRadiusName) } catch (_: Exception) { AppCornerRadius.STANDARD }
         val fontScale = try { AppFontScale.valueOf(fontScaleName) } catch (_: Exception) { AppFontScale.DEFAULT }
@@ -265,8 +271,12 @@ class ThemePreferences(context: Context) {
         name: String,
         primaryColorHex: Long,
         secondaryColorHex: Long? = null,
+        surfaceColorHex: Long? = null,
+        headerColorHex: Long? = null,
         incomeColorHex: Long? = null,
-        expenseColorHex: Long? = null
+        expenseColorHex: Long? = null,
+        transferColorHex: Long? = null,
+        shadeIntensity: Int = 100
     ): CustomTheme {
         val current = _themeConfig.value
         val newTheme = CustomTheme(
@@ -274,8 +284,12 @@ class ThemePreferences(context: Context) {
             name = name.trim().ifBlank { "Custom Theme" },
             primaryColorHex = primaryColorHex,
             secondaryColorHex = secondaryColorHex,
+            surfaceColorHex = surfaceColorHex,
+            headerColorHex = headerColorHex,
             incomeColorHex = incomeColorHex,
-            expenseColorHex = expenseColorHex
+            expenseColorHex = expenseColorHex,
+            transferColorHex = transferColorHex,
+            shadeIntensity = shadeIntensity
         )
         val updatedList = current.customThemes + newTheme
         prefs.edit()
@@ -389,12 +403,22 @@ class ThemePreferences(context: Context) {
             if (theme.secondaryColorHex != null) {
                 obj.put("secondary", theme.secondaryColorHex)
             }
+            if (theme.surfaceColorHex != null) {
+                obj.put("surface", theme.surfaceColorHex)
+            }
+            if (theme.headerColorHex != null) {
+                obj.put("header", theme.headerColorHex)
+            }
             if (theme.incomeColorHex != null) {
                 obj.put("income", theme.incomeColorHex)
             }
             if (theme.expenseColorHex != null) {
                 obj.put("expense", theme.expenseColorHex)
             }
+            if (theme.transferColorHex != null) {
+                obj.put("transfer", theme.transferColorHex)
+            }
+            obj.put("shade", theme.shadeIntensity)
             array.put(obj)
         }
         return array.toString()
@@ -411,16 +435,24 @@ class ThemePreferences(context: Context) {
                 val name = obj.getString("name")
                 val primary = obj.getLong("primary")
                 val secondary = if (obj.has("secondary")) obj.getLong("secondary") else null
+                val surface = if (obj.has("surface")) obj.getLong("surface") else null
+                val header = if (obj.has("header")) obj.getLong("header") else null
                 val income = if (obj.has("income")) obj.getLong("income") else null
                 val expense = if (obj.has("expense")) obj.getLong("expense") else null
+                val transfer = if (obj.has("transfer")) obj.getLong("transfer") else null
+                val shade = if (obj.has("shade")) obj.getInt("shade") else 100
                 list.add(
                     CustomTheme(
                         id = id,
                         name = name,
                         primaryColorHex = primary,
                         secondaryColorHex = secondary,
+                        surfaceColorHex = surface,
+                        headerColorHex = header,
                         incomeColorHex = income,
-                        expenseColorHex = expense
+                        expenseColorHex = expense,
+                        transferColorHex = transfer,
+                        shadeIntensity = shade
                     )
                 )
             }

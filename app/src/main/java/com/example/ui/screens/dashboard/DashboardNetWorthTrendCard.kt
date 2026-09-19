@@ -71,6 +71,8 @@ import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
 import com.example.util.DashboardChartUtils
 import com.example.util.LanguageHelper
 import com.example.util.NetWorthMetricFilter
@@ -131,9 +133,9 @@ fun DashboardNetWorthTrendCard(
         )
     }
 
-    val assetsColor = Color(0xFF00C988)     // Emerald Green
-    val liabilitiesColor = Color(0xFFE83F6F) // Coral Pink / Magenta
-    val netWorthColor = Color(0xFF6366F1)   // Indigo / Purple Accent
+    val assetsColor = SolidIncome
+    val liabilitiesColor = SolidExpense
+    val netWorthColor = MaterialTheme.colorScheme.primary
 
     val latestMonth = monthlyPoints.lastOrNull()
     val prevMonth = if (monthlyPoints.size >= 2) monthlyPoints[monthlyPoints.size - 2] else null

@@ -426,9 +426,23 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         name: String,
         primaryColorHex: Long,
         secondaryColorHex: Long? = null,
+        surfaceColorHex: Long? = null,
+        headerColorHex: Long? = null,
         incomeColorHex: Long? = null,
-        expenseColorHex: Long? = null
-    ) = themePrefs.addCustomTheme(name, primaryColorHex, secondaryColorHex, incomeColorHex, expenseColorHex)
+        expenseColorHex: Long? = null,
+        transferColorHex: Long? = null,
+        shadeIntensity: Int = 100
+    ) = themePrefs.addCustomTheme(
+        name,
+        primaryColorHex,
+        secondaryColorHex,
+        surfaceColorHex,
+        headerColorHex,
+        incomeColorHex,
+        expenseColorHex,
+        transferColorHex,
+        shadeIntensity
+    )
     fun updateCustomTheme(theme: CustomTheme) = themePrefs.updateCustomTheme(theme)
     fun deleteCustomTheme(themeId: String) = themePrefs.deleteCustomTheme(themeId)
     fun setThemeMode(mode: ThemeMode) = themePrefs.setMode(mode)

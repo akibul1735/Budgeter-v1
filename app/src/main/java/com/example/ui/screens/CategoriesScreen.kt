@@ -384,7 +384,8 @@ fun CategoriesScreen(
                             .fillMaxWidth()
                             .testTag("categories_summary_card"),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = SolidPrimary)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp)
@@ -398,14 +399,14 @@ fun CategoriesScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = LanguageHelper.getString("net_earnings", languageMode),
-                                        color = Color.White.copy(alpha = 0.9f),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(netEarnings, languageMode),
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontSize = 22.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     )
@@ -414,8 +415,8 @@ fun CategoriesScreen(
                                 // Edit Mode Button on Top Card (activates/deactivates edit mode)
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isEditMode) Color.White else Color.White.copy(alpha = 0.18f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = if (isEditMode) 0.9f else 0.4f)),
+                                    color = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable { isEditMode = !isEditMode }
@@ -429,7 +430,7 @@ fun CategoriesScreen(
                                         Icon(
                                             imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Edit,
                                             contentDescription = "Edit Mode",
-                                            tint = if (isEditMode) SolidPrimary else Color.White,
+                                            tint = if (isEditMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(13.dp)
                                         )
                                         Text(
@@ -437,7 +438,7 @@ fun CategoriesScreen(
                                             else (if (languageMode == LanguageMode.BANGLA) "সম্পাদন" else "Edit"),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isEditMode) SolidPrimary else Color.White
+                                            color = if (isEditMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                         )
                                     }
                                 }
@@ -454,8 +455,8 @@ fun CategoriesScreen(
                                 Surface(
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color.Black.copy(alpha = 0.28f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -465,13 +466,13 @@ fun CategoriesScreen(
                                             modifier = Modifier
                                                 .size(24.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF10B981).copy(alpha = 0.25f)),
+                                                .background(SolidIncome.copy(alpha = 0.15f)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.TrendingUp,
                                                 contentDescription = null,
-                                                tint = Color(0xFF6EE7B7),
+                                                tint = SolidIncome,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                         }
@@ -479,14 +480,14 @@ fun CategoriesScreen(
                                         Column {
                                             Text(
                                                 text = LanguageHelper.getString("incomes", languageMode),
-                                                color = Color.White,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Spacer(modifier = Modifier.height(1.dp))
                                             Text(
                                                 text = LanguageHelper.formatCurrency(totalIncomeBudget, languageMode),
-                                                color = Color(0xFFE6FFFA),
+                                                color = SolidIncome,
                                                 fontSize = 14.5.sp,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 maxLines = 1,
@@ -500,8 +501,8 @@ fun CategoriesScreen(
                                 Surface(
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color.Black.copy(alpha = 0.28f),
-                                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -511,13 +512,13 @@ fun CategoriesScreen(
                                             modifier = Modifier
                                                 .size(24.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFFEF4444).copy(alpha = 0.25f)),
+                                                .background(SolidExpense.copy(alpha = 0.15f)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.TrendingDown,
                                                 contentDescription = null,
-                                                tint = Color(0xFFFCA5A5),
+                                                tint = SolidExpense,
                                                 modifier = Modifier.size(15.dp)
                                             )
                                         }
@@ -525,14 +526,14 @@ fun CategoriesScreen(
                                         Column {
                                             Text(
                                                 text = LanguageHelper.getString("expenses", languageMode),
-                                                color = Color.White,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Spacer(modifier = Modifier.height(1.dp))
                                             Text(
                                                 text = LanguageHelper.formatCurrency(totalExpenseBudget, languageMode),
-                                                color = Color(0xFFFFECEE),
+                                                color = SolidExpense,
                                                 fontSize = 14.5.sp,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 maxLines = 1,
@@ -555,7 +556,7 @@ fun CategoriesScreen(
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(Color.Black.copy(alpha = 0.22f))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
                                         .padding(2.dp),
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
@@ -582,8 +583,8 @@ fun CategoriesScreen(
 
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (sortFilter != CategorySortFilter.DEFAULT) Color.White else Color.Black.copy(alpha = 0.22f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+                                        color = if (sortFilter != CategorySortFilter.DEFAULT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
                                             .clickable { showFilterMenu = true }
@@ -597,14 +598,14 @@ fun CategoriesScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Sort,
                                                 contentDescription = "Sort",
-                                                tint = if (sortFilter != CategorySortFilter.DEFAULT) SolidPrimary else Color.White,
+                                                tint = if (sortFilter != CategorySortFilter.DEFAULT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                                 modifier = Modifier.size(13.dp)
                                             )
                                             Text(
                                                 text = getCategorySortLabel(sortFilter, languageMode),
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (sortFilter != CategorySortFilter.DEFAULT) SolidPrimary else Color.White
+                                                color = if (sortFilter != CategorySortFilter.DEFAULT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }

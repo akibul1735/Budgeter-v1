@@ -83,6 +83,9 @@ import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidTransfer
 import com.example.util.DashboardChartUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
@@ -132,9 +135,9 @@ fun DashboardNetEarningsCard(
         )
     }
 
-    val expenseColor = Color(0xFFE83F6F) // Magenta / Coral Pink
-    val incomeColor = Color(0xFF00C988)  // Emerald / Teal Green
-    val netBlueColor = Color(0xFF38BDF8) // Cyan / Blue
+    val expenseColor = SolidExpense
+    val incomeColor = SolidIncome
+    val netBlueColor = SolidTransfer
 
     val latestMonth = monthlyPoints.lastOrNull()
     val prevMonth = if (monthlyPoints.size >= 2) monthlyPoints[monthlyPoints.size - 2] else null

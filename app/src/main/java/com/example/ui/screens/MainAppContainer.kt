@@ -1228,8 +1228,8 @@ fun MainAppContainer(
             languageMode = languageMode,
             onPaletteSelected = { viewModel.setThemePalette(it) },
             onCustomThemeSelected = { viewModel.selectCustomTheme(it) },
-            onCustomThemeAdded = { name, primary, secondary, income, expense ->
-                viewModel.addCustomTheme(name, primary, secondary, income, expense)
+            onCustomThemeAdded = { name, primary, secondary, surface, header, income, expense, transfer, shade ->
+                viewModel.addCustomTheme(name, primary, secondary, surface, header, income, expense, transfer, shade)
             },
             onCustomThemeUpdated = { viewModel.updateCustomTheme(it) },
             onCustomThemeDeleted = { viewModel.deleteCustomTheme(it) },
@@ -1523,6 +1523,27 @@ private fun DrawerContent(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val themeConfig by ThemePreferences.getInstance(context).themeConfig.collectAsStateWithLifecycle()
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkModeActive = when (themeConfig.mode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK, ThemeMode.AMOLED_NIGHT -> true
+        ThemeMode.SYSTEM -> isSystemDark
+    }
+
+    val headerBgColor = if (isDarkModeActive) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
+    val headerTextColor = if (isDarkModeActive) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        Color.White
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1532,7 +1553,7 @@ private fun DrawerContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primary)
+                .background(headerBgColor)
                 .padding(20.dp)
         ) {
             Column {
@@ -1564,18 +1585,18 @@ private fun DrawerContent(
                             text = LanguageHelper.getString("app_name", languageMode),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
+                            color = headerTextColor
                         )
                     }
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color.White.copy(alpha = 0.2f)
+                        color = headerTextColor.copy(alpha = 0.15f)
                     ) {
                         Text(
                             text = "v3.6",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = headerTextColor,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -1586,13 +1607,13 @@ private fun DrawerContent(
                 Text(
                     text = LanguageHelper.getString("net_worth", languageMode),
                     fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.8f)
+                    color = headerTextColor.copy(alpha = 0.75f)
                 )
                 Text(
                     text = LanguageHelper.formatCurrency(netWorth, languageMode),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = headerTextColor
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -1613,19 +1634,17 @@ private fun DrawerContent(
                         Text(
                             text = if (isBalanced) "Dr = Cr Balanced" else "Unbalanced",
                             fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.9f),
+                            color = headerTextColor.copy(alpha = 0.85f),
                             fontWeight = FontWeight.Medium
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
-                HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
+                HorizontalDivider(color = headerTextColor.copy(alpha = 0.18f))
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Day / Night / Auto Mode Toggle + Quick Theme Palette Button
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val themeConfig by ThemePreferences.getInstance(context).themeConfig.collectAsStateWithLifecycle()
                 var showQuickThemeDialog by remember { mutableStateOf(false) }
 
                 Row(
@@ -1636,7 +1655,7 @@ private fun DrawerContent(
                     // 1. Day / Night / Auto Mode Toggle Pill
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = Color.Black.copy(alpha = 0.22f),
+                        color = if (isDarkModeActive) Color.Black.copy(alpha = 0.35f) else Color.Black.copy(alpha = 0.22f),
                         modifier = Modifier.height(28.dp)
                     ) {
                         Row(
@@ -1647,7 +1666,7 @@ private fun DrawerContent(
                             val isLight = themeConfig.mode == ThemeMode.LIGHT
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isLight) Color.White else Color.Transparent,
+                                color = if (isLight) (if (isDarkModeActive) MaterialTheme.colorScheme.surface else Color.White) else Color.Transparent,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
@@ -1659,7 +1678,7 @@ private fun DrawerContent(
                                     Icon(
                                         imageVector = Icons.Default.LightMode,
                                         contentDescription = "Day",
-                                        tint = if (isLight) Color(0xFFE65100) else Color.White.copy(alpha = 0.85f),
+                                        tint = if (isLight) Color(0xFFE65100) else headerTextColor.copy(alpha = 0.85f),
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
@@ -1667,7 +1686,7 @@ private fun DrawerContent(
                                         text = if (languageMode == LanguageMode.BANGLA) "দিন" else "Day",
                                         fontSize = 10.sp,
                                         fontWeight = if (isLight) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isLight) Color.Black else Color.White.copy(alpha = 0.9f)
+                                        color = if (isLight) (if (isDarkModeActive) MaterialTheme.colorScheme.onSurface else Color.Black) else headerTextColor.copy(alpha = 0.9f)
                                     )
                                 }
                             }
@@ -1676,7 +1695,7 @@ private fun DrawerContent(
                             val isDark = themeConfig.mode == ThemeMode.DARK || themeConfig.mode == ThemeMode.AMOLED_NIGHT
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isDark) Color.White else Color.Transparent,
+                                color = if (isDark) (if (isDarkModeActive) MaterialTheme.colorScheme.primaryContainer else Color.White) else Color.Transparent,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
@@ -1688,7 +1707,7 @@ private fun DrawerContent(
                                     Icon(
                                         imageVector = Icons.Default.DarkMode,
                                         contentDescription = "Night",
-                                        tint = if (isDark) Color(0xFF311B92) else Color.White.copy(alpha = 0.85f),
+                                        tint = if (isDark) MaterialTheme.colorScheme.primary else headerTextColor.copy(alpha = 0.85f),
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
@@ -1696,7 +1715,7 @@ private fun DrawerContent(
                                         text = if (languageMode == LanguageMode.BANGLA) "রাত" else "Night",
                                         fontSize = 10.sp,
                                         fontWeight = if (isDark) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isDark) Color.Black else Color.White.copy(alpha = 0.9f)
+                                        color = if (isDark) (if (isDarkModeActive) MaterialTheme.colorScheme.onPrimaryContainer else Color.Black) else headerTextColor.copy(alpha = 0.9f)
                                     )
                                 }
                             }
@@ -1705,7 +1724,7 @@ private fun DrawerContent(
                             val isAuto = themeConfig.mode == ThemeMode.SYSTEM
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isAuto) Color.White else Color.Transparent,
+                                color = if (isAuto) (if (isDarkModeActive) MaterialTheme.colorScheme.surface else Color.White) else Color.Transparent,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
@@ -1717,7 +1736,7 @@ private fun DrawerContent(
                                     Icon(
                                         imageVector = Icons.Default.BrightnessAuto,
                                         contentDescription = "Auto",
-                                        tint = if (isAuto) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.85f),
+                                        tint = if (isAuto) MaterialTheme.colorScheme.primary else headerTextColor.copy(alpha = 0.85f),
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
@@ -1725,7 +1744,7 @@ private fun DrawerContent(
                                         text = if (languageMode == LanguageMode.BANGLA) "অটো" else "Auto",
                                         fontSize = 10.sp,
                                         fontWeight = if (isAuto) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isAuto) Color.Black else Color.White.copy(alpha = 0.9f)
+                                        color = if (isAuto) (if (isDarkModeActive) MaterialTheme.colorScheme.onSurface else Color.Black) else headerTextColor.copy(alpha = 0.9f)
                                     )
                                 }
                             }
@@ -1735,7 +1754,7 @@ private fun DrawerContent(
                     // 2. Quick Theme Palette Button
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = Color.White.copy(alpha = 0.22f),
+                        color = headerTextColor.copy(alpha = 0.15f),
                         modifier = Modifier
                             .height(28.dp)
                             .clip(RoundedCornerShape(14.dp))
@@ -1748,7 +1767,7 @@ private fun DrawerContent(
                             Icon(
                                 imageVector = Icons.Default.Palette,
                                 contentDescription = "Theme",
-                                tint = Color.White,
+                                tint = headerTextColor,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -1756,7 +1775,7 @@ private fun DrawerContent(
                                 text = if (languageMode == LanguageMode.BANGLA) "থিম" else "Theme",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = headerTextColor
                             )
                         }
                     }
@@ -2509,9 +2528,16 @@ private fun QuickThemeDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ThemePalette.values().forEach { palette ->
+                // Day Themes Section
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "☀️ দিনের থিম (৩টি)" else "☀️ Day Themes (3)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                ThemePalette.entries.filter { !it.isNightTheme }.forEach { palette ->
                     val isSelected = currentPalette == palette
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -2541,7 +2567,61 @@ private fun QuickThemeDialog(
                                     text = name,
                                     fontSize = 13.sp,
                                     fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Night Themes Section
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "🌙 রাতের থিম (২টি)" else "🌙 Night Themes (2)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                ThemePalette.entries.filter { it.isNightTheme }.forEach { palette ->
+                    val isSelected = currentPalette == palette
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectPalette(palette) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = palette.primaryColor,
+                                    shadowElevation = 2.dp,
+                                    modifier = Modifier.size(24.dp)
+                                ) {}
+                                val name = if (languageMode == LanguageMode.BANGLA) palette.displayNameBn else palette.displayNameEn
+                                Text(
+                                    text = name,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             if (isSelected) {

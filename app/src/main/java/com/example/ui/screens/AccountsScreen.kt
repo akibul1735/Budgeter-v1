@@ -646,7 +646,8 @@ fun AccountsScreen(
                             .fillMaxWidth()
                             .testTag("net_worth_card"),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = SolidPrimary)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp)
@@ -661,14 +662,14 @@ fun AccountsScreen(
                                     Text(
                                         text = if (hasCustomizations) LanguageHelper.getString("calculated_net_worth", languageMode)
                                         else LanguageHelper.getString("net_worth", languageMode),
-                                        color = Color.White.copy(alpha = 0.9f),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(calculatedNetWorth, languageMode),
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontSize = 24.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     )
@@ -681,19 +682,19 @@ fun AccountsScreen(
                                             Text(
                                                 text = "${LanguageHelper.getString("actual_net_worth", languageMode)}: ${LanguageHelper.formatCurrency(actualNetWorth, languageMode)}",
                                                 fontSize = 11.sp,
-                                                color = Color.White.copy(alpha = 0.75f)
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                                             )
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color.White.copy(alpha = 0.22f))
+                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                                                     .padding(horizontal = 5.dp, vertical = 1.dp)
                                             ) {
                                                 Text(
                                                     text = LanguageHelper.getString("calculation_adjusted", languageMode),
                                                     fontSize = 9.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color.White
+                                                    color = MaterialTheme.colorScheme.primary
                                                 )
                                             }
                                         }
@@ -708,8 +709,8 @@ fun AccountsScreen(
                                     // Status Mode Button
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isEditMode) Color.White else Color.White.copy(alpha = 0.18f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = if (isEditMode) 0.9f else 0.4f)),
+                                        color = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
                                             .clickable { isEditMode = !isEditMode }
@@ -723,7 +724,7 @@ fun AccountsScreen(
                                             Icon(
                                                 imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Tune,
                                                 contentDescription = "Status",
-                                                tint = if (isEditMode) SolidPrimary else Color.White,
+                                                tint = if (isEditMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(13.dp)
                                             )
                                             Text(
@@ -731,7 +732,7 @@ fun AccountsScreen(
                                                 else (if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status"),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isEditMode) SolidPrimary else Color.White
+                                                color = if (isEditMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }
@@ -740,8 +741,8 @@ fun AccountsScreen(
                                     if (hasCustomizations && onResetAllCalculations != null) {
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = Color.White.copy(alpha = 0.18f),
-                                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .clickable { showResetAllConfirmDialog = true }
@@ -755,14 +756,14 @@ fun AccountsScreen(
                                                 Icon(
                                                     imageVector = Icons.Default.RestartAlt,
                                                     contentDescription = "Reset Calculations",
-                                                    tint = Color.White,
+                                                    tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(12.dp)
                                                 )
                                                 Text(
                                                     text = LanguageHelper.getString("reset_calculation", languageMode),
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color.White
+                                                    color = MaterialTheme.colorScheme.onSurface
                                                 )
                                             }
                                         }
@@ -777,7 +778,7 @@ fun AccountsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.Black.copy(alpha = 0.2f))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
                                     .padding(10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -789,13 +790,13 @@ fun AccountsScreen(
                                             modifier = Modifier
                                                 .size(7.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF6EE7B7))
+                                                .background(SolidIncome)
                                         )
                                         Spacer(modifier = Modifier.width(5.dp))
                                         Text(
                                             text = if (hasCustomizations) LanguageHelper.getString("calculated_assets", languageMode)
                                             else LanguageHelper.getString("assets", languageMode),
-                                            color = Color.White.copy(alpha = 0.9f),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -803,7 +804,7 @@ fun AccountsScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(calculatedTotalAssets, languageMode),
-                                        color = Color.White,
+                                        color = SolidIncome,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -811,7 +812,7 @@ fun AccountsScreen(
                                         Text(
                                             text = "Orig: ${LanguageHelper.formatCurrency(actualTotalAssets, languageMode)}",
                                             fontSize = 9.sp,
-                                            color = Color.White.copy(alpha = 0.65f)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                         )
                                     }
                                 }
@@ -821,7 +822,7 @@ fun AccountsScreen(
                                     modifier = Modifier
                                         .width(1.dp)
                                         .height(30.dp)
-                                        .background(Color.White.copy(alpha = 0.25f))
+                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                                 )
 
                                 // Liabilities
@@ -830,7 +831,7 @@ fun AccountsScreen(
                                         Text(
                                             text = if (hasCustomizations) LanguageHelper.getString("calculated_liabilities", languageMode)
                                             else LanguageHelper.getString("liabilities", languageMode),
-                                            color = Color.White.copy(alpha = 0.9f),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
@@ -839,13 +840,13 @@ fun AccountsScreen(
                                             modifier = Modifier
                                                 .size(7.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFFFCA5A5))
+                                                .background(SolidExpense)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = LanguageHelper.formatCurrency(calculatedTotalLiabilities, languageMode),
-                                        color = Color(0xFFFFCDD2),
+                                        color = SolidExpense,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -853,7 +854,7 @@ fun AccountsScreen(
                                         Text(
                                             text = "Orig: ${LanguageHelper.formatCurrency(actualTotalLiabilities, languageMode)}",
                                             fontSize = 9.sp,
-                                            color = Color.White.copy(alpha = 0.65f)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                         )
                                     }
                                 }
@@ -871,7 +872,7 @@ fun AccountsScreen(
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(Color.Black.copy(alpha = 0.22f))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
                                         .padding(2.dp),
                                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
@@ -906,8 +907,8 @@ fun AccountsScreen(
 
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (hasActiveFilters) Color.White else Color.Black.copy(alpha = 0.22f),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+                                        color = if (hasActiveFilters) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
                                             .clickable { showFilterMenu = true }
@@ -921,14 +922,14 @@ fun AccountsScreen(
                                             Icon(
                                                 imageVector = Icons.Default.FilterList,
                                                 contentDescription = "Filter",
-                                                tint = if (hasActiveFilters) SolidPrimary else Color.White,
+                                                tint = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                                 modifier = Modifier.size(13.dp)
                                             )
                                             Text(
                                                 text = getFilterButtonLabel(sortFilter, statusFilter, excludeZeroBalance, languageMode),
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (hasActiveFilters) SolidPrimary else Color.White
+                                                color = if (hasActiveFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }

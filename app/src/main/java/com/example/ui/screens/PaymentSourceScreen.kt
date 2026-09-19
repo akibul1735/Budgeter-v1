@@ -682,7 +682,8 @@ private fun AccountsPaymentSourceTabContent(
                     .fillMaxWidth()
                     .testTag("payment_source_overview_card"),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = SolidPrimary)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(
@@ -693,7 +694,7 @@ private fun AccountsPaymentSourceTabContent(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স সারসংক্ষেপ" else "Payment Sources Overview",
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -703,7 +704,7 @@ private fun AccountsPaymentSourceTabContent(
                                 } else {
                                     "${if (languageMode == LanguageMode.BANGLA) "মোট ঘাটতি" else "Net Shortfall"}: -${LanguageHelper.formatCurrency(overview.totalShortfall, languageMode)}"
                                 },
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
@@ -711,14 +712,14 @@ private fun AccountsPaymentSourceTabContent(
 
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = if (overview.accountsNeedingFundsCount > 0) SolidExpense else Color.White.copy(alpha = 0.2f)
+                            color = if (overview.accountsNeedingFundsCount > 0) SolidExpense else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                         ) {
                             Text(
                                 text = if (overview.accountsNeedingFundsCount == 0) (if (languageMode == LanguageMode.BANGLA) "সকল সোর্স প্রস্তুত" else "All Funded")
                                 else "${overview.accountsNeedingFundsCount} ${if (languageMode == LanguageMode.BANGLA) "টিতে ঘাটতি" else "Need Funds"}",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = if (overview.accountsNeedingFundsCount > 0) Color.White else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                             )
                         }
@@ -730,19 +731,19 @@ private fun AccountsPaymentSourceTabContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.2f))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "প্রয়োজনীয় ব্যয়" else "Required Expenses",
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 fontSize = 9.sp
                             )
                             Text(
                                 text = LanguageHelper.formatCurrency(overview.totalRequired, languageMode),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -750,7 +751,7 @@ private fun AccountsPaymentSourceTabContent(
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = if (languageMode == LanguageMode.BANGLA) "মোট মজুদ ও আয়" else "Total Available & Income",
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 fontSize = 9.sp
                             )
                             Text(

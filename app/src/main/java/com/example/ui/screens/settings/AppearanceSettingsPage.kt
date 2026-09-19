@@ -3,6 +3,7 @@ package com.example.ui.screens.settings
 import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,21 +21,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatPaint
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.RoundedCorner
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -69,8 +76,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
 import com.example.ui.components.AppTabHeader
 import com.example.ui.theme.AppCornerRadius
+import com.example.ui.theme.AppFontScale
 import com.example.ui.theme.ColorIntensity
+import com.example.ui.theme.CustomTheme
 import com.example.ui.theme.DarkSurfaceTone
+import com.example.ui.theme.FinancialSemanticPalette
 import com.example.ui.theme.FontPreset
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
@@ -90,6 +100,11 @@ fun AppearanceSettingsPage(
     var showPaletteSheet by remember { mutableStateOf(false) }
     var showFontSheet by remember { mutableStateOf(false) }
     var showRadiusSheet by remember { mutableStateOf(false) }
+    var showDarkToneSheet by remember { mutableStateOf(false) }
+    var showIntensitySheet by remember { mutableStateOf(false) }
+    var showSemanticSheet by remember { mutableStateOf(false) }
+    var showCustomStudioSheet by remember { mutableStateOf(false) }
+    var editingCustomTheme by remember { mutableStateOf<CustomTheme?>(null) }
 
     Column(
         modifier = Modifier
@@ -138,7 +153,7 @@ fun AppearanceSettingsPage(
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
-                            text = themeConfig.palette.name.lowercase().replaceFirstChar { it.uppercase() } + " Theme",
+                            text = themeConfig.activeThemeDisplayName,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.primary
@@ -172,7 +187,7 @@ fun AppearanceSettingsPage(
                             Box(
                                 modifier = Modifier
                                     .size(16.dp)
-                                    .background(themeConfig.palette.primaryColor, CircleShape)
+                                    .background(themeConfig.activeCustomTheme?.primaryColor ?: themeConfig.palette.primaryColor, CircleShape)
                             )
                             Text(
                                 text = when (themeConfig.mode) {
@@ -190,9 +205,9 @@ fun AppearanceSettingsPage(
                 }
             }
 
-            // 2. Section: Theme & Mode Configuration
+            // 2. Section: Standard Themes & Display Mode
             Text(
-                text = if (isBangla) "থিম ও ডিসপ্লে কনফিগারেশন" else "Theme & Display Setup",
+                text = if (isBangla) "স্ট্যান্ডার্ড থিম ও ডিসপ্লে মোড" else "Standard Themes & Display Mode",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -271,7 +286,7 @@ fun AppearanceSettingsPage(
                 }
             }
 
-            // Primary Color Palette Row (Opens Modal Bottom Sheet)
+            // 5 Standard Themes Row (Opens Modal Bottom Sheet)
             OutlinedCard(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.outlinedCardColors(
@@ -307,14 +322,14 @@ fun AppearanceSettingsPage(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isBangla) "কালার প্যালেট ও অ্যাকসেন্ট" else "Primary Color Palette",
+                            text = if (isBangla) "৫টি স্ট্যান্ডার্ড থিম (৩ দিন, ২ রাত)" else "5 Standard Themes (3 Day, 2 Night)",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "${themeConfig.palette.name.lowercase().replaceFirstChar { it.uppercase() }} Accent",
+                            text = if (isBangla) themeConfig.palette.displayNameBn else themeConfig.palette.displayNameEn,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
@@ -330,6 +345,355 @@ fun AppearanceSettingsPage(
                     )
                 }
             }
+
+            // 3. Section: Theme Customization Studio & Area Adjustments
+            Text(
+                text = if (isBangla) "থিম কাস্টমাইজেশন ও রঙ সমন্বয়" else "Theme Customization & Area Styling",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            // Custom Theme Studio Entry Card
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        editingCustomTheme = themeConfig.activeCustomTheme
+                        showCustomStudioSheet = true
+                    }
+                    .testTag("custom_theme_studio_btn")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "🎨 কাস্টমাইজেশন স্টুডিও (কালার পিকার ও শেড)" else "🎨 Theme Customizer (Pick Color & Shades)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "হেডার, আয়/ব্যয় ও বিভিন্ন সেকশনের রঙ অ্যাডজাস্ট করুন" else "Customize header shade, accents, and flow indicators",
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Open Studio",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // Dark Canvas Tone Selection
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showDarkToneSheet = true }
+                    .testTag("dark_surface_tone_row")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.DarkMode,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "ডার্ক ব্যাকগ্রাউন্ড ক্যানভাস ও টোন" else "Dark Canvas Surface Tone",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) themeConfig.darkSurfaceTone.titleBn else themeConfig.darkSurfaceTone.titleEn,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Financial Semantic Flow Indicators
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showSemanticSheet = true }
+                    .testTag("semantic_palette_row")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "আয় ও ব্যয়ের ইনডিকেটর প্যালেট" else "Financial Flow Indicators",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) themeConfig.semanticPalette.titleBn else themeConfig.semanticPalette.titleEn,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Color Saturation & Intensity
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showIntensitySheet = true }
+                    .testTag("color_intensity_row")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Contrast,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "কালার স্যাচুরেশন ও কনট্রাস্ট" else "Color Saturation & Intensity",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) themeConfig.colorIntensity.titleBn else themeConfig.colorIntensity.titleEn,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Saved Custom Themes List (if any exist)
+            if (themeConfig.customThemes.isNotEmpty()) {
+                Text(
+                    text = if (isBangla) "সংরক্ষিত কাস্টম থিমসমূহ" else "Saved Custom Themes",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                themeConfig.customThemes.forEach { customTheme ->
+                    val isSelected = themeConfig.customThemeId == customTheme.id
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.selectCustomTheme(customTheme.id) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .background(customTheme.primaryColor, CircleShape)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = customTheme.name,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (isSelected) (if (isBangla) "সক্রিয় রয়েছে" else "Currently Active") else (if (isBangla) "প্রয়োগ করতে ট্যাপ করুন" else "Tap to apply"),
+                                        fontSize = 11.5.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        editingCustomTheme = customTheme
+                                        showCustomStudioSheet = true
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { viewModel.deleteCustomTheme(customTheme.id) }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Section: Typography & Layout Styling
+            Text(
+                text = if (isBangla) "টাইপোগ্রাফি ও ফন্ট সেটিংস" else "Typography & Shape Setup",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
             // Typography & Font Preset Card (Opens Modal Bottom Sheet)
             val currentFontTitle = if (isBangla) themeConfig.fontPreset.titleBn else themeConfig.fontPreset.titleEn
@@ -650,7 +1014,7 @@ fun AppearanceSettingsPage(
         }
     }
 
-    // Modal Bottom Sheet: Color Palette Picker
+    // Modal Bottom Sheet: 5 Standard Themes (3 Day, 2 Night)
     if (showPaletteSheet) {
         ModalBottomSheet(
             onDismissRequest = { showPaletteSheet = false },
@@ -672,13 +1036,13 @@ fun AppearanceSettingsPage(
                 ) {
                     Column {
                         Text(
-                            text = if (isBangla) "কালার প্যালেট নির্বাচন" else "Select Color Palette",
+                            text = if (isBangla) "৫টি স্ট্যান্ডার্ড থিম নির্বাচন" else "5 Standard Themes",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (isBangla) "অ্যাপের প্রধান অ্যাকসেন্ট রঙ বেছে নিন" else "Pick your primary accent and theme tone",
+                            text = if (isBangla) "৩টি দিনের ও ২টি রাতের পরিচ্ছন্ন স্ট্যান্ডার্ড থিম" else "3 refined day themes & 2 soothing night themes",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -694,8 +1058,16 @@ fun AppearanceSettingsPage(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-                ThemePalette.values().forEach { palette ->
-                    val isSelected = themeConfig.palette == palette
+                // Day Themes (3)
+                Text(
+                    text = if (isBangla) "☀️ দিনের থিম (৩টি)" else "☀️ Day Themes (3)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                ThemePalette.entries.filter { !it.isNightTheme }.forEach { palette ->
+                    val isSelected = themeConfig.palette == palette && themeConfig.customThemeId == null
 
                     OutlinedCard(
                         shape = RoundedCornerShape(12.dp),
@@ -733,18 +1105,404 @@ fun AppearanceSettingsPage(
 
                                 Column {
                                     Text(
-                                        text = palette.name.lowercase().replaceFirstChar { it.uppercase() },
+                                        text = if (isBangla) palette.displayNameBn else palette.displayNameEn,
                                         fontSize = 14.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isBangla) "অ্যাকসেন্ট কালার" else "Primary Accent",
+                                        text = if (isBangla) "দিনের স্ট্যান্ডার্ড থিম" else "Standard Day Palette",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
                             }
+
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Night Themes (2)
+                Text(
+                    text = if (isBangla) "🌙 রাতের থিম (২টি)" else "🌙 Night Themes (2)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                ThemePalette.entries.filter { it.isNightTheme }.forEach { palette ->
+                    val isSelected = themeConfig.palette == palette && themeConfig.customThemeId == null
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setThemePalette(palette)
+                                showPaletteSheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .background(palette.primaryColor, CircleShape)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = if (isBangla) palette.displayNameBn else palette.displayNameEn,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (isBangla) "রাতের স্ট্যান্ডার্ড থিম" else "Standard Night Palette",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Modal Bottom Sheet: Dark Canvas Tone
+    if (showDarkToneSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showDarkToneSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBangla) "ডার্ক ব্যাকগ্রাউন্ড ক্যানভাস" else "Dark Canvas Tone",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "ডার্ক মোডে ব্যাকগ্রাউন্ডের গাঢ়ত্ব ও গভীরতা" else "Select dark mode background depth and surface tone",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = { showDarkToneSheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                DarkSurfaceTone.entries.forEach { tone ->
+                    val isSelected = themeConfig.darkSurfaceTone == tone
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setDarkSurfaceTone(tone)
+                                showDarkToneSheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .background(tone.darkBg, CircleShape)
+                                        .border(1.dp, Color.Gray, CircleShape)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = if (isBangla) tone.titleBn else tone.titleEn,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Modal Bottom Sheet: Financial Semantic Palette
+    if (showSemanticSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSemanticSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBangla) "আয় ও ব্যয়ের ইনডিকেটর প্যালেট" else "Financial Flow Palettes",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "আয় ও ব্যয়ের রঙের কম্বিনেশন বেছে নিন" else "Choose harmonious color combinations for cash flow",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = { showSemanticSheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                FinancialSemanticPalette.entries.forEach { semantic ->
+                    val isSelected = themeConfig.semanticPalette == semantic
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setFinancialSemanticPalette(semantic)
+                                showSemanticSheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .background(semantic.incomeColor, CircleShape)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .background(semantic.expenseColor, CircleShape)
+                                    )
+                                }
+
+                                Column {
+                                    Text(
+                                        text = if (isBangla) semantic.titleBn else semantic.titleEn,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Modal Bottom Sheet: Color Intensity
+    if (showIntensitySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showIntensitySheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBangla) "কালার স্যাচুরেশন ও তীব্রতা" else "Color Intensity & Contrast",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "রঙের কোমলতা বা উজ্জ্বলতার মাত্রা বেছে নিন" else "Choose soft pastel, standard balanced, or deep contrast",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = { showIntensitySheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                ColorIntensity.entries.forEach { intensity ->
+                    val isSelected = themeConfig.colorIntensity == intensity
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setColorIntensity(intensity)
+                                showIntensitySheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (isBangla) intensity.titleBn else intensity.titleEn,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
 
                             if (isSelected) {
                                 Icon(
@@ -805,7 +1563,7 @@ fun AppearanceSettingsPage(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-                FontPreset.values().forEach { preset ->
+                FontPreset.entries.forEach { preset ->
                     val isSelected = themeConfig.fontPreset == preset
                     val title = if (isBangla) preset.titleBn else preset.titleEn
 
@@ -909,7 +1667,7 @@ fun AppearanceSettingsPage(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-                AppCornerRadius.values().forEach { radius ->
+                AppCornerRadius.entries.forEach { radius ->
                     val isSelected = themeConfig.cornerRadius == radius
                     val title = if (isBangla) radius.titleBn else radius.titleEn
 
@@ -967,5 +1725,32 @@ fun AppearanceSettingsPage(
                 }
             }
         }
+    }
+
+    // Modal Bottom Sheet: Custom Theme Studio
+    if (showCustomStudioSheet) {
+        ThemeCustomizationStudioSheet(
+            isBangla = isBangla,
+            initialTheme = editingCustomTheme,
+            onDismiss = { showCustomStudioSheet = false },
+            onSaveCustomTheme = { newTheme ->
+                if (themeConfig.customThemes.any { it.id == newTheme.id }) {
+                    viewModel.updateCustomTheme(newTheme)
+                } else {
+                    viewModel.addCustomTheme(
+                        name = newTheme.name,
+                        primaryColorHex = newTheme.primaryColorHex,
+                        secondaryColorHex = newTheme.secondaryColorHex,
+                        surfaceColorHex = newTheme.surfaceColorHex,
+                        headerColorHex = newTheme.headerColorHex,
+                        incomeColorHex = newTheme.incomeColorHex,
+                        expenseColorHex = newTheme.expenseColorHex,
+                        transferColorHex = newTheme.transferColorHex,
+                        shadeIntensity = newTheme.shadeIntensity
+                    )
+                }
+                viewModel.selectCustomTheme(newTheme.id)
+            }
+        )
     }
 }

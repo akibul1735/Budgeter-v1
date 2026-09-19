@@ -130,11 +130,12 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.components.AppTabHeader
-import com.example.ui.components.BudgetFilterDialog
-import com.example.ui.components.BudgetFilterState
-import com.example.ui.components.BudgetDateRangePreset
 import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.PopupCalculatorDialog
+import com.example.ui.dialogs.ActiveBudgetMakerFilterBar
+import com.example.ui.dialogs.BudgetMakerDashboardFilter
+import com.example.ui.dialogs.BudgetMakerFilterDialog
+import com.example.ui.dialogs.BudgetMakerTabFilter
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -347,7 +348,24 @@ fun BudgetScreen(
     var isSearchActive by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery.isNotBlank()) }
     var searchQuery by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var showFilterDialog by remember { mutableStateOf(false) }
-    var filterState by remember { mutableStateOf(BudgetFilterState()) }
+
+    // Tab-specific filters for Budget Maker
+    var expenseFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
+    var incomeFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
+    var assetFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
+    var liabilityFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
+    var dashboardFilter by remember { mutableStateOf(BudgetMakerDashboardFilter()) }
+
+    val currentTabFilter = when (selectedTab) {
+        1 -> expenseFilter
+        2 -> incomeFilter
+        3 -> assetFilter
+        4 -> liabilityFilter
+        else -> BudgetMakerTabFilter()
+    }
+    val currentTabActiveCount = if (selectedTab == 0) dashboardFilter.activeCount else currentTabFilter.activeCount
+    val isCurrentTabFilterActive = if (selectedTab == 0) dashboardFilter.isActive else currentTabFilter.isActive
+
     var selectedFilter by remember { mutableStateOf(BudgetFilterOption.ALL) }
     var selectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
 
@@ -634,26 +652,38 @@ fun BudgetScreen(
                                 )
                             }
 
-                            // Menu-based Filter button with active badge
+                            // Menu-based Filter button with active badge for current tab
                             IconButton(
                                 onClick = { showFilterDialog = true },
                                 modifier = Modifier.size(36.dp).testTag("budget_filter_btn")
                             ) {
-                                if (filterState.isFilterActive) {
+                                if (isCurrentTabFilterActive) {
                                     androidx.compose.material3.BadgedBox(
                                         badge = {
                                             androidx.compose.material3.Badge(
-                                                containerColor = MaterialTheme.colorScheme.primary,
-                                                contentColor = MaterialTheme.colorScheme.onPrimary
+                                                containerColor = when (selectedTab) {
+                                                    1 -> SolidExpense
+                                                    2 -> SolidIncome
+                                                    3 -> SolidPrimary
+                                                    4 -> AmberGold
+                                                    else -> MaterialTheme.colorScheme.primary
+                                                },
+                                                contentColor = Color.White
                                             ) {
-                                                Text(text = "${filterState.activeFilterCount}", fontSize = 9.sp)
+                                                Text(text = "$currentTabActiveCount", fontSize = 9.sp)
                                             }
                                         }
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.FilterList,
                                             contentDescription = "Filter",
-                                            tint = MaterialTheme.colorScheme.primary,
+                                            tint = when (selectedTab) {
+                                                1 -> SolidExpense
+                                                2 -> SolidIncome
+                                                3 -> SolidPrimary
+                                                4 -> AmberGold
+                                                else -> MaterialTheme.colorScheme.primary
+                                            },
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -829,64 +859,102 @@ fun BudgetScreen(
                         }
                     }
 
-                    // Active Filters Summary Indicator Strip (if any filter is applied)
-                    AnimatedVisibility(visible = filterState.isFilterActive) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 3.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { showFilterDialog = true }
-                        ) {
-                            Row(
+                    // Active Filters Summary Indicator Strip for current tab
+                    AnimatedVisibility(visible = isCurrentTabFilterActive) {
+                        val tabName = when (selectedTab) {
+                            0 -> if (languageMode == LanguageMode.BANGLA) "ড্যাশবোর্ড" else "Dashboard"
+                            1 -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expenses"
+                            2 -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Incomes"
+                            3 -> if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Assets"
+                            4 -> if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities"
+                            else -> "Tab"
+                        }
+                        val tabColor = when (selectedTab) {
+                            0 -> MaterialTheme.colorScheme.primary
+                            1 -> SolidExpense
+                            2 -> SolidIncome
+                            3 -> SolidPrimary
+                            4 -> AmberGold
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+
+                        if (selectedTab == 0) {
+                            Surface(
+                                color = tabColor.copy(alpha = 0.10f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(0.8.dp, tabColor.copy(alpha = 0.30f)),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .padding(horizontal = 12.dp, vertical = 3.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                             ) {
                                 Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.weight(1f)
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FilterList,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA)
-                                            "ফিল্টার সক্রিয় (${filterState.activeFilterCount}টি নিয়ম)"
-                                        else
-                                            "Active Filter (${filterState.activeFilterCount} rules applied)",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                                    onClick = { filterState = BudgetFilterState() },
-                                    modifier = Modifier.size(22.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { showFilterDialog = true }
+                                    ) {
                                         Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Clear Filters",
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(13.dp)
+                                            imageVector = Icons.Default.FilterList,
+                                            contentDescription = null,
+                                            tint = tabColor,
+                                            modifier = Modifier.size(15.dp)
                                         )
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA)
+                                                "ড্যাশবোর্ড ফিল্টার সক্রিয় (${dashboardFilter.activeCount}টি নিয়ম)"
+                                            else
+                                                "Dashboard Filter Active (${dashboardFilter.activeCount} rules applied)",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                                        onClick = { dashboardFilter = BudgetMakerDashboardFilter() },
+                                        modifier = Modifier.size(22.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear Filters",
+                                                tint = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
+                        } else {
+                            ActiveBudgetMakerFilterBar(
+                                tabName = tabName,
+                                tabFilter = currentTabFilter,
+                                onFilterChange = { newFilter ->
+                                    when (selectedTab) {
+                                        1 -> expenseFilter = newFilter
+                                        2 -> incomeFilter = newFilter
+                                        3 -> assetFilter = newFilter
+                                        4 -> liabilityFilter = newFilter
+                                    }
+                                },
+                                onOpenFilterDialog = { showFilterDialog = true },
+                                accentColor = tabColor,
+                                languageMode = languageMode,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                            )
                         }
                     }
                 }
@@ -989,7 +1057,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = { globalExpenseFrequency = it },
                         totalBudgetAmount = totalExpensesBudget,
                         searchQuery = searchQuery,
-                        filterState = filterState,
+                        tabFilter = expenseFilter,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -1032,7 +1100,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = { globalIncomeFrequency = it },
                         totalBudgetAmount = totalIncomesBudget,
                         searchQuery = searchQuery,
-                        filterState = filterState,
+                        tabFilter = incomeFilter,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -1075,7 +1143,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = {},
                         totalBudgetAmount = totalAssetsBudget,
                         searchQuery = searchQuery,
-                        filterState = filterState,
+                        tabFilter = assetFilter,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -1118,7 +1186,7 @@ fun BudgetScreen(
                         onGlobalFrequencyChange = {},
                         totalBudgetAmount = totalLiabilitiesBudget,
                         searchQuery = searchQuery,
-                        filterState = filterState,
+                        tabFilter = liabilityFilter,
                         selectedFilter = selectedFilter,
                         onFilterChange = { selectedFilter = it },
                         selectedSort = selectedSort,
@@ -1161,22 +1229,29 @@ fun BudgetScreen(
         )
     }
 
-    // Unified Budget Filter Dialog (Hidden under top-bar menu button by default)
+    // Tab-specific Budget Maker Filter Dialog
     if (showFilterDialog) {
-        BudgetFilterDialog(
-            currentFilter = filterState,
+        BudgetMakerFilterDialog(
+            tabIndex = selectedTab,
+            currentTabFilter = currentTabFilter,
+            dashboardFilter = dashboardFilter,
             categories = allCategories,
             accounts = allAccounts,
-            allLabels = transactionsWithDetails.flatMap { tx ->
-                val note = tx.transaction.note
-                if (note.contains("#")) {
-                    note.split(" ", "\n").filter { it.startsWith("#") && it.length > 1 }.map { it.removePrefix("#") }
-                } else emptyList()
-            }.distinct(),
+            selectedYear = selectedYear,
+            selectedMonth = selectedMonth,
             languageMode = languageMode,
             onDismiss = { showFilterDialog = false },
-            onApply = { newState ->
-                filterState = newState
+            onApplyTabFilter = { newTabFilter ->
+                when (selectedTab) {
+                    1 -> expenseFilter = newTabFilter
+                    2 -> incomeFilter = newTabFilter
+                    3 -> assetFilter = newTabFilter
+                    4 -> liabilityFilter = newTabFilter
+                }
+                showFilterDialog = false
+            },
+            onApplyDashboardFilter = { newDashFilter ->
+                dashboardFilter = newDashFilter
                 showFilterDialog = false
             }
         )
@@ -1640,7 +1715,7 @@ private fun CategoriesBudgetEntryView(
     onGlobalFrequencyChange: (BudgetFrequency) -> Unit,
     totalBudgetAmount: Double,
     searchQuery: String,
-    filterState: BudgetFilterState = BudgetFilterState(),
+    tabFilter: BudgetMakerTabFilter = BudgetMakerTabFilter(),
     selectedFilter: BudgetFilterOption,
     onFilterChange: (BudgetFilterOption) -> Unit,
     selectedSort: BudgetSortOption,
@@ -1814,7 +1889,7 @@ private fun CategoriesBudgetEntryView(
     val sectionItemType = items.firstOrNull()?.itemType ?: "EXPENSE"
 
     // Apply Filter & Search
-    val filteredItems = remember(enhancedItems, searchQuery, selectedFilter, selectedSort, sectionItemType, filterState) {
+    val filteredItems = remember(enhancedItems, searchQuery, selectedFilter, selectedSort, sectionItemType, tabFilter) {
         var list = enhancedItems
 
         // 1. Search Query
@@ -1827,36 +1902,94 @@ private fun CategoriesBudgetEntryView(
             }
         }
 
-        // 2. Budget Filter State specifics
-        if (filterState.selectedCategoryIds.isNotEmpty()) {
-            list = list.filter { it.item.id in filterState.selectedCategoryIds }
+        // 2. Budget Maker Tab Filter - Category / Account selection
+        if (tabFilter.selectedItemIds.isNotEmpty()) {
+            list = list.filter { it.item.id in tabFilter.selectedItemIds }
         }
-        if (filterState.selectedAccountIds.isNotEmpty()) {
-            list = list.filter { it.item.id in filterState.selectedAccountIds }
-        }
-        if (filterState.showOnlyRemainingBalance) {
-            list = list.filter { (it.currentBudget - it.actualSpent) > 0.0 }
-        }
-        if (filterState.showOnlyActual) {
-            list = list.filter { it.actualSpent > 0.0 }
-        }
-        if (filterState.filterOnlyBudgeted) {
-            list = list.filter { it.currentBudget > 0.0 }
-        }
-        if (filterState.filterOnlyOverBudget) {
-            list = list.filter { it.actualSpent > it.currentBudget && it.currentBudget > 0.0 }
-        }
-        if (filterState.excludeZeroAmounts) {
-            list = list.filter { it.currentBudget > 0.0 || it.actualSpent > 0.0 }
-        }
-        if (filterState.minAmount != null && filterState.minAmount > 0.0) {
-            list = list.filter { it.currentBudget >= filterState.minAmount }
-        }
-        if (filterState.maxAmount != null && filterState.maxAmount > 0.0) {
-            list = list.filter { it.currentBudget <= filterState.maxAmount }
+        if (tabFilter.selectedGroupNames.isNotEmpty()) {
+            list = list.filter { it.item.groupName in tabFilter.selectedGroupNames }
         }
 
-        // 3. Filter Category Selection
+        // 3. Amount Range
+        if (tabFilter.minAmount != null && tabFilter.minAmount > 0.0) {
+            list = list.filter {
+                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
+                    it.actualSpent >= tabFilter.minAmount || it.currentBudget >= tabFilter.minAmount
+                } else {
+                    it.currentBudget >= tabFilter.minAmount || it.actualSpent >= tabFilter.minAmount
+                }
+            }
+        }
+        if (tabFilter.maxAmount != null && tabFilter.maxAmount > 0.0) {
+            list = list.filter {
+                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
+                    it.actualSpent <= tabFilter.maxAmount || (it.currentBudget > 0 && it.currentBudget <= tabFilter.maxAmount)
+                } else {
+                    it.currentBudget <= tabFilter.maxAmount || (it.actualSpent > 0 && it.actualSpent <= tabFilter.maxAmount)
+                }
+            }
+        }
+
+        // 4. Status and Condition filters
+        if (tabFilter.onlyWithBudgetOrTarget) {
+            list = list.filter { it.currentBudget > 0.0 }
+        }
+        if (tabFilter.onlyWithoutBudgetOrTarget) {
+            list = list.filter { it.currentBudget <= 0.0 }
+        }
+        if (tabFilter.onlyWithActualActivity) {
+            list = list.filter {
+                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
+                    it.actualSpent != 0.0 || it.txCount > 0
+                } else {
+                    it.actualSpent > 0.0
+                }
+            }
+        }
+        if (tabFilter.onlyZeroActivity) {
+            list = list.filter {
+                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
+                    it.actualSpent == 0.0 && it.txCount == 0
+                } else {
+                    it.actualSpent == 0.0
+                }
+            }
+        }
+        if (tabFilter.onlyOverBudget) {
+            list = list.filter { it.actualSpent > it.currentBudget && it.currentBudget > 0.0 }
+        }
+        if (tabFilter.onlyUnderBudgetRemaining) {
+            list = list.filter { it.currentBudget > it.actualSpent && it.currentBudget > 0.0 }
+        }
+        if (tabFilter.onlyTargetAchieved) {
+            list = list.filter { it.actualSpent >= it.currentBudget && it.currentBudget > 0.0 }
+        }
+        if (tabFilter.onlyTargetPending) {
+            list = list.filter { it.actualSpent < it.currentBudget }
+        }
+        if (tabFilter.onlyWithSuggestions) {
+            list = list.filter { it.suggestions.isNotEmpty() }
+        }
+        if (tabFilter.onlyPositiveBalance) {
+            list = list.filter { it.actualSpent > 0.0 }
+        }
+        if (tabFilter.onlyZeroBalance) {
+            list = list.filter { it.actualSpent == 0.0 }
+        }
+        if (tabFilter.onlyNegativeBalance) {
+            list = list.filter { it.actualSpent < 0.0 }
+        }
+        if (tabFilter.onlyOutstandingDebt) {
+            list = list.filter { it.actualSpent > 0.0 }
+        }
+        if (tabFilter.onlyClearedDebt) {
+            list = list.filter { it.actualSpent == 0.0 }
+        }
+        if (tabFilter.excludeZeroAmounts) {
+            list = list.filter { it.currentBudget > 0.0 || it.actualSpent != 0.0 || it.txCount > 0 }
+        }
+
+        // 5. Filter Category Selection
         list = when (selectedFilter) {
             BudgetFilterOption.ALL -> list
             BudgetFilterOption.ONLY_REMAINING -> list.filter {
@@ -1876,19 +2009,9 @@ private fun CategoriesBudgetEntryView(
             BudgetFilterOption.UNBUDGETED -> list.filter { it.currentBudget <= 0.0 }
         }
 
-        // 4. Sorting
+        // 6. Sorting
         when (selectedSort) {
-            BudgetSortOption.DEFAULT -> {
-                when (filterState.sortOrder) {
-                    BudgetSortOrder.BUDGET_DESC -> list.sortedByDescending { it.currentBudget }
-                    BudgetSortOrder.BUDGET_ASC -> list.sortedBy { it.currentBudget }
-                    BudgetSortOrder.SPENT_DESC, BudgetSortOrder.AMOUNT_DESC -> list.sortedByDescending { it.actualSpent }
-                    BudgetSortOrder.AMOUNT_ASC -> list.sortedBy { it.actualSpent }
-                    BudgetSortOrder.UTILIZATION_DESC -> list.sortedByDescending { if (it.currentBudget > 0) it.actualSpent / it.currentBudget else 0.0 }
-                    BudgetSortOrder.NAME_ASC -> list.sortedBy { it.item.nameEn.lowercase() }
-                    BudgetSortOrder.DEFAULT -> list
-                }
-            }
+            BudgetSortOption.DEFAULT -> list
             BudgetSortOption.BUDGET_DESC -> list.sortedByDescending { it.currentBudget }
             BudgetSortOption.BUDGET_ASC -> list.sortedBy { it.currentBudget }
             BudgetSortOption.ACTUAL_DESC -> list.sortedByDescending { it.actualSpent }
@@ -1898,8 +2021,13 @@ private fun CategoriesBudgetEntryView(
     }
 
     // Group items by parent group name
-    val groupedItems = remember(filteredItems, selectedSort) {
-        filteredItems.groupBy { it.item.groupName }
+    val groupedItems = remember(filteredItems, selectedSort, tabFilter.hideEmptyGroups) {
+        val groups = filteredItems.groupBy { it.item.groupName }
+        if (tabFilter.hideEmptyGroups) {
+            groups.filter { entry -> entry.value.any { it.currentBudget > 0.0 || it.actualSpent != 0.0 } }
+        } else {
+            groups
+        }
     }
 
     var showGlobalFreqDropdown by remember { mutableStateOf(false) }

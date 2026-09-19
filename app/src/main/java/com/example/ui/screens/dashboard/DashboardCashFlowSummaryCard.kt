@@ -88,6 +88,9 @@ import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
 import com.example.data.model.TransactionWithDetails
+import com.example.ui.theme.SolidExpense
+import com.example.ui.theme.SolidIncome
+import com.example.ui.theme.SolidTransfer
 import com.example.util.CashFlowMetricFilter
 import com.example.util.DashboardChartUtils
 import com.example.util.IconHelper
@@ -153,9 +156,9 @@ fun DashboardCashFlowSummaryCard(
         )
     }
 
-    val outflowColor = Color(0xFFE83F6F) // Magenta / Coral Pink
-    val inflowColor = Color(0xFF00C988)  // Emerald / Teal Green
-    val netBlueColor = Color(0xFF38BDF8) // Cyan / Sky Blue
+    val outflowColor = SolidExpense
+    val inflowColor = SolidIncome
+    val netBlueColor = SolidTransfer
 
     val latestMonth = monthlyPoints.lastOrNull()
     val prevMonth = if (monthlyPoints.size >= 2) monthlyPoints[monthlyPoints.size - 2] else null
