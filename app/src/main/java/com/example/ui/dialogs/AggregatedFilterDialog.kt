@@ -80,6 +80,7 @@ import com.example.ui.components.UnifiedFilterFooter
 import com.example.ui.components.UnifiedFilterHeader
 import com.example.ui.components.UnifiedFilterSection
 import com.example.ui.components.UnifiedMultiSelectDropdown
+import com.example.ui.components.UnifiedSingleSelectDropdown
 import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
@@ -306,6 +307,33 @@ fun AggregatedFilterDialog(
         }
     }
 
+    val datePresetDropdownItems = remember(languageMode) {
+        AggregatedDatePreset.entries.map { preset ->
+            DropdownItem(
+                id = preset,
+                title = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn
+            )
+        }
+    }
+
+    val statusDropdownItems = remember(languageMode) {
+        TransactionStatus.entries.map { st ->
+            DropdownItem(
+                id = st,
+                title = if (languageMode == LanguageMode.BANGLA) st.titleBn else st.titleEn
+            )
+        }
+    }
+
+    val sortOrderDropdownItems = remember(languageMode) {
+        AggregatedSortOrder.entries.map { order ->
+            DropdownItem(
+                id = order,
+                title = if (languageMode == LanguageMode.BANGLA) order.titleBn else order.titleEn
+            )
+        }
+    }
+
     UnifiedFilterDialogContainer(
         onDismissRequest = onDismiss,
         testTag = "aggregated_filter_dialog"
@@ -337,32 +365,18 @@ fun AggregatedFilterDialog(
                     icon = Icons.Default.DateRange,
                     title = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Period"
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        AggregatedDatePreset.entries.forEach { preset ->
-                            val isSelected = tempState.datePreset == preset
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { tempState = tempState.copy(datePreset = preset) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else null
-                            )
-                        }
-                    }
+                    UnifiedSingleSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "সময়কাল নির্বাচন করুন" else "Select Date Period",
+                        items = datePresetDropdownItems,
+                        selectedId = tempState.datePreset,
+                        onSelectionChanged = { tempState = tempState.copy(datePreset = it) },
+                        leadingIcon = Icons.Default.DateRange,
+                        languageMode = languageMode
+                    )
 
                     // Custom Date Range Pickers if CUSTOM is active
                     if (tempState.datePreset == AggregatedDatePreset.CUSTOM) {
+                        Spacer(modifier = Modifier.height(6.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                             shape = RoundedCornerShape(12.dp),
@@ -489,39 +503,20 @@ fun AggregatedFilterDialog(
                     }
                 }
 
-                // SECTION 5: Transaction Status
+                // SECTION 5: Transaction Status Dropdown
                 UnifiedFilterSection(
                     icon = Icons.Default.CheckCircle,
                     title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Transaction Status"
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        val allStatusesSelected = tempState.selectedStatuses.isEmpty()
-                        FilterChip(
-                            selected = allStatusesSelected,
-                            onClick = { tempState = tempState.copy(selectedStatuses = emptySet()) },
-                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All Statuses", fontSize = 11.sp) }
-                        )
-                        TransactionStatus.entries.forEach { st ->
-                            val isSelected = tempState.selectedStatuses.contains(st)
-                            val stName = if (languageMode == LanguageMode.BANGLA) st.titleBn else st.titleEn
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    val next = tempState.selectedStatuses.toMutableSet()
-                                    if (isSelected) next.remove(st) else next.add(st)
-                                    tempState = tempState.copy(selectedStatuses = next)
-                                },
-                                label = { Text(stName, fontSize = 11.sp) },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                } else null
-                            )
-                        }
-                    }
+                    UnifiedMultiSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস নির্বাচন করুন" else "Select Statuses",
+                        items = statusDropdownItems,
+                        selectedIds = tempState.selectedStatuses,
+                        onSelectionChanged = { tempState = tempState.copy(selectedStatuses = it) },
+                        placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল স্ট্যাটাস)" else "(All Statuses)",
+                        leadingIcon = Icons.Default.CheckCircle,
+                        languageMode = languageMode
+                    )
                 }
 
                 // SECTION 6: Amount Range (Min & Max)
@@ -560,34 +555,19 @@ fun AggregatedFilterDialog(
                     }
                 }
 
-                // SECTION 7: Sort Order Options
+                // SECTION 7: Sort Order Dropdown
                 UnifiedFilterSection(
                     icon = Icons.Default.Sort,
                     title = if (languageMode == LanguageMode.BANGLA) "সাজানোর ক্রম" else "Sort Order"
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        AggregatedSortOrder.entries.forEach { order ->
-                            val isSelected = tempState.sortOrder == order
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { tempState = tempState.copy(sortOrder = order) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) order.titleBn else order.titleEn,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                } else null
-                            )
-                        }
-                    }
+                    UnifiedSingleSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "সাজানোর ক্রম নির্বাচন করুন" else "Select Sort Order",
+                        items = sortOrderDropdownItems,
+                        selectedId = tempState.sortOrder,
+                        onSelectionChanged = { tempState = tempState.copy(sortOrder = it) },
+                        leadingIcon = Icons.Default.Sort,
+                        languageMode = languageMode
+                    )
                 }
 
                 // SECTION 8: Display Options

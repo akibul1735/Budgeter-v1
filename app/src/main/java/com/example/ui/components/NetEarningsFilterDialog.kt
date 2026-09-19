@@ -321,6 +321,33 @@ fun NetEarningsFilterDialog(
         tempFilter.selectedStatusSet.map { it.ordinal.toLong() }.toSet()
     }
 
+    val datePresetDropdownItems = remember(languageMode) {
+        BudgetDateRangePreset.values().map { preset ->
+            DropdownItem(
+                id = preset,
+                title = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn
+            )
+        }
+    }
+
+    val flowScopeDropdownItems = remember(languageMode) {
+        NetEarningsFlowScope.values().map { scope ->
+            DropdownItem(
+                id = scope,
+                title = if (languageMode == LanguageMode.BANGLA) scope.labelBn else scope.labelEn
+            )
+        }
+    }
+
+    val sortOrderDropdownItems = remember(languageMode) {
+        NetEarningsSortOrder.values().map { order ->
+            DropdownItem(
+                id = order,
+                title = if (languageMode == LanguageMode.BANGLA) order.titleBn else order.titleEn
+            )
+        }
+    }
+
     UnifiedFilterDialogContainer(
         onDismissRequest = onDismiss,
         testTag = "net_earnings_filter_dialog"
@@ -352,37 +379,23 @@ fun NetEarningsFilterDialog(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 1. Date Range
+                // 1. Date Range Dropdown
                 UnifiedFilterSection(
                     icon = Icons.Default.DateRange,
                     title = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Range"
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        BudgetDateRangePreset.values().forEach { preset ->
-                            val isSelected = tempFilter.datePreset == preset
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { tempFilter = tempFilter.copy(datePreset = preset) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else null
-                            )
-                        }
-                    }
+                    UnifiedSingleSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "সময়কাল নির্বাচন করুন" else "Select Date Range",
+                        items = datePresetDropdownItems,
+                        selectedId = tempFilter.datePreset,
+                        onSelectionChanged = { tempFilter = tempFilter.copy(datePreset = it) },
+                        leadingIcon = Icons.Default.DateRange,
+                        languageMode = languageMode
+                    )
 
                     // Custom Date Range
                     if (tempFilter.datePreset == BudgetDateRangePreset.CUSTOM) {
+                        Spacer(modifier = Modifier.height(6.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                             shape = RoundedCornerShape(12.dp),
@@ -434,34 +447,21 @@ fun NetEarningsFilterDialog(
                     }
                 }
 
-                // 2. Cash Flow & Surplus Scope
+                // 2. Cash Flow & Surplus Scope Dropdown
                 UnifiedFilterSection(
                     icon = Icons.Default.Tune,
                     title = if (languageMode == LanguageMode.BANGLA) "আর্থিক প্রবাহ ও উদ্বৃত্ত" else "Cash Flow Scope"
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        NetEarningsFlowScope.values().forEach { scope ->
-                            val isSelected = tempFilter.flowScope == scope
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { tempFilter = tempFilter.copy(flowScope = scope) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) scope.labelBn else scope.labelEn,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                } else null
-                            )
-                        }
-                    }
+                    UnifiedSingleSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "ক্যাশ ফ্লো পরিধি নির্বাচন করুন" else "Select Cash Flow Scope",
+                        items = flowScopeDropdownItems,
+                        selectedId = tempFilter.flowScope,
+                        onSelectionChanged = { tempFilter = tempFilter.copy(flowScope = it) },
+                        leadingIcon = Icons.Default.Tune,
+                        languageMode = languageMode
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Include Transfers Toggle
                     Surface(
@@ -637,34 +637,19 @@ fun NetEarningsFilterDialog(
                     )
                 }
 
-                // 5. Net Earnings Sorting Options
+                // 5. Net Earnings Sorting Options Dropdown
                 UnifiedFilterSection(
                     icon = Icons.Default.Sort,
                     title = if (languageMode == LanguageMode.BANGLA) "সাজানোর ক্রম" else "Sort Order"
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        NetEarningsSortOrder.values().forEach { order ->
-                            val isSelected = tempFilter.sortOrder == order
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { tempFilter = tempFilter.copy(sortOrder = order) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) order.titleBn else order.titleEn,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                } else null
-                            )
-                        }
-                    }
+                    UnifiedSingleSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "সাজানোর ক্রম নির্বাচন করুন" else "Select Sort Order",
+                        items = sortOrderDropdownItems,
+                        selectedId = tempFilter.sortOrder,
+                        onSelectionChanged = { tempFilter = tempFilter.copy(sortOrder = it) },
+                        leadingIcon = Icons.Default.Sort,
+                        languageMode = languageMode
+                    )
                 }
 
                 // 6. Presentation & Exclusion Toggles

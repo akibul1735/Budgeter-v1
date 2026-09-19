@@ -203,6 +203,15 @@ fun BudgetFilterDialog(
         tempFilter.selectedStatusSet.map { it.ordinal.toLong() }.toSet()
     }
 
+    val datePresetDropdownItems = remember(languageMode) {
+        BudgetDateRangePreset.values().map { preset ->
+            DropdownItem(
+                id = preset,
+                title = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn
+            )
+        }
+    }
+
     val activeCount = remember(tempFilter) {
         var count = 0
         if (tempFilter.datePreset != BudgetDateRangePreset.LAST_12_MONTHS) count++
@@ -254,37 +263,23 @@ fun BudgetFilterDialog(
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 1. Date Range
+                // 1. Date Range Dropdown
                 UnifiedFilterSection(
                     icon = Icons.Default.DateRange,
                     title = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Range"
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        BudgetDateRangePreset.values().forEach { preset ->
-                            val isSelected = tempFilter.datePreset == preset
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { tempFilter = tempFilter.copy(datePreset = preset) },
-                                label = {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else null
-                            )
-                        }
-                    }
+                    UnifiedSingleSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "সময়কাল নির্বাচন করুন" else "Select Date Range",
+                        items = datePresetDropdownItems,
+                        selectedId = tempFilter.datePreset,
+                        onSelectionChanged = { tempFilter = tempFilter.copy(datePreset = it) },
+                        leadingIcon = Icons.Default.DateRange,
+                        languageMode = languageMode
+                    )
 
                     // Custom Date Range
                     if (tempFilter.datePreset == BudgetDateRangePreset.CUSTOM) {
+                        Spacer(modifier = Modifier.height(6.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                             shape = RoundedCornerShape(12.dp),
