@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,6 +34,7 @@ enum class AppTab(
     PAYMENT_SOURCE("payment_source", "Payment Source", "পেমেন্ট সোর্স"),
     BALANCE_SHEET("balance_sheet", "Balance Sheet", "ব্যালেন্স শীট"),
     BUDGET("budget", "Budget", "বাজেট"),
+    SAVINGS_GOALS("savings_goals", "Savings Goals", "সঞ্চয় লক্ষ্য"),
     NET_EARNINGS("net_earnings", "Net Earnings", "নেট আয় ও রিপোর্ট"),
     LABELS("labels", "Labels", "লেবেল"),
     ITEMS_SUMMARY("items_summary", "Items Summary", "আইটেম সামারি"),
@@ -46,6 +48,7 @@ enum class AppTab(
             PAYMENT_SOURCE -> Icons.Default.Payments
             BALANCE_SHEET -> Icons.Default.AccountBalance
             BUDGET -> Icons.Default.ShoppingBag
+            SAVINGS_GOALS -> Icons.Default.Savings
             NET_EARNINGS -> Icons.Default.Assignment
             LABELS -> Icons.Default.Tag
             ITEMS_SUMMARY -> Icons.Default.Bookmark

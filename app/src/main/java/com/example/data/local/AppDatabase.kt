@@ -9,8 +9,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.Account
 import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
+import com.example.data.model.GoalAllocation
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
+import com.example.data.model.SavingsGoal
 import com.example.data.model.Transaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,9 +25,11 @@ import kotlinx.coroutines.launch
         Transaction::class,
         RecurringBill::class,
         MonthlyBudget::class,
-        BudgetAdjustment::class
+        BudgetAdjustment::class,
+        SavingsGoal::class,
+        GoalAllocation::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -36,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recurringBillDao(): RecurringBillDao
     abstract fun monthlyBudgetDao(): MonthlyBudgetDao
     abstract fun budgetAdjustmentDao(): BudgetAdjustmentDao
+    abstract fun savingsGoalDao(): SavingsGoalDao
 
     companion object {
         @Volatile
@@ -103,6 +108,43 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `savings_goals` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `nameBn` TEXT NOT NULL DEFAULT '',
+                        `targetAmount` REAL NOT NULL,
+                        `targetDate` INTEGER NOT NULL DEFAULT 0,
+                        `colorHex` TEXT NOT NULL DEFAULT '#10B981',
+                        `iconName` TEXT NOT NULL DEFAULT 'Savings',
+                        `notes` TEXT NOT NULL DEFAULT '',
+                        `isCompleted` INTEGER NOT NULL DEFAULT 0,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `goal_allocations` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `goalId` INTEGER NOT NULL,
+                        `accountId` INTEGER NOT NULL,
+                        `allocatedAmount` REAL NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`goalId`) REFERENCES `savings_goals`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`accountId`) REFERENCES `accounts`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_goal_allocations_goalId` ON `goal_allocations` (`goalId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_goal_allocations_accountId` ON `goal_allocations` (`accountId`)")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope, isDemoMode: Boolean = false): AppDatabase {
             return if (isDemoMode) {
                 getDemoDatabase(context, scope)
@@ -118,7 +160,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_double_entry_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -147,7 +189,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_demo_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

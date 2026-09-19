@@ -1,6 +1,6 @@
 {
   "name": "Budgeter",
-  "description": "Personal finance and budget manager with double-entry accounting, smart budgets, balance sheet, net worth analytics, recurring bills, debt payoff & AI smart insights.",
+  "description": "Personal finance and budget manager with double-entry accounting, smart budgets, balance sheet, savings goals with multi-account allocations and deficit protection, net worth analytics, recurring bills, and debt payoff.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

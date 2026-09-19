@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Calculate
@@ -61,6 +60,7 @@ import com.example.ui.theme.ThemePalette
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingBag
@@ -138,7 +138,6 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.AutoHidingHeaderContainer
-import com.example.ui.components.assistant.FinancialAssistantSheet
 import com.example.ui.components.LanguageSelector
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.LocalSetTimelineActive
@@ -174,6 +173,7 @@ enum class AppView {
     RM_MANAGER,
     BUDGET,
     BUDGET_MAKER,
+    SAVINGS_GOALS,
     CATEGORIES,
     EXPENSES,
     INCOME,
@@ -194,6 +194,7 @@ fun AppTab.toAppView(): AppView = when (this) {
     AppTab.PAYMENT_SOURCE -> AppView.PAYMENT_SOURCE
     AppTab.BALANCE_SHEET -> AppView.BALANCE_SHEET
     AppTab.BUDGET -> AppView.BUDGET
+    AppTab.SAVINGS_GOALS -> AppView.SAVINGS_GOALS
     AppTab.NET_EARNINGS -> AppView.REPORTS
     AppTab.LABELS -> AppView.LABELS
     AppTab.ITEMS_SUMMARY -> AppView.ITEMS_SUMMARY
@@ -207,6 +208,7 @@ fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.PAYMENT_SOURCE -> AppTab.PAYMENT_SOURCE
     AppView.BALANCE_SHEET -> AppTab.BALANCE_SHEET
     AppView.BUDGET -> AppTab.BUDGET
+    AppView.SAVINGS_GOALS -> AppTab.SAVINGS_GOALS
     AppView.REPORTS -> AppTab.NET_EARNINGS
     AppView.LABELS -> AppTab.LABELS
     AppView.ITEMS_SUMMARY -> AppTab.ITEMS_SUMMARY
@@ -308,9 +310,6 @@ fun MainAppContainer(
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
-    var showFinancialAssistantSheet by remember { mutableStateOf(false) }
-    var assistantDeepLinkBudgetQuery by remember { mutableStateOf<String?>(null) }
-    var assistantDeepLinkAccountsFilter by remember { mutableStateOf<String?>(null) }
 
     val headerScrollState = rememberHeaderScrollState()
 
@@ -458,11 +457,7 @@ fun MainAppContainer(
                                     categoriesCount = allCategories.size,
                                     netWorth = overview.netWorth,
                                     isBalanced = overview.isLedgerBalanced,
-                                    languageMode = languageMode,
-                                    onOpenAssistant = {
-                                        scope.launch { drawerState.close() }
-                                        showFinancialAssistantSheet = true
-                                    }
+                                    languageMode = languageMode
                                 )
                             }
                         }
@@ -502,9 +497,6 @@ fun MainAppContainer(
                                         editingTransaction = null
                                         presetTxType = TransactionType.EXPENSE
                                         showAddTransactionSheet = true
-                                    },
-                                    onOpenAssistant = {
-                                        showFinancialAssistantSheet = true
                                     }
                                 )
                             }
@@ -650,9 +642,7 @@ fun MainAppContainer(
                                         onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                         onAccountClick = { acc -> selectedAccountForDetail = acc },
                                         dashboardConfig = dashboardConfig,
-                                        paymentSourceConfig = paymentSourceConfig,
-                                        initialBudgetSearchQuery = assistantDeepLinkBudgetQuery,
-                                        initialAccountsFilter = if (assistantDeepLinkAccountsFilter == "EXCLUDED") AccountViewHierarchyFilter.EXCLUDED else AccountViewHierarchyFilter.ALL
+                                        paymentSourceConfig = paymentSourceConfig
                                     )
                                 }
                             } else {
@@ -781,9 +771,7 @@ fun MainAppContainer(
                                     onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                     onAccountClick = { acc -> selectedAccountForDetail = acc },
                                     dashboardConfig = dashboardConfig,
-                                    paymentSourceConfig = paymentSourceConfig,
-                                    initialBudgetSearchQuery = assistantDeepLinkBudgetQuery,
-                                    initialAccountsFilter = if (assistantDeepLinkAccountsFilter == "EXCLUDED") AccountViewHierarchyFilter.EXCLUDED else AccountViewHierarchyFilter.ALL
+                                    paymentSourceConfig = paymentSourceConfig
                                 )
                             }
                         }
@@ -811,11 +799,7 @@ fun MainAppContainer(
                                 categoriesCount = allCategories.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
-                                languageMode = languageMode,
-                                onOpenAssistant = {
-                                    scope.launch { drawerState.close() }
-                                    showFinancialAssistantSheet = true
-                                }
+                                languageMode = languageMode
                             )
                         }
                     }
@@ -863,9 +847,6 @@ fun MainAppContainer(
                                     editingTransaction = null
                                     presetTxType = TransactionType.EXPENSE
                                     showAddTransactionSheet = true
-                                },
-                                onOpenAssistant = {
-                                    showFinancialAssistantSheet = true
                                 }
                             )
                         }
@@ -994,10 +975,7 @@ fun MainAppContainer(
                                 categoriesCount = allCategories.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
-                                languageMode = languageMode,
-                                onOpenAssistant = {
-                                    showFinancialAssistantSheet = true
-                                }
+                                languageMode = languageMode
                             )
                         }
                     }
@@ -1011,9 +989,6 @@ fun MainAppContainer(
                                     editingTransaction = null
                                     presetTxType = TransactionType.EXPENSE
                                     showAddTransactionSheet = true
-                                },
-                                onOpenAssistant = {
-                                    showFinancialAssistantSheet = true
                                 }
                             )
                         }
@@ -1149,9 +1124,7 @@ fun MainAppContainer(
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 onAccountClick = { acc -> selectedAccountForDetail = acc },
                                 dashboardConfig = dashboardConfig,
-                                paymentSourceConfig = paymentSourceConfig,
-                                initialBudgetSearchQuery = assistantDeepLinkBudgetQuery,
-                                initialAccountsFilter = if (assistantDeepLinkAccountsFilter == "EXCLUDED") AccountViewHierarchyFilter.EXCLUDED else AccountViewHierarchyFilter.ALL
+                                paymentSourceConfig = paymentSourceConfig
                             )
                         }
                     }
@@ -1339,52 +1312,6 @@ fun MainAppContainer(
             }
         )
     }
-
-    FinancialAssistantSheet(
-        isOpen = showFinancialAssistantSheet,
-        onDismiss = { showFinancialAssistantSheet = false },
-        languageMode = languageMode,
-        allAccounts = allAccounts,
-        accountsWithBalances = accountsWithBalances,
-        allCategories = allCategories,
-        transactions = transactionsWithDetails,
-        overview = overview,
-        budgets = allMonthlyBudgets,
-        accountCalcConfig = accountCalcConfig,
-        onNavigateAction = { action ->
-            showFinancialAssistantSheet = false
-            when (action.destination) {
-                "BUDGET_MAKER" -> {
-                    assistantDeepLinkBudgetQuery = action.searchQuery
-                    selectView(AppView.BUDGET_MAKER)
-                }
-                "BUDGET" -> selectView(AppView.BUDGET)
-                "ACCOUNTS_EXCLUDED" -> {
-                    assistantDeepLinkAccountsFilter = "EXCLUDED"
-                    selectView(AppView.ACCOUNTS)
-                }
-                "ACCOUNTS" -> {
-                    assistantDeepLinkAccountsFilter = null
-                    selectView(AppView.ACCOUNTS)
-                }
-                "ACCOUNT_DETAIL" -> {
-                    val acc = allAccounts.firstOrNull { it.id == action.accountId }
-                    if (acc != null) {
-                        selectedAccountForDetail = acc
-                    } else {
-                        selectView(AppView.ACCOUNTS)
-                    }
-                }
-                "RM_MANAGER" -> selectView(AppView.RM_MANAGER)
-                "LEDGER" -> selectView(AppView.LEDGER)
-                "BALANCE_SHEET" -> selectView(AppView.BALANCE_SHEET)
-                "CASH_FLOW" -> selectView(AppView.CASH_FLOW)
-                "REPORTS" -> selectView(AppView.REPORTS)
-                "CATEGORIES" -> selectView(AppView.CATEGORIES)
-                else -> {}
-            }
-        }
-    )
 }
 
 @Composable
@@ -1545,39 +1472,17 @@ private fun BottomNavigationBarRow(
 @Composable
 private fun AppFab(
     currentView: AppView,
-    onAddTransaction: () -> Unit,
-    onOpenAssistant: () -> Unit
+    onAddTransaction: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // Floating action button to open AI Assistant
+    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
         FloatingActionButton(
-            onClick = onOpenAssistant,
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            onClick = onAddTransaction,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White,
             shape = CircleShape,
-            modifier = Modifier.testTag("fab_open_assistant")
+            modifier = Modifier.testTag("main_fab_add_tx")
         ) {
-            Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "Open AI Assistant",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
-            FloatingActionButton(
-                onClick = onAddTransaction,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.testTag("main_fab_add_tx")
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Transaction")
-            }
+            Icon(Icons.Default.Add, contentDescription = "Add Transaction")
         }
     }
 }
@@ -1591,10 +1496,10 @@ private fun DrawerContent(
     categoriesCount: Int,
     netWorth: Double,
     isBalanced: Boolean,
-    languageMode: LanguageMode,
-    onOpenAssistant: () -> Unit = {}
+    languageMode: LanguageMode
 ) {
     val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
+    val savingsSummary by viewModel.savingsSummary.collectAsStateWithLifecycle()
     val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
 
@@ -1913,6 +1818,16 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.BUDGET_MAKER) }
         )
 
+        // 3.5. Savings Goals
+        DrawerItemRow(
+            title = LanguageHelper.getString("savings_goals", languageMode).ifEmpty { "Savings Goals" },
+            icon = Icons.Default.Savings,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = if (savingsSummary.activeGoalsCount > 0) "${savingsSummary.activeGoalsCount}" else null,
+            isSelected = currentView == AppView.SAVINGS_GOALS,
+            onClick = { onSelectView(AppView.SAVINGS_GOALS) }
+        )
+
         // 4. Payment Source
         DrawerItemRow(
             title = LanguageHelper.getString("payment_source", languageMode),
@@ -1929,15 +1844,6 @@ private fun DrawerContent(
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = currentView == AppView.SETTINGS,
             onClick = { onSelectView(AppView.SETTINGS) }
-        )
-
-        // 5.5 AI Assistant
-        DrawerItemRow(
-            title = if (languageMode == LanguageMode.BANGLA) "এআই সহকারী (অফলাইন)" else "AI Assistant (Offline)",
-            icon = Icons.Default.AutoAwesome,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = false,
-            onClick = onOpenAssistant
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
@@ -2332,6 +2238,21 @@ private fun ScreenRouter(
             onAccountClick = onAccountClick,
             initialSearchQuery = initialBudgetSearchQuery ?: ""
         )
+        AppView.SAVINGS_GOALS -> {
+            val goalsWithDetails by viewModel.savingsGoalsWithDetails.collectAsStateWithLifecycle()
+            val savingsSummary by viewModel.savingsSummary.collectAsStateWithLifecycle()
+            SavingsGoalsScreen(
+                goalsWithDetails = goalsWithDetails,
+                savingsSummary = savingsSummary,
+                accountsWithBalances = accountsWithBalances,
+                languageMode = languageMode,
+                onSaveGoal = { goal, allocs -> viewModel.saveSavingsGoal(goal, allocs) },
+                onDeleteGoal = { id -> viewModel.deleteSavingsGoal(id) },
+                onToggleCompleted = { id, isComp -> viewModel.toggleSavingsGoalCompleted(id, isComp) },
+                onUpdateAllocation = { gId, aId, amt -> viewModel.updateGoalAllocation(gId, aId, amt) },
+                onOpenDrawer = onOpenDrawer
+            )
+        }
         AppView.REPORTS -> ReportsScreen(
             overview = overview,
             accountsWithBalances = accountsWithBalances,
@@ -2535,6 +2456,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.BALANCE_SHEET -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
         AppView.BUDGET_MAKER -> LanguageHelper.getString("budget_maker", languageMode)
+        AppView.SAVINGS_GOALS -> LanguageHelper.getString("savings_goals", languageMode).ifEmpty { "Savings Goals" }
         AppView.CATEGORIES -> LanguageHelper.getString("categories", languageMode)
         AppView.REPORTS -> LanguageHelper.getString("net_earnings", languageMode)
         AppView.LABELS -> LanguageHelper.getString("labels", languageMode)

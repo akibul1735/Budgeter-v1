@@ -16,6 +16,10 @@ import com.example.data.model.LanguageMode
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
+import com.example.data.model.SavingsGoal
+import com.example.data.model.GoalAllocation
+import com.example.data.model.SavingsGoalWithDetails
+import com.example.data.model.SavingsSummary
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
@@ -364,7 +368,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             transactionDao = db.transactionDao(),
             recurringBillDao = db.recurringBillDao(),
             monthlyBudgetDao = db.monthlyBudgetDao(),
-            budgetAdjustmentDao = db.budgetAdjustmentDao()
+            budgetAdjustmentDao = db.budgetAdjustmentDao(),
+            savingsGoalDao = db.savingsGoalDao()
         )
     }
 
@@ -738,6 +743,48 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val savingsGoalsWithDetails: StateFlow<List<SavingsGoalWithDetails>> = _activeRepository
+        .flatMapLatest { it.allSavingsGoalsWithDetails }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val savingsSummary: StateFlow<SavingsSummary> = _activeRepository
+        .flatMapLatest { it.savingsSummary }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = SavingsSummary(0.0, 0.0, 0.0, 0.0, 0, 0, 0f)
+        )
+
+    fun saveSavingsGoal(goal: SavingsGoal, allocations: List<Pair<Long, Double>>) {
+        viewModelScope.launch {
+            activeRepo.saveSavingsGoal(goal, allocations)
+        }
+    }
+
+    fun deleteSavingsGoal(goalId: Long) {
+        viewModelScope.launch {
+            activeRepo.deleteSavingsGoal(goalId)
+        }
+    }
+
+    fun toggleSavingsGoalCompleted(goalId: Long, isCompleted: Boolean) {
+        viewModelScope.launch {
+            activeRepo.setSavingsGoalCompleted(goalId, isCompleted)
+        }
+    }
+
+    fun updateGoalAllocation(goalId: Long, accountId: Long, amount: Double) {
+        viewModelScope.launch {
+            activeRepo.updateGoalAllocation(goalId, accountId, amount)
+        }
+    }
 
     fun saveTransaction(transaction: Transaction) {
         viewModelScope.launch {

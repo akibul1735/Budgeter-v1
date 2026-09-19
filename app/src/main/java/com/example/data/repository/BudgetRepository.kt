@@ -5,6 +5,7 @@ import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
+import com.example.data.local.SavingsGoalDao
 import com.example.data.local.TransactionDao
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -12,9 +13,14 @@ import com.example.data.model.BillStatus
 import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
+import com.example.data.model.GoalAllocation
+import com.example.data.model.GoalAllocationWithAccount
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
+import com.example.data.model.SavingsGoal
+import com.example.data.model.SavingsGoalWithDetails
+import com.example.data.model.SavingsSummary
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
@@ -23,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 
 data class FinancialOverview(
     val totalAssets: Double,
@@ -65,13 +72,72 @@ class BudgetRepository(
     val transactionDao: TransactionDao,
     val recurringBillDao: RecurringBillDao,
     val monthlyBudgetDao: MonthlyBudgetDao,
-    val budgetAdjustmentDao: BudgetAdjustmentDao
+    val budgetAdjustmentDao: BudgetAdjustmentDao,
+    val savingsGoalDao: SavingsGoalDao
 ) {
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
     val allTransactions: Flow<List<Transaction>> = transactionDao.getAllTransactions()
     val allBills: Flow<List<RecurringBill>> = recurringBillDao.getAllBills()
     val allMonthlyBudgets: Flow<List<MonthlyBudget>> = monthlyBudgetDao.getAllBudgetsFlow()
+    val allSavingsGoals: Flow<List<SavingsGoal>> = savingsGoalDao.getAllGoals()
+    val allGoalAllocations: Flow<List<GoalAllocation>> = savingsGoalDao.getAllAllocations()
+
+    suspend fun saveSavingsGoal(
+        goal: SavingsGoal,
+        allocations: List<Pair<Long, Double>> = emptyList()
+    ): Long {
+        val goalId = if (goal.id == 0L) {
+            savingsGoalDao.insertGoal(goal)
+        } else {
+            savingsGoalDao.updateGoal(goal)
+            savingsGoalDao.deleteAllocationsForGoal(goal.id)
+            goal.id
+        }
+
+        val allocEntities = allocations
+            .filter { it.second > 0 }
+            .map { (accId, amt) ->
+                GoalAllocation(
+                    goalId = goalId,
+                    accountId = accId,
+                    allocatedAmount = amt,
+                    updatedAt = System.currentTimeMillis()
+                )
+            }
+        if (allocEntities.isNotEmpty()) {
+            savingsGoalDao.insertAllocations(allocEntities)
+        }
+        return goalId
+    }
+
+    suspend fun deleteSavingsGoal(goalId: Long) {
+        savingsGoalDao.deleteGoalById(goalId)
+    }
+
+    suspend fun setSavingsGoalCompleted(goalId: Long, isCompleted: Boolean) {
+        savingsGoalDao.setGoalCompleted(goalId, isCompleted)
+    }
+
+    suspend fun updateGoalAllocation(goalId: Long, accountId: Long, newAmount: Double) {
+        if (newAmount <= 0.0001) {
+            savingsGoalDao.deleteAllocationForGoalAndAccount(goalId, accountId)
+        } else {
+            val existing = savingsGoalDao.getAllocationsForGoalSync(goalId).firstOrNull { it.accountId == accountId }
+            if (existing != null) {
+                savingsGoalDao.updateAllocation(existing.copy(allocatedAmount = newAmount, updatedAt = System.currentTimeMillis()))
+            } else {
+                savingsGoalDao.insertAllocation(
+                    GoalAllocation(
+                        goalId = goalId,
+                        accountId = accountId,
+                        allocatedAmount = newAmount,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+    }
 
     fun getMonthlyBudgets(year: Int, month: Int): Flow<List<MonthlyBudget>> =
         monthlyBudgetDao.getBudgetsForMonth(year, month)
@@ -360,6 +426,77 @@ class BudgetRepository(
                 isParent = true
             )
         }
+    }.flowOn(Dispatchers.Default)
+
+    val allSavingsGoalsWithDetails: Flow<List<SavingsGoalWithDetails>> = combine(
+        savingsGoalDao.getAllGoals(),
+        savingsGoalDao.getAllAllocations(),
+        allAccounts,
+        accountsWithBalances
+    ) { goals, allocations, accounts, accountsWithBal ->
+        val flatAccountMap = accounts.associateBy { it.id }
+        val balanceMap = mutableMapOf<Long, Double>()
+        for (item in accountsWithBal) {
+            balanceMap[item.account.id] = item.currentBalance
+            for (sub in item.subAccounts) {
+                balanceMap[sub.account.id] = sub.currentBalance
+            }
+        }
+
+        val allocationsByGoal = allocations.groupBy { it.goalId }
+
+        goals.map { goal ->
+            val goalAllocs = allocationsByGoal[goal.id] ?: emptyList()
+            val allocDetails = goalAllocs.mapNotNull { alloc ->
+                val acc = flatAccountMap[alloc.accountId]
+                if (acc != null) {
+                    val bal = balanceMap[acc.id] ?: acc.initialBalance
+                    GoalAllocationWithAccount(
+                        allocation = alloc,
+                        account = acc,
+                        accountCurrentBalance = bal
+                    )
+                } else null
+            }
+            SavingsGoalWithDetails(
+                goal = goal,
+                allocations = allocDetails
+            )
+        }
+    }.flowOn(Dispatchers.Default)
+
+    val savingsSummary: Flow<SavingsSummary> = allSavingsGoalsWithDetails.map { goalsWithDetails ->
+        var totalTarget = 0.0
+        var totalSaved = 0.0
+        var totalDeficit = 0.0
+        var activeCount = 0
+        var completedCount = 0
+
+        for (item in goalsWithDetails) {
+            if (item.goal.isCompleted) {
+                completedCount++
+            } else {
+                activeCount++
+            }
+            totalTarget += item.goal.targetAmount
+            totalSaved += item.effectiveSaved
+            totalDeficit += item.totalDeficit
+        }
+
+        val totalRemaining = maxOf(0.0, totalTarget - totalSaved)
+        val overallProgress = if (totalTarget > 0) {
+            ((totalSaved / totalTarget) * 100.0).coerceIn(0.0, 100.0).toFloat()
+        } else 0f
+
+        SavingsSummary(
+            totalTarget = totalTarget,
+            totalSaved = totalSaved,
+            totalRemaining = totalRemaining,
+            totalDeficit = totalDeficit,
+            activeGoalsCount = activeCount,
+            completedGoalsCount = completedCount,
+            overallProgressPercent = overallProgress
+        )
     }.flowOn(Dispatchers.Default)
 
     fun getFinancialOverviewFlow(calcConfigFlow: Flow<com.example.util.AccountCalcConfig>): Flow<FinancialOverview> = combine(
