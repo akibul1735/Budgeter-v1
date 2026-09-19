@@ -398,7 +398,9 @@ private fun SummaryMetricItem(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier.padding(horizontal = 2.dp)
+    ) {
         Text(
             text = label,
             fontSize = 11.sp,
@@ -409,7 +411,7 @@ private fun SummaryMetricItem(
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = value,
-            fontSize = 14.5.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.Bold,
             color = color,
             maxLines = 1,
@@ -780,13 +782,17 @@ private fun SavingsGoalCard(
                     }
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
                                 text = LanguageHelper.getLocalizedName(goal.name, goal.nameBn, languageMode),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
+                                fontSize = 15.5.sp,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             if (isCompleted) {
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -816,8 +822,10 @@ private fun SavingsGoalCard(
                             }
                             Text(
                                 text = "$dateStr • $daysText",
-                                fontSize = 11.sp,
-                                color = if (daysLeft < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+                                fontSize = 10.5.sp,
+                                color = if (daysLeft < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -885,33 +893,45 @@ private fun SavingsGoalCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Text(
                             text = LanguageHelper.formatCurrency(goalWithDetails.effectiveSaved, languageMode),
-                            fontSize = 17.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (hasDeficit) MaterialTheme.colorScheme.error else accentColor
+                            color = if (hasDeficit) MaterialTheme.colorScheme.error else accentColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (hasDeficit) {
                             Text(
                                 text = "${if (languageMode == LanguageMode.BANGLA) "বরাদ্দ ছিল:" else "Allocated:"} ${LanguageHelper.formatCurrency(goalWithDetails.totalAllocated, languageMode)}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    Column(horizontalAlignment = Alignment.End) {
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Text(
                             text = "${LanguageHelper.formatNumber(progress.toDouble(), languageMode, false)}%",
-                            fontSize = 15.sp,
+                            fontSize = 14.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = accentColor
+                            color = accentColor,
+                            maxLines = 1
                         )
                         Text(
                             text = "${if (languageMode == LanguageMode.BANGLA) "লক্ষ্য:" else "of"} ${LanguageHelper.formatCurrency(goal.targetAmount, languageMode)}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -952,9 +972,10 @@ private fun SavingsGoalCard(
                             } else {
                                 "Shortfall of ${LanguageHelper.formatCurrency(goalWithDetails.totalDeficit, languageMode)} due to account spending."
                             },
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            lineHeight = 14.sp
                         )
                     }
                 }
@@ -978,7 +999,10 @@ private fun SavingsGoalCard(
                             text = "${LanguageHelper.getString("linked_accounts", languageMode)} (${goalWithDetails.allocations.size})",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         Icon(
                             imageVector = if (expandedAccounts) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -1015,7 +1039,8 @@ private fun SavingsGoalCard(
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.weight(1f, fill = false)
                                     ) {
                                         Icon(
                                             imageVector = IconHelper.getIconByName(acc.iconName),
@@ -1025,23 +1050,29 @@ private fun SavingsGoalCard(
                                         )
                                         Text(
                                             text = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
 
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = LanguageHelper.formatCurrency(allocAmt, languageMode),
-                                            fontSize = 12.sp,
+                                            fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isDeficit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                            color = if (isDeficit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1
                                         )
                                         if (isDeficit) {
                                             Text(
                                                 text = "${if (languageMode == LanguageMode.BANGLA) "হিসাব স্থিতি:" else "Live Bal:"} ${LanguageHelper.formatCurrency(allocWithAcc.accountCurrentBalance, languageMode)}",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.error
+                                                fontSize = 9.5.sp,
+                                                color = MaterialTheme.colorScheme.error,
+                                                maxLines = 1
                                             )
                                         }
                                     }
@@ -1055,19 +1086,21 @@ private fun SavingsGoalCard(
             // Quick Allocate / Add Funds Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
                     onClick = onQuickAllocate,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f, fill = false),
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(vertical = 6.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = LanguageHelper.getString("quick_allocate", languageMode),
-                        fontSize = 12.sp
+                        fontSize = 11.5.sp,
+                        maxLines = 1
                     )
                 }
 
@@ -1075,11 +1108,11 @@ private fun SavingsGoalCard(
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        modifier = Modifier.align(Alignment.CenterVertically)
+                        modifier = Modifier.weight(1f, fill = false)
                     ) {
                         Text(
                             text = goal.notes,
-                            fontSize = 11.sp,
+                            fontSize = 10.5.sp,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

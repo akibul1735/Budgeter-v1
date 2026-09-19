@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -101,11 +102,11 @@ fun AddEditSavingsGoalDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Flat list of asset accounts
-    val eligibleAccounts = remember(accountsWithBalances) {
+    // Flat list of ALL active accounts from the system (including Cash, Bank, Savings, Assets, etc.)
+    val allAvailableAccounts = remember(accountsWithBalances) {
         val list = mutableListOf<Pair<Account, Double>>()
         accountsWithBalances.forEach { parent ->
-            if (parent.account.type == AccountType.ASSET && parent.account.isActive) {
+            if (parent.account.isActive) {
                 if (parent.subAccounts.isEmpty()) {
                     list.add(parent.account to parent.currentBalance)
                 } else {
@@ -119,6 +120,8 @@ fun AddEditSavingsGoalDialog(
         }
         list
     }
+
+    var showAccountSelectorDropdown by remember { mutableStateOf(false) }
 
     val totalAllocatedCalculated = allocationsMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
     val targetAmountVal = targetAmountStr.toDoubleOrNull() ?: 0.0
@@ -471,82 +474,270 @@ fun AddEditSavingsGoalDialog(
                                     }
                                 }
 
-                                if (eligibleAccounts.isEmpty()) {
+                                if (allAvailableAccounts.isEmpty()) {
                                     Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "কোনো সক্রিয় ব্যাংক বা নগদ হিসাব পাওয়া যায়নি।" else "No active asset accounts found to allocate from.",
+                                        text = if (languageMode == LanguageMode.BANGLA) "কোনো সক্রিয় হিসাব পাওয়া যায়নি।" else "No active accounts found in the app.",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 } else {
-                                    eligibleAccounts.forEach { (acc, currentBal) ->
-                                        val currentAllocStr = allocationsMap[acc.id] ?: ""
-                                        val currentAllocVal = currentAllocStr.toDoubleOrNull() ?: 0.0
-                                        val isOverBalance = currentAllocVal > currentBal
+                                    val linkedAccounts = allAvailableAccounts.filter { it.first.id in allocationsMap.keys }
+                                    val unlinkedAccounts = allAvailableAccounts.filter { it.first.id !in allocationsMap.keys }
 
+                                    if (linkedAccounts.isEmpty()) {
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
-                                            color = MaterialTheme.colorScheme.surface,
-                                            border = androidx.compose.foundation.BorderStroke(
-                                                1.dp,
-                                                if (isOverBalance) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                                            ),
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(10.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            Column(
+                                                modifier = Modifier.padding(14.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                Icon(
-                                                    imageVector = IconHelper.getIconByName(acc.iconName),
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(24.dp)
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "কোনো হিসাব এখনো সংযুক্ত করা হয়নি।" else "No accounts linked yet.",
+                                                    fontSize = 12.5.sp,
+                                                    color = MaterialTheme.colorScheme.outline,
+                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                                 )
-
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
-                                                        fontWeight = FontWeight.Medium,
-                                                        fontSize = 13.5.sp
-                                                    )
-                                                    Text(
-                                                        text = "${if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স:" else "Bal:"} ${LanguageHelper.formatCurrency(currentBal, languageMode)}",
-                                                        fontSize = 11.sp,
-                                                        color = if (isOverBalance) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
-                                                    )
-                                                }
-
-                                                OutlinedTextField(
-                                                    value = currentAllocStr,
-                                                    onValueChange = { newVal ->
-                                                        if (newVal.isBlank()) {
-                                                            allocationsMap.remove(acc.id)
-                                                        } else {
-                                                            allocationsMap[acc.id] = newVal
-                                                        }
-                                                    },
-                                                    placeholder = { Text("0") },
-                                                    leadingIcon = {
-                                                        Text(
-                                                            LanguageHelper.activeCurrencyConfig.activeSymbol,
-                                                            fontSize = 11.sp,
-                                                            color = MaterialTheme.colorScheme.outline,
-                                                            modifier = Modifier.padding(start = 6.dp)
-                                                        )
-                                                    },
-                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                                    singleLine = true,
-                                                    modifier = Modifier
-                                                        .width(115.dp)
-                                                        .height(48.dp),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "নিচের বোতাম চেপে বিদ্যমান যেকোনো হিসাব নির্বাচন করে তহবিল বরাদ্দ করুন।" else "Select an existing account below to allocate funds to this goal.",
+                                                    fontSize = 11.5.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                                 )
                                             }
                                         }
+                                    } else {
+                                        linkedAccounts.forEach { (acc, currentBal) ->
+                                            val currentAllocStr = allocationsMap[acc.id] ?: ""
+                                            val currentAllocVal = currentAllocStr.toDoubleOrNull() ?: 0.0
+                                            val isOverBalance = currentAllocVal > currentBal
+
+                                            Surface(
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = MaterialTheme.colorScheme.surface,
+                                                border = androidx.compose.foundation.BorderStroke(
+                                                    1.dp,
+                                                    if (isOverBalance) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(12.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    // Account Header Row
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                            modifier = Modifier.weight(1f)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = IconHelper.getIconByName(acc.iconName),
+                                                                contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.primary,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                            Column(modifier = Modifier.weight(1f)) {
+                                                                Text(
+                                                                    text = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
+                                                                    fontWeight = FontWeight.SemiBold,
+                                                                    fontSize = 13.5.sp,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                                Text(
+                                                                    text = "${if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স:" else "Live Bal:"} ${LanguageHelper.formatCurrency(currentBal, languageMode)}",
+                                                                    fontSize = 11.sp,
+                                                                    color = if (isOverBalance) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
+                                                                    maxLines = 1,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                            }
+                                                        }
+
+                                                        // Unlink/Remove Button
+                                                        IconButton(
+                                                            onClick = { allocationsMap.remove(acc.id) },
+                                                            modifier = Modifier.size(32.dp)
+                                                        ) {
+                                                            Icon(
+                                                                Icons.Default.Close,
+                                                                contentDescription = "Remove account",
+                                                                tint = MaterialTheme.colorScheme.error,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    }
+
+                                                    // Allocation Input Row
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        OutlinedTextField(
+                                                            value = currentAllocStr,
+                                                            onValueChange = { newVal ->
+                                                                allocationsMap[acc.id] = newVal
+                                                            },
+                                                            label = { Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দ পরিমাণ" else "Allocated Amount", fontSize = 11.sp) },
+                                                            placeholder = { Text("0") },
+                                                            leadingIcon = {
+                                                                Text(
+                                                                    LanguageHelper.activeCurrencyConfig.activeSymbol,
+                                                                    fontSize = 12.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = MaterialTheme.colorScheme.primary,
+                                                                    modifier = Modifier.padding(start = 8.dp)
+                                                                )
+                                                            },
+                                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                            singleLine = true,
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .height(52.dp),
+                                                            shape = RoundedCornerShape(10.dp),
+                                                            textStyle = LocalTextStyle.current.copy(fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                                                        )
+
+                                                        // Quick 100% / Full balance shortcut
+                                                        if (currentBal > 0) {
+                                                            OutlinedButton(
+                                                                onClick = {
+                                                                    val remaining = maxOf(0.0, targetAmountVal - (totalAllocatedCalculated - currentAllocVal))
+                                                                    val fillAmt = if (remaining in 0.01..currentBal) remaining else currentBal
+                                                                    allocationsMap[acc.id] = String.format(Locale.US, "%.0f", fillAmt)
+                                                                },
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                                                modifier = Modifier.height(48.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = if (languageMode == LanguageMode.BANGLA) "পূর্ণ" else "Fill",
+                                                                    fontSize = 11.sp
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (isOverBalance) {
+                                                        Text(
+                                                            text = if (languageMode == LanguageMode.BANGLA) "সতর্কতা: বরাদ্দ পরিমাণ বর্তমান ব্যালেন্সের চেয়ে বেশি!" else "Warning: Allocated amount exceeds account balance!",
+                                                            fontSize = 10.5.sp,
+                                                            color = MaterialTheme.colorScheme.error,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Account Selection Dropdown Button
+                                    if (unlinkedAccounts.isNotEmpty()) {
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            OutlinedButton(
+                                                onClick = { showAccountSelectorDropdown = true },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.primary
+                                                )
+                                            ) {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = if (linkedAccounts.isEmpty()) {
+                                                        if (languageMode == LanguageMode.BANGLA) "হিসাব নির্বাচন করে যুক্ত করুন" else "Select Account to Link"
+                                                    } else {
+                                                        if (languageMode == LanguageMode.BANGLA) "+ আরও হিসাব যুক্ত করুন" else "+ Link Another Account"
+                                                    },
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+
+                                            DropdownMenu(
+                                                expanded = showAccountSelectorDropdown,
+                                                onDismissRequest = { showAccountSelectorDropdown = false },
+                                                modifier = Modifier.fillMaxWidth(0.85f)
+                                            ) {
+                                                Text(
+                                                    text = if (languageMode == LanguageMode.BANGLA) "বিদ্যমান হিসাবসমূহ" else "Existing Accounts",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.outline,
+                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                                )
+                                                HorizontalDivider()
+
+                                                unlinkedAccounts.forEach { (acc, bal) ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Column(modifier = Modifier.weight(1f)) {
+                                                                    Text(
+                                                                        text = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
+                                                                        fontWeight = FontWeight.Medium,
+                                                                        fontSize = 13.5.sp,
+                                                                        maxLines = 1,
+                                                                        overflow = TextOverflow.Ellipsis
+                                                                    )
+                                                                    Text(
+                                                                        text = "${acc.type.name} • ${if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স:" else "Bal:"} ${LanguageHelper.formatCurrency(bal, languageMode)}",
+                                                                        fontSize = 11.sp,
+                                                                        color = MaterialTheme.colorScheme.outline,
+                                                                        maxLines = 1,
+                                                                        overflow = TextOverflow.Ellipsis
+                                                                    )
+                                                                }
+                                                            }
+                                                        },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                imageVector = IconHelper.getIconByName(acc.iconName),
+                                                                contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.primary,
+                                                                modifier = Modifier.size(20.dp)
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showAccountSelectorDropdown = false
+                                                            // Auto calculate suggested allocation from remaining target
+                                                            val remainingTarget = maxOf(0.0, targetAmountVal - totalAllocatedCalculated)
+                                                            val suggestedAmt = if (remainingTarget > 0) {
+                                                                if (bal > 0) minOf(remainingTarget, bal) else remainingTarget
+                                                            } else 0.0
+
+                                                            allocationsMap[acc.id] = if (suggestedAmt > 0) String.format(Locale.US, "%.0f", suggestedAmt) else ""
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else if (allAvailableAccounts.isNotEmpty()) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "সমস্ত বিদ্যমান হিসাব সংযুক্ত রয়েছে।" else "All existing accounts are currently linked.",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        )
                                     }
                                 }
                             }

@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -35,11 +36,11 @@ fun QuickAllocateGoalDialog(
     onDismiss: () -> Unit,
     onSaveAllocation: (accountId: Long, amount: Double) -> Unit
 ) {
-    // Eligible asset accounts
-    val eligibleAccounts = remember(accountsWithBalances) {
+    // Flat list of ALL active accounts
+    val allAvailableAccounts = remember(accountsWithBalances) {
         val list = mutableListOf<Pair<Account, Double>>()
         accountsWithBalances.forEach { parent ->
-            if (parent.account.type == AccountType.ASSET && parent.account.isActive) {
+            if (parent.account.isActive) {
                 if (parent.subAccounts.isEmpty()) {
                     list.add(parent.account to parent.currentBalance)
                 } else {
@@ -57,7 +58,7 @@ fun QuickAllocateGoalDialog(
     var selectedAccountId by remember {
         mutableStateOf(
             goalWithDetails.allocations.firstOrNull()?.account?.id
-                ?: eligibleAccounts.firstOrNull()?.first?.id
+                ?: allAvailableAccounts.firstOrNull()?.first?.id
                 ?: 0L
         )
     }
@@ -72,7 +73,7 @@ fun QuickAllocateGoalDialog(
 
     var expandedDropdown by remember { mutableStateOf(false) }
 
-    val selectedAccountPair = eligibleAccounts.firstOrNull { it.first.id == selectedAccountId }
+    val selectedAccountPair = allAvailableAccounts.firstOrNull { it.first.id == selectedAccountId }
     val selectedAccBalance = selectedAccountPair?.second ?: 0.0
 
     Dialog(onDismissRequest = onDismiss) {
@@ -154,7 +155,7 @@ fun QuickAllocateGoalDialog(
                         expanded = expandedDropdown,
                         onDismissRequest = { expandedDropdown = false }
                     ) {
-                        eligibleAccounts.forEach { (acc, bal) ->
+                        allAvailableAccounts.forEach { (acc, bal) ->
                             DropdownMenuItem(
                                 text = {
                                     Row(
@@ -162,16 +163,25 @@ fun QuickAllocateGoalDialog(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode))
+                                        Text(
+                                            text = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = LanguageHelper.formatCurrency(bal, languageMode),
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.outline
+                                            fontSize = 11.5.sp,
+                                            color = MaterialTheme.colorScheme.outline,
+                                            maxLines = 1
                                         )
                                     }
                                 },
                                 leadingIcon = {
-                                    Icon(IconHelper.getIconByName(acc.iconName), contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Icon(IconHelper.getIconByName(acc.iconName), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                                 },
                                 onClick = {
                                     selectedAccountId = acc.id
