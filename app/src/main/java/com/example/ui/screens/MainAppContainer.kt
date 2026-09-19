@@ -138,6 +138,7 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.ui.components.AutoHidingBottomContainer
 import com.example.ui.components.AutoHidingHeaderContainer
+import com.example.ui.components.assistant.FinancialAssistantSheet
 import com.example.ui.components.LanguageSelector
 import com.example.ui.components.LocalHeaderScrollState
 import com.example.ui.components.LocalSetTimelineActive
@@ -307,6 +308,7 @@ fun MainAppContainer(
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
+    var showFinancialAssistantSheet by remember { mutableStateOf(false) }
 
     val headerScrollState = rememberHeaderScrollState()
 
@@ -454,7 +456,11 @@ fun MainAppContainer(
                                     categoriesCount = allCategories.size,
                                     netWorth = overview.netWorth,
                                     isBalanced = overview.isLedgerBalanced,
-                                    languageMode = languageMode
+                                    languageMode = languageMode,
+                                    onOpenAssistant = {
+                                        scope.launch { drawerState.close() }
+                                        showFinancialAssistantSheet = true
+                                    }
                                 )
                             }
                         }
@@ -494,6 +500,9 @@ fun MainAppContainer(
                                         editingTransaction = null
                                         presetTxType = TransactionType.EXPENSE
                                         showAddTransactionSheet = true
+                                    },
+                                    onOpenAssistant = {
+                                        showFinancialAssistantSheet = true
                                     }
                                 )
                             }
@@ -796,7 +805,11 @@ fun MainAppContainer(
                                 categoriesCount = allCategories.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
-                                languageMode = languageMode
+                                languageMode = languageMode,
+                                onOpenAssistant = {
+                                    scope.launch { drawerState.close() }
+                                    showFinancialAssistantSheet = true
+                                }
                             )
                         }
                     }
@@ -844,6 +857,9 @@ fun MainAppContainer(
                                     editingTransaction = null
                                     presetTxType = TransactionType.EXPENSE
                                     showAddTransactionSheet = true
+                                },
+                                onOpenAssistant = {
+                                    showFinancialAssistantSheet = true
                                 }
                             )
                         }
@@ -972,7 +988,10 @@ fun MainAppContainer(
                                 categoriesCount = allCategories.size,
                                 netWorth = overview.netWorth,
                                 isBalanced = overview.isLedgerBalanced,
-                                languageMode = languageMode
+                                languageMode = languageMode,
+                                onOpenAssistant = {
+                                    showFinancialAssistantSheet = true
+                                }
                             )
                         }
                     }
@@ -986,6 +1005,9 @@ fun MainAppContainer(
                                     editingTransaction = null
                                     presetTxType = TransactionType.EXPENSE
                                     showAddTransactionSheet = true
+                                },
+                                onOpenAssistant = {
+                                    showFinancialAssistantSheet = true
                                 }
                             )
                         }
@@ -1309,6 +1331,18 @@ fun MainAppContainer(
             }
         )
     }
+
+    FinancialAssistantSheet(
+        isOpen = showFinancialAssistantSheet,
+        onDismiss = { showFinancialAssistantSheet = false },
+        languageMode = languageMode,
+        allAccounts = allAccounts,
+        accountsWithBalances = accountsWithBalances,
+        allCategories = allCategories,
+        transactions = transactionsWithDetails,
+        overview = overview,
+        budgets = allMonthlyBudgets
+    )
 }
 
 @Composable
@@ -1469,17 +1503,39 @@ private fun BottomNavigationBarRow(
 @Composable
 private fun AppFab(
     currentView: AppView,
-    onAddTransaction: () -> Unit
+    onAddTransaction: () -> Unit,
+    onOpenAssistant: () -> Unit
 ) {
-    if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Floating action button to open AI Assistant
         FloatingActionButton(
-            onClick = onAddTransaction,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color.White,
+            onClick = onOpenAssistant,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             shape = CircleShape,
-            modifier = Modifier.testTag("main_fab_add_tx")
+            modifier = Modifier.testTag("fab_open_assistant")
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Transaction")
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = "Open AI Assistant",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        if (currentView in listOf(AppView.DASHBOARD, AppView.LEDGER)) {
+            FloatingActionButton(
+                onClick = onAddTransaction,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                shape = CircleShape,
+                modifier = Modifier.testTag("main_fab_add_tx")
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Transaction")
+            }
         }
     }
 }
@@ -1493,7 +1549,8 @@ private fun DrawerContent(
     categoriesCount: Int,
     netWorth: Double,
     isBalanced: Boolean,
-    languageMode: LanguageMode
+    languageMode: LanguageMode,
+    onOpenAssistant: () -> Unit = {}
 ) {
     val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
     val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
@@ -1830,6 +1887,15 @@ private fun DrawerContent(
             iconTint = MaterialTheme.colorScheme.primary,
             isSelected = currentView == AppView.SETTINGS,
             onClick = { onSelectView(AppView.SETTINGS) }
+        )
+
+        // 5.5 AI Assistant
+        DrawerItemRow(
+            title = if (languageMode == LanguageMode.BANGLA) "এআই সহকারী (অফলাইন)" else "AI Assistant (Offline)",
+            icon = Icons.Default.AutoAwesome,
+            iconTint = MaterialTheme.colorScheme.primary,
+            isSelected = false,
+            onClick = onOpenAssistant
         )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
