@@ -38,8 +38,10 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.FilterAlt
@@ -49,6 +51,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -133,16 +137,9 @@ fun BudgetFilterDialog(
     val context = LocalContext.current
     var tempFilter by remember { mutableStateOf(currentFilter) }
 
-    // Dropdown / Sub-dialog visibility states
-    var isDateRangeMenuExpanded by remember { mutableStateOf(false) }
-    var showCategoryPickerDialog by remember { mutableStateOf(false) }
-    var showAccountPickerDialog by remember { mutableStateOf(false) }
-    var showStatusPickerDialog by remember { mutableStateOf(false) }
-    var showLabelsPickerDialog by remember { mutableStateOf(false) }
     var showSavePresetDialog by remember { mutableStateOf(false) }
     var showOpenPresetDialog by remember { mutableStateOf(false) }
 
-    // Date Pickers state for custom ranges
     var showCustomStartDatePicker by remember { mutableStateOf(false) }
     var showCustomEndDatePicker by remember { mutableStateOf(false) }
     var showCustomCompareStartDatePicker by remember { mutableStateOf(false) }
@@ -154,663 +151,393 @@ fun BudgetFilterDialog(
         }
     }
 
-    Dialog(
+    val categoryDropdownItems = remember(categories, languageMode) {
+        categories.filter { it.isActive }.map { cat ->
+            val catName = if (languageMode == LanguageMode.BANGLA) cat.nameBn.ifBlank { cat.nameEn } else cat.nameEn
+            DropdownItem(
+                id = cat.id,
+                title = catName,
+                subtitle = if (cat.parentId != null) "Subcategory" else "Category",
+                color = try {
+                    if (cat.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(cat.colorHex)) else null
+                } catch (e: Exception) {
+                    null
+                }
+            )
+        }
+    }
+
+    val accountDropdownItems = remember(accounts, languageMode) {
+        accounts.map { acc ->
+            val accName = if (languageMode == LanguageMode.BANGLA) acc.nameBn.ifBlank { acc.nameEn } else acc.nameEn
+            DropdownItem(
+                id = acc.id,
+                title = accName,
+                subtitle = acc.type.name.lowercase().replaceFirstChar { it.uppercase() }
+            )
+        }
+    }
+
+    val labelDropdownItems = remember(allLabels) {
+        allLabels.map { lbl ->
+            DropdownItem(
+                id = lbl.hashCode().toLong(),
+                title = lbl
+            )
+        }
+    }
+
+    val statusDropdownItems = remember(languageMode) {
+        TransactionStatus.entries.map { st ->
+            DropdownItem(
+                id = st.ordinal.toLong(),
+                title = if (languageMode == LanguageMode.BANGLA) st.titleBn else st.titleEn
+            )
+        }
+    }
+
+    val selectedLabelIds = remember(tempFilter.selectedLabels) {
+        tempFilter.selectedLabels.map { it.hashCode().toLong() }.toSet()
+    }
+    val selectedStatusIds = remember(tempFilter.selectedStatusSet) {
+        tempFilter.selectedStatusSet.map { it.ordinal.toLong() }.toSet()
+    }
+
+    val activeCount = remember(tempFilter) {
+        var count = 0
+        if (tempFilter.datePreset != BudgetDateRangePreset.LAST_12_MONTHS) count++
+        if (tempFilter.selectedCategoryIds.isNotEmpty()) count++
+        if (tempFilter.selectedAccountIds.isNotEmpty()) count++
+        if (tempFilter.selectedStatusSet.isNotEmpty()) count++
+        if (tempFilter.selectedLabels.isNotEmpty()) count++
+        if (tempFilter.excludeZeroAmounts) count++
+        if (tempFilter.showOnlyRemainingBalance) count++
+        if (tempFilter.showOnlyActual) count++
+        if (tempFilter.hideEmptyGroups) count++
+        if (tempFilter.showOnlyCategoriesWithoutGroups) count++
+        if (tempFilter.showExpenseCategoriesFirst) count++
+        if (tempFilter.sortByAmount) count++
+        if (tempFilter.comparisonEnabled) count++
+        if (tempFilter.filterOnlyBudgeted) count++
+        if (tempFilter.filterOnlyOverBudget) count++
+        count
+    }
+
+    UnifiedFilterDialogContainer(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        testTag = "budget_filter_dialog"
     ) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .fillMaxHeight(0.85f)
-                .testTag("budget_filter_dialog")
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Unified Header
+            UnifiedFilterHeader(
+                title = if (languageMode == LanguageMode.BANGLA) "বাজেট ফিল্টার" else "Budget Filter",
+                activeCount = activeCount,
+                languageMode = languageMode,
+                onReset = {
+                    tempFilter = BudgetFilterState()
+                    Toast.makeText(
+                        context,
+                        if (languageMode == LanguageMode.BANGLA) "ফিল্টার রিসেট করা হয়েছে" else "Filters reset to default",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                onSavePreset = { showSavePresetDialog = true },
+                onOpenPreset = { showOpenPresetDialog = true },
+                onDismiss = onDismiss
+            )
+
+            // Scrollable Content
             Column(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Top drag handle & 3 Circular Action Icons
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // 1. Date Range
+                UnifiedFilterSection(
+                    icon = Icons.Default.DateRange,
+                    title = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Range"
                 ) {
-                    // Top drag handle
-                    Box(
-                        modifier = Modifier
-                            .width(36.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.FilterAlt,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট ফিল্টার" else "Budget Filter",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                        BudgetDateRangePreset.values().forEach { preset ->
+                            val isSelected = tempFilter.datePreset == preset
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { tempFilter = tempFilter.copy(datePreset = preset) },
+                                label = {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                leadingIcon = if (isSelected) {
+                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                } else null
                             )
                         }
+                    }
 
-                        // 3 Circular Action Icons: Reset, Save, Open
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    // Custom Date Range
+                    if (tempFilter.datePreset == BudgetDateRangePreset.CUSTOM) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            // 1. Reset Icon
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                onClick = {
-                                    tempFilter = BudgetFilterState()
-                                    Toast.makeText(
-                                        context,
-                                        if (languageMode == LanguageMode.BANGLA) "ফিল্টার রিসেট করা হয়েছে" else "Filters reset to default",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                },
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.RestartAlt,
-                                        contentDescription = "Reset",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            // 2. Save Preset Icon
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                onClick = { showSavePresetDialog = true },
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.BookmarkAdd,
-                                        contentDescription = "Save Preset",
-                                        tint = SolidIncome,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            // 3. Open Saved Presets Icon
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                onClick = { showOpenPresetDialog = true },
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.FolderOpen,
-                                        contentDescription = "Open Saved Filters",
-                                        tint = SolidPrimary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "কাস্টম সময়কাল নির্ধারণ" else "Select Custom Date Range",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.5.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { showCustomStartDatePicker = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = tempFilter.customStartDateMs?.let { DateUtils.formatDate(it, languageMode) } ?: "Start Date",
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showCustomEndDatePicker = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = tempFilter.customEndDateMs?.let { DateUtils.formatDate(it, languageMode) } ?: "End Date",
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                // 2. Multi-Select Dropdowns: Categories, Accounts, Status, Labels
+                if (categories.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        icon = Icons.Default.Category,
+                        title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories"
+                    ) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন করুন" else "Select Categories",
+                            items = categoryDropdownItems,
+                            selectedIds = tempFilter.selectedCategoryIds,
+                            onSelectionChanged = { tempFilter = tempFilter.copy(selectedCategoryIds = it) },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল ক্যাটাগরি)" else "(All Categories)",
+                            leadingIcon = Icons.Default.Category,
+                            languageMode = languageMode
+                        )
+                    }
+                }
 
-                // Scrollable Content Area
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                if (accounts.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        icon = Icons.Default.AccountBalanceWallet,
+                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Accounts"
+                    ) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Accounts",
+                            items = accountDropdownItems,
+                            selectedIds = tempFilter.selectedAccountIds,
+                            onSelectionChanged = { tempFilter = tempFilter.copy(selectedAccountIds = it) },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল অ্যাকাউন্ট)" else "(All Accounts)",
+                            leadingIcon = Icons.Default.AccountBalanceWallet,
+                            languageMode = languageMode
+                        )
+                    }
+                }
+
+                UnifiedFilterSection(
+                    icon = Icons.Default.Check,
+                    title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Status"
                 ) {
-                    // 1. Date Range Dropdown
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "সময়কাল (Date Range)" else "Date Range",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
+                    UnifiedMultiSelectDropdown(
+                        label = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস নির্বাচন করুন" else "Select Statuses",
+                        items = statusDropdownItems,
+                        selectedIds = selectedStatusIds,
+                        onSelectionChanged = { newIds ->
+                            val selectedStatuses = TransactionStatus.entries.filter { newIds.contains(it.ordinal.toLong()) }.toSet()
+                            tempFilter = tempFilter.copy(selectedStatusSet = selectedStatuses)
+                        },
+                        placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল স্ট্যাটাস)" else "(All Statuses)",
+                        leadingIcon = Icons.Default.Check,
+                        languageMode = languageMode
+                    )
+                }
 
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                onClick = { isDateRangeMenuExpanded = true },
-                                modifier = Modifier.fillMaxWidth()
+                if (allLabels.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        icon = Icons.Default.Label,
+                        title = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ" else "Labels / Tags"
+                    ) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "লেবেল নির্বাচন করুন" else "Select Labels",
+                            items = labelDropdownItems,
+                            selectedIds = selectedLabelIds,
+                            onSelectionChanged = { newIds ->
+                                val selectedStrings = allLabels.filter { newIds.contains(it.hashCode().toLong()) }.toSet()
+                                tempFilter = tempFilter.copy(selectedLabels = selectedStrings)
+                            },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল লেবেল)" else "(All Labels)",
+                            leadingIcon = Icons.Default.Label,
+                            languageMode = languageMode
+                        )
+                    }
+                }
+
+                // 3. Comparison Controls
+                UnifiedFilterSection(
+                    icon = Icons.Default.TrendingUp,
+                    title = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক বিশ্লেষণ" else "Comparison"
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarMonth,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        val presetLabel = when (tempFilter.datePreset) {
-                                            BudgetDateRangePreset.LAST_12_MONTHS -> if (languageMode == LanguageMode.BANGLA) "গত ১২ মাস" else "Last 12 Months"
-                                            BudgetDateRangePreset.THIS_MONTH -> if (languageMode == LanguageMode.BANGLA) "চলতি মাস" else "This Month"
-                                            BudgetDateRangePreset.LAST_MONTH -> if (languageMode == LanguageMode.BANGLA) "গত মাস" else "Last Month"
-                                            BudgetDateRangePreset.LAST_3_MONTHS -> if (languageMode == LanguageMode.BANGLA) "গত ৩ মাস" else "Last 3 Months"
-                                            BudgetDateRangePreset.LAST_6_MONTHS -> if (languageMode == LanguageMode.BANGLA) "গত ৬ মাস" else "Last 6 Months"
-                                            BudgetDateRangePreset.YEAR_TO_DATE -> if (languageMode == LanguageMode.BANGLA) "বছরের শুরু থেকে" else "Year to Date"
-                                            BudgetDateRangePreset.SAME_MONTH_LAST_YEAR -> if (languageMode == LanguageMode.BANGLA) "গত বছরের এই মাস" else "Same Month Last Year"
-                                            BudgetDateRangePreset.ALL_TIME -> if (languageMode == LanguageMode.BANGLA) "সব সময়" else "All Time"
-                                            BudgetDateRangePreset.CUSTOM -> if (languageMode == LanguageMode.BANGLA) "নির্দিষ্ট সময়সীমা" else "Custom Range"
-                                        }
-                                        Text(
-                                            text = presetLabel,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক বিশ্লেষণ সক্রিয় করুন" else "Enable Comparison",
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "বেসলাইন সময়ের সাথে ব্যয়ের তুলনা প্রদর্শন করবে" else "Show expense comparison against baseline",
+                                        fontSize = 10.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                                Switch(
+                                    checked = tempFilter.comparisonEnabled,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(comparisonEnabled = it) }
+                                )
                             }
 
-                            DropdownMenu(
-                                expanded = isDateRangeMenuExpanded,
-                                onDismissRequest = { isDateRangeMenuExpanded = false }
-                            ) {
-                                BudgetDateRangePreset.values().forEach { preset ->
-                                    val isSelected = tempFilter.datePreset == preset
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
+                            if (tempFilter.comparisonEnabled) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    BudgetComparisonPreset.values().forEach { compPreset ->
+                                        val isSelected = tempFilter.comparisonPreset == compPreset
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { tempFilter = tempFilter.copy(comparisonPreset = compPreset) },
+                                            label = {
                                                 Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA) preset.labelBn else preset.labelEn,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                    text = if (languageMode == LanguageMode.BANGLA) compPreset.titleBn else compPreset.titleEn,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                 )
-                                                if (isSelected) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        onClick = {
-                                            isDateRangeMenuExpanded = false
-                                            tempFilter = tempFilter.copy(datePreset = preset)
-                                        }
-                                    )
+                                            },
+                                            leadingIcon = if (isSelected) {
+                                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
+                                            } else null
+                                        )
+                                    }
                                 }
-                            }
-                        }
 
-                        // If CUSTOM preset selected, show Custom Range configuration card
-                        if (tempFilter.datePreset == BudgetDateRangePreset.CUSTOM) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Card(
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                                ),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "নির্দিষ্ট শুরুর ও শেষ তারিখ:" else "Select Custom Date Bounds:",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                if (tempFilter.comparisonPreset == BudgetComparisonPreset.CUSTOM) {
+                                    val sdfShort = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                                    val defaultStart = tempFilter.customCompareStartMs ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000L)
+                                    val defaultEnd = tempFilter.customCompareEndMs ?: System.currentTimeMillis()
+
                                     Spacer(modifier = Modifier.height(8.dp))
-
-                                    // 1. Start Date Row
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { showCustomStartDatePicker = true }
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Column {
+                                        OutlinedButton(
+                                            onClick = { showCustomCompareStartDatePicker = true },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
                                             Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) "১. শুরুর তারিখ" else "1. Start Date",
-                                                fontSize = 10.5.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            val startLabel = tempFilter.customStartDateMs?.let { DateUtils.formatDate(it, languageMode) }
-                                                ?: (if (languageMode == LanguageMode.BANGLA) "তারিখ নির্বাচন করুন" else "Pick Date")
-                                            Text(
-                                                text = startLabel,
-                                                fontSize = 12.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
+                                                text = sdfShort.format(Date(defaultStart)),
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
-                                        Icon(
-                                            imageVector = Icons.Default.EditCalendar,
-                                            contentDescription = "Change Start Date",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(6.dp))
-
-                                    // 2. End Date Row
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable { showCustomEndDatePicker = true }
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
+                                        OutlinedButton(
+                                            onClick = { showCustomCompareEndDatePicker = true },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
                                             Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) "২. শেষ তারিখ" else "2. End Date",
-                                                fontSize = 10.5.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            val endLabel = tempFilter.customEndDateMs?.let { DateUtils.formatDate(it, languageMode) }
-                                                ?: (if (languageMode == LanguageMode.BANGLA) "তারিখ নির্বাচন করুন" else "Pick Date")
-                                            Text(
-                                                text = endLabel,
-                                                fontSize = 12.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
+                                                text = sdfShort.format(Date(defaultEnd)),
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
-                                        Icon(
-                                            imageVector = Icons.Default.EditCalendar,
-                                            contentDescription = "Change End Date",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    // 2. Category Dropdown
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি (Category)" else "Category",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            onClick = { showCategoryPickerDialog = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.FolderOpen,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    val catLabel = if (tempFilter.selectedCategoryIds.isEmpty()) {
-                                        if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরি (All Categories)" else "All Categories"
-                                    } else {
-                                        if (languageMode == LanguageMode.BANGLA) "${tempFilter.selectedCategoryIds.size} টি ক্যাটাগরি নির্বাচিত" else "${tempFilter.selectedCategoryIds.size} Categories Selected"
-                                    }
-                                    Text(
-                                        text = catLabel,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. Account Dropdown
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট (Account)" else "Account",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            onClick = { showAccountPickerDialog = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AccountBalanceWallet,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    val accLabel = if (tempFilter.selectedAccountIds.isEmpty()) {
-                                        if (languageMode == LanguageMode.BANGLA) "সব অ্যাকাউন্ট (All Accounts)" else "All Accounts"
-                                    } else {
-                                        if (languageMode == LanguageMode.BANGLA) "${tempFilter.selectedAccountIds.size} টি অ্যাকাউন্ট নির্বাচিত" else "${tempFilter.selectedAccountIds.size} Accounts Selected"
-                                    }
-                                    Text(
-                                        text = accLabel,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 4. Status Dropdown
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস (Status)" else "Status",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            onClick = { showStatusPickerDialog = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Tune,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    val statusLabel = if (tempFilter.selectedStatusSet.isEmpty()) {
-                                        if (languageMode == LanguageMode.BANGLA) "(কোন ফিল্টার নেই)" else "(No Filter)"
-                                    } else {
-                                        tempFilter.selectedStatusSet.joinToString(", ") {
-                                            if (languageMode == LanguageMode.BANGLA) it.titleBn else it.titleEn
-                                        }
-                                    }
-                                    Text(
-                                        text = statusLabel,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 5. Labels Dropdown
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "লেবেল (Labels)" else "Labels",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            onClick = { showLabelsPickerDialog = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Label,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    val labelsLabel = if (tempFilter.selectedLabels.isEmpty()) {
-                                        if (languageMode == LanguageMode.BANGLA) "(কোন ফিল্টার নেই)" else "(No Filter)"
-                                    } else {
-                                        tempFilter.selectedLabels.joinToString(", ")
-                                    }
-                                    Text(
-                                        text = labelsLabel,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "ফিল্টার" else "Filter",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 6. Switches in Card (matching Balance Sheet filter layout)
-                    Card(
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                        ),
+                // 4. Budget Filters & Display Options
+                UnifiedFilterSection(
+                    icon = Icons.Default.Tune,
+                    title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য ফিল্টার ও প্রদর্শন বিকল্প" else "Filters & Display Options"
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            // Row 1: Exclude zero amounts
+                            // Exclude zero amounts
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ দিন" else "Exclude zero amounts",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Switch(
@@ -820,975 +547,182 @@ fun BudgetFilterDialog(
                                             excludeZeroAmounts = isChecked,
                                             hideEmptyGroups = if (isChecked) true else tempFilter.hideEmptyGroups
                                         )
-                                    },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
+                                    }
                                 )
                             }
 
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 1a: Show only remaining balance category
+                            // Show only remaining balance
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র অবশিষ্ট ব্যালেন্সের ক্যাটাগরি দেখান" else "Show only remaining balance category",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = tempFilter.showOnlyRemainingBalance,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyRemainingBalance = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyRemainingBalance = it) }
                                 )
                             }
 
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 1b: Show only actual
+                            // Show only actual
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র প্রকৃত খরচ/আয় দেখান" else "Show only actual",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = tempFilter.showOnlyActual,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyActual = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyActual = it) }
                                 )
                             }
 
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 1c: Hide empty / 0 amount groups
+                            // Hide empty groups
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "শূন্য বা ফাঁকা গ্রুপ লুকান" else "Hide empty groups",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = tempFilter.hideEmptyGroups,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(hideEmptyGroups = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
+                                    onCheckedChange = { tempFilter = tempFilter.copy(hideEmptyGroups = it) }
                                 )
                             }
 
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 1c: Show only categories without groups
+                            // Show only categories without groups
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "গ্রুপ ছাড়া শুধুমাত্র ক্যাটাগরি দেখান" else "Show only categories without groups",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = tempFilter.showOnlyCategoriesWithoutGroups,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyCategoriesWithoutGroups = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showOnlyCategoriesWithoutGroups = it) }
                                 )
                             }
 
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 2: Display currency
+                            // Only budgeted categories
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "কারেন্সি প্রদর্শন করুন" else "Display currency",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
-                                    checked = tempFilter.displayCurrency,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(displayCurrency = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
-                                )
-                            }
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 3: Display currency symbol
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রতীক প্রদর্শন করুন" else "Display Currency Symbol",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
-                                    checked = tempFilter.displayCurrencySymbol,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(displayCurrencySymbol = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
-                                )
-                            }
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 4: Show expense categories first
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "প্রথমে ব্যয়ের ক্যাটাগরি দেখান" else "Show expense categories first",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
-                                    checked = tempFilter.showExpenseCategoriesFirst,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(showExpenseCategoriesFirst = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
-                                )
-                            }
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 5: Sort by amount
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "পরিমাণ অনুযায়ী সাজান" else "Sort by amount",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Switch(
-                                    checked = tempFilter.sortByAmount,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(sortByAmount = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
-                                )
-                            }
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 6: Comparison
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "তুলনামূলক বিশ্লেষণ" else "Comparison",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "বেসলাইন সময়ের সাথে ব্যয়ের তুলনা প্রদর্শন করবে" else "Show expense comparison against baseline",
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                                    )
-                                }
-                                Switch(
-                                    checked = tempFilter.comparisonEnabled,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(comparisonEnabled = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
-                                )
-                            }
-
-                            // Comparison Baseline Chips if enabled
-                            AnimatedVisibility(
-                                visible = tempFilter.comparisonEnabled,
-                                enter = fadeIn() + expandVertically(),
-                                exit = fadeOut() + shrinkVertically()
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 6.dp, bottom = 4.dp)
-                                ) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "তুলনার বেসলাইন:" else "Comparison Baseline:",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    FlowRow(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        BudgetComparisonPreset.values().forEach { preset ->
-                                            val isSelected = tempFilter.comparisonPreset == preset
-                                            FilterChip(
-                                                selected = isSelected,
-                                                onClick = { tempFilter = tempFilter.copy(comparisonPreset = preset) },
-                                                label = {
-                                                    Text(
-                                                        text = if (languageMode == LanguageMode.BANGLA) preset.titleBn else preset.titleEn,
-                                                        fontSize = 11.5.sp
-                                                    )
-                                                },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = BrandGreen,
-                                                    selectedLabelColor = Color.White
-                                                )
-                                            )
-                                        }
-                                    }
-
-                                    // Custom Comparison Baseline Date Range Pickers
-                                    if (tempFilter.comparisonPreset == BudgetComparisonPreset.CUSTOM) {
-                                        val sdfShort = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-                                        val cal = Calendar.getInstance()
-                                        val defaultStart = tempFilter.customCompareStartMs ?: (System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000L)
-                                        val defaultEnd = tempFilter.customCompareEndMs ?: System.currentTimeMillis()
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            // Comparison Start Date
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .clickable { showCustomCompareStartDatePicker = true }
-                                            ) {
-                                                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                                                    Text(
-                                                        text = if (languageMode == LanguageMode.BANGLA) "শুরুর তারিখ" else "Compare From",
-                                                        fontSize = 10.sp,
-                                                        color = MaterialTheme.colorScheme.primary,
-                                                        fontWeight = FontWeight.Medium
-                                                    )
-                                                    Text(
-                                                        text = sdfShort.format(Date(defaultStart)),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                }
-                                            }
-
-                                            // Comparison End Date
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .clickable { showCustomCompareEndDatePicker = true }
-                                            ) {
-                                                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                                                    Text(
-                                                        text = if (languageMode == LanguageMode.BANGLA) "শেষের তারিখ" else "Compare To",
-                                                        fontSize = 10.sp,
-                                                        color = MaterialTheme.colorScheme.primary,
-                                                        fontWeight = FontWeight.Medium
-                                                    )
-                                                    Text(
-                                                        text = sdfShort.format(Date(defaultEnd)),
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 7: Only budgeted categories
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বাজেট নির্ধারিত ক্যাটাগরি" else "Only Budgeted Categories",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = tempFilter.filterOnlyBudgeted,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyBudgeted = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
+                                    onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyBudgeted = it) }
                                 )
                             }
 
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-
-                            // Row 8: Only over budget categories
+                            // Only over budget categories
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "শুধুমাত্র বাজেট অতিক্রান্ত ক্যাটাগরি" else "Only Over Budget Categories",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Switch(
                                     checked = tempFilter.filterOnlyOverBudget,
-                                    onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyOverBudget = it) },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = BrandGreen
-                                    )
+                                    onCheckedChange = { tempFilter = tempFilter.copy(filterOnlyOverBudget = it) }
                                 )
                             }
-                        }
-                    }
-                }
 
-                // Fixed Bottom Action Buttons: Cancel (outlined) and OK (green filled)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("budget_filter_cancel_button"),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel",
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Button(
-                        onClick = { onApply(tempFilter) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = BrandGreen,
-                            contentColor = Color.White
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("budget_filter_apply_button"),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "ঠিক আছে" else "OK",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // SUB-DIALOG 1: Category Multi-Select Picker Dialog
-    // -------------------------------------------------------------------------
-    if (showCategoryPickerDialog) {
-        var searchQuery by remember { mutableStateOf("") }
-        var selectedTypeTab by remember { mutableStateOf<CategoryType?>(null) }
-        val tempSelected = remember { mutableStateListOf<Long>().apply { addAll(tempFilter.selectedCategoryIds) } }
-
-        val filteredCategories = remember(categories, searchQuery, selectedTypeTab) {
-            categories.filter { cat ->
-                cat.isActive &&
-                        (selectedTypeTab == null || cat.type == selectedTypeTab) &&
-                        (searchQuery.isBlank() ||
-                                cat.nameEn.contains(searchQuery, ignoreCase = true) ||
-                                cat.nameBn.contains(searchQuery, ignoreCase = true))
-            }
-        }
-
-        AlertDialog(
-            onDismissRequest = { showCategoryPickerDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন করুন" else "Select Categories",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "অনুসন্ধান..." else "Search categories...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    TabRow(
-                        selectedTabIndex = when (selectedTypeTab) {
-                            null -> 0
-                            CategoryType.EXPENSE -> 1
-                            CategoryType.INCOME -> 2
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Tab(
-                            selected = selectedTypeTab == null,
-                            onClick = { selectedTypeTab = null },
-                            text = { Text("All", fontSize = 12.sp) }
-                        )
-                        Tab(
-                            selected = selectedTypeTab == CategoryType.EXPENSE,
-                            onClick = { selectedTypeTab = CategoryType.EXPENSE },
-                            text = { Text("Expense", fontSize = 12.sp) }
-                        )
-                        Tab(
-                            selected = selectedTypeTab == CategoryType.INCOME,
-                            onClick = { selectedTypeTab = CategoryType.INCOME },
-                            text = { Text("Income", fontSize = 12.sp) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                            tempSelected.addAll(categories.map { it.id })
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp)
-                        }
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "মুছে ফেলুন" else "Clear All", fontSize = 11.sp)
-                        }
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp)
-                    ) {
-                        items(filteredCategories, key = { it.id }) { cat ->
-                            val isChecked = tempSelected.contains(cat.id)
+                            // Display currency symbol
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (isChecked) tempSelected.remove(cat.id) else tempSelected.add(cat.id)
-                                    }
-                                    .padding(vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(
-                                    checked = isChecked,
-                                    onCheckedChange = { checked ->
-                                        if (checked == true) tempSelected.add(cat.id) else tempSelected.remove(cat.id)
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                val iconVector = IconHelper.getIconByName(cat.iconName)
-                                Icon(
-                                    imageVector = iconVector,
-                                    contentDescription = null,
-                                    tint = if (cat.type == CategoryType.EXPENSE) SolidExpense else SolidIncome,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode),
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal,
-                                    modifier = Modifier.weight(1f)
+                                    text = if (languageMode == LanguageMode.BANGLA) "মুদ্রা প্রতীক প্রদর্শন করুন (৳)" else "Display Currency Symbol (৳)",
+                                    fontSize = 12.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = tempFilter.displayCurrencySymbol,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(displayCurrencySymbol = it) }
                                 )
                             }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        tempFilter = tempFilter.copy(selectedCategoryIds = tempSelected.toSet())
-                        showCategoryPickerDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandGreen)
-                ) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showCategoryPickerDialog = false }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
-                }
-            }
-        )
-    }
 
-    // -------------------------------------------------------------------------
-    // SUB-DIALOG 2: Account Multi-Select Picker Dialog
-    // -------------------------------------------------------------------------
-    if (showAccountPickerDialog) {
-        var searchQuery by remember { mutableStateOf("") }
-        val tempSelected = remember { mutableStateListOf<Long>().apply { addAll(tempFilter.selectedAccountIds) } }
-
-        val filteredAccounts = remember(accounts, searchQuery) {
-            accounts.filter { acc ->
-                searchQuery.isBlank() ||
-                        acc.nameEn.contains(searchQuery, ignoreCase = true) ||
-                        acc.nameBn.contains(searchQuery, ignoreCase = true)
-            }
-        }
-
-        AlertDialog(
-            onDismissRequest = { showAccountPickerDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Accounts",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "অনুসন্ধান..." else "Search accounts...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                            tempSelected.addAll(accounts.map { it.id })
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp)
-                        }
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "মুছে ফেলুন" else "Clear All", fontSize = 11.sp)
-                        }
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp)
-                    ) {
-                        items(filteredAccounts, key = { it.id }) { acc ->
-                            val isChecked = tempSelected.contains(acc.id)
+                            // Show expense categories first
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (isChecked) tempSelected.remove(acc.id) else tempSelected.add(acc.id)
-                                    }
-                                    .padding(vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(
-                                    checked = isChecked,
-                                    onCheckedChange = { checked ->
-                                        if (checked == true) tempSelected.add(acc.id) else tempSelected.remove(acc.id)
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                val iconVector = IconHelper.getIconByName(acc.iconName)
-                                Icon(
-                                    imageVector = iconVector,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = acc.localizedName(languageMode),
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal,
-                                    modifier = Modifier.weight(1f)
+                                    text = if (languageMode == LanguageMode.BANGLA) "প্রথমে ব্যয়ের ক্যাটাগরি দেখান" else "Show expense categories first",
+                                    fontSize = 12.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = tempFilter.showExpenseCategoriesFirst,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(showExpenseCategoriesFirst = it) }
+                                )
+                            }
+
+                            // Sort by amount
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "পরিমাণ অনুযায়ী সাজান" else "Sort by amount",
+                                    fontSize = 12.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Switch(
+                                    checked = tempFilter.sortByAmount,
+                                    onCheckedChange = { tempFilter = tempFilter.copy(sortByAmount = it) }
                                 )
                             }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        tempFilter = tempFilter.copy(selectedAccountIds = tempSelected.toSet())
-                        showAccountPickerDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandGreen)
-                ) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showAccountPickerDialog = false }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
-                }
             }
-        )
-    }
 
-    // -------------------------------------------------------------------------
-    // SUB-DIALOG 3: Status Multi-Select Picker Dialog
-    // -------------------------------------------------------------------------
-    if (showStatusPickerDialog) {
-        val tempSelected = remember { mutableStateListOf<TransactionStatus>().apply { addAll(tempFilter.selectedStatusSet) } }
-
-        AlertDialog(
-            onDismissRequest = { showStatusPickerDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস নির্বাচন করুন" else "Select Transaction Status",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                            tempSelected.addAll(TransactionStatus.values())
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp)
-                        }
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "মুছে ফেলুন" else "Clear All", fontSize = 11.sp)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    TransactionStatus.values().forEach { status ->
-                        val isChecked = tempSelected.contains(status)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (isChecked) tempSelected.remove(status) else tempSelected.add(status)
-                                }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = { checked ->
-                                    if (checked == true) tempSelected.add(status) else tempSelected.remove(status)
-                                },
-                                colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) status.titleBn else status.titleEn,
-                                fontSize = 13.5.sp,
-                                fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        tempFilter = tempFilter.copy(selectedStatusSet = tempSelected.toSet())
-                        showStatusPickerDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandGreen)
-                ) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showStatusPickerDialog = false }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
-                }
-            }
-        )
-    }
-
-    // -------------------------------------------------------------------------
-    // SUB-DIALOG 4: Labels Multi-Select Picker Dialog
-    // -------------------------------------------------------------------------
-    if (showLabelsPickerDialog) {
-        var searchQuery by remember { mutableStateOf("") }
-        var newCustomLabel by remember { mutableStateOf("") }
-        val tempSelected = remember { mutableStateListOf<String>().apply { addAll(tempFilter.selectedLabels) } }
-        val labelList = remember(allLabels) { allLabels.toMutableList() }
-
-        val filteredLabels = remember(labelList, searchQuery) {
-            labelList.filter {
-                searchQuery.isBlank() || it.contains(searchQuery, ignoreCase = true)
-            }
+            // Unified Footer
+            UnifiedFilterFooter(
+                activeCount = activeCount,
+                languageMode = languageMode,
+                onReset = {
+                    tempFilter = BudgetFilterState()
+                },
+                onDismiss = onDismiss,
+                onApply = { onApply(tempFilter) }
+            )
         }
-
-        AlertDialog(
-            onDismissRequest = { showLabelsPickerDialog = false },
-            title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "লেবেল নির্বাচন করুন" else "Select Labels",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        label = { Text(if (languageMode == LanguageMode.BANGLA) "অনুসন্ধান..." else "Search labels...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = newCustomLabel,
-                            onValueChange = { newCustomLabel = it },
-                            placeholder = { Text("Add new label...", fontSize = 12.sp) },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        IconButton(
-                            onClick = {
-                                val trimmed = newCustomLabel.trim()
-                                if (trimmed.isNotEmpty() && !labelList.contains(trimmed)) {
-                                    labelList.add(trimmed)
-                                    tempSelected.add(trimmed)
-                                    newCustomLabel = ""
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add Label", tint = BrandGreen)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                            tempSelected.addAll(labelList)
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp)
-                        }
-                        TextButton(onClick = {
-                            tempSelected.clear()
-                        }) {
-                            Text(if (languageMode == LanguageMode.BANGLA) "মুছে ফেলুন" else "Clear All", fontSize = 11.sp)
-                        }
-                    }
-
-                    if (filteredLabels.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(120.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No labels available",
-                                fontSize = 12.5.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                        ) {
-                            items(filteredLabels, key = { it }) { label ->
-                                val isChecked = tempSelected.contains(label)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            if (isChecked) tempSelected.remove(label) else tempSelected.add(label)
-                                        }
-                                        .padding(vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = isChecked,
-                                        onCheckedChange = { checked ->
-                                            if (checked == true) tempSelected.add(label) else tempSelected.remove(label)
-                                        },
-                                        colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = label,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isChecked) FontWeight.SemiBold else FontWeight.Normal
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        tempFilter = tempFilter.copy(selectedLabels = tempSelected.toSet())
-                        showLabelsPickerDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandGreen)
-                ) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Apply")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showLabelsPickerDialog = false }) {
-                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
-                }
-            }
-        )
     }
 
     // -------------------------------------------------------------------------
-    // SUB-DIALOG 5: Save Preset Dialog
+    // Save Preset Dialog
     // -------------------------------------------------------------------------
     if (showSavePresetDialog) {
         var presetNameInput by remember { mutableStateOf("") }

@@ -141,9 +141,17 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.theme.SolidTransfer
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.AttachFile
+import com.example.ui.components.DropdownItem
 import com.example.ui.components.ExportMenuButton
+import com.example.ui.components.UnifiedFilterDialogContainer
+import com.example.ui.components.UnifiedFilterFooter
+import com.example.ui.components.UnifiedFilterHeader
+import com.example.ui.components.UnifiedFilterSection
+import com.example.ui.components.UnifiedMultiSelectDropdown
 import com.example.util.DateUtils
 import com.example.util.ExportFormat
 import com.example.util.IconHelper
@@ -2558,7 +2566,7 @@ private fun AccountReconcileBottomSheet(
 // -------------------------------------------------------------------------------------------------
 // FILTER DIALOG (Name, Amount From/To, Category, Category Group, Labels, Status)
 // -------------------------------------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun AccountDetailFilterDialog(
     currentState: AccountDetailFilterState,
@@ -2582,280 +2590,305 @@ private fun AccountDetailFilterDialog(
         allCategories.filter { it.parentId == null }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    val categoryDropdownItems = remember(allCategories, languageMode) {
+        allCategories.map { cat ->
+            DropdownItem(
+                id = cat.id,
+                title = LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode),
+                subtitle = if (cat.parentId != null) "Subcategory" else "Category",
+                color = try {
+                    if (cat.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(cat.colorHex)) else null
+                } catch (e: Exception) {
+                    null
+                }
+            )
+        }
+    }
+
+    val groupDropdownItems = remember(parentCategories, languageMode) {
+        parentCategories.map { grp ->
+            DropdownItem(
+                id = grp.id,
+                title = LanguageHelper.getLocalizedName(grp.nameEn, grp.nameBn, languageMode),
+                color = try {
+                    if (grp.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(grp.colorHex)) else null
+                } catch (e: Exception) {
+                    null
+                }
+            )
+        }
+    }
+
+    val labelDropdownItems = remember(availableLabels) {
+        availableLabels.map { lbl ->
+            DropdownItem(
+                id = lbl,
+                title = "#$lbl"
+            )
+        }
+    }
+
+    val activeCount = remember(
+        nameQuery, amountFromText, amountToText, selectedCatIds, selectedGroupIds,
+        selectedLabels, selectedStatuses, selectedTypes, dateRange
     ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxSize(0.88f)
-                .padding(vertical = 12.dp)
-                .testTag("account_filter_dialog")
-        ) {
+        var count = 0
+        if (nameQuery.isNotBlank()) count++
+        if (amountFromText.isNotBlank() || amountToText.isNotBlank()) count++
+        if (selectedCatIds.isNotEmpty()) count++
+        if (selectedGroupIds.isNotEmpty()) count++
+        if (selectedLabels.isNotEmpty()) count++
+        if (selectedStatuses.isNotEmpty()) count++
+        if (selectedTypes.isNotEmpty()) count++
+        if (dateRange != ChartDateRange.ALL_TIME) count++
+        count
+    }
+
+    UnifiedFilterDialogContainer(
+        onDismissRequest = onDismiss,
+        testTag = "account_filter_dialog"
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            UnifiedFilterHeader(
+                title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট লেনদেন ফিল্টার" else "Filter Account Transactions",
+                activeCount = activeCount,
+                languageMode = languageMode,
+                onReset = {
+                    nameQuery = ""
+                    amountFromText = ""
+                    amountToText = ""
+                    selectedCatIds = emptySet()
+                    selectedGroupIds = emptySet()
+                    selectedLabels = emptySet()
+                    selectedStatuses = emptySet()
+                    selectedTypes = emptySet()
+                    dateRange = ChartDateRange.ALL_TIME
+                },
+                onDismiss = onDismiss
+            )
+
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // 1. Search Query
+                UnifiedFilterSection(
+                    title = if (languageMode == LanguageMode.BANGLA) "অনুসন্ধান (নাম, নোট, প্রাপক)" else "Search (Name, Note, Payee)"
                 ) {
-                    Text(
-                        text = "Filter Account Transactions",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                    OutlinedTextField(
+                        value = nameQuery,
+                        onValueChange = { nameQuery = it },
+                        placeholder = { Text(if (languageMode == LanguageMode.BANGLA) "খুঁজুন..." else "Filter by payee, note...", fontSize = 12.5.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(17.dp)) },
+                        trailingIcon = {
+                            if (nameQuery.isNotEmpty()) {
+                                IconButton(onClick = { nameQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(15.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(20.dp))
+                }
+
+                // 2. Transaction Type
+                UnifiedFilterSection(
+                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন" else "Transaction Type"
+                ) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        TransactionType.values().forEach { typ ->
+                            val isSelected = selectedTypes.contains(typ)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedTypes = if (isSelected) selectedTypes - typ else selectedTypes + typ
+                                },
+                                label = {
+                                    Text(
+                                        when (typ) {
+                                            TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
+                                            TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+                                            TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer"
+                                        },
+                                        fontSize = 12.sp
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SolidPrimary,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // 1. Name / Payee / Note Search
-                    Column {
-                        Text("Search (Name, Note, Payee)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = nameQuery,
-                            onValueChange = { nameQuery = it },
-                            placeholder = { Text("Filter by payee, note...", fontSize = 13.sp) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
+                // 3. Category Multi-Select Dropdown
+                if (categoryDropdownItems.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories"
+                    ) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন করুন" else "Select Categories",
+                            items = categoryDropdownItems,
+                            selectedIds = selectedCatIds,
+                            onSelectionChanged = { selectedCatIds = it },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল ক্যাটাগরি)" else "(All Categories)",
+                            languageMode = languageMode
                         )
                     }
+                }
 
-                    // 2. Amount Range (From / To)
-                    Column {
-                        Text("Amount Range", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = amountFromText,
-                                onValueChange = { amountFromText = it },
-                                label = { Text("From") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                singleLine = true,
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f)
+                // 4. Category Groups Dropdown
+                if (groupDropdownItems.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি গ্রুপ" else "Category Groups"
+                    ) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "গ্রুপ নির্বাচন করুন" else "Select Category Groups",
+                            items = groupDropdownItems,
+                            selectedIds = selectedGroupIds,
+                            onSelectionChanged = { selectedGroupIds = it },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল গ্রুপ)" else "(All Groups)",
+                            languageMode = languageMode
+                        )
+                    }
+                }
+
+                // 5. Amount Range
+                UnifiedFilterSection(
+                    title = if (languageMode == LanguageMode.BANGLA) "পরিমাণের সীমা" else "Amount Range"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = amountFromText,
+                            onValueChange = { amountFromText = it },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "থেকে (Min)" else "From (Min)", fontSize = 12.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = amountToText,
+                            onValueChange = { amountToText = it },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "পর্যন্ত (Max)" else "To (Max)", fontSize = 12.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // 6. Date Range
+                UnifiedFilterSection(
+                    title = if (languageMode == LanguageMode.BANGLA) "তারিখের সীমা" else "Date Range"
+                ) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ChartDateRange.values().forEach { r ->
+                            val isSelected = dateRange == r
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { dateRange = r },
+                                label = { Text(if (languageMode == LanguageMode.BANGLA) r.labelBn else r.labelEn, fontSize = 11.5.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SolidPrimary,
+                                    selectedLabelColor = Color.White
+                                )
                             )
-                            OutlinedTextField(
-                                value = amountToText,
-                                onValueChange = { amountToText = it },
-                                label = { Text("To") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                singleLine = true,
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-
-                    // 3. Category Groups
-                    if (parentCategories.isNotEmpty()) {
-                        Column {
-                            Text("Category Groups", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(parentCategories) { cat ->
-                                    val isSelected = selectedGroupIds.contains(cat.id)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            selectedGroupIds = if (isSelected) selectedGroupIds - cat.id else selectedGroupIds + cat.id
-                                        },
-                                        label = { Text(cat.nameEn, fontSize = 11.sp) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = SolidIncome,
-                                            selectedLabelColor = Color.White
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 4. Specific Categories
-                    if (allCategories.isNotEmpty()) {
-                        Column {
-                            Text("Categories", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(allCategories.take(15)) { cat ->
-                                    val isSelected = selectedCatIds.contains(cat.id)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            selectedCatIds = if (isSelected) selectedCatIds - cat.id else selectedCatIds + cat.id
-                                        },
-                                        label = { Text(cat.nameEn, fontSize = 11.sp) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = SolidIncome,
-                                            selectedLabelColor = Color.White
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 5. Labels / Tags
-                    if (availableLabels.isNotEmpty()) {
-                        Column {
-                            Text("Labels / Tags", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(availableLabels) { tag ->
-                                    val isSelected = selectedLabels.contains(tag)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            selectedLabels = if (isSelected) selectedLabels - tag else selectedLabels + tag
-                                        },
-                                        label = { Text("#$tag", fontSize = 11.sp) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = SolidIncome,
-                                            selectedLabelColor = Color.White
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // 6. Transaction Status
-                    Column {
-                        Text("Status", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            TransactionStatus.values().forEach { st ->
-                                val isSelected = selectedStatuses.contains(st)
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        selectedStatuses = if (isSelected) selectedStatuses - st else selectedStatuses + st
-                                    },
-                                    label = { Text(st.name, fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SolidIncome,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    // 7. Transaction Type
-                    Column {
-                        Text("Type", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            TransactionType.values().forEach { typ ->
-                                val isSelected = selectedTypes.contains(typ)
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        selectedTypes = if (isSelected) selectedTypes - typ else selectedTypes + typ
-                                    },
-                                    label = { Text(typ.name, fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SolidIncome,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    // 8. Date Range
-                    Column {
-                        Text("Date Range", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SolidIncome)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(ChartDateRange.values()) { r ->
-                                val isSelected = dateRange == r
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { dateRange = r },
-                                    label = { Text(r.labelEn, fontSize = 11.sp) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SolidIncome,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
-                            }
                         }
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-
-                // Footer Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = {
-                            nameQuery = ""
-                            amountFromText = ""
-                            amountToText = ""
-                            selectedCatIds = emptySet()
-                            selectedGroupIds = emptySet()
-                            selectedLabels = emptySet()
-                            selectedStatuses = emptySet()
-                            selectedTypes = emptySet()
-                            dateRange = ChartDateRange.ALL_TIME
-                        }
+                // 7. Labels Dropdown
+                if (labelDropdownItems.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        title = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ" else "Labels / Tags"
                     ) {
-                        Text("Reset All", color = SolidExpense)
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "লেবেল নির্বাচন করুন" else "Select Labels",
+                            items = labelDropdownItems,
+                            selectedIds = selectedLabels,
+                            onSelectionChanged = { selectedLabels = it },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল লেবেল)" else "(All Labels)",
+                            languageMode = languageMode
+                        )
                     }
+                }
 
-                    Button(
-                        onClick = {
-                            val from = amountFromText.toDoubleOrNull()
-                            val to = amountToText.toDoubleOrNull()
-                            onApply(
-                                AccountDetailFilterState(
-                                    nameQuery = nameQuery,
-                                    amountFrom = from,
-                                    amountTo = to,
-                                    selectedCategoryIds = selectedCatIds,
-                                    selectedCategoryGroupIds = selectedGroupIds,
-                                    selectedLabels = selectedLabels,
-                                    selectedStatuses = selectedStatuses,
-                                    selectedTypes = selectedTypes,
-                                    dateRange = dateRange
+                // 8. Transaction Status
+                UnifiedFilterSection(
+                    title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Transaction Status"
+                ) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        TransactionStatus.values().forEach { st ->
+                            val isSelected = selectedStatuses.contains(st)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedStatuses = if (isSelected) selectedStatuses - st else selectedStatuses + st
+                                },
+                                label = { Text(if (languageMode == LanguageMode.BANGLA) st.titleBn else st.titleEn, fontSize = 11.5.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = SolidPrimary,
+                                    selectedLabelColor = Color.White
                                 )
                             )
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SolidIncome),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Apply Filters", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
+
+            UnifiedFilterFooter(
+                activeCount = activeCount,
+                languageMode = languageMode,
+                onReset = {
+                    nameQuery = ""
+                    amountFromText = ""
+                    amountToText = ""
+                    selectedCatIds = emptySet()
+                    selectedGroupIds = emptySet()
+                    selectedLabels = emptySet()
+                    selectedStatuses = emptySet()
+                    selectedTypes = emptySet()
+                    dateRange = ChartDateRange.ALL_TIME
+                },
+                onDismiss = onDismiss,
+                onApply = {
+                    val from = amountFromText.toDoubleOrNull()
+                    val to = amountToText.toDoubleOrNull()
+                    onApply(
+                        AccountDetailFilterState(
+                            nameQuery = nameQuery,
+                            amountFrom = from,
+                            amountTo = to,
+                            selectedCategoryIds = selectedCatIds,
+                            selectedCategoryGroupIds = selectedGroupIds,
+                            selectedLabels = selectedLabels,
+                            selectedStatuses = selectedStatuses,
+                            selectedTypes = selectedTypes,
+                            dateRange = dateRange
+                        )
+                    )
+                }
+            )
         }
     }
 }

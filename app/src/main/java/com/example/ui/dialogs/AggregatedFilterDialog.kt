@@ -1,5 +1,6 @@
 package com.example.ui.dialogs
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,6 +74,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.ui.components.DropdownItem
+import com.example.ui.components.UnifiedFilterDialogContainer
+import com.example.ui.components.UnifiedFilterFooter
+import com.example.ui.components.UnifiedFilterHeader
+import com.example.ui.components.UnifiedFilterSection
+import com.example.ui.components.UnifiedMultiSelectDropdown
 import com.example.data.model.Account
 import com.example.data.model.Category
 import com.example.data.model.LanguageMode
@@ -272,118 +279,64 @@ fun AggregatedFilterDialog(
     var showCustomStartDatePicker by remember { mutableStateOf(false) }
     var showCustomEndDatePicker by remember { mutableStateOf(false) }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.93f)
-                .fillMaxHeight(0.88f)
-                .testTag("aggregated_filter_dialog")
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Dialog Header
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(36.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.FilterAlt,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            if (tempState.activeFilterCount > 0) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = "${tempState.activeFilterCount}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimary
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    tempState = AggregatedFilterState()
-                                    minAmountText = ""
-                                    maxAmountText = ""
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.RestartAlt,
-                                    contentDescription = "Reset All",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            IconButton(onClick = onDismiss) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+    val categoryDropdownItems = remember(categories, languageMode) {
+        categories.filter { it.isActive }.map { cat ->
+            val catName = if (languageMode == LanguageMode.BANGLA) cat.nameBn.ifBlank { cat.nameEn } else cat.nameEn
+            DropdownItem(
+                id = cat.id,
+                title = catName,
+                subtitle = if (cat.parentId != null) "Subcategory" else "Category",
+                color = try {
+                    if (cat.colorHex.isNotBlank()) Color(android.graphics.Color.parseColor(cat.colorHex)) else null
+                } catch (e: Exception) {
+                    null
                 }
+            )
+        }
+    }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    val accountDropdownItems = remember(accounts, languageMode) {
+        accounts.map { acc ->
+            val accName = if (languageMode == LanguageMode.BANGLA) acc.nameBn.ifBlank { acc.nameEn } else acc.nameEn
+            DropdownItem(
+                id = acc.id,
+                title = accName,
+                subtitle = acc.type.name.lowercase().replaceFirstChar { it.uppercase() }
+            )
+        }
+    }
 
-                // Scrollable Content
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+    UnifiedFilterDialogContainer(
+        onDismissRequest = onDismiss,
+        testTag = "aggregated_filter_dialog"
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Unified Dialog Header
+            UnifiedFilterHeader(
+                title = title,
+                activeCount = tempState.activeFilterCount,
+                languageMode = languageMode,
+                onReset = {
+                    tempState = AggregatedFilterState()
+                    minAmountText = ""
+                    maxAmountText = ""
+                },
+                onDismiss = onDismiss
+            )
+
+            // Scrollable Content
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // SECTION 1: Date Range Presets
+                UnifiedFilterSection(
+                    icon = Icons.Default.DateRange,
+                    title = if (languageMode == LanguageMode.BANGLA) "সময়কাল" else "Date Period"
                 ) {
-                    // SECTION 1: Date Range Presets
-                    FilterSectionHeader(
-                        icon = Icons.Default.DateRange,
-                        title = if (languageMode == LanguageMode.BANGLA) "সময়কাল (Date Period)" else "Date Period"
-                    )
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -415,14 +368,14 @@ fun AggregatedFilterDialog(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(10.dp)) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "কাস্টম সময়কাল নির্ধারণ" else "Select Custom Date Range",
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.5.sp,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -431,7 +384,7 @@ fun AggregatedFilterDialog(
                                         onClick = { showCustomStartDatePicker = true },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = tempState.customStartDateMs?.let { DateUtils.formatDate(it, languageMode) } ?: "Start Date",
@@ -444,7 +397,7 @@ fun AggregatedFilterDialog(
                                         onClick = { showCustomEndDatePicker = true },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = tempState.customEndDateMs?.let { DateUtils.formatDate(it, languageMode) } ?: "End Date",
@@ -457,12 +410,13 @@ fun AggregatedFilterDialog(
                             }
                         }
                     }
+                }
 
-                    // SECTION 2: Transaction Flow / Type
-                    FilterSectionHeader(
-                        icon = Icons.Default.SwapHoriz,
-                        title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন (Flow Type)" else "Transaction Flow"
-                    )
+                // SECTION 2: Transaction Flow / Type
+                UnifiedFilterSection(
+                    icon = Icons.Default.SwapHoriz,
+                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন" else "Transaction Flow"
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -471,25 +425,25 @@ fun AggregatedFilterDialog(
                         FilterChip(
                             selected = isAllSelected,
                             onClick = { tempState = tempState.copy(transactionType = null) },
-                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল (All)" else "All", fontSize = 11.5.sp) },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All", fontSize = 11.5.sp) },
                             modifier = Modifier.weight(1f)
                         )
                         val isExpenseSelected = tempState.transactionType == TransactionType.EXPENSE
                         FilterChip(
                             selected = isExpenseSelected,
                             onClick = { tempState = tempState.copy(transactionType = TransactionType.EXPENSE) },
-                            label = { Text(if (languageMode == LanguageMode.BANGLA) "ব্যয় (Expense)" else "Expenses", fontSize = 11.5.sp) },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense", fontSize = 11.5.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SolidExpense.copy(alpha = 0.16f),
                                 selectedLabelColor = SolidExpense
                             ),
-                            modifier = Modifier.weight(1.1f)
+                            modifier = Modifier.weight(1f)
                         )
                         val isIncomeSelected = tempState.transactionType == TransactionType.INCOME
                         FilterChip(
                             selected = isIncomeSelected,
                             onClick = { tempState = tempState.copy(transactionType = TransactionType.INCOME) },
-                            label = { Text(if (languageMode == LanguageMode.BANGLA) "আয় (Income)" else "Income", fontSize = 11.5.sp) },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "আয়" else "Income", fontSize = 11.5.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SolidIncome.copy(alpha = 0.16f),
                                 selectedLabelColor = SolidIncome
@@ -497,86 +451,49 @@ fun AggregatedFilterDialog(
                             modifier = Modifier.weight(1f)
                         )
                     }
+                }
 
-                    // SECTION 3: Accounts Multi-Select
-                    if (accounts.isNotEmpty()) {
-                        FilterSectionHeader(
-                            icon = Icons.Default.AccountBalance,
-                            title = if (languageMode == LanguageMode.BANGLA) "একাউন্ট ফিল্টার (Accounts)" else "Filter by Accounts"
+                // SECTION 3: Accounts Multi-Select Dropdown
+                if (accounts.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        icon = Icons.Default.AccountBalance,
+                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Accounts"
+                    ) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট নির্বাচন করুন" else "Select Accounts",
+                            items = accountDropdownItems,
+                            selectedIds = tempState.selectedAccountIds,
+                            onSelectionChanged = { tempState = tempState.copy(selectedAccountIds = it) },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল অ্যাকাউন্ট)" else "(All Accounts)",
+                            leadingIcon = Icons.Default.AccountBalance,
+                            languageMode = languageMode
                         )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val allAccountsSelected = tempState.selectedAccountIds.isEmpty()
-                            FilterChip(
-                                selected = allAccountsSelected,
-                                onClick = { tempState = tempState.copy(selectedAccountIds = emptySet()) },
-                                label = { Text(if (languageMode == LanguageMode.BANGLA) "সব একাউন্ট" else "All Accounts", fontSize = 11.sp) }
-                            )
-                            accounts.forEach { acc ->
-                                val isSelected = tempState.selectedAccountIds.contains(acc.id)
-                                val accName = if (languageMode == LanguageMode.BANGLA) acc.nameBn.ifBlank { acc.nameEn } else acc.nameEn
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        val next = tempState.selectedAccountIds.toMutableSet()
-                                        if (isSelected) next.remove(acc.id) else next.add(acc.id)
-                                        tempState = tempState.copy(selectedAccountIds = next)
-                                    },
-                                    label = { Text(accName, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                    leadingIcon = if (isSelected) {
-                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                    } else null
-                                )
-                            }
-                        }
                     }
+                }
 
-                    // SECTION 4: Categories Multi-Select
-                    if (categories.isNotEmpty()) {
-                        FilterSectionHeader(
-                            icon = Icons.Default.Category,
-                            title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ফিল্টার (Categories)" else "Filter by Categories"
+                // SECTION 4: Categories Multi-Select Dropdown
+                if (categories.isNotEmpty()) {
+                    UnifiedFilterSection(
+                        icon = Icons.Default.Category,
+                        title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Categories"
+                    ) {
+                        UnifiedMultiSelectDropdown(
+                            label = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি নির্বাচন করুন" else "Select Categories",
+                            items = categoryDropdownItems,
+                            selectedIds = tempState.selectedCategoryIds,
+                            onSelectionChanged = { tempState = tempState.copy(selectedCategoryIds = it) },
+                            placeholder = if (languageMode == LanguageMode.BANGLA) "(সকল ক্যাটাগরি)" else "(All Categories)",
+                            leadingIcon = Icons.Default.Category,
+                            languageMode = languageMode
                         )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val allCategoriesSelected = tempState.selectedCategoryIds.isEmpty()
-                            FilterChip(
-                                selected = allCategoriesSelected,
-                                onClick = { tempState = tempState.copy(selectedCategoryIds = emptySet()) },
-                                label = { Text(if (languageMode == LanguageMode.BANGLA) "সব ক্যাটাগরি" else "All Categories", fontSize = 11.sp) }
-                            )
-                            // Show top/main categories
-                            val mainCategories = categories.filter { it.parentId == null && it.isActive }
-                            mainCategories.forEach { cat ->
-                                val isSelected = tempState.selectedCategoryIds.contains(cat.id)
-                                val catName = if (languageMode == LanguageMode.BANGLA) cat.nameBn.ifBlank { cat.nameEn } else cat.nameEn
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        val next = tempState.selectedCategoryIds.toMutableSet()
-                                        if (isSelected) next.remove(cat.id) else next.add(cat.id)
-                                        tempState = tempState.copy(selectedCategoryIds = next)
-                                    },
-                                    label = { Text(catName, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                    leadingIcon = if (isSelected) {
-                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(13.dp)) }
-                                    } else null
-                                )
-                            }
-                        }
                     }
+                }
 
-                    // SECTION 5: Transaction Status
-                    FilterSectionHeader(
-                        icon = Icons.Default.CheckCircle,
-                        title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের স্ট্যাটাস (Status)" else "Transaction Status"
-                    )
+                // SECTION 5: Transaction Status
+                UnifiedFilterSection(
+                    icon = Icons.Default.CheckCircle,
+                    title = if (languageMode == LanguageMode.BANGLA) "স্ট্যাটাস" else "Transaction Status"
+                ) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -586,11 +503,11 @@ fun AggregatedFilterDialog(
                         FilterChip(
                             selected = allStatusesSelected,
                             onClick = { tempState = tempState.copy(selectedStatuses = emptySet()) },
-                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সব স্ট্যাটাস" else "All Statuses", fontSize = 11.sp) }
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All Statuses", fontSize = 11.sp) }
                         )
                         TransactionStatus.entries.forEach { st ->
                             val isSelected = tempState.selectedStatuses.contains(st)
-                            val stName = if (languageMode == LanguageMode.BANGLA) "${st.titleBn} (${st.titleEn})" else st.titleEn
+                            val stName = if (languageMode == LanguageMode.BANGLA) st.titleBn else st.titleEn
                             FilterChip(
                                 selected = isSelected,
                                 onClick = {
@@ -605,12 +522,13 @@ fun AggregatedFilterDialog(
                             )
                         }
                     }
+                }
 
-                    // SECTION 6: Amount Range (Min & Max)
-                    FilterSectionHeader(
-                        icon = Icons.Default.Payments,
-                        title = if (languageMode == LanguageMode.BANGLA) "পরিমাণের সীমা (Amount Range ৳)" else "Amount Range (৳)"
-                    )
+                // SECTION 6: Amount Range (Min & Max)
+                UnifiedFilterSection(
+                    icon = Icons.Default.Payments,
+                    title = if (languageMode == LanguageMode.BANGLA) "পরিমাণের সীমা" else "Amount Range (৳)"
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -621,9 +539,10 @@ fun AggregatedFilterDialog(
                                 minAmountText = input.filter { it.isDigit() || it == '.' }
                                 tempState = tempState.copy(minAmount = minAmountText.toDoubleOrNull())
                             },
-                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সর্বনিম্ন (Min ৳)" else "Min ৳", fontSize = 11.sp) },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সর্বনিম্ন (৳)" else "Min ৳", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
@@ -632,18 +551,20 @@ fun AggregatedFilterDialog(
                                 maxAmountText = input.filter { it.isDigit() || it == '.' }
                                 tempState = tempState.copy(maxAmount = maxAmountText.toDoubleOrNull())
                             },
-                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সর্বোচ্চ (Max ৳)" else "Max ৳", fontSize = 11.sp) },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সর্বোচ্চ (৳)" else "Max ৳", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.weight(1f)
                         )
                     }
+                }
 
-                    // SECTION 7: Sort Order Options
-                    FilterSectionHeader(
-                        icon = Icons.Default.Sort,
-                        title = if (languageMode == LanguageMode.BANGLA) "সাজানোর ক্রম (Sort Order)" else "Sort Order"
-                    )
+                // SECTION 7: Sort Order Options
+                UnifiedFilterSection(
+                    icon = Icons.Default.Sort,
+                    title = if (languageMode == LanguageMode.BANGLA) "সাজানোর ক্রম" else "Sort Order"
+                ) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -667,28 +588,30 @@ fun AggregatedFilterDialog(
                             )
                         }
                     }
+                }
 
-                    // SECTION 8: Display Options
-                    FilterSectionHeader(
-                        icon = Icons.Default.Tune,
-                        title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য অপশন (Display Options)" else "Display Options"
-                    )
+                // SECTION 8: Display Options
+                UnifiedFilterSection(
+                    icon = Icons.Default.Tune,
+                    title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য অপশন" else "Display Options"
+                ) {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = if (languageMode == LanguageMode.BANGLA) "শূন্য পরিমাণ বাদ দিন" else "Exclude Zero Amounts",
-                                    fontSize = 13.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -705,44 +628,25 @@ fun AggregatedFilterDialog(
                         }
                     }
                 }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                // Bottom Action Buttons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(
-                        onClick = {
-                            tempState = AggregatedFilterState()
-                            minAmountText = ""
-                            maxAmountText = ""
-                        }
-                    ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "সব রিসেট" else "Reset All")
-                    }
-
-                    Button(
-                        onClick = {
-                            val minVal = minAmountText.toDoubleOrNull()
-                            val maxVal = maxAmountText.toDoubleOrNull()
-                            val finalState = tempState.copy(minAmount = minVal, maxAmount = maxVal)
-                            onApply(finalState)
-                        }
-                    ) {
-                        val label = if (languageMode == LanguageMode.BANGLA) {
-                            if (tempState.activeFilterCount > 0) "ফিল্টার প্রয়োগ (${tempState.activeFilterCount})" else "প্রয়োগ করুন"
-                        } else {
-                            if (tempState.activeFilterCount > 0) "Apply Filters (${tempState.activeFilterCount})" else "Apply"
-                        }
-                        Text(label, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
+
+            // Unified Sticky Footer
+            UnifiedFilterFooter(
+                activeCount = tempState.activeFilterCount,
+                languageMode = languageMode,
+                onReset = {
+                    tempState = AggregatedFilterState()
+                    minAmountText = ""
+                    maxAmountText = ""
+                },
+                onDismiss = onDismiss,
+                onApply = {
+                    val minVal = minAmountText.toDoubleOrNull()
+                    val maxVal = maxAmountText.toDoubleOrNull()
+                    val finalState = tempState.copy(minAmount = minVal, maxAmount = maxVal)
+                    onApply(finalState)
+                }
+            )
         }
     }
 
