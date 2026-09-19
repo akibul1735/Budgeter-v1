@@ -322,10 +322,17 @@ fun MainAppContainer(
         pageCount = { visibleTabs.size }
     )
 
+    // Immediate active view for navigation bar during swipe gesture
+    val activeNavView = if (isTabInVisibleTabs && pagerState.currentPage in visibleTabs.indices) {
+        visibleTabs[pagerState.currentPage].toAppView()
+    } else {
+        currentView
+    }
+
     // Sync currentView when user swipes left/right between tabs (only when actively viewing visible tabs)
     LaunchedEffect(pagerState, isTabInVisibleTabs) {
         if (!isTabInVisibleTabs) return@LaunchedEffect
-        snapshotFlow { pagerState.settledPage }.collect { page ->
+        snapshotFlow { pagerState.currentPage }.collect { page ->
             if (isTabInVisibleTabs && page in visibleTabs.indices) {
                 val swipedTab = visibleTabs.getOrNull(page) ?: return@collect
                 val swipedView = swipedTab.toAppView()
@@ -469,7 +476,7 @@ fun MainAppContainer(
                                     AutoHidingHeaderContainer(headerScrollState = headerScrollState) {
                                         TopNavigationBarRow(
                                             visibleTabs = tabConfig.visibleTabs,
-                                            currentView = currentView,
+                                            currentView = activeNavView,
                                             languageMode = languageMode,
                                             onSelectTab = { tab -> selectView(tab.toAppView()) }
                                         )
@@ -482,7 +489,7 @@ fun MainAppContainer(
                                     AutoHidingBottomContainer(headerScrollState = headerScrollState) {
                                         BottomNavigationBarRow(
                                             visibleTabs = tabConfig.visibleTabs,
-                                            currentView = currentView,
+                                            currentView = activeNavView,
                                             languageMode = languageMode,
                                             onSelectTab = { tab -> selectView(tab.toAppView()) }
                                         )

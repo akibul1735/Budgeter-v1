@@ -200,6 +200,7 @@ fun ReportsScreen(
             categories = categories,
             transactions = allTx,
             languageMode = languageMode,
+            isNetEarningsTimeline = true,
             onBack = { showTimelineScreen = false }
         )
         return
@@ -447,7 +448,7 @@ fun ReportsScreen(
     }
 
     val listState = rememberLazyListState()
-    val isScrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    val isScrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 24 } }
 
     Column(
         modifier = Modifier
@@ -536,8 +537,18 @@ fun ReportsScreen(
             )
         }
 
-        // 2. SCROLL-AWARE TOP FIXED SUMMARY CARD (Almost same layout as budget tab)
-        if (!isScrolled) {
+        // 2. SCROLL-AWARE TOP FIXED SUMMARY CARD (Smooth animated hide and show)
+        AnimatedVisibility(
+            visible = !isScrolled,
+            enter = expandVertically(
+                expandFrom = Alignment.Top,
+                animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 200)),
+            exit = shrinkVertically(
+                shrinkTowards = Alignment.Top,
+                animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+            ) + fadeOut(animationSpec = tween(durationMillis = 200))
+        ) {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(14.dp),

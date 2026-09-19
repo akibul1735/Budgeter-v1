@@ -2434,27 +2434,29 @@ object TabExportHelper {
         context: Context,
         format: ExportFormat,
         data: CategoryTimelineData,
-        languageMode: LanguageMode = LanguageMode.ENGLISH
+        languageMode: LanguageMode = LanguageMode.ENGLISH,
+        customTitle: String? = null
     ) {
-        val title = if (languageMode == LanguageMode.BANGLA) "বাজেট টাইমলাইন রিপোর্ট" else "Budget Category Timeline Report"
+        val title = customTitle ?: if (languageMode == LanguageMode.BANGLA) "বাজেট টাইমলাইন রিপোর্ট" else "Budget Category Timeline Report"
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val filePrefix = if (customTitle != null) "Net_Earnings_Timeline_" else "Budget_Timeline_"
 
         when (format) {
             ExportFormat.PDF -> {
                 val html = buildCategoryTimelineHtml(title, data, languageMode)
-                PdfPrintHelper.printHtml(context, "Budget_Timeline_$timeStamp", html, isLandscape = true)
+                PdfPrintHelper.printHtml(context, "${filePrefix}$timeStamp", html, isLandscape = true)
             }
             ExportFormat.CSV -> {
                 val csv = buildCategoryTimelineCsv(data, languageMode)
-                shareFile(context, "Budget_Timeline_$timeStamp.csv", format.mimeType, csv, title)
+                shareFile(context, "${filePrefix}$timeStamp.csv", format.mimeType, csv, title)
             }
             ExportFormat.HTML -> {
                 val html = buildCategoryTimelineHtml(title, data, languageMode)
-                shareFile(context, "Budget_Timeline_$timeStamp.html", format.mimeType, html, title)
+                shareFile(context, "${filePrefix}$timeStamp.html", format.mimeType, html, title)
             }
             ExportFormat.JSON -> {
                 val json = buildCategoryTimelineJson(data, languageMode)
-                shareFile(context, "Budget_Timeline_$timeStamp.json", format.mimeType, json, title)
+                shareFile(context, "${filePrefix}$timeStamp.json", format.mimeType, json, title)
             }
         }
     }

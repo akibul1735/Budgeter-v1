@@ -37,6 +37,7 @@ import com.example.data.model.SavingsGoal
 import com.example.data.model.SavingsGoalWithDetails
 import com.example.data.model.SavingsSummary
 import com.example.data.repository.AccountWithBalance
+import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.AddEditSavingsGoalDialog
 import com.example.ui.dialogs.QuickAllocateGoalDialog
 import com.example.util.IconHelper
@@ -105,47 +106,99 @@ fun SavingsGoalsScreen(
         previousScrollOffset = currentOffset
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = LanguageHelper.getString("savings_goals", languageMode),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp)
+    ) {
+        AppTabHeader(
+            title = LanguageHelper.getString("savings_goals", languageMode),
+            onOpenDrawer = onOpenDrawer,
+            actions = {
+                IconButton(
+                    onClick = { showAddGoalDialog = true },
+                    modifier = Modifier.testTag("topbar_add_goal_btn")
+                ) {
+                    Icon(
+                        Icons.Default.AddCircleOutline,
+                        contentDescription = "Add Goal",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        )
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 6.dp, bottom = 80.dp)
+            ) {
+                // 1. Summary Card with Graph
+                item {
+                    SavingsSummaryCardWithGraph(
+                        summary = savingsSummary,
+                        goals = goalsWithDetails.filter { !it.goal.isCompleted },
+                        languageMode = languageMode
+                    )
+                }
+
+                // 2. Deficit Alert Banner if any account has been overspent eating into allocated funds
+                if (savingsSummary.totalDeficit > 0.001) {
+                    item {
+                        SavingsDeficitAlertBanner(
+                            totalDeficit = savingsSummary.totalDeficit,
+                            deficitCount = deficitGoalsCount,
+                            languageMode = languageMode,
+                            onViewDeficits = { selectedFilter = GoalFilterType.DEFICIT }
                         )
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) {
-                                "${LanguageHelper.toBanglaDigits(goalsWithDetails.size.toString())}টি লক্ষ্য"
-                            } else {
-                                "${goalsWithDetails.size} goals tracked"
-                            },
-                            fontSize = 11.5.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onOpenDrawer, modifier = Modifier.testTag("menu_drawer_button")) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu")
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = { showAddGoalDialog = true },
-                        modifier = Modifier.testTag("topbar_add_goal_btn")
-                    ) {
-                        Icon(Icons.Default.AddCircleOutline, contentDescription = "Add Goal", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
-            )
-        },
-        floatingActionButton = {
-            AnimatedVisibility(
+
+                // 3. Filter Chips
+                item {
+                    GoalFilterRow(
+                        selectedFilter = selectedFilter,
+                        onSelectFilter = { selectedFilter = it },
+                        totalCount = goalsWithDetails.size,
+                        activeCount = savingsSummary.activeGoalsCount,
+                        completedCount = savingsSummary.completedGoalsCount,
+                        deficitCount = deficitGoalsCount,
+                        languageMode = languageMode
+                    )
+                }
+
+                // 4. Goal List
+                if (filteredGoals.isEmpty()) {
+                    item {
+                        EmptyGoalsCard(
+                            filter = selectedFilter,
+                            languageMode = languageMode,
+                            onAddGoal = { showAddGoalDialog = true }
+                        )
+                    }
+                } else {
+                    items(filteredGoals, key = { it.goal.id }) { goalItem ->
+                        SavingsGoalCard(
+                            goalWithDetails = goalItem,
+                            languageMode = languageMode,
+                            onEdit = { goalToEdit = goalItem },
+                            onDelete = { goalToDelete = goalItem },
+                            onToggleCompleted = { isComp -> onToggleCompleted(goalItem.goal.id, isComp) },
+                            onQuickAllocate = { goalToAllocate = goalItem }
+                        )
+                    }
+                }
+            }
+
+            androidx.compose.animation.AnimatedVisibility(
                 visible = isFabVisible,
                 enter = slideInVertically(initialOffsetY = { it * 2 }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it * 2 }) + fadeOut()
+                exit = slideOutVertically(targetOffsetY = { it * 2 }) + fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 16.dp, end = 4.dp)
             ) {
                 ExtendedFloatingActionButton(
                     onClick = { showAddGoalDialog = true },
@@ -155,72 +208,6 @@ fun SavingsGoalsScreen(
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.testTag("add_savings_goal_fab")
                 )
-            }
-        }
-    ) { padding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
-        ) {
-            // 1. Summary Card with Graph
-            item {
-                SavingsSummaryCardWithGraph(
-                    summary = savingsSummary,
-                    goals = goalsWithDetails.filter { !it.goal.isCompleted },
-                    languageMode = languageMode
-                )
-            }
-
-            // 2. Deficit Alert Banner if any account has been overspent eating into allocated funds
-            if (savingsSummary.totalDeficit > 0.001) {
-                item {
-                    SavingsDeficitAlertBanner(
-                        totalDeficit = savingsSummary.totalDeficit,
-                        deficitCount = deficitGoalsCount,
-                        languageMode = languageMode,
-                        onViewDeficits = { selectedFilter = GoalFilterType.DEFICIT }
-                    )
-                }
-            }
-
-            // 3. Filter Chips
-            item {
-                GoalFilterRow(
-                    selectedFilter = selectedFilter,
-                    onSelectFilter = { selectedFilter = it },
-                    totalCount = goalsWithDetails.size,
-                    activeCount = savingsSummary.activeGoalsCount,
-                    completedCount = savingsSummary.completedGoalsCount,
-                    deficitCount = deficitGoalsCount,
-                    languageMode = languageMode
-                )
-            }
-
-            // 4. Goal List
-            if (filteredGoals.isEmpty()) {
-                item {
-                    EmptyGoalsCard(
-                        filter = selectedFilter,
-                        languageMode = languageMode,
-                        onAddGoal = { showAddGoalDialog = true }
-                    )
-                }
-            } else {
-                items(filteredGoals, key = { it.goal.id }) { goalItem ->
-                    SavingsGoalCard(
-                        goalWithDetails = goalItem,
-                        languageMode = languageMode,
-                        onEdit = { goalToEdit = goalItem },
-                        onDelete = { goalToDelete = goalItem },
-                        onToggleCompleted = { isComp -> onToggleCompleted(goalItem.goal.id, isComp) },
-                        onQuickAllocate = { goalToAllocate = goalItem }
-                    )
-                }
             }
         }
     }
@@ -801,8 +788,8 @@ private fun SavingsGoalCard(
                         modifier = Modifier.size(42.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = IconHelper.getIconByName(goal.iconName),
+                            IconHelper.AppIcon(
+                                iconName = goal.iconName,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(24.dp)
@@ -1071,8 +1058,8 @@ private fun SavingsGoalCard(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         modifier = Modifier.weight(1f, fill = false)
                                     ) {
-                                        Icon(
-                                            imageVector = IconHelper.getIconByName(acc.iconName),
+                                        IconHelper.AppIcon(
+                                            iconName = acc.iconName,
                                             contentDescription = null,
                                             modifier = Modifier.size(16.dp),
                                             tint = MaterialTheme.colorScheme.primary

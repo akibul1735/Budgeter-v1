@@ -325,7 +325,7 @@ fun LabelsScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "৳ ${LanguageHelper.formatCurrency(totalFlowOverall, languageMode)}",
+                            text = LanguageHelper.formatCurrency(totalFlowOverall, languageMode),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome
@@ -573,7 +573,7 @@ fun LabelsScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${label.transactionCount} transactions • Sum: ৳ ${LanguageHelper.formatCurrency(label.totalSum, languageMode)}",
+                            text = "${label.transactionCount} transactions • Sum: ${LanguageHelper.formatCurrency(label.totalSum, languageMode)}",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -791,7 +791,7 @@ private fun AggregatedLabelCard(
                 val totalAmt = if (isExpense) label.totalExpense else label.totalIncome
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "৳ ${LanguageHelper.formatCurrency(totalAmt, languageMode)}",
+                        text = LanguageHelper.formatCurrency(totalAmt, languageMode),
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = typeColor,
@@ -800,7 +800,7 @@ private fun AggregatedLabelCard(
                     )
                     val avg = if (label.transactionCount > 0) totalAmt / label.transactionCount else 0.0
                     Text(
-                        text = "Avg: ৳ ${LanguageHelper.formatCurrency(avg, languageMode)}",
+                        text = "Avg: ${LanguageHelper.formatCurrency(avg, languageMode)}",
                         fontSize = 10.sp,
                         color = SlateText,
                         textAlign = TextAlign.End,

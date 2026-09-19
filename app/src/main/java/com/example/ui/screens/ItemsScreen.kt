@@ -346,7 +346,7 @@ fun ItemsScreen(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "৳ ${LanguageHelper.formatCurrency(totalFlowOverall, languageMode)}",
+                            text = LanguageHelper.formatCurrency(totalFlowOverall, languageMode),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (activeTabMode == "EXPENSE") CrimsonPink else SolidIncome
@@ -592,7 +592,7 @@ fun ItemsScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${item.transactionCount} transactions • Avg: ৳ ${LanguageHelper.formatCurrency((item.totalExpense + item.totalIncome) / item.transactionCount, languageMode)}",
+                            text = "${item.transactionCount} transactions • Avg: ${LanguageHelper.formatCurrency((item.totalExpense + item.totalIncome) / item.transactionCount, languageMode)}",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -664,7 +664,7 @@ fun ItemsScreen(
                                 }
                                 val sign = if (isPositiveEffect) "+" else "−"
                                 Text(
-                                    text = "$sign৳ ${LanguageHelper.formatCurrency(Math.abs(tx.amount), languageMode)}",
+                                    text = "$sign${LanguageHelper.formatCurrency(Math.abs(tx.amount), languageMode)}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isPositiveEffect) SolidIncome else SolidExpense
@@ -848,7 +848,7 @@ private fun AggregatedItemCard(
                 val totalAmt = if (isExpense) item.totalExpense else item.totalIncome
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "৳ ${LanguageHelper.formatCurrency(totalAmt, languageMode)}",
+                        text = LanguageHelper.formatCurrency(totalAmt, languageMode),
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = if (isExpense) CrimsonPink else SolidIncome,
@@ -857,7 +857,7 @@ private fun AggregatedItemCard(
                     )
                     val avg = if (item.transactionCount > 0) totalAmt / item.transactionCount else 0.0
                     Text(
-                        text = "Avg: ৳ ${LanguageHelper.formatCurrency(avg, languageMode)}",
+                        text = "Avg: ${LanguageHelper.formatCurrency(avg, languageMode)}",
                         fontSize = 10.sp,
                         color = SlateText,
                         textAlign = TextAlign.End,

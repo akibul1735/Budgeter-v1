@@ -98,6 +98,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.TimelineSortButton
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Category
@@ -145,6 +146,8 @@ fun CategoryTimelineScreen(
     categories: List<Category>,
     transactions: List<Transaction>,
     languageMode: LanguageMode,
+    isNetEarningsTimeline: Boolean = false,
+    screenTitle: String? = null,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -244,9 +247,15 @@ fun CategoryTimelineScreen(
 
                     Spacer(modifier = Modifier.width(4.dp))
 
+                    val displayTitle = screenTitle ?: if (isNetEarningsTimeline) {
+                        if (languageMode == LanguageMode.BANGLA) "নেট আয় টাইমলাইন" else "Net Earnings Timeline"
+                    } else {
+                        if (languageMode == LanguageMode.BANGLA) "বাজেট টাইমলাইন" else "Budget Timeline"
+                    }
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "বাজেট টাইমলাইন" else "Budget Timeline",
+                            text = displayTitle,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -282,6 +291,15 @@ fun CategoryTimelineScreen(
                         )
                     }
 
+                    // Sort Button with Dropdown Menu
+                    TimelineSortButton(
+                        selectedSortOrder = filterState.sortOrder,
+                        onSortOrderSelected = { newOrder ->
+                            filterState = filterState.copy(sortOrder = newOrder)
+                        },
+                        languageMode = languageMode
+                    )
+
                     // Filter Button with Badge
                     val activeFilterCount = (if (filterState.interval != CategoryTimelineInterval.PAST_12_MONTHS) 1 else 0) +
                             (if (filterState.selectedCategoryIds.isNotEmpty()) 1 else 0) +
@@ -316,7 +334,8 @@ fun CategoryTimelineScreen(
                                 context = context,
                                 format = format,
                                 data = timelineData,
-                                languageMode = languageMode
+                                languageMode = languageMode,
+                                customTitle = if (isNetEarningsTimeline) (if (languageMode == LanguageMode.BANGLA) "নেট আয় টাইমলাইন রিপোর্ট" else "Net Earnings Category Timeline Report") else null
                             )
                         },
                         languageMode = languageMode

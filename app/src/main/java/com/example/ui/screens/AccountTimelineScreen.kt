@@ -84,10 +84,12 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalSetTimelineActive
+import com.example.ui.components.TimelineSortButton
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.util.AccountTimelineData
+import com.example.util.CategoryTimelineSortOrder
 import com.example.util.AccountTimelineHelper
 import com.example.util.AccountTimelineInterval
 import com.example.util.LanguageHelper
@@ -129,6 +131,7 @@ fun AccountTimelineScreen(
     }
 
     var filterState by remember { mutableStateOf(AccountTimelineFilterState()) }
+    var sortOrder by remember { mutableStateOf(CategoryTimelineSortOrder.DEFAULT) }
     var viewOption by remember { mutableStateOf(TimelineViewOption.ALL) } // All / Groups / Items
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
@@ -158,9 +161,9 @@ fun AccountTimelineScreen(
         )
     }
 
-    // Filter by search query if applicable
-    val timelineData = remember(rawTimelineData, searchQuery, languageMode) {
-        if (searchQuery.isBlank()) {
+    // Filter by search query if applicable and sort
+    val timelineData = remember(rawTimelineData, searchQuery, languageMode, sortOrder) {
+        val base = if (searchQuery.isBlank()) {
             rawTimelineData
         } else {
             val q = searchQuery.trim()
@@ -191,6 +194,29 @@ fun AccountTimelineScreen(
                 liabilityGroups = filteredLiabilityGroups
             )
         }
+
+        fun sortGroupList(groups: List<com.example.util.TimelineGroup>): List<com.example.util.TimelineGroup> {
+            val sortedSubs = groups.map { grp ->
+                val subs = when (sortOrder) {
+                    CategoryTimelineSortOrder.DEFAULT -> grp.subAccounts
+                    CategoryTimelineSortOrder.AMOUNT_DESC -> grp.subAccounts.sortedByDescending { it.balances.lastOrNull() ?: 0.0 }
+                    CategoryTimelineSortOrder.AMOUNT_ASC -> grp.subAccounts.sortedBy { it.balances.lastOrNull() ?: 0.0 }
+                    CategoryTimelineSortOrder.NAME_ASC -> grp.subAccounts.sortedBy { if (languageMode == LanguageMode.BANGLA) it.account.nameBn else it.account.nameEn }
+                }
+                grp.copy(subAccounts = subs)
+            }
+            return when (sortOrder) {
+                CategoryTimelineSortOrder.DEFAULT -> sortedSubs
+                CategoryTimelineSortOrder.AMOUNT_DESC -> sortedSubs.sortedByDescending { it.groupBalances.lastOrNull() ?: 0.0 }
+                CategoryTimelineSortOrder.AMOUNT_ASC -> sortedSubs.sortedBy { it.groupBalances.lastOrNull() ?: 0.0 }
+                CategoryTimelineSortOrder.NAME_ASC -> sortedSubs.sortedBy { if (languageMode == LanguageMode.BANGLA) it.parentAccount.nameBn else it.parentAccount.nameEn }
+            }
+        }
+
+        base.copy(
+            assetGroups = sortGroupList(base.assetGroups),
+            liabilityGroups = sortGroupList(base.liabilityGroups)
+        )
     }
 
     // Top Summary Cards: Total Assets | Total Liabilities | Net Worth
@@ -274,6 +300,13 @@ fun AccountTimelineScreen(
                                 tint = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
+                        // Sort Button with Dropdown
+                        TimelineSortButton(
+                            selectedSortOrder = sortOrder,
+                            onSortOrderSelected = { sortOrder = it },
+                            languageMode = languageMode
+                        )
 
                         // Help Button (?)
                         IconButton(

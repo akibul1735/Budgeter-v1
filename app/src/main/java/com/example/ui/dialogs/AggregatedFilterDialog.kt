@@ -253,10 +253,10 @@ data class AggregatedFilterState(
             parts.add(selectedStatuses.joinToString(",") { if (languageMode == LanguageMode.BANGLA) it.titleBn else it.titleEn })
         }
         if (minAmount != null && minAmount > 0) {
-            parts.add("≥ ৳${LanguageHelper.formatCurrency(minAmount, languageMode)}")
+            parts.add("≥ ${LanguageHelper.formatCurrency(minAmount, languageMode)}")
         }
         if (maxAmount != null && maxAmount > 0) {
-            parts.add("≤ ৳${LanguageHelper.formatCurrency(maxAmount, languageMode)}")
+            parts.add("≤ ${LanguageHelper.formatCurrency(maxAmount, languageMode)}")
         }
         return parts.joinToString(" • ")
     }

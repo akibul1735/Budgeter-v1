@@ -295,7 +295,7 @@ fun QuickAllocateGoalDialog(
 
     if (showAccountPickerDialog) {
         SearchableAccountPickerDialog(
-            accountsWithBalances = allAvailableAccounts,
+            accountsWithBalances = accountsWithBalances,
             languageMode = languageMode,
             title = if (languageMode == LanguageMode.BANGLA) "হিসাব খুঁজুন ও নির্বাচন করুন" else "Search & Select Account",
             onAccountSelected = { acc, _ ->

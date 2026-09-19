@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import com.example.ui.components.IconPickerModal
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.LanguageMode
@@ -51,19 +53,39 @@ private val GOAL_COLORS = listOf(
     "#84CC16"  // Lime
 )
 
-private val GOAL_ICONS = listOf(
-    "Savings" to Icons.Default.Savings,
-    "EmojiEvents" to Icons.Default.EmojiEvents,
-    "Flight" to Icons.Default.Flight,
-    "DirectionsCar" to Icons.Default.DirectionsCar,
-    "Home" to Icons.Default.Home,
-    "Laptop" to Icons.Default.Laptop,
-    "School" to Icons.Default.School,
-    "BeachAccess" to Icons.Default.BeachAccess,
-    "Diamond" to Icons.Default.Diamond,
-    "Favorite" to Icons.Default.Favorite,
-    "HealthAndSafety" to Icons.Default.HealthAndSafety,
-    "ShoppingCart" to Icons.Default.ShoppingCart
+private val POPULAR_GOAL_ICONS = listOf(
+    "Savings",
+    "EmojiEvents",
+    "Flight",
+    "DirectionsCar",
+    "Home",
+    "Laptop",
+    "School",
+    "BeachAccess",
+    "Diamond",
+    "Favorite",
+    "HealthAndSafety",
+    "ShoppingCart",
+    "Smartphone",
+    "Apartment",
+    "FitnessCenter",
+    "CardGiftcard",
+    "Celebration",
+    "Pets",
+    "AccountBalance",
+    "Payments",
+    "Star",
+    "Work",
+    "ChildCare",
+    "TwoWheeler",
+    "Build",
+    "LocalGasStation",
+    "FlightTakeoff",
+    "CardTravel",
+    "Camera",
+    "Security",
+    "LiveTv",
+    "MenuBook"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +109,7 @@ fun AddEditSavingsGoalDialog(
     var selectedColorHex by remember { mutableStateOf(existingGoal?.colorHex ?: GOAL_COLORS[0]) }
     var selectedIconName by remember { mutableStateOf(existingGoal?.iconName ?: "Savings") }
     var notes by remember { mutableStateOf(existingGoal?.notes ?: "") }
+    var showIconPickerModal by remember { mutableStateOf(false) }
 
     // Map of accountId -> allocated amount
     val allocationsMap = remember {
@@ -142,6 +165,7 @@ fun AddEditSavingsGoalDialog(
             Scaffold(
                 topBar = {
                     TopAppBar(
+                        windowInsets = WindowInsets(0.dp),
                         title = {
                             Text(
                                 text = if (isEditing) {
@@ -267,14 +291,14 @@ fun AddEditSavingsGoalDialog(
                         }
                     }
 
-                    // Target Amount & Date
+                    // Target Amount & Date (Consistent M3 appearance, natural height, zero clipping)
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Target Amount (56dp height & 1f weight)
+                            // Target Amount
                             OutlinedTextField(
                                 value = targetAmountStr,
                                 onValueChange = {
@@ -285,87 +309,85 @@ fun AddEditSavingsGoalDialog(
                                     Text(
                                         text = LanguageHelper.getString("target_amount", languageMode),
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        fontSize = 11.5.sp
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 },
                                 placeholder = { Text("50000") },
                                 leadingIcon = {
                                     Text(
-                                        LanguageHelper.activeCurrencyConfig.activeSymbol,
+                                        text = LanguageHelper.activeCurrencyConfig.activeSymbol,
                                         fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
                                         color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(start = 10.dp)
+                                        modifier = Modifier.padding(start = 12.dp, end = 2.dp)
                                     )
                                 },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(56.dp)
                                     .testTag("goal_target_amount_input"),
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // Target Date Picker Button (56dp height & 1f weight)
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
-                                color = MaterialTheme.colorScheme.surface,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(56.dp)
-                                    .clickable { showDatePicker = true }
-                                    .testTag("goal_date_picker_btn")
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(
-                                        modifier = Modifier.weight(1f, fill = false),
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
+                            // Target Date Picker (Identical OutlinedTextField styling and height)
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = if (targetDateMillis > 0L) {
+                                        SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(targetDateMillis))
+                                    } else "",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = {
                                         Text(
                                             text = LanguageHelper.getString("target_date", languageMode),
-                                            fontSize = 10.5.sp,
-                                            color = MaterialTheme.colorScheme.outline,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
+                                    },
+                                    placeholder = {
                                         Text(
-                                            text = if (targetDateMillis > 0L) {
-                                                SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(targetDateMillis))
-                                            } else {
-                                                if (languageMode == LanguageMode.BANGLA) "নির্ধারিত নয়" else "No deadline"
-                                            },
-                                            fontSize = 12.5.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = if (targetDateMillis > 0L) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            text = if (languageMode == LanguageMode.BANGLA) "তারিখ বাছাই" else "Select date",
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                    }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    if (targetDateMillis > 0L) {
-                                        IconButton(
-                                            onClick = { targetDateMillis = 0L },
-                                            modifier = Modifier.size(24.dp)
-                                        ) {
-                                            Icon(Icons.Default.Clear, contentDescription = "Clear date", modifier = Modifier.size(16.dp))
-                                        }
-                                    } else {
+                                    },
+                                    leadingIcon = {
                                         Icon(
                                             Icons.Default.CalendarToday,
                                             contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.primary
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
                                         )
-                                    }
-                                }
+                                    },
+                                    trailingIcon = {
+                                        if (targetDateMillis > 0L) {
+                                            IconButton(
+                                                onClick = { targetDateMillis = 0L },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Clear,
+                                                    contentDescription = "Clear date",
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("goal_date_picker_btn"),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                // Clickable overlay across the field (excluding trailing clear button)
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .padding(end = if (targetDateMillis > 0L) 40.dp else 0.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { showDatePicker = true }
+                                )
                             }
                         }
                     }
@@ -412,12 +434,53 @@ fun AddEditSavingsGoalDialog(
                                 }
                             }
 
-                            // Icon picker row
+                            // Icon picker row with + Custom / More options
+                            val displayIcons = remember(selectedIconName) {
+                                if (selectedIconName !in POPULAR_GOAL_ICONS) {
+                                    listOf(selectedIconName) + POPULAR_GOAL_ICONS
+                                } else {
+                                    POPULAR_GOAL_ICONS
+                                }
+                            }
+
                             LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(vertical = 4.dp)
                             ) {
-                                items(GOAL_ICONS) { (iconKey, iconVector) ->
+                                // Add Custom / More Icons Button
+                                item {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                        modifier = Modifier
+                                            .height(44.dp)
+                                            .clickable { showIconPickerModal = true }
+                                            .testTag("goal_more_icons_btn")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.AddPhotoAlternate,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "+ কাস্টম / আরও" else "+ More / Custom",
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+
+                                items(displayIcons) { iconKey ->
                                     val isSelected = selectedIconName == iconKey
                                     Surface(
                                         shape = RoundedCornerShape(10.dp),
@@ -426,12 +489,14 @@ fun AddEditSavingsGoalDialog(
                                         modifier = Modifier
                                             .size(44.dp)
                                             .clickable { selectedIconName = iconKey }
+                                            .testTag("goal_icon_$iconKey")
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = iconVector,
+                                            IconHelper.AppIcon(
+                                                iconName = iconKey,
                                                 contentDescription = iconKey,
-                                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         }
                                     }
@@ -758,9 +823,9 @@ fun AddEditSavingsGoalDialog(
     }
 
     if (showAccountPickerDialog) {
-        val unlinkedAccounts = allAvailableAccounts.filter { it.first.id !in allocationsMap.keys }
         SearchableAccountPickerDialog(
-            accountsWithBalances = unlinkedAccounts,
+            accountsWithBalances = accountsWithBalances,
+            excludedAccountIds = allocationsMap.keys,
             languageMode = languageMode,
             title = if (languageMode == LanguageMode.BANGLA) "হিসাব খুঁজুন ও নির্বাচন করুন" else "Search & Select Account",
             onAccountSelected = { acc, bal ->
@@ -773,6 +838,17 @@ fun AddEditSavingsGoalDialog(
                 allocationsMap[acc.id] = if (suggestedAmt > 0) String.format(Locale.US, "%.0f", suggestedAmt) else ""
             },
             onDismiss = { showAccountPickerDialog = false }
+        )
+    }
+
+    if (showIconPickerModal) {
+        IconPickerModal(
+            selectedIconName = selectedIconName,
+            onIconSelected = { newIcon ->
+                selectedIconName = newIcon
+                showIconPickerModal = false
+            },
+            onDismiss = { showIconPickerModal = false }
         )
     }
 }

@@ -78,6 +78,7 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.LocalSetTimelineActive
+import com.example.ui.components.TimelineSortButton
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -331,6 +332,13 @@ fun ItemsTimelineScreen(
                             tint = if (isSearchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    // Sort Button with Dropdown
+                    TimelineSortButton(
+                        selectedSortOrder = selectedSortOrder,
+                        onSortOrderSelected = { selectedSortOrder = it },
+                        languageMode = languageMode
+                    )
 
                     // Export Menu Button
                     ExportMenuButton(

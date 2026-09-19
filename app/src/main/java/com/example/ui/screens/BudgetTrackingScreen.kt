@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
@@ -8,6 +9,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -725,9 +727,17 @@ fun BudgetTrackingScreen(
                 }
             )
 
-            // 2. SCROLL-AWARE TOP FIXED CARD (Normal at page start, Mini when scrolling)
-            if (!isScrolled) {
-                // NORMAL TOP FIXED CARD (Full Summary + Dual Comparison Dates / Month picker + Progress)
+            // 2. SCROLL-AWARE TOP FIXED CARD (Smooth animated transition between normal and mini mode)
+            AnimatedContent(
+                targetState = isScrolled,
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(220)) + expandVertically(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)))
+                        .togetherWith(fadeOut(animationSpec = tween(180)) + shrinkVertically(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)))
+                },
+                label = "budget_top_card_transition"
+            ) { scrolled ->
+                if (!scrolled) {
+                    // NORMAL TOP FIXED CARD (Full Summary + Dual Comparison Dates / Month picker + Progress)
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     shape = RoundedCornerShape(14.dp),
@@ -1328,6 +1338,7 @@ fun BudgetTrackingScreen(
                     }
                 }
             }
+        }
 
             // Active Filters Bar
             ActiveBudgetFilterBar(
