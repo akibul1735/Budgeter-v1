@@ -1,12 +1,11 @@
 package com.example.ui.dialogs
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,7 +70,7 @@ fun QuickAllocateGoalDialog(
         mutableStateOf(if (currentAllocForSelected > 0) String.format(Locale.US, "%.0f", currentAllocForSelected) else "")
     }
 
-    var expandedDropdown by remember { mutableStateOf(false) }
+    var showAccountPickerDialog by remember { mutableStateOf(false) }
 
     val selectedAccountPair = allAvailableAccounts.firstOrNull { it.first.id == selectedAccountId }
     val selectedAccBalance = selectedAccountPair?.second ?: 0.0
@@ -100,23 +99,28 @@ fun QuickAllocateGoalDialog(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Icon(
                             Icons.Default.Savings,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = LanguageHelper.getString("quick_allocate", languageMode),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp
+                                fontSize = 17.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = LanguageHelper.getLocalizedName(goalWithDetails.goal.name, goalWithDetails.goal.nameBn, languageMode),
                                 fontSize = 12.5.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -125,70 +129,59 @@ fun QuickAllocateGoalDialog(
                     }
                 }
 
-                // Account Selection
-                ExposedDropdownMenuBox(
-                    expanded = expandedDropdown,
-                    onExpandedChange = { expandedDropdown = !expandedDropdown }
+                // Account Selection Button / Field (Opens Searchable Picker)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showAccountPickerDialog = true }
+                        .testTag("quick_allocate_account_picker_trigger")
                 ) {
-                    OutlinedTextField(
-                        value = selectedAccountPair?.first?.let {
-                            LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode)
-                        } ?: (if (languageMode == LanguageMode.BANGLA) "হিসাব নির্বাচন করুন" else "Select Account"),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(LanguageHelper.getString("select_account", languageMode)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDropdown) },
-                        leadingIcon = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Icon(
                                 imageVector = selectedAccountPair?.first?.let { IconHelper.getIconByName(it.iconName) } ?: Icons.Default.AccountBalance,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
                             )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = expandedDropdown,
-                        onDismissRequest = { expandedDropdown = false }
-                    ) {
-                        allAvailableAccounts.forEach { (acc, bal) ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = LanguageHelper.formatCurrency(bal, languageMode),
-                                            fontSize = 11.5.sp,
-                                            color = MaterialTheme.colorScheme.outline,
-                                            maxLines = 1
-                                        )
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(IconHelper.getIconByName(acc.iconName), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-                                },
-                                onClick = {
-                                    selectedAccountId = acc.id
-                                    expandedDropdown = false
-                                }
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = LanguageHelper.getString("select_account", languageMode),
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = selectedAccountPair?.first?.let {
+                                        LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode)
+                                    } ?: (if (languageMode == LanguageMode.BANGLA) "হিসাব নির্বাচন করুন" else "Select Account"),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Search account",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
 
@@ -298,5 +291,18 @@ fun QuickAllocateGoalDialog(
                 }
             }
         }
+    }
+
+    if (showAccountPickerDialog) {
+        SearchableAccountPickerDialog(
+            accountsWithBalances = allAvailableAccounts,
+            languageMode = languageMode,
+            title = if (languageMode == LanguageMode.BANGLA) "হিসাব খুঁজুন ও নির্বাচন করুন" else "Search & Select Account",
+            onAccountSelected = { acc, _ ->
+                selectedAccountId = acc.id
+                showAccountPickerDialog = false
+            },
+            onDismiss = { showAccountPickerDialog = false }
+        )
     }
 }

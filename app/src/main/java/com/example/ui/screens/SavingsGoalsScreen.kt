@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -83,6 +84,27 @@ fun SavingsGoalsScreen(
         goalsWithDetails.count { it.hasDeficit }
     }
 
+    val listState = rememberLazyListState()
+    var isFabVisible by remember { mutableStateOf(true) }
+    var previousIndex by remember { mutableIntStateOf(0) }
+    var previousScrollOffset by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+        val currentIndex = listState.firstVisibleItemIndex
+        val currentOffset = listState.firstVisibleItemScrollOffset
+
+        if (currentIndex > previousIndex || (currentIndex == previousIndex && currentOffset > previousScrollOffset + 12)) {
+            // Scrolling down -> hide FAB
+            isFabVisible = false
+        } else if (currentIndex < previousIndex || (currentIndex == previousIndex && currentOffset < previousScrollOffset - 12)) {
+            // Scrolling up -> show FAB
+            isFabVisible = true
+        }
+
+        previousIndex = currentIndex
+        previousScrollOffset = currentOffset
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -120,17 +142,24 @@ fun SavingsGoalsScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showAddGoalDialog = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(LanguageHelper.getString("add_savings_goal", languageMode), fontWeight = FontWeight.SemiBold) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.testTag("add_savings_goal_fab")
-            )
+            AnimatedVisibility(
+                visible = isFabVisible,
+                enter = slideInVertically(initialOffsetY = { it * 2 }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it * 2 }) + fadeOut()
+            ) {
+                ExtendedFloatingActionButton(
+                    onClick = { showAddGoalDialog = true },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text(LanguageHelper.getString("add_goal", languageMode), fontWeight = FontWeight.SemiBold) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("add_savings_goal_fab")
+                )
+            }
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)

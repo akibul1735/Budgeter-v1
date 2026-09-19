@@ -121,7 +121,7 @@ fun AddEditSavingsGoalDialog(
         list
     }
 
-    var showAccountSelectorDropdown by remember { mutableStateOf(false) }
+    var showAccountPickerDialog by remember { mutableStateOf(false) }
 
     val totalAllocatedCalculated = allocationsMap.values.sumOf { it.toDoubleOrNull() ?: 0.0 }
     val targetAmountVal = targetAmountStr.toDoubleOrNull() ?: 0.0
@@ -147,10 +147,10 @@ fun AddEditSavingsGoalDialog(
                                 text = if (isEditing) {
                                     LanguageHelper.getString("edit_savings_goal", languageMode)
                                 } else {
-                                    LanguageHelper.getString("add_savings_goal", languageMode)
+                                    LanguageHelper.getString("dialog_add_goal_title", languageMode)
                                 },
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 19.sp
+                                fontSize = 18.5.sp
                             )
                         },
                         navigationIcon = {
@@ -271,37 +271,47 @@ fun AddEditSavingsGoalDialog(
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Target Amount (56dp height & 1f weight)
                             OutlinedTextField(
                                 value = targetAmountStr,
                                 onValueChange = {
                                     targetAmountStr = it
                                     errorMessage = null
                                 },
-                                label = { Text(LanguageHelper.getString("target_amount", languageMode)) },
+                                label = {
+                                    Text(
+                                        text = LanguageHelper.getString("target_amount", languageMode),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        fontSize = 11.5.sp
+                                    )
+                                },
                                 placeholder = { Text("50000") },
                                 leadingIcon = {
                                     Text(
                                         LanguageHelper.activeCurrencyConfig.activeSymbol,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(start = 12.dp)
+                                        modifier = Modifier.padding(start = 10.dp)
                                     )
                                 },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
                                 modifier = Modifier
-                                    .weight(1.2f)
+                                    .weight(1f)
+                                    .height(56.dp)
                                     .testTag("goal_target_amount_input"),
                                 shape = RoundedCornerShape(12.dp)
                             )
 
-                            // Target Date Picker Button
+                            // Target Date Picker Button (56dp height & 1f weight)
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
+                                color = MaterialTheme.colorScheme.surface,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(56.dp)
@@ -311,15 +321,20 @@ fun AddEditSavingsGoalDialog(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(horizontal = 12.dp),
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Column {
+                                    Column(
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
                                         Text(
                                             text = LanguageHelper.getString("target_date", languageMode),
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            fontSize = 10.5.sp,
+                                            color = MaterialTheme.colorScheme.outline,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = if (targetDateMillis > 0L) {
@@ -327,11 +342,14 @@ fun AddEditSavingsGoalDialog(
                                             } else {
                                                 if (languageMode == LanguageMode.BANGLA) "নির্ধারিত নয়" else "No deadline"
                                             },
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = if (targetDateMillis > 0L) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = if (targetDateMillis > 0L) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     if (targetDateMillis > 0L) {
                                         IconButton(
                                             onClick = { targetDateMillis = 0L },
@@ -340,7 +358,12 @@ fun AddEditSavingsGoalDialog(
                                             Icon(Icons.Default.Clear, contentDescription = "Clear date", modifier = Modifier.size(16.dp))
                                         }
                                     } else {
-                                        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Icon(
+                                            Icons.Default.CalendarToday,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
                                     }
                                 }
                             }
@@ -435,22 +458,26 @@ fun AddEditSavingsGoalDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = LanguageHelper.getString("linked_accounts", languageMode),
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 15.sp
+                                            fontSize = 14.5.sp
                                         )
                                         Text(
                                             text = if (languageMode == LanguageMode.BANGLA) {
-                                                "এক বা একাধিক হিসাব থেকে লক্ষ্যটিতে অর্থ বরাদ্দ করুন"
+                                                "হিসাব থেকে অর্থ বরাদ্দ করুন"
                                             } else {
-                                                "Assign savings portions from one or multiple accounts"
+                                                "Assign portions from accounts"
                                             },
-                                            fontSize = 11.5.sp,
-                                            color = MaterialTheme.colorScheme.outline
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.outline,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
 
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
@@ -462,13 +489,15 @@ fun AddEditSavingsGoalDialog(
                                     ) {
                                         Text(
                                             text = "${LanguageHelper.formatCurrency(totalAllocatedCalculated, languageMode)} / ${LanguageHelper.formatCurrency(targetAmountVal, languageMode)}",
-                                            fontSize = 11.5.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = if (totalAllocatedCalculated >= targetAmountVal && targetAmountVal > 0) {
                                                 MaterialTheme.colorScheme.primary
                                             } else {
                                                 MaterialTheme.colorScheme.onSecondaryContainer
                                             },
+                                            maxLines = 1,
+                                            softWrap = false,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
                                     }
@@ -645,91 +674,27 @@ fun AddEditSavingsGoalDialog(
                                         }
                                     }
 
-                                    // Account Selection Dropdown Button
+                                    // Account Selection Searchable Button
                                     if (unlinkedAccounts.isNotEmpty()) {
-                                        Box(modifier = Modifier.fillMaxWidth()) {
-                                            OutlinedButton(
-                                                onClick = { showAccountSelectorDropdown = true },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.outlinedButtonColors(
-                                                    contentColor = MaterialTheme.colorScheme.primary
-                                                )
-                                            ) {
-                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    text = if (linkedAccounts.isEmpty()) {
-                                                        if (languageMode == LanguageMode.BANGLA) "হিসাব নির্বাচন করে যুক্ত করুন" else "Select Account to Link"
-                                                    } else {
-                                                        if (languageMode == LanguageMode.BANGLA) "+ আরও হিসাব যুক্ত করুন" else "+ Link Another Account"
-                                                    },
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    fontSize = 13.sp
-                                                )
-                                            }
-
-                                            DropdownMenu(
-                                                expanded = showAccountSelectorDropdown,
-                                                onDismissRequest = { showAccountSelectorDropdown = false },
-                                                modifier = Modifier.fillMaxWidth(0.85f)
-                                            ) {
-                                                Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA) "বিদ্যমান হিসাবসমূহ" else "Existing Accounts",
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.outline,
-                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                                                )
-                                                HorizontalDivider()
-
-                                                unlinkedAccounts.forEach { (acc, bal) ->
-                                                    DropdownMenuItem(
-                                                        text = {
-                                                            Row(
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                                verticalAlignment = Alignment.CenterVertically
-                                                            ) {
-                                                                Column(modifier = Modifier.weight(1f)) {
-                                                                    Text(
-                                                                        text = LanguageHelper.getLocalizedName(acc.nameEn, acc.nameBn, languageMode),
-                                                                        fontWeight = FontWeight.Medium,
-                                                                        fontSize = 13.5.sp,
-                                                                        maxLines = 1,
-                                                                        overflow = TextOverflow.Ellipsis
-                                                                    )
-                                                                    Text(
-                                                                        text = "${acc.type.name} • ${if (languageMode == LanguageMode.BANGLA) "ব্যালেন্স:" else "Bal:"} ${LanguageHelper.formatCurrency(bal, languageMode)}",
-                                                                        fontSize = 11.sp,
-                                                                        color = MaterialTheme.colorScheme.outline,
-                                                                        maxLines = 1,
-                                                                        overflow = TextOverflow.Ellipsis
-                                                                    )
-                                                                }
-                                                            }
-                                                        },
-                                                        leadingIcon = {
-                                                            Icon(
-                                                                imageVector = IconHelper.getIconByName(acc.iconName),
-                                                                contentDescription = null,
-                                                                tint = MaterialTheme.colorScheme.primary,
-                                                                modifier = Modifier.size(20.dp)
-                                                            )
-                                                        },
-                                                        onClick = {
-                                                            showAccountSelectorDropdown = false
-                                                            // Auto calculate suggested allocation from remaining target
-                                                            val remainingTarget = maxOf(0.0, targetAmountVal - totalAllocatedCalculated)
-                                                            val suggestedAmt = if (remainingTarget > 0) {
-                                                                if (bal > 0) minOf(remainingTarget, bal) else remainingTarget
-                                                            } else 0.0
-
-                                                            allocationsMap[acc.id] = if (suggestedAmt > 0) String.format(Locale.US, "%.0f", suggestedAmt) else ""
-                                                        }
-                                                    )
-                                                }
-                                            }
+                                        OutlinedButton(
+                                            onClick = { showAccountPickerDialog = true },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = MaterialTheme.colorScheme.primary
+                                            )
+                                        ) {
+                                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = if (linkedAccounts.isEmpty()) {
+                                                    if (languageMode == LanguageMode.BANGLA) "হিসাব খুঁজুন ও যুক্ত করুন" else "Search & Link Account"
+                                                } else {
+                                                    if (languageMode == LanguageMode.BANGLA) "+ আরও হিসাব খুঁজুন ও যুক্ত করুন" else "+ Search & Link Another Account"
+                                                },
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp
+                                            )
                                         }
                                     } else if (allAvailableAccounts.isNotEmpty()) {
                                         Text(
@@ -790,5 +755,24 @@ fun AddEditSavingsGoalDialog(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (showAccountPickerDialog) {
+        val unlinkedAccounts = allAvailableAccounts.filter { it.first.id !in allocationsMap.keys }
+        SearchableAccountPickerDialog(
+            accountsWithBalances = unlinkedAccounts,
+            languageMode = languageMode,
+            title = if (languageMode == LanguageMode.BANGLA) "হিসাব খুঁজুন ও নির্বাচন করুন" else "Search & Select Account",
+            onAccountSelected = { acc, bal ->
+                showAccountPickerDialog = false
+                val remainingTarget = maxOf(0.0, targetAmountVal - totalAllocatedCalculated)
+                val suggestedAmt = if (remainingTarget > 0) {
+                    if (bal > 0) minOf(remainingTarget, bal) else remainingTarget
+                } else 0.0
+
+                allocationsMap[acc.id] = if (suggestedAmt > 0) String.format(Locale.US, "%.0f", suggestedAmt) else ""
+            },
+            onDismiss = { showAccountPickerDialog = false }
+        )
     }
 }
