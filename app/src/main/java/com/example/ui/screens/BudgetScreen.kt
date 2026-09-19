@@ -28,9 +28,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -110,9 +113,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -349,12 +354,22 @@ fun BudgetScreen(
     var searchQuery by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var showFilterDialog by remember { mutableStateOf(false) }
 
-    // Tab-specific filters for Budget Maker
+    // Tab-specific filters and sorting for Budget Maker (Independent per tab)
     var expenseFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
     var incomeFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
     var assetFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
     var liabilityFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
     var dashboardFilter by remember { mutableStateOf(BudgetMakerDashboardFilter()) }
+
+    var expenseSelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
+    var incomeSelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
+    var assetSelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
+    var liabilitySelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
+
+    var expenseSelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
+    var incomeSelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
+    var assetSelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
+    var liabilitySelectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
 
     val currentTabFilter = when (selectedTab) {
         1 -> expenseFilter
@@ -363,14 +378,31 @@ fun BudgetScreen(
         4 -> liabilityFilter
         else -> BudgetMakerTabFilter()
     }
-    val currentTabActiveCount = if (selectedTab == 0) dashboardFilter.activeCount else currentTabFilter.activeCount
-    val isCurrentTabFilterActive = if (selectedTab == 0) dashboardFilter.isActive else currentTabFilter.isActive
-
-    var selectedFilter by remember { mutableStateOf(BudgetFilterOption.ALL) }
-    var selectedSort by remember { mutableStateOf(BudgetSortOption.DEFAULT) }
+    val currentTabQuickFilterCount = when (selectedTab) {
+        1 -> expenseSelectedFilters.count { it != BudgetFilterOption.ALL }
+        2 -> incomeSelectedFilters.count { it != BudgetFilterOption.ALL }
+        3 -> assetSelectedFilters.count { it != BudgetFilterOption.ALL }
+        4 -> liabilitySelectedFilters.count { it != BudgetFilterOption.ALL }
+        else -> 0
+    }
+    val currentTabActiveCount = if (selectedTab == 0) dashboardFilter.activeCount else (currentTabFilter.activeCount + currentTabQuickFilterCount)
+    val isCurrentTabFilterActive = if (selectedTab == 0) dashboardFilter.isActive else (currentTabFilter.isActive || currentTabQuickFilterCount > 0)
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // Pager state for swipeable tab navigation
+    val pagerState = rememberPagerState(initialPage = selectedTab, pageCount = { 5 })
+    androidx.compose.runtime.LaunchedEffect(selectedTab) {
+        if (pagerState.currentPage != selectedTab) {
+            pagerState.animateScrollToPage(selectedTab)
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
+        if (selectedTab != pagerState.currentPage) {
+            selectedTab = pagerState.currentPage
+        }
+    }
 
     // Calculate month boundary timestamps
     val startOfMonthMs = remember(selectedYear, selectedMonth) {
@@ -972,30 +1004,64 @@ fun BudgetScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search category, account, or group...", fontSize = 13.sp) },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            },
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        )
+                                .height(40.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    singleLine = true,
+                                    textStyle = TextStyle(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Normal
+                                    ),
+                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                    decorationBox = { innerTextField ->
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি বা একাউন্ট খুঁজুন..." else "Search category, account, or group...",
+                                                color = MaterialTheme.colorScheme.outline,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                        innerTextField()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { searchQuery = "" },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Clear",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1015,201 +1081,217 @@ fun BudgetScreen(
                 }
             }
 
-            // Tab Content Views
-            when (selectedTab) {
-                0 -> {
-                    // TAB 0: BM DASHBOARD
-                    BudgetDashboardView(
-                        year = selectedYear,
-                        month = selectedMonth,
-                        languageMode = languageMode,
-                        totalExpenses = totalExpensesBudget,
-                        totalLiabilities = totalLiabilitiesBudget,
-                        totalOutflows = totalOutflowsBudget,
-                        totalIncomes = totalIncomesBudget,
-                        totalAssets = totalAssetsBudget,
-                        totalInflows = totalInflowsBudget,
-                        budgetedSurplus = budgetedSurplus,
-                        budgetedFormulaResult = budgetedFormulaResult,
-                        actualExpenses = totalExpensesActual,
-                        actualLiabilities = totalLiabilitiesActual,
-                        actualIncomes = totalIncomesActual,
-                        actualAssets = totalAssetsActual,
-                        actualSurplus = actualSurplus,
-                        onNavigateToTab = { tabIdx -> selectedTab = tabIdx }
-                    )
-                }
-                1 -> {
-                    // TAB 1: EXPENSES
-                    CategoriesBudgetEntryView(
-                        title = LanguageHelper.getString("expenses", languageMode),
-                        items = expenseItems,
-                        monthlyBudgets = monthlyBudgets,
-                        allTransactions = transactionsWithDetails,
-                        allAccounts = allAccounts,
-                        accountsWithBalances = accountsWithBalances,
-                        selectedYear = selectedYear,
-                        selectedMonth = selectedMonth,
-                        languageMode = languageMode,
-                        sectionColor = SolidExpense,
-                        isPeriodicFlow = true,
-                        globalFrequency = globalExpenseFrequency,
-                        onGlobalFrequencyChange = { globalExpenseFrequency = it },
-                        totalBudgetAmount = totalExpensesBudget,
-                        searchQuery = searchQuery,
-                        tabFilter = expenseFilter,
-                        selectedFilter = selectedFilter,
-                        onFilterChange = { selectedFilter = it },
-                        selectedSort = selectedSort,
-                        onSortChange = { selectedSort = it },
-                        onMonthClick = { showMonthYearPicker = true },
-                        onPrevMonth = { viewModel.prevBudgetMonth() },
-                        onNextMonth = { viewModel.nextBudgetMonth() },
-                        onCopyPrevious = {
-                            showCopyPreviousConfirmDialog = true
-                        },
-                        onItemClick = handleBudgetItemClick,
-                        onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
-                                itemType = item.itemType,
-                                itemId = item.id,
-                                amount = amount,
-                                isEnabled = enabled
-                            )
-                        },
-                        onSaveMultiple = { budgets ->
-                            viewModel.saveMultipleMonthlyBudgets(budgets)
-                        }
-                    )
-                }
-                2 -> {
-                    // TAB 2: INCOMES
-                    CategoriesBudgetEntryView(
-                        title = LanguageHelper.getString("incomes", languageMode),
-                        items = incomeItems,
-                        monthlyBudgets = monthlyBudgets,
-                        allTransactions = transactionsWithDetails,
-                        allAccounts = allAccounts,
-                        accountsWithBalances = accountsWithBalances,
-                        selectedYear = selectedYear,
-                        selectedMonth = selectedMonth,
-                        languageMode = languageMode,
-                        sectionColor = SolidIncome,
-                        isPeriodicFlow = true,
-                        globalFrequency = globalIncomeFrequency,
-                        onGlobalFrequencyChange = { globalIncomeFrequency = it },
-                        totalBudgetAmount = totalIncomesBudget,
-                        searchQuery = searchQuery,
-                        tabFilter = incomeFilter,
-                        selectedFilter = selectedFilter,
-                        onFilterChange = { selectedFilter = it },
-                        selectedSort = selectedSort,
-                        onSortChange = { selectedSort = it },
-                        onMonthClick = { showMonthYearPicker = true },
-                        onPrevMonth = { viewModel.prevBudgetMonth() },
-                        onNextMonth = { viewModel.nextBudgetMonth() },
-                        onCopyPrevious = {
-                            showCopyPreviousConfirmDialog = true
-                        },
-                        onItemClick = handleBudgetItemClick,
-                        onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
-                                itemType = item.itemType,
-                                itemId = item.id,
-                                amount = amount,
-                                isEnabled = enabled
-                            )
-                        },
-                        onSaveMultiple = { budgets ->
-                            viewModel.saveMultipleMonthlyBudgets(budgets)
-                        }
-                    )
-                }
-                3 -> {
-                    // TAB 3: ASSETS
-                    CategoriesBudgetEntryView(
-                        title = LanguageHelper.getString("assets", languageMode),
-                        items = assetItems,
-                        monthlyBudgets = monthlyBudgets,
-                        allTransactions = transactionsWithDetails,
-                        allAccounts = allAccounts,
-                        accountsWithBalances = accountsWithBalances,
-                        selectedYear = selectedYear,
-                        selectedMonth = selectedMonth,
-                        languageMode = languageMode,
-                        sectionColor = SolidPrimary,
-                        isPeriodicFlow = false,
-                        globalFrequency = BudgetFrequency.MONTHLY,
-                        onGlobalFrequencyChange = {},
-                        totalBudgetAmount = totalAssetsBudget,
-                        searchQuery = searchQuery,
-                        tabFilter = assetFilter,
-                        selectedFilter = selectedFilter,
-                        onFilterChange = { selectedFilter = it },
-                        selectedSort = selectedSort,
-                        onSortChange = { selectedSort = it },
-                        onMonthClick = { showMonthYearPicker = true },
-                        onPrevMonth = { viewModel.prevBudgetMonth() },
-                        onNextMonth = { viewModel.nextBudgetMonth() },
-                        onCopyPrevious = {
-                            showCopyPreviousConfirmDialog = true
-                        },
-                        onItemClick = handleBudgetItemClick,
-                        onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
-                                itemType = item.itemType,
-                                itemId = item.id,
-                                amount = amount,
-                                isEnabled = enabled
-                            )
-                        },
-                        onSaveMultiple = { budgets ->
-                            viewModel.saveMultipleMonthlyBudgets(budgets)
-                        }
-                    )
-                }
-                4 -> {
-                    // TAB 4: LIABILITIES
-                    CategoriesBudgetEntryView(
-                        title = LanguageHelper.getString("liabilities", languageMode),
-                        items = liabilityItems,
-                        monthlyBudgets = monthlyBudgets,
-                        allTransactions = transactionsWithDetails,
-                        allAccounts = allAccounts,
-                        accountsWithBalances = accountsWithBalances,
-                        selectedYear = selectedYear,
-                        selectedMonth = selectedMonth,
-                        languageMode = languageMode,
-                        sectionColor = AmberGold,
-                        isPeriodicFlow = false,
-                        globalFrequency = BudgetFrequency.MONTHLY,
-                        onGlobalFrequencyChange = {},
-                        totalBudgetAmount = totalLiabilitiesBudget,
-                        searchQuery = searchQuery,
-                        tabFilter = liabilityFilter,
-                        selectedFilter = selectedFilter,
-                        onFilterChange = { selectedFilter = it },
-                        selectedSort = selectedSort,
-                        onSortChange = { selectedSort = it },
-                        onMonthClick = { showMonthYearPicker = true },
-                        onPrevMonth = { viewModel.prevBudgetMonth() },
-                        onNextMonth = { viewModel.nextBudgetMonth() },
-                        onCopyPrevious = {
-                            showCopyPreviousConfirmDialog = true
-                        },
-                        onItemClick = handleBudgetItemClick,
-                        onSaveBudget = { item, amount, enabled ->
-                            viewModel.saveMonthlyBudget(
-                                itemType = item.itemType,
-                                itemId = item.id,
-                                amount = amount,
-                                isEnabled = enabled
-                            )
-                        },
-                        onSaveMultiple = { budgets ->
-                            viewModel.saveMultipleMonthlyBudgets(budgets)
-                        }
-                    )
+            // Tab Content Views with Swipeable HorizontalPager
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                beyondViewportPageCount = 1
+            ) { pageIndex ->
+                when (pageIndex) {
+                    0 -> {
+                        // TAB 0: BM DASHBOARD
+                        BudgetDashboardView(
+                            year = selectedYear,
+                            month = selectedMonth,
+                            languageMode = languageMode,
+                            totalExpenses = totalExpensesBudget,
+                            totalLiabilities = totalLiabilitiesBudget,
+                            totalOutflows = totalOutflowsBudget,
+                            totalIncomes = totalIncomesBudget,
+                            totalAssets = totalAssetsBudget,
+                            totalInflows = totalInflowsBudget,
+                            budgetedSurplus = budgetedSurplus,
+                            budgetedFormulaResult = budgetedFormulaResult,
+                            actualExpenses = totalExpensesActual,
+                            actualLiabilities = totalLiabilitiesActual,
+                            actualIncomes = totalIncomesActual,
+                            actualAssets = totalAssetsActual,
+                            actualSurplus = actualSurplus,
+                            onNavigateToTab = { tabIdx -> selectedTab = tabIdx }
+                        )
+                    }
+                    1 -> {
+                        // TAB 1: EXPENSES
+                        CategoriesBudgetEntryView(
+                            title = LanguageHelper.getString("expenses", languageMode),
+                            items = expenseItems,
+                            monthlyBudgets = monthlyBudgets,
+                            allTransactions = transactionsWithDetails,
+                            allAccounts = allAccounts,
+                            accountsWithBalances = accountsWithBalances,
+                            selectedYear = selectedYear,
+                            selectedMonth = selectedMonth,
+                            languageMode = languageMode,
+                            sectionColor = SolidExpense,
+                            isPeriodicFlow = true,
+                            globalFrequency = globalExpenseFrequency,
+                            onGlobalFrequencyChange = { globalExpenseFrequency = it },
+                            totalBudgetAmount = totalExpensesBudget,
+                            searchQuery = searchQuery,
+                            tabFilter = expenseFilter,
+                            selectedFilters = expenseSelectedFilters,
+                            onFilterToggle = { opt ->
+                                expenseSelectedFilters = toggleFilterOption(expenseSelectedFilters, opt)
+                            },
+                            selectedSort = expenseSelectedSort,
+                            onSortChange = { expenseSelectedSort = it },
+                            onMonthClick = { showMonthYearPicker = true },
+                            onPrevMonth = { viewModel.prevBudgetMonth() },
+                            onNextMonth = { viewModel.nextBudgetMonth() },
+                            onCopyPrevious = {
+                                showCopyPreviousConfirmDialog = true
+                            },
+                            onItemClick = handleBudgetItemClick,
+                            onSaveBudget = { item, amount, enabled ->
+                                viewModel.saveMonthlyBudget(
+                                    itemType = item.itemType,
+                                    itemId = item.id,
+                                    amount = amount,
+                                    isEnabled = enabled
+                                )
+                            },
+                            onSaveMultiple = { budgets ->
+                                viewModel.saveMultipleMonthlyBudgets(budgets)
+                            }
+                        )
+                    }
+                    2 -> {
+                        // TAB 2: INCOMES
+                        CategoriesBudgetEntryView(
+                            title = LanguageHelper.getString("incomes", languageMode),
+                            items = incomeItems,
+                            monthlyBudgets = monthlyBudgets,
+                            allTransactions = transactionsWithDetails,
+                            allAccounts = allAccounts,
+                            accountsWithBalances = accountsWithBalances,
+                            selectedYear = selectedYear,
+                            selectedMonth = selectedMonth,
+                            languageMode = languageMode,
+                            sectionColor = SolidIncome,
+                            isPeriodicFlow = true,
+                            globalFrequency = globalIncomeFrequency,
+                            onGlobalFrequencyChange = { globalIncomeFrequency = it },
+                            totalBudgetAmount = totalIncomesBudget,
+                            searchQuery = searchQuery,
+                            tabFilter = incomeFilter,
+                            selectedFilters = incomeSelectedFilters,
+                            onFilterToggle = { opt ->
+                                incomeSelectedFilters = toggleFilterOption(incomeSelectedFilters, opt)
+                            },
+                            selectedSort = incomeSelectedSort,
+                            onSortChange = { incomeSelectedSort = it },
+                            onMonthClick = { showMonthYearPicker = true },
+                            onPrevMonth = { viewModel.prevBudgetMonth() },
+                            onNextMonth = { viewModel.nextBudgetMonth() },
+                            onCopyPrevious = {
+                                showCopyPreviousConfirmDialog = true
+                            },
+                            onItemClick = handleBudgetItemClick,
+                            onSaveBudget = { item, amount, enabled ->
+                                viewModel.saveMonthlyBudget(
+                                    itemType = item.itemType,
+                                    itemId = item.id,
+                                    amount = amount,
+                                    isEnabled = enabled
+                                )
+                            },
+                            onSaveMultiple = { budgets ->
+                                viewModel.saveMultipleMonthlyBudgets(budgets)
+                            }
+                        )
+                    }
+                    3 -> {
+                        // TAB 3: ASSETS
+                        CategoriesBudgetEntryView(
+                            title = LanguageHelper.getString("assets", languageMode),
+                            items = assetItems,
+                            monthlyBudgets = monthlyBudgets,
+                            allTransactions = transactionsWithDetails,
+                            allAccounts = allAccounts,
+                            accountsWithBalances = accountsWithBalances,
+                            selectedYear = selectedYear,
+                            selectedMonth = selectedMonth,
+                            languageMode = languageMode,
+                            sectionColor = SolidPrimary,
+                            isPeriodicFlow = false,
+                            globalFrequency = BudgetFrequency.MONTHLY,
+                            onGlobalFrequencyChange = {},
+                            totalBudgetAmount = totalAssetsBudget,
+                            searchQuery = searchQuery,
+                            tabFilter = assetFilter,
+                            selectedFilters = assetSelectedFilters,
+                            onFilterToggle = { opt ->
+                                assetSelectedFilters = toggleFilterOption(assetSelectedFilters, opt)
+                            },
+                            selectedSort = assetSelectedSort,
+                            onSortChange = { assetSelectedSort = it },
+                            onMonthClick = { showMonthYearPicker = true },
+                            onPrevMonth = { viewModel.prevBudgetMonth() },
+                            onNextMonth = { viewModel.nextBudgetMonth() },
+                            onCopyPrevious = {
+                                showCopyPreviousConfirmDialog = true
+                            },
+                            onItemClick = handleBudgetItemClick,
+                            onSaveBudget = { item, amount, enabled ->
+                                viewModel.saveMonthlyBudget(
+                                    itemType = item.itemType,
+                                    itemId = item.id,
+                                    amount = amount,
+                                    isEnabled = enabled
+                                )
+                            },
+                            onSaveMultiple = { budgets ->
+                                viewModel.saveMultipleMonthlyBudgets(budgets)
+                            }
+                        )
+                    }
+                    4 -> {
+                        // TAB 4: LIABILITIES
+                        CategoriesBudgetEntryView(
+                            title = LanguageHelper.getString("liabilities", languageMode),
+                            items = liabilityItems,
+                            monthlyBudgets = monthlyBudgets,
+                            allTransactions = transactionsWithDetails,
+                            allAccounts = allAccounts,
+                            accountsWithBalances = accountsWithBalances,
+                            selectedYear = selectedYear,
+                            selectedMonth = selectedMonth,
+                            languageMode = languageMode,
+                            sectionColor = AmberGold,
+                            isPeriodicFlow = false,
+                            globalFrequency = BudgetFrequency.MONTHLY,
+                            onGlobalFrequencyChange = {},
+                            totalBudgetAmount = totalLiabilitiesBudget,
+                            searchQuery = searchQuery,
+                            tabFilter = liabilityFilter,
+                            selectedFilters = liabilitySelectedFilters,
+                            onFilterToggle = { opt ->
+                                liabilitySelectedFilters = toggleFilterOption(liabilitySelectedFilters, opt)
+                            },
+                            selectedSort = liabilitySelectedSort,
+                            onSortChange = { liabilitySelectedSort = it },
+                            onMonthClick = { showMonthYearPicker = true },
+                            onPrevMonth = { viewModel.prevBudgetMonth() },
+                            onNextMonth = { viewModel.nextBudgetMonth() },
+                            onCopyPrevious = {
+                                showCopyPreviousConfirmDialog = true
+                            },
+                            onItemClick = handleBudgetItemClick,
+                            onSaveBudget = { item, amount, enabled ->
+                                viewModel.saveMonthlyBudget(
+                                    itemType = item.itemType,
+                                    itemId = item.id,
+                                    amount = amount,
+                                    isEnabled = enabled
+                                )
+                            },
+                            onSaveMultiple = { budgets ->
+                                viewModel.saveMultipleMonthlyBudgets(budgets)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1689,6 +1771,23 @@ private fun CopyPasteBudgetDialog(
 }
 
 /**
+ * Helper to toggle a BudgetFilterOption in a set of active filters (Cumulative/AND logic).
+ */
+private fun toggleFilterOption(current: Set<BudgetFilterOption>, opt: BudgetFilterOption): Set<BudgetFilterOption> {
+    return if (opt == BudgetFilterOption.ALL) {
+        emptySet()
+    } else {
+        val updated = current.filter { it != BudgetFilterOption.ALL }.toMutableSet()
+        if (updated.contains(opt)) {
+            updated.remove(opt)
+        } else {
+            updated.add(opt)
+        }
+        updated
+    }
+}
+
+/**
  * Modern, Compact Categories & Budget Entry Screen View.
  * Matches user's screenshot layout:
  * - Group Header: ➤ Group Name [ Aggregate Total ]
@@ -1716,8 +1815,8 @@ private fun CategoriesBudgetEntryView(
     totalBudgetAmount: Double,
     searchQuery: String,
     tabFilter: BudgetMakerTabFilter = BudgetMakerTabFilter(),
-    selectedFilter: BudgetFilterOption,
-    onFilterChange: (BudgetFilterOption) -> Unit,
+    selectedFilters: Set<BudgetFilterOption> = emptySet(),
+    onFilterToggle: (BudgetFilterOption) -> Unit,
     selectedSort: BudgetSortOption,
     onSortChange: (BudgetSortOption) -> Unit,
     onMonthClick: () -> Unit,
@@ -1889,7 +1988,7 @@ private fun CategoriesBudgetEntryView(
     val sectionItemType = items.firstOrNull()?.itemType ?: "EXPENSE"
 
     // Apply Filter & Search
-    val filteredItems = remember(enhancedItems, searchQuery, selectedFilter, selectedSort, sectionItemType, tabFilter) {
+    val filteredItems = remember(enhancedItems, searchQuery, selectedFilters, selectedSort, sectionItemType, tabFilter) {
         var list = enhancedItems
 
         // 1. Search Query
@@ -1930,7 +2029,7 @@ private fun CategoriesBudgetEntryView(
             }
         }
 
-        // 4. Status and Condition filters
+        // 4. Status and Condition filters (cumulative AND logic)
         if (tabFilter.onlyWithBudgetOrTarget) {
             list = list.filter { it.currentBudget > 0.0 }
         }
@@ -1989,24 +2088,35 @@ private fun CategoriesBudgetEntryView(
             list = list.filter { it.currentBudget > 0.0 || it.actualSpent != 0.0 || it.txCount > 0 }
         }
 
-        // 5. Filter Category Selection
-        list = when (selectedFilter) {
-            BudgetFilterOption.ALL -> list
-            BudgetFilterOption.ONLY_REMAINING -> list.filter {
-                it.currentBudget > 0.0 && (it.currentBudget - it.actualSpent) > 0.0
+        // 5. Filter Category Selection (Cumulative/AND logic across multiple active chips)
+        if (selectedFilters.isNotEmpty() && !selectedFilters.contains(BudgetFilterOption.ALL)) {
+            if (BudgetFilterOption.ONLY_REMAINING in selectedFilters) {
+                list = list.filter {
+                    it.currentBudget > 0.0 && (it.currentBudget - it.actualSpent) > 0.0
+                }
             }
-            BudgetFilterOption.ONLY_GROUPS -> list
-            BudgetFilterOption.ONLY_CATEGORIES -> list
-            BudgetFilterOption.ACTIVE_3_MONTHS -> list.filter { it.is3MonthsActive }
-            BudgetFilterOption.FREQ_BUDGETED -> list.filter { it.isFrequentlyBudgeted }
-            BudgetFilterOption.FREQ_ACTIVE -> list.filter { it.isFrequentlyActive }
-            BudgetFilterOption.BUDGETED_ONLY -> list.filter { it.currentBudget > 0.0 }
-            BudgetFilterOption.ACTIVE_ONLY -> when (sectionItemType) {
-                "EXPENSE", "INCOME" -> list.filter { it.actualSpent > 0.0 }
-                "ASSET", "LIABILITY" -> list.filter { it.actualSpent != 0.0 || it.txCount > 0 }
-                else -> list.filter { it.actualSpent > 0.0 }
+            if (BudgetFilterOption.BUDGETED_ONLY in selectedFilters) {
+                list = list.filter { it.currentBudget > 0.0 }
             }
-            BudgetFilterOption.UNBUDGETED -> list.filter { it.currentBudget <= 0.0 }
+            if (BudgetFilterOption.UNBUDGETED in selectedFilters) {
+                list = list.filter { it.currentBudget <= 0.0 }
+            }
+            if (BudgetFilterOption.ACTIVE_ONLY in selectedFilters) {
+                list = when (sectionItemType) {
+                    "EXPENSE", "INCOME" -> list.filter { it.actualSpent > 0.0 }
+                    "ASSET", "LIABILITY" -> list.filter { it.actualSpent != 0.0 || it.txCount > 0 }
+                    else -> list.filter { it.actualSpent > 0.0 }
+                }
+            }
+            if (BudgetFilterOption.ACTIVE_3_MONTHS in selectedFilters) {
+                list = list.filter { it.is3MonthsActive }
+            }
+            if (BudgetFilterOption.FREQ_BUDGETED in selectedFilters) {
+                list = list.filter { it.isFrequentlyBudgeted }
+            }
+            if (BudgetFilterOption.FREQ_ACTIVE in selectedFilters) {
+                list = list.filter { it.isFrequentlyActive }
+            }
         }
 
         // 6. Sorting
@@ -2178,7 +2288,9 @@ private fun CategoriesBudgetEntryView(
                     ) {
                         BudgetFilterGroup.values().forEach { group ->
                             val optionsInGroup = BudgetFilterOption.values().filter { it.group == group }
-                            val hasSelectedInGroup = optionsInGroup.any { it == selectedFilter }
+                            val hasSelectedInGroup = optionsInGroup.any { opt ->
+                                if (opt == BudgetFilterOption.ALL) (selectedFilters.isEmpty() || BudgetFilterOption.ALL in selectedFilters) else opt in selectedFilters
+                            }
 
                             item(key = "group_header_${group.name}") {
                                 Surface(
@@ -2197,10 +2309,14 @@ private fun CategoriesBudgetEntryView(
                             }
 
                             items(optionsInGroup, key = { "filter_opt_${it.name}" }) { opt ->
-                                val isSelected = selectedFilter == opt
+                                val isSelected = if (opt == BudgetFilterOption.ALL) {
+                                    selectedFilters.isEmpty() || BudgetFilterOption.ALL in selectedFilters
+                                } else {
+                                    opt in selectedFilters
+                                }
                                 FilterChip(
                                     selected = isSelected,
-                                    onClick = { onFilterChange(opt) },
+                                    onClick = { onFilterToggle(opt) },
                                     label = {
                                         Text(
                                             text = opt.getTitle(sectionItemType, languageMode),
@@ -2323,7 +2439,7 @@ private fun CategoriesBudgetEntryView(
                     )
                     Button(
                         onClick = {
-                            onFilterChange(BudgetFilterOption.ALL)
+                            onFilterToggle(BudgetFilterOption.ALL)
                             onSortChange(BudgetSortOption.DEFAULT)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = sectionColor)
@@ -2341,7 +2457,7 @@ private fun CategoriesBudgetEntryView(
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (selectedFilter == BudgetFilterOption.ONLY_CATEGORIES) {
+                if (BudgetFilterOption.ONLY_CATEGORIES in selectedFilters) {
                     // Only Categories / Accounts view: flat list without group headers
                     items(filteredItems, key = { "flat_item_${it.item.id}" }) { enhancedItem ->
                         BudgetItemRow(
@@ -2468,7 +2584,7 @@ private fun CategoriesBudgetEntryView(
                         }
 
                         // Category Items (unless ONLY_GROUPS filter is selected)
-                        if (selectedFilter != BudgetFilterOption.ONLY_GROUPS) {
+                        if (BudgetFilterOption.ONLY_GROUPS !in selectedFilters) {
                             items(catEnhancedList, key = { "item_${it.item.id}" }) { enhancedItem ->
                                 BudgetItemRow(
                                     enhancedItem = enhancedItem,
