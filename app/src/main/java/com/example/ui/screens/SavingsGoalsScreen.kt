@@ -909,10 +909,10 @@ private fun SavingsGoalCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = LanguageHelper.formatCurrency(goalWithDetails.effectiveSaved, languageMode),
-                            fontSize = 16.sp,
+                            fontSize = 15.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (hasDeficit) MaterialTheme.colorScheme.error else accentColor,
                             maxLines = 1,
@@ -921,7 +921,7 @@ private fun SavingsGoalCard(
                         if (hasDeficit) {
                             Text(
                                 text = "${if (languageMode == LanguageMode.BANGLA) "বরাদ্দ ছিল:" else "Allocated:"} ${LanguageHelper.formatCurrency(goalWithDetails.totalAllocated, languageMode)}",
-                                fontSize = 10.5.sp,
+                                fontSize = 10.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -932,12 +932,11 @@ private fun SavingsGoalCard(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     Column(
-                        horizontalAlignment = Alignment.End,
-                        modifier = Modifier.weight(1f, fill = false)
+                        horizontalAlignment = Alignment.End
                     ) {
                         Text(
                             text = "${LanguageHelper.formatNumber(progress.toDouble(), languageMode, false)}%",
-                            fontSize = 14.5.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = accentColor,
                             maxLines = 1
@@ -946,8 +945,7 @@ private fun SavingsGoalCard(
                             text = "${if (languageMode == LanguageMode.BANGLA) "লক্ষ্য:" else "of"} ${LanguageHelper.formatCurrency(goal.targetAmount, languageMode)}",
                             fontSize = 10.5.sp,
                             color = MaterialTheme.colorScheme.outline,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 1
                         )
                     }
                 }
