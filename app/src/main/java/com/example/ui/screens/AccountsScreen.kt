@@ -139,6 +139,7 @@ fun AccountsScreen(
     accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
     languageMode: LanguageMode,
     allTransactions: List<TransactionWithDetails> = emptyList(),
+    initialHierarchyFilter: AccountViewHierarchyFilter = AccountViewHierarchyFilter.ALL,
     onOpenDrawer: () -> Unit = {},
     onAddAccountClick: (() -> Unit)? = null,
     onAddSubAccountClick: (Account) -> Unit,
@@ -154,7 +155,7 @@ fun AccountsScreen(
 ) {
     var isEditMode by remember { mutableStateOf(false) }
     var selectedTypeFilter by remember { mutableStateOf<AccountType?>(null) }
-    var hierarchyFilter by remember { mutableStateOf(AccountViewHierarchyFilter.ALL) }
+    var hierarchyFilter by remember(initialHierarchyFilter) { mutableStateOf(initialHierarchyFilter) }
     var sortFilter by remember { mutableStateOf(AccountSortFilter.DEFAULT) }
     var statusFilter by remember { mutableStateOf(AccountActiveStatusFilter.ALL) }
     var excludeZeroBalance by remember { mutableStateOf(false) }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,6 +32,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -43,9 +45,11 @@ import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -105,6 +109,8 @@ fun FinancialAssistantSheet(
     transactions: List<TransactionWithDetails>,
     overview: FinancialOverview,
     budgets: List<MonthlyBudget>,
+    accountCalcConfig: com.example.util.AccountCalcConfig = com.example.util.AccountCalcConfig(),
+    onNavigateAction: ((AssistantAction) -> Unit)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     if (!isOpen) return
@@ -113,15 +119,37 @@ fun FinancialAssistantSheet(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
+    val handleAction: (AssistantAction) -> Unit = { action ->
+        onDismiss()
+        onNavigateAction?.invoke(action)
+    }
+
     // Initial greeting message
     val initialWelcomeMessage = remember(languageMode) {
         val welcomeText = if (isBn) {
-            "👋 **আসসালামু আলাইকুম!** আমি আপনার অফলাইন পার্সোনাল ফাইন্যান্স সহকারী। আপনার কোনো আর্থিক ডাটা ডিভাইসের বাইরে পাঠানো হয় না।\n\nআপনি নির্দিষ্ট অ্যাকাউন্ট (যেমন RM Others, Rocket, Cash), বাজেট, চলতি মাসের খরচ, বা মোট সম্পদ সম্পর্কে প্রশ্ন করতে পারেন:"
+            "👋 **আসসালামু আলাইকুম!** আমি আপনার অফলাইন পার্সোনাল ফাইন্যান্স সহকারী। আপনার কোনো আর্থিক ডাটা ডিভাইসের বাইরে পাঠানো হয় না।\n\nআপনি নির্দিষ্ট অ্যাকাউন্ট (যেমন RM Others, Rocket, Cash), বাদ দেওয়া অ্যাকাউন্ট, বাজেট ও বাজেট মেকার (যেমন Hair Cut বাজেট), চলতি মাসের খরচ, বা মোট সম্পদ সম্পর্কে প্রশ্ন করতে পারেন:"
         } else {
-            "👋 **Hello!** I am your 100% private offline Financial Assistant. Your financial records stay strictly secure on your device.\n\nYou can ask about specific accounts (e.g. RM Others, Rocket, Cash), budget limits, recent activity, or net worth:"
+            "👋 **Hello!** I am your 100% private offline Financial Assistant. Your financial records stay strictly secure on your device.\n\nYou can ask about specific accounts (e.g. RM Others, Rocket, Cash), excluded accounts, category budgets & budget maker (e.g. Hair Cut budget), recent activity, or net worth:"
         }
 
         val initialChips = listOf(
+            AssistantChip(
+                label = if (isBn) "🛡️ বাদ দেওয়া অ্যাকাউন্ট" else "🛡️ Excluded Accounts",
+                actionQuery = "tell me about excluded accounts",
+                navigationAction = AssistantAction(
+                    label = if (isBn) "বাদ দেওয়া অ্যাকাউন্ট দেখুন" else "View Excluded Accounts",
+                    destination = "ACCOUNTS_EXCLUDED"
+                )
+            ),
+            AssistantChip(
+                label = if (isBn) "💇 চুল কাটার বাজেট" else "💇 Hair Cut Budget",
+                actionQuery = "hair cut budget",
+                navigationAction = AssistantAction(
+                    label = if (isBn) "বাজেট মেকারে যান" else "Open Budget Maker",
+                    destination = "BUDGET_MAKER",
+                    searchQuery = "Hair Cut"
+                )
+            ),
             AssistantChip(
                 label = if (isBn) "🎯 বাজেটের অবস্থা" else "🎯 Budget Status",
                 actionQuery = "Show my budget status"
@@ -177,7 +205,8 @@ fun FinancialAssistantSheet(
             allCategories = allCategories,
             transactions = transactions,
             overview = overview,
-            budgets = budgets
+            budgets = budgets,
+            accountCalcConfig = accountCalcConfig
         )
 
         messages.add(response)
@@ -328,7 +357,8 @@ fun FinancialAssistantSheet(
                         languageMode = languageMode,
                         onChipClicked = { chipQuery ->
                             sendMessage(chipQuery)
-                        }
+                        },
+                        onActionClicked = handleAction
                     )
                 }
 
@@ -339,14 +369,29 @@ fun FinancialAssistantSheet(
 
             // Quick Suggestion Chips Row above Input
             val quickPrompts = remember(languageMode) {
-                listOf(
-                    "🎯 Budget Status" to "Show my budget status",
-                    "🏦 RM Others" to "tell me about RM Others",
-                    "💰 Net Worth" to "What is my net worth",
-                    "👥 RM Debts" to "Tell me about RM Manager",
-                    "📊 Expenses" to "How much did I spend this month?",
-                    "💡 Savings Tips" to "Give me savings tips"
-                )
+                if (isBn) {
+                    listOf(
+                        "🛡️ বাদ দেওয়া একাউন্ট" to "tell me about excluded accounts",
+                        "💇 চুল কাটার বাজেট" to "hair cut budget",
+                        "🎯 বাজেটের অবস্থা" to "Show my budget status",
+                        "🏦 RM Others" to "tell me about RM Others",
+                        "💰 মোট সম্পদ" to "What is my net worth",
+                        "👥 আরএম দেনা পাওনা" to "Tell me about RM Manager",
+                        "📊 চলতি মাসের খরচ" to "How much did I spend this month?",
+                        "💡 সঞ্চয়ের টিপস" to "Give me savings tips"
+                    )
+                } else {
+                    listOf(
+                        "🛡️ Excluded Accounts" to "tell me about excluded accounts",
+                        "💇 Hair Cut Budget" to "hair cut budget",
+                        "🎯 Budget Status" to "Show my budget status",
+                        "🏦 RM Others" to "tell me about RM Others",
+                        "💰 Net Worth" to "What is my net worth",
+                        "👥 RM Debts" to "Tell me about RM Manager",
+                        "📊 Expenses" to "How much did I spend this month?",
+                        "💡 Savings Tips" to "Give me savings tips"
+                    )
+                }
             }
 
             Row(
@@ -442,7 +487,8 @@ fun FinancialAssistantSheet(
 private fun AssistantMessageItem(
     message: AssistantMessage,
     languageMode: LanguageMode,
-    onChipClicked: (String) -> Unit
+    onChipClicked: (String) -> Unit,
+    onActionClicked: (AssistantAction) -> Unit = {}
 ) {
     val isUser = message.isUser
 
@@ -494,6 +540,18 @@ private fun AssistantMessageItem(
                     )
                 }
 
+                // Excluded Accounts Card if present
+                if (message.excludedAccountsCard != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ExcludedAccountsCard(message.excludedAccountsCard, languageMode, onActionClicked)
+                }
+
+                // Category Budget Card if present (e.g. Hair Cut budget)
+                if (message.categoryBudgetCard != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    CategoryBudgetCard(message.categoryBudgetCard, languageMode, onActionClicked)
+                }
+
                 // Account Detail Card if present (e.g. RM Others, Rocket, Cash)
                 if (message.accountCard != null) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -518,6 +576,62 @@ private fun AssistantMessageItem(
                     TransactionSnippetList(message.transactionList, languageMode)
                 }
 
+                // Direct Navigation Action Buttons (Tap to go to data page)
+                if (message.primaryAction != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FilledTonalButton(
+                        onClick = { onActionClicked(message.primaryAction) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = message.primaryAction.label,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                if (message.secondaryActions.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        message.secondaryActions.forEach { action ->
+                            AssistChip(
+                                onClick = { onActionClicked(action) },
+                                label = {
+                                    Text(
+                                        text = action.label,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Interactive Quick Clarification / Action Chips
                 if (message.interactiveChips.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -527,7 +641,13 @@ private fun AssistantMessageItem(
                     ) {
                         message.interactiveChips.forEach { chip ->
                             AssistChip(
-                                onClick = { onChipClicked(chip.actionQuery) },
+                                onClick = {
+                                    if (chip.navigationAction != null) {
+                                        onActionClicked(chip.navigationAction)
+                                    } else {
+                                        onChipClicked(chip.actionQuery)
+                                    }
+                                },
                                 label = {
                                     Text(
                                         text = chip.label,
@@ -537,7 +657,7 @@ private fun AssistantMessageItem(
                                 },
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
+                                        imageVector = if (chip.navigationAction != null) Icons.AutoMirrored.Filled.ArrowForward else Icons.Default.AutoAwesome,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(13.dp)
@@ -557,6 +677,357 @@ private fun AssistantMessageItem(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryBudgetCard(
+    card: AssistantCategoryBudgetCard,
+    languageMode: LanguageMode,
+    onActionClicked: (AssistantAction) -> Unit
+) {
+    val isBn = languageMode == LanguageMode.BANGLA
+    val progress = (card.percentage / 100.0).coerceIn(0.0, 1.0).toFloat()
+    val progressColor = when {
+        card.isOverBudget -> Color(0xFFDC2626)
+        card.percentage >= 85.0 -> Color(0xFFEAB308)
+        else -> Color(0xFF16A34A)
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PieChart,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = card.categoryName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBn) "ক্যাটাগরি বাজেট স্থিতি" else "Category Budget Insight",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (card.isOverBudget) Color(0xFFFEE2E2) else Color(0xFFDCFCE7)
+                ) {
+                    Text(
+                        text = if (card.isOverBudget) {
+                            if (isBn) "বাজেট অতিক্রান্ত" else "Over Budget"
+                        } else {
+                            if (isBn) "বাজেটের মধ্যে" else "On Track"
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (card.isOverBudget) Color(0xFFDC2626) else Color(0xFF16A34A),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            // Limit vs Spent
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = if (isBn) "নির্ধারিত বাজেট" else "Budget Limit",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = LanguageHelper.formatCurrency(card.budgetLimit, languageMode),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = if (isBn) "মোট খরচ" else "Total Spent",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = LanguageHelper.formatCurrency(card.spentAmount, languageMode),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = progressColor
+                    )
+                }
+            }
+
+            // Progress bar
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = progressColor,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+
+            // Remaining & % Used
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${if (isBn) "ব্যয়" else "Used"}: ${String.format(java.util.Locale.US, "%.1f", card.percentage)}%",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${if (isBn) "অবশিষ্ট" else "Remaining"}: ${LanguageHelper.formatCurrency(card.remainingAmount, languageMode)}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (card.remainingAmount < 0) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Quick deep-link button to open Budget Maker directly
+            FilledTonalButton(
+                onClick = {
+                    onActionClicked(
+                        AssistantAction(
+                            label = if (isBn) "${card.categoryName} বাজেট মেকার খুলুন" else "Open Budget Maker (${card.categoryName})",
+                            destination = "BUDGET_MAKER",
+                            searchQuery = card.categoryName
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isBn) "বাজেট মেকারে দেখুন ও পরিবর্তন করুন" else "View & Edit in Budget Maker",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExcludedAccountsCard(
+    card: AssistantExcludedAccountsCard,
+    languageMode: LanguageMode,
+    onActionClicked: (AssistantAction) -> Unit
+) {
+    val isBn = languageMode == LanguageMode.BANGLA
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = if (isBn) "বাদ দেওয়া অ্যাকাউন্টসমূহ" else "Excluded Accounts",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBn) "${card.totalExcludedCount}টি অ্যাকাউন্ট বাদ দেওয়া হয়েছে" else "${card.totalExcludedCount} accounts excluded from net worth",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                ) {
+                    Text(
+                        text = if (isBn) "মোট ${card.totalExcludedCount}" else "${card.totalExcludedCount} Total",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            // Total Excluded Balance
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isBn) "বাদ দেওয়া অ্যাকাউন্টের মোট ব্যালেন্স" else "Total Excluded Balance",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = LanguageHelper.formatCurrency(card.totalExcludedBalance, languageMode),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Excluded account items preview
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                card.items.take(4).forEach { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = item.accountName,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = LanguageHelper.formatCurrency(item.balance, languageMode),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (card.items.size > 4) {
+                    Text(
+                        text = if (isBn) "+ আরও ${card.items.size - 4}টি অ্যাকাউন্ট..." else "+ ${card.items.size - 4} more accounts...",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
+
+            // Quick button to open Excluded Accounts screen
+            FilledTonalButton(
+                onClick = {
+                    onActionClicked(
+                        AssistantAction(
+                            label = if (isBn) "বাদ দেওয়া অ্যাকাউন্টের পাতায় যান" else "Open Excluded Accounts Screen",
+                            destination = "ACCOUNTS_EXCLUDED"
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isBn) "অ্যাকাউন্ট পাতায় বাদ দেওয়া তালিকা দেখুন" else "View Excluded Accounts List",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }

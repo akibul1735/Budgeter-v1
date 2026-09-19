@@ -322,6 +322,7 @@ fun BudgetScreen(
     selectedMonth: Int,
     languageMode: LanguageMode,
     initialTab: Int = 1, // Default to Expenses or initialTab
+    initialSearchQuery: String = "",
     onOpenDrawer: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     onEditTransaction: (Transaction) -> Unit,
@@ -330,7 +331,7 @@ fun BudgetScreen(
     onAccountClick: ((Account) -> Unit)? = null
 ) {
     // Top Tabs: 0 -> BM Dashboard, 1 -> Expenses, 2 -> Incomes, 3 -> Assets, 4 -> Liabilities
-    var selectedTab by remember { mutableIntStateOf(initialTab) }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
     var tabsAtTop by remember { mutableStateOf(true) }
     var showTabSettingsMenu by remember { mutableStateOf(false) }
     var showCopyPreviousConfirmDialog by remember { mutableStateOf(false) }
@@ -343,8 +344,8 @@ fun BudgetScreen(
     var showQuickActionSheet by remember { mutableStateOf(false) }
 
     // Search and Filter State
-    var isSearchActive by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    var isSearchActive by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery.isNotBlank()) }
+    var searchQuery by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var filterState by remember { mutableStateOf(BudgetFilterState()) }
     var selectedFilter by remember { mutableStateOf(BudgetFilterOption.ALL) }

@@ -9,11 +9,54 @@ import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.FinancialOverview
+import com.example.util.AccountCalcConfig
 import com.example.util.DateUtils
 import com.example.util.LanguageHelper
 import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
+
+/**
+ * Action triggered by assistant card or chip to navigate to a specific page or filter in Budgeter.
+ */
+data class AssistantAction(
+    val label: String,
+    val destination: String,
+    val accountId: Long? = null,
+    val categoryId: Long? = null,
+    val searchQuery: String? = null,
+    val iconName: String? = null
+)
+
+/**
+ * Visual card displaying status, spending, and limit for a specific category like Hair Cut, Food, etc.
+ */
+data class AssistantCategoryBudgetCard(
+    val categoryName: String,
+    val categoryType: String,
+    val budgetLimit: Double,
+    val spentAmount: Double,
+    val remainingAmount: Double,
+    val percentage: Double,
+    val isOverBudget: Boolean,
+    val hasBudget: Boolean
+)
+
+/**
+ * Visual card displaying excluded accounts summary and details.
+ */
+data class AssistantExcludedAccountsCard(
+    val totalExcludedCount: Int,
+    val totalExcludedBalance: Double,
+    val items: List<AssistantExcludedItem> = emptyList()
+)
+
+data class AssistantExcludedItem(
+    val accountName: String,
+    val accountType: String,
+    val balance: Double,
+    val reason: String
+)
 
 /**
  * Chat message model for Budgeter Assistant.
@@ -27,12 +70,17 @@ data class AssistantMessage(
     val transactionList: List<TransactionWithDetails> = emptyList(),
     val metricsSummary: AssistantMetrics? = null,
     val accountCard: AssistantAccountCard? = null,
-    val budgetCard: AssistantBudgetCard? = null
+    val budgetCard: AssistantBudgetCard? = null,
+    val categoryBudgetCard: AssistantCategoryBudgetCard? = null,
+    val excludedAccountsCard: AssistantExcludedAccountsCard? = null,
+    val primaryAction: AssistantAction? = null,
+    val secondaryActions: List<AssistantAction> = emptyList()
 )
 
 data class AssistantChip(
     val label: String,
-    val actionQuery: String,
+    val actionQuery: String = "",
+    val navigationAction: AssistantAction? = null,
     val iconName: String? = null
 )
 
@@ -84,7 +132,8 @@ object FinancialAssistantEngine {
         allCategories: List<Category>,
         transactions: List<TransactionWithDetails>,
         overview: FinancialOverview,
-        budgets: List<MonthlyBudget>
+        budgets: List<MonthlyBudget>,
+        accountCalcConfig: AccountCalcConfig = AccountCalcConfig()
     ): AssistantMessage {
         val cleanQuery = query
             .replace("\"", "")
@@ -95,7 +144,37 @@ object FinancialAssistantEngine {
         val lower = cleanQuery.lowercase(Locale.ROOT)
         val isBn = languageMode == LanguageMode.BANGLA
 
-        // 1. First priority: check if query specifies an actual Account (e.g. "RM Others", "Rocket", "Cash", etc.)
+        // 0. Direct navigation intents (e.g. "go to budget maker", "open excluded accounts", etc.)
+        val directNav = detectDirectNavigation(lower, isBn)
+        if (directNav != null) {
+            return directNav
+        }
+
+        // 1. Excluded accounts query (e.g. "excluded account", "which accounts are excluded", "বাদ দেওয়া একাউন্ট", etc.)
+        if (isExcludedAccountsQuery(lower)) {
+            return handleExcludedAccountsQuery(
+                allAccounts = allAccounts,
+                accountsWithBalances = accountsWithBalances,
+                accountCalcConfig = accountCalcConfig,
+                isBn = isBn,
+                languageMode = languageMode
+            )
+        }
+
+        // 2. Specific Category Budget query (e.g. "hair cut budget", "food budget", "wifi budget", "shopping budget")
+        if (isCategoryBudgetQuery(cleanQuery, allCategories)) {
+            return handleCategoryBudgetQuery(
+                query = cleanQuery,
+                lower = lower,
+                categories = allCategories,
+                budgets = budgets,
+                transactions = transactions,
+                isBn = isBn,
+                languageMode = languageMode
+            )
+        }
+
+        // 3. First priority: check if query specifies an actual Account (e.g. "RM Others", "Rocket", "Cash", etc.)
         val matchedAccount = findMatchingAccount(lower, allAccounts)
         if (matchedAccount != null) {
             val specifiedDays = extractDays(lower)
@@ -109,7 +188,7 @@ object FinancialAssistantEngine {
             )
         }
 
-        // 2. Interactive clarification when query mentions generic accounts without specifying which one
+        // 4. Interactive clarification when query mentions generic accounts without specifying which one
         if (isGenericAccountQuery(lower)) {
             val days = extractDays(lower) ?: 7
             val periodLabel = if (days == 7) {
@@ -150,13 +229,13 @@ object FinancialAssistantEngine {
             )
         }
 
-        // 3. Query for "all accounts in past X days / period"
+        // 5. Query for "all accounts in past X days / period"
         if (lower.contains("all accounts") || (lower.contains("all") && lower.contains("account"))) {
             val days = extractDays(lower) ?: 7
             return handleAllAccountsPeriodTransactions(days, transactions, allAccounts, isBn, languageMode)
         }
 
-        // 4. RM Manager / Debt / Loan / Liability summary
+        // 6. RM Manager / Debt / Loan / Liability summary
         if (lower.contains("rm manager") || lower.contains("who owes me") || lower.contains("who do i owe") ||
             lower.contains("debt summary") || lower.contains("দেনা পাওনা") || lower.contains("কার কাছে কত পাবো") ||
             lower.contains("ঋণ কত") || lower.contains("ধার কত") || lower.contains("rm summary")
@@ -164,7 +243,7 @@ object FinancialAssistantEngine {
             return handleRmSummaryQuery(allAccounts, accountsWithBalances, transactions, isBn, languageMode)
         }
 
-        // 5. Personal Finance Advice & Savings Tips (50/30/20 rule, Emergency fund)
+        // 7. Personal Finance Advice & Savings Tips (50/30/20 rule, Emergency fund)
         if (lower.contains("saving tip") || lower.contains("save money") || lower.contains("50 30 20") ||
             lower.contains("50/30/20") || lower.contains("emergency fund") || lower.contains("সঞ্চয়") ||
             lower.contains("টাকা জমানো") || lower.contains("খরচ কমানো") || lower.contains("পরামর্শ")
@@ -172,7 +251,7 @@ object FinancialAssistantEngine {
             return handleFinancialAdviceQuery(overview, lower, isBn, languageMode)
         }
 
-        // 6. Net Worth & Balance queries
+        // 8. Net Worth & Balance queries
         if (lower.contains("net worth") || lower.contains("networth") || lower.contains("সম্পদ") ||
             lower.contains("total balance") || lower.contains("ব্যালেন্স") || lower.contains("balance") ||
             lower.contains("how much money") || lower.contains("টাকা আছে")
@@ -180,45 +259,45 @@ object FinancialAssistantEngine {
             return handleNetWorthQuery(overview, accountsWithBalances, isBn, languageMode)
         }
 
-        // 7. Monthly Expenses / Spending / Cash Flow
+        // 9. Monthly Expenses / Spending / Cash Flow
         if (lower.contains("spend this month") || lower.contains("monthly expense") || lower.contains("monthly spending") ||
             lower.contains("মাসিক খরচ") || lower.contains("এই মাসের খরচ") || lower.contains("cash flow") || lower.contains("ক্যাশ ফ্লো")
         ) {
             return handleMonthlySpendingQuery(transactions, isBn, languageMode)
         }
 
-        // 8. Top Expenses / Categories
+        // 10. Top Expenses / Categories
         if (lower.contains("top expense") || lower.contains("top spending") || lower.contains("top category") ||
             lower.contains("সর্বোচ্চ খরচ") || lower.contains("কোথায় খরচ") || lower.contains("where did my money go")
         ) {
             return handleTopExpensesQuery(transactions, allCategories, isBn, languageMode)
         }
 
-        // 9. Budget Status & Limits
+        // 11. Budget Status & Limits
         if (lower.contains("budget") || lower.contains("বাজেট") || lower.contains("over budget") || lower.contains("limit")) {
             return handleBudgetStatusQuery(budgets, transactions, allCategories, isBn, languageMode)
         }
 
-        // 10. Specific Category Query (e.g., "Food", "Shopping", "Transport", "Bills")
+        // 12. Specific Category Query (e.g., "Food", "Shopping", "Transport", "Bills")
         val matchedCategory = findMatchingCategory(lower, allCategories)
         if (matchedCategory != null) {
             val days = extractDays(lower) ?: 30
             return handleCategorySpendingQuery(matchedCategory, days, transactions, isBn, languageMode)
         }
 
-        // 11. Recent transactions query
+        // 13. Recent transactions query
         if (lower.contains("recent") || lower.contains("last transaction") || lower.contains("সাম্প্রতিক লেনদেন") || lower.contains("latest")) {
             return handleRecentTransactionsQuery(transactions, isBn, languageMode)
         }
 
-        // 12. App Features Guide
+        // 14. App Features Guide
         if (lower.contains("how to backup") || lower.contains("how to restore") || lower.contains("কীভাবে ব্যাকআপ") ||
             lower.contains("how to use rm") || lower.contains("how to add budget")
         ) {
             return handleAppGuideQuery(lower, isBn, languageMode)
         }
 
-        // 13. Default / Fallback with smart suggestions
+        // 15. Default / Fallback with smart suggestions
         val fallbackText = if (isBn) {
             "আমি আপনার অন-ডিভাইস অফলাইন ফাইন্যান্সিয়াল সহকারী। আপনি নির্দিষ্ট অ্যাকাউন্ট (যেমন RM Others, Rocket, Cash), বাজেট, খরচ, সঞ্চয় বা সম্পদ সম্পর্কে প্রশ্ন করতে পারেন। নিচে কয়েকটি উদাহরণ দেখুন:"
         } else {
@@ -227,11 +306,19 @@ object FinancialAssistantEngine {
 
         val defaultChips = listOf(
             AssistantChip(
+                label = if (isBn) "🛡️ বাদ দেওয়া অ্যাকাউন্ট" else "🛡️ Excluded Accounts",
+                actionQuery = "show excluded accounts"
+            ),
+            AssistantChip(
+                label = if (isBn) "💇 চুল কাটার বাজেট" else "💇 Hair Cut Budget",
+                actionQuery = "hair cut budget"
+            ),
+            AssistantChip(
                 label = if (isBn) "🎯 বাজেটের অবস্থা" else "🎯 Budget Status",
                 actionQuery = "Show my budget status"
             ),
             AssistantChip(
-                label = if (isBn) "🏦 RM Others অ্যাকাউন্ট" else "🏦 RM Others Account",
+                label = if (isBn) "🏦 RM Others একাউন্ট" else "🏦 RM Others Account",
                 actionQuery = "tell me about RM Others"
             ),
             AssistantChip(
@@ -241,14 +328,6 @@ object FinancialAssistantEngine {
             AssistantChip(
                 label = if (isBn) "👥 আরএম ঋণ ও দেনা-পাওনা" else "👥 RM Debts & Loans",
                 actionQuery = "Tell me about RM Manager"
-            ),
-            AssistantChip(
-                label = if (isBn) "📊 চলতি মাসের খরচ" else "📊 This Month Expenses",
-                actionQuery = "How much did I spend this month?"
-            ),
-            AssistantChip(
-                label = if (isBn) "💡 সঞ্চয়ের পরামর্শ (৫০/৩০/২০)" else "💡 Savings Tips (50/30/20)",
-                actionQuery = "Give me savings tips"
             )
         )
 
@@ -439,7 +518,18 @@ object FinancialAssistantEngine {
                 isUser = false,
                 interactiveChips = chips,
                 transactionList = allAccountTxs.take(6),
-                accountCard = accountCard
+                accountCard = accountCard,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "$accName বিস্তারিত দেখুন" else "View $accName Details",
+                    destination = "ACCOUNT_DETAIL",
+                    accountId = account.id
+                ),
+                secondaryActions = listOf(
+                    AssistantAction(
+                        label = if (isBn) "সকল অ্যাকাউন্ট" else "Go to Accounts",
+                        destination = "ACCOUNTS"
+                    )
+                )
             )
         }
 
@@ -472,7 +562,18 @@ object FinancialAssistantEngine {
                 isUser = false,
                 transactionList = allAccountTxs.take(4),
                 accountCard = accountCard,
-                interactiveChips = chips
+                interactiveChips = chips,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "$accName বিস্তারিত দেখুন" else "View $accName Details",
+                    destination = "ACCOUNT_DETAIL",
+                    accountId = account.id
+                ),
+                secondaryActions = listOf(
+                    AssistantAction(
+                        label = if (isBn) "সকল অ্যাকাউন্ট" else "Go to Accounts",
+                        destination = "ACCOUNTS"
+                    )
+                )
             )
         }
 
@@ -510,7 +611,18 @@ object FinancialAssistantEngine {
             isUser = false,
             transactionList = filteredTxs,
             metricsSummary = metrics,
-            accountCard = accountCard
+            accountCard = accountCard,
+            primaryAction = AssistantAction(
+                label = if (isBn) "$accName বিস্তারিত দেখুন" else "View $accName Details",
+                destination = "ACCOUNT_DETAIL",
+                accountId = account.id
+            ),
+            secondaryActions = listOf(
+                AssistantAction(
+                    label = if (isBn) "সকল অ্যাকাউন্ট" else "Go to Accounts",
+                    destination = "ACCOUNTS"
+                )
+            )
         )
     }
 
@@ -624,6 +736,16 @@ object FinancialAssistantEngine {
         return AssistantMessage(
             text = sb.toString().trim(),
             isUser = false,
+            primaryAction = AssistantAction(
+                label = if (isBn) "আরএম ম্যানেজার খুলুন" else "Open RM Manager",
+                destination = "RM_MANAGER"
+            ),
+            secondaryActions = listOf(
+                AssistantAction(
+                    label = if (isBn) "বাদ দেওয়া অ্যাকাউন্ট" else "Excluded Accounts",
+                    destination = "ACCOUNTS_EXCLUDED"
+                )
+            ),
             interactiveChips = chips
         )
     }
@@ -1019,7 +1141,31 @@ object FinancialAssistantEngine {
         return AssistantMessage(
             text = sb.toString().trim(),
             isUser = false,
-            budgetCard = budgetCard
+            budgetCard = budgetCard,
+            primaryAction = AssistantAction(
+                label = if (isBn) "বাজেট মেকার খুলুন" else "Open Budget Maker",
+                destination = "BUDGET_MAKER"
+            ),
+            secondaryActions = listOf(
+                AssistantAction(
+                    label = if (isBn) "বাজেট ট্র্যাকিং" else "Budget Tracking",
+                    destination = "BUDGET"
+                )
+            ),
+            interactiveChips = listOf(
+                AssistantChip(
+                    label = if (isBn) "বাজেট মেকার" else "Budget Maker",
+                    actionQuery = "go to budget maker",
+                    navigationAction = AssistantAction(
+                        label = if (isBn) "বাজেট মেকার" else "Budget Maker",
+                        destination = "BUDGET_MAKER"
+                    )
+                ),
+                AssistantChip(
+                    label = if (isBn) "💇 চুল কাটার বাজেট" else "💇 Hair Cut Budget",
+                    actionQuery = "hair cut budget"
+                )
+            )
         )
     }
 
@@ -1095,5 +1241,567 @@ object FinancialAssistantEngine {
             isUser = false,
             transactionList = recent
         )
+    }
+
+    private fun detectDirectNavigation(lower: String, isBn: Boolean): AssistantMessage? {
+        val isNavQuery = lower.startsWith("go to") || lower.startsWith("open") || lower.startsWith("take me to") ||
+            lower.contains("পেজে যাও") || lower.contains("খুলো") || lower.contains("খোলো") ||
+            lower.contains("দেখাও") || lower.contains("screen") || lower.contains("page")
+
+        if (!isNavQuery) return null
+
+        if (lower.contains("budget maker") || lower.contains("বাজেট মেকার")) {
+            val subject = if (lower.contains("hair cut") || lower.contains("haircut") || lower.contains("চুল কাটা")) "Hair Cut" else ""
+            val text = if (isBn) {
+                "সরাসরি **বাজেট মেকার (Budget Maker)** পেজে যেতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to open **Budget Maker**${if (subject.isNotEmpty()) " for $subject" else ""}:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "বাজেট মেকার খুলুন" else "Open Budget Maker",
+                    destination = "BUDGET_MAKER",
+                    searchQuery = subject
+                )
+            )
+        }
+
+        if (lower.contains("excluded") || lower.contains("বাদ দেওয়া") || lower.contains("বাদ দেওয়া")) {
+            val text = if (isBn) {
+                "**বাদ দেওয়া অ্যাকাউন্ট (Excluded Accounts)** দেখতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to view **Excluded Accounts** in the Accounts screen:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "বাদ দেওয়া অ্যাকাউন্ট দেখুন" else "Go to Excluded Accounts",
+                    destination = "ACCOUNTS_EXCLUDED"
+                )
+            )
+        }
+
+        if (lower.contains("accounts") || lower.contains("অ্যাকাউন্ট")) {
+            val text = if (isBn) {
+                "**অ্যাকাউন্টস (Accounts)** স্ক্রিন খুলতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to open the **Accounts** screen:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "অ্যাকাউন্টস স্ক্রিন খুলুন" else "Open Accounts",
+                    destination = "ACCOUNTS"
+                )
+            )
+        }
+
+        if (lower.contains("rm manager") || lower.contains("আরএম ম্যানেজার") || lower.contains("debt") || lower.contains("দেনা পাওনা")) {
+            val text = if (isBn) {
+                "**আরএম ম্যানেজার (RM Manager)** খুলতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to open **RM Manager**:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "আরএম ম্যানেজার খুলুন" else "Open RM Manager",
+                    destination = "RM_MANAGER"
+                )
+            )
+        }
+
+        if (lower.contains("ledger") || lower.contains("transactions") || lower.contains("লেনদেন খাতা")) {
+            val text = if (isBn) {
+                "**লেনদেন খাতা (Transactions Ledger)** দেখতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to open the **Transactions Ledger**:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "লেনদেন খাতা খুলুন" else "Open Transactions Ledger",
+                    destination = "LEDGER"
+                )
+            )
+        }
+
+        if (lower.contains("balance sheet") || lower.contains("ব্যালেন্স শিট")) {
+            val text = if (isBn) {
+                "**ব্যালেন্স শিট (Balance Sheet)** দেখতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to view the **Balance Sheet**:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "ব্যালেন্স শিট খুলুন" else "Open Balance Sheet",
+                    destination = "BALANCE_SHEET"
+                )
+            )
+        }
+
+        if (lower.contains("cash flow") || lower.contains("ক্যাশ ফ্লো")) {
+            val text = if (isBn) {
+                "**ক্যাশ ফ্লো (Cash Flow)** বিবরণী দেখতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to view **Cash Flow**:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "ক্যাশ ফ্লো খুলুন" else "Open Cash Flow",
+                    destination = "CASH_FLOW"
+                )
+            )
+        }
+
+        if (lower.contains("report") || lower.contains("রিপোর্ট") || lower.contains("net earnings")) {
+            val text = if (isBn) {
+                "**আর্থিক প্রতিবেদন ও বিশ্লেষণ (Reports)** দেখতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to open **Financial Reports & Analytics**:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "রিপোর্ট পেজ খুলুন" else "Open Reports",
+                    destination = "REPORTS"
+                )
+            )
+        }
+
+        if (lower.contains("category") || lower.contains("categories") || lower.contains("ক্যাটাগরি")) {
+            val text = if (isBn) {
+                "**ক্যাটাগরি (Categories)** পরিচালনা করতে নিচের বাটনে ট্যাপ করুন:"
+            } else {
+                "Tap below to open **Categories**:"
+            }
+            return AssistantMessage(
+                text = text,
+                isUser = false,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "ক্যাটাগরি পেজ খুলুন" else "Open Categories",
+                    destination = "CATEGORIES"
+                )
+            )
+        }
+
+        return null
+    }
+
+    private fun isExcludedAccountsQuery(lower: String): Boolean {
+        return lower.contains("excluded account") ||
+            lower.contains("excluded accounts") ||
+            lower.contains("excluded") ||
+            lower.contains("exclude account") ||
+            lower.contains("বাদ দেওয়া অ্যাকাউন্ট") ||
+            lower.contains("বাদ দেওয়া একাউন্ট") ||
+            lower.contains("বাদ দেওয়া হিসাব") ||
+            lower.contains("বাদ দেওয়া হিসাব") ||
+            lower.contains("বাদ দেওয়া একাউন্ট") ||
+            lower.contains("বাদ রাখা") ||
+            lower.contains("এক্সক্লুডেড") ||
+            (lower.contains("account") && lower.contains("excluded")) ||
+            (lower.contains("একাউন্ট") && lower.contains("বাদ"))
+    }
+
+    private fun handleExcludedAccountsQuery(
+        allAccounts: List<Account>,
+        accountsWithBalances: List<AccountWithBalance>,
+        accountCalcConfig: AccountCalcConfig,
+        isBn: Boolean,
+        languageMode: LanguageMode
+    ): AssistantMessage {
+        val excludedAccounts = allAccounts.filter { acc ->
+            !accountCalcConfig.isIncluded(acc.id)
+        }
+
+        val excludedItems = excludedAccounts.map { acc ->
+            val bal = accountsWithBalances.find { it.account.id == acc.id }?.currentBalance ?: 0.0
+            AssistantExcludedItem(
+                accountName = acc.localizedName(languageMode),
+                accountType = acc.type.name,
+                balance = bal,
+                reason = if (isBn) "মোট সম্পদ ও ব্যালেন্স শিট গণনা থেকে বাদ দেওয়া হয়েছে" else "Excluded from Net Worth & Balance Sheet calculations"
+            )
+        }
+
+        val totalExcludedBalance = excludedItems.sumOf { it.balance }
+        val balStr = LanguageHelper.formatCurrency(totalExcludedBalance, languageMode)
+
+        val sb = StringBuilder()
+        if (isBn) {
+            sb.append("🛡️ **বাদ দেওয়া অ্যাকাউন্ট (Excluded Accounts) পর্যালোচনা:**\n\n")
+            if (excludedAccounts.isEmpty()) {
+                sb.append("আপনার অ্যাপে বর্তমানে কোনো অ্যাকাউন্ট গণনা থেকে বাদ রাখা হয়নি। সকল অ্যাকাউন্টের ব্যালেন্স আপনার নিট সম্পদে যুক্ত হচ্ছে।\n\n")
+                sb.append("• কোনো অ্যাকাউন্ট (যেমন আরএম খাতা বা বিশেষ দায়) নিট সম্পদ থেকে আলাদা রাখতে চাইলে Accounts স্ক্রিন থেকে তা বাদ দিতে পারেন।")
+            } else {
+                sb.append("বর্তমানে **${excludedAccounts.size}টি** অ্যাকাউন্ট আপনার মূল হিসাব ও মোট সম্পদ (Net Worth) থেকে বাদ রাখা হয়েছে।\n")
+                sb.append("• বাদ দেওয়া মোট ব্যালেন্স: **$balStr**\n\n")
+                sb.append("📋 **বাদ দেওয়া অ্যাকাউন্টসমূহের তালিকা:**\n")
+                excludedItems.forEach { item ->
+                    val itemBal = LanguageHelper.formatCurrency(item.balance, languageMode)
+                    sb.append("• **${item.accountName}** (${item.accountType}): **$itemBal**\n")
+                }
+                sb.append("\n💡 এই অ্যাকাউন্টগুলোর লেনদেন ইতিহাস সুরক্ষিত থাকে, কিন্তু আপনার প্রকৃত ব্যবহারযোগ্য অর্থ প্রদর্শনের স্বার্থে মোট সম্পদে এদের অন্তর্ভুক্ত করা হয় না।")
+            }
+        } else {
+            sb.append("🛡️ **Excluded Accounts Overview:**\n\n")
+            if (excludedAccounts.isEmpty()) {
+                sb.append("You currently do not have any excluded accounts configured in Budgeter. All your account balances are factored into your Net Worth.\n\n")
+                sb.append("• To exclude an account (such as loans, debts, or tracking-only accounts) from your Net Worth, you can toggle it from the Accounts screen.")
+            } else {
+                sb.append("You currently have **${excludedAccounts.size}** account${if (excludedAccounts.size > 1) "s" else ""} excluded from your main Net Worth calculations.\n")
+                sb.append("• Total Excluded Balance: **$balStr**\n\n")
+                sb.append("📋 **Excluded Accounts List:**\n")
+                excludedItems.forEach { item ->
+                    val itemBal = LanguageHelper.formatCurrency(item.balance, languageMode)
+                    sb.append("• **${item.accountName}** (${item.accountType}): **$itemBal**\n")
+                }
+                sb.append("\n💡 Excluded accounts retain their complete transaction ledger history, but their balances are omitted from your Net Worth so you always see your true spendable liquidity.")
+            }
+        }
+
+        val card = AssistantExcludedAccountsCard(
+            totalExcludedCount = excludedAccounts.size,
+            totalExcludedBalance = totalExcludedBalance,
+            items = excludedItems
+        )
+
+        val chips = listOf(
+            AssistantChip(
+                label = if (isBn) "🛡️ বাদ দেওয়া অ্যাকাউন্টে যান" else "🛡️ Go to Excluded Accounts",
+                actionQuery = "go to excluded accounts",
+                navigationAction = AssistantAction(
+                    label = if (isBn) "বাদ দেওয়া অ্যাকাউন্ট দেখুন" else "View Excluded Accounts",
+                    destination = "ACCOUNTS_EXCLUDED"
+                )
+            ),
+            AssistantChip(
+                label = if (isBn) "💰 মোট সম্পদ" else "💰 Net Worth",
+                actionQuery = "What is my net worth"
+            ),
+            AssistantChip(
+                label = if (isBn) "🏦 সকল অ্যাকাউন্ট" else "🏦 All Accounts",
+                actionQuery = "go to accounts page"
+            )
+        )
+
+        return AssistantMessage(
+            text = sb.toString().trim(),
+            isUser = false,
+            excludedAccountsCard = card,
+            primaryAction = AssistantAction(
+                label = if (isBn) "বাদ দেওয়া অ্যাকাউন্ট স্ক্রিন খুলুন" else "Go to Excluded Accounts",
+                destination = "ACCOUNTS_EXCLUDED"
+            ),
+            secondaryActions = listOf(
+                AssistantAction(
+                    label = if (isBn) "সকল অ্যাকাউন্ট" else "View All Accounts",
+                    destination = "ACCOUNTS"
+                )
+            ),
+            interactiveChips = chips
+        )
+    }
+
+    private fun isCategoryBudgetQuery(cleanQuery: String, categories: List<Category>): Boolean {
+        val q = cleanQuery.lowercase(Locale.ROOT)
+        // Explicit check for Hair Cut / Grooming
+        if (q.contains("hair cut") || q.contains("haircut") || q.contains("চুল কাটা") || q.contains("চুল কাটার")) {
+            return true
+        }
+
+        val hasBudgetKeyword = q.contains("budget") || q.contains("বাজেট")
+        if (!hasBudgetKeyword) return false
+
+        // Exclude purely generic overview queries
+        val genericPhrases = listOf(
+            "budget status", "budget overview", "show budget", "my budget", "all budget",
+            "বাজেটের অবস্থা", "বাজেট দেখাও", "বাজেট পর্যালোচনা", "চলতি মাসের বাজেট",
+            "over budget", "budget limit", "budget limits"
+        )
+        if (genericPhrases.any { q == it || q == "$it?" || q == "show $it" }) {
+            return false
+        }
+
+        return true
+    }
+
+    private fun extractBudgetCategorySubject(query: String, categories: List<Category>): Pair<Category?, String> {
+        val lower = query.lowercase(Locale.ROOT).trim()
+
+        // 1. Direct match with existing categories
+        val matchedCat = findMatchingCategory(lower, categories)
+        if (matchedCat != null) {
+            return Pair(matchedCat, matchedCat.nameEn)
+        }
+
+        // 2. Hair Cut / Grooming
+        if (lower.contains("hair cut") || lower.contains("haircut") || lower.contains("চুল কাটা") || lower.contains("চুল কাটার")) {
+            val hairCat = categories.firstOrNull {
+                it.nameEn.contains("hair", ignoreCase = true) ||
+                it.nameEn.contains("groom", ignoreCase = true) ||
+                it.nameEn.contains("salon", ignoreCase = true) ||
+                it.nameBn.contains("চুল", ignoreCase = true)
+            }
+            return Pair(hairCat, "Hair Cut")
+        }
+
+        // 3. Clean up query to extract potential category name
+        var cleanSubject = lower
+            .replace("can i go to that budget maker page of", "")
+            .replace("can i go to budget maker page of", "")
+            .replace("go to that budget maker page of", "")
+            .replace("go to budget maker page of", "")
+            .replace("open budget maker for", "")
+            .replace("how much is", "")
+            .replace("what is my", "")
+            .replace("tell me about", "")
+            .replace("check", "")
+            .replace("show me", "")
+            .replace("show", "")
+            .replace("monthly budget", "")
+            .replace("budget status", "")
+            .replace("budget maker", "")
+            .replace("budget", "")
+            .replace("বাজেট মেকার পেজে যাও", "")
+            .replace("বাজেট মেকারে যাও", "")
+            .replace("এর বাজেট কত", "")
+            .replace("বাজেট কত", "")
+            .replace("বাজেট দেখাও", "")
+            .replace("বাজেট", "")
+            .replace("?", "")
+            .replace("\"", "")
+            .trim()
+
+        if (cleanSubject.isBlank()) {
+            cleanSubject = "Budget"
+        } else {
+            cleanSubject = cleanSubject.split(" ").filter { it.isNotBlank() }
+                .joinToString(" ") { it.replaceFirstChar { ch -> ch.uppercaseChar() } }
+        }
+
+        return Pair(null, cleanSubject)
+    }
+
+    private fun handleCategoryBudgetQuery(
+        query: String,
+        lower: String,
+        categories: List<Category>,
+        budgets: List<MonthlyBudget>,
+        transactions: List<TransactionWithDetails>,
+        isBn: Boolean,
+        languageMode: LanguageMode
+    ): AssistantMessage {
+        val (matchedCat, subjectName) = extractBudgetCategorySubject(lower, categories)
+
+        val cal = Calendar.getInstance()
+        val currentYear = cal.get(Calendar.YEAR)
+        val currentMonth = cal.get(Calendar.MONTH) + 1
+
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val monthStartMs = cal.timeInMillis
+
+        cal.add(Calendar.MONTH, 1)
+        val monthEndMs = cal.timeInMillis
+
+        if (matchedCat != null) {
+            val catName = matchedCat.localizedName(languageMode)
+            val budgetEntry = budgets.find {
+                it.itemId == matchedCat.id && it.year == currentYear && it.month == currentMonth
+            }
+
+            val limit = budgetEntry?.budgetedAmount ?: matchedCat.budgetLimit ?: 0.0
+            val catTxs = transactions.filter { td ->
+                val tx = td.transaction
+                val isCat = tx.categoryId == matchedCat.id || td.category?.id == matchedCat.id || td.subCategory?.id == matchedCat.id
+                val inMonth = tx.dateEpochMs in monthStartMs until monthEndMs
+                isCat && inMonth && tx.type == TransactionType.EXPENSE
+            }.sortedByDescending { it.transaction.dateEpochMs }
+
+            val totalSpent = catTxs.sumOf { it.transaction.amount }
+            val remaining = (limit - totalSpent).coerceAtLeast(0.0)
+            val percentage = if (limit > 0) (totalSpent / limit * 100) else 0.0
+            val isOverBudget = limit > 0 && totalSpent > limit
+
+            val spentStr = LanguageHelper.formatCurrency(totalSpent, languageMode)
+            val limitStr = LanguageHelper.formatCurrency(limit, languageMode)
+            val remStr = LanguageHelper.formatCurrency(remaining, languageMode)
+
+            val sb = StringBuilder()
+            if (isBn) {
+                sb.append("🎯 **$catName বাজেট বিবরণ:**\n\n")
+                if (limit > 0) {
+                    sb.append("• চলতি মাসের বাজেট সীমা: **$limitStr**\n")
+                    sb.append("• এ পর্যন্ত খরচ হয়েছে: **$spentStr** (${percentage.toInt()}%)\n")
+                    sb.append("• অবশিষ্ট বরাদ্দ: **$remStr**\n\n")
+                    if (isOverBudget) {
+                        val overAmt = LanguageHelper.formatCurrency(totalSpent - limit, languageMode)
+                        sb.append("⚠️ **সতর্কতা:** আপনি বাজেট সীমা অতিক্রম করেছেন! অতিরিক্ত খরচ: **$overAmt**\n")
+                    } else if (percentage >= 85) {
+                        sb.append("⚠️ **সতর্কতা:** আপনি নির্ধারিত বাজেটের ৮৫% এর বেশি খরচ করে ফেলেছেন।\n")
+                    } else {
+                        sb.append("✅ আপনার খরচ নির্ধারিত বাজেটের নিয়ন্ত্রণে রয়েছে।\n")
+                    }
+                } else {
+                    sb.append("• এ পর্যন্ত চলতি মাসে খরচ: **$spentStr** (${catTxs.size}টি লেনদেন)\n")
+                    sb.append("• বাজেট সীমা: **নির্ধারিত নেই**\n\n")
+                    sb.append("💡 আপনি **বাজেট মেকার (Budget Maker)** এ গিয়ে এই ক্যাটাগরির জন্য একটি মাসিক সীমা নির্ধারণ করতে পারেন।")
+                }
+            } else {
+                sb.append("🎯 **$catName Budget Status:**\n\n")
+                if (limit > 0) {
+                    sb.append("• Monthly Budget Limit: **$limitStr**\n")
+                    sb.append("• Spent This Month: **$spentStr** (${percentage.toInt()}%)\n")
+                    sb.append("• Remaining Balance: **$remStr**\n\n")
+                    if (isOverBudget) {
+                        val overAmt = LanguageHelper.formatCurrency(totalSpent - limit, languageMode)
+                        sb.append("⚠️ **Warning:** Budget exceeded! You are **$overAmt** over limit.\n")
+                    } else if (percentage >= 85) {
+                        sb.append("⚠️ **Notice:** You have utilized over 85% of this budget limit.\n")
+                    } else {
+                        sb.append("✅ Spending is well within your planned monthly limit.\n")
+                    }
+                } else {
+                    sb.append("• Spent This Month: **$spentStr** (${catTxs.size} transaction${if (catTxs.size > 1) "s" else ""})\n")
+                    sb.append("• Monthly Limit: **Not Set**\n\n")
+                    sb.append("💡 You can set a monthly spending limit for this category directly in **Budget Maker**.")
+                }
+            }
+
+            val card = AssistantCategoryBudgetCard(
+                categoryName = catName,
+                categoryType = matchedCat.type.name,
+                budgetLimit = limit,
+                spentAmount = totalSpent,
+                remainingAmount = remaining,
+                percentage = percentage,
+                isOverBudget = isOverBudget,
+                hasBudget = limit > 0
+            )
+
+            val chips = listOf(
+                AssistantChip(
+                    label = if (isBn) "বাজেট মেকারে যান" else "Go to Budget Maker",
+                    actionQuery = "go to budget maker page of ${matchedCat.nameEn}",
+                    navigationAction = AssistantAction(
+                        label = if (isBn) "বাজেট মেকারে দেখুন" else "Go to ${matchedCat.nameEn} in Budget Maker",
+                        destination = "BUDGET_MAKER",
+                        categoryId = matchedCat.id,
+                        searchQuery = matchedCat.nameEn
+                    )
+                ),
+                AssistantChip(
+                    label = if (isBn) "বাজেটের অবস্থা" else "Overall Budget",
+                    actionQuery = "Show my budget status"
+                )
+            )
+
+            return AssistantMessage(
+                text = sb.toString().trim(),
+                isUser = false,
+                categoryBudgetCard = card,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "$catName বাজেট মেকারে দেখুন" else "Go to $catName in Budget Maker",
+                    destination = "BUDGET_MAKER",
+                    categoryId = matchedCat.id,
+                    searchQuery = matchedCat.nameEn
+                ),
+                secondaryActions = listOf(
+                    AssistantAction(
+                        label = if (isBn) "বাজেট ট্র্যাকিং পেজ" else "View Budget Tracking",
+                        destination = "BUDGET"
+                    )
+                ),
+                transactionList = catTxs.take(4),
+                interactiveChips = chips
+            )
+        } else {
+            // No matching category in DB yet (e.g. "Hair Cut" when not created yet)
+            val displaySubject = subjectName.ifBlank { "Hair Cut" }
+
+            val sb = StringBuilder()
+            if (isBn) {
+                sb.append("🎯 **$displaySubject বাজেট:**\n\n")
+                sb.append("আপনার অ্যাপে বর্তমানে '**$displaySubject**' নামে কোনো ক্যাটাগরি বা বাজেট পাওয়া যায়নি।\n\n")
+                sb.append("• চলতি মাসের রেকর্ডকৃত খরচ: **৳০.০০**\n")
+                sb.append("• বাজেট সীমা: **নির্ধারিত নেই**\n\n")
+                sb.append("💡 আপনি নিচের বাটনে ট্যাপ করে সরাসরি **বাজেট মেকার (Budget Maker)** পেজে গিয়ে **$displaySubject** এর জন্য নতুন বাজেট ও ক্যাটাগরি সেট করতে পারেন।")
+            } else {
+                sb.append("🎯 **$displaySubject Budget:**\n\n")
+                sb.append("No existing category or budget named '**$displaySubject**' was found in your app.\n\n")
+                sb.append("• Spent This Month: **৳0.00**\n")
+                sb.append("• Budget Limit: **Not Configured**\n\n")
+                sb.append("💡 Tap the button below to jump straight to the **Budget Maker** page and set up a budget or category for **$displaySubject**.")
+            }
+
+            val card = AssistantCategoryBudgetCard(
+                categoryName = displaySubject,
+                categoryType = "Expense",
+                budgetLimit = 0.0,
+                spentAmount = 0.0,
+                remainingAmount = 0.0,
+                percentage = 0.0,
+                isOverBudget = false,
+                hasBudget = false
+            )
+
+            val chips = listOf(
+                AssistantChip(
+                    label = if (isBn) "বাজেট মেকারে যান ($displaySubject)" else "Go to Budget Maker ($displaySubject)",
+                    actionQuery = "go to budget maker",
+                    navigationAction = AssistantAction(
+                        label = if (isBn) "বাজেট মেকারে যান ($displaySubject)" else "Go to Budget Maker ($displaySubject)",
+                        destination = "BUDGET_MAKER",
+                        searchQuery = displaySubject
+                    )
+                ),
+                AssistantChip(
+                    label = if (isBn) "ক্যাটাগরি পেজে যান" else "Go to Categories",
+                    actionQuery = "go to categories screen",
+                    navigationAction = AssistantAction(
+                        label = if (isBn) "ক্যাটাগরি পেজ খুলুন" else "Open Categories",
+                        destination = "CATEGORIES"
+                    )
+                ),
+                AssistantChip(
+                    label = if (isBn) "বাজেটের অবস্থা" else "Overall Budget",
+                    actionQuery = "Show my budget status"
+                )
+            )
+
+            return AssistantMessage(
+                text = sb.toString().trim(),
+                isUser = false,
+                categoryBudgetCard = card,
+                primaryAction = AssistantAction(
+                    label = if (isBn) "বাজেট মেকারে যান ($displaySubject)" else "Go to Budget Maker ($displaySubject)",
+                    destination = "BUDGET_MAKER",
+                    searchQuery = displaySubject
+                ),
+                secondaryActions = listOf(
+                    AssistantAction(
+                        label = if (isBn) "ক্যাটাগরি পেজে যান" else "Go to Categories",
+                        destination = "CATEGORIES"
+                    )
+                ),
+                interactiveChips = chips
+            )
+        }
     }
 }

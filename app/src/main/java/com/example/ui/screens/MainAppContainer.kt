@@ -309,6 +309,8 @@ fun MainAppContainer(
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
     var showFinancialAssistantSheet by remember { mutableStateOf(false) }
+    var assistantDeepLinkBudgetQuery by remember { mutableStateOf<String?>(null) }
+    var assistantDeepLinkAccountsFilter by remember { mutableStateOf<String?>(null) }
 
     val headerScrollState = rememberHeaderScrollState()
 
@@ -648,7 +650,9 @@ fun MainAppContainer(
                                         onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                         onAccountClick = { acc -> selectedAccountForDetail = acc },
                                         dashboardConfig = dashboardConfig,
-                                        paymentSourceConfig = paymentSourceConfig
+                                        paymentSourceConfig = paymentSourceConfig,
+                                        initialBudgetSearchQuery = assistantDeepLinkBudgetQuery,
+                                        initialAccountsFilter = if (assistantDeepLinkAccountsFilter == "EXCLUDED") AccountViewHierarchyFilter.EXCLUDED else AccountViewHierarchyFilter.ALL
                                     )
                                 }
                             } else {
@@ -777,7 +781,9 @@ fun MainAppContainer(
                                     onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                     onAccountClick = { acc -> selectedAccountForDetail = acc },
                                     dashboardConfig = dashboardConfig,
-                                    paymentSourceConfig = paymentSourceConfig
+                                    paymentSourceConfig = paymentSourceConfig,
+                                    initialBudgetSearchQuery = assistantDeepLinkBudgetQuery,
+                                    initialAccountsFilter = if (assistantDeepLinkAccountsFilter == "EXCLUDED") AccountViewHierarchyFilter.EXCLUDED else AccountViewHierarchyFilter.ALL
                                 )
                             }
                         }
@@ -1143,7 +1149,9 @@ fun MainAppContainer(
                                 onOpenAutofillSettings = { showAutofillSettingsDialog = true },
                                 onAccountClick = { acc -> selectedAccountForDetail = acc },
                                 dashboardConfig = dashboardConfig,
-                                paymentSourceConfig = paymentSourceConfig
+                                paymentSourceConfig = paymentSourceConfig,
+                                initialBudgetSearchQuery = assistantDeepLinkBudgetQuery,
+                                initialAccountsFilter = if (assistantDeepLinkAccountsFilter == "EXCLUDED") AccountViewHierarchyFilter.EXCLUDED else AccountViewHierarchyFilter.ALL
                             )
                         }
                     }
@@ -1341,7 +1349,41 @@ fun MainAppContainer(
         allCategories = allCategories,
         transactions = transactionsWithDetails,
         overview = overview,
-        budgets = allMonthlyBudgets
+        budgets = allMonthlyBudgets,
+        accountCalcConfig = accountCalcConfig,
+        onNavigateAction = { action ->
+            showFinancialAssistantSheet = false
+            when (action.destination) {
+                "BUDGET_MAKER" -> {
+                    assistantDeepLinkBudgetQuery = action.searchQuery
+                    selectView(AppView.BUDGET_MAKER)
+                }
+                "BUDGET" -> selectView(AppView.BUDGET)
+                "ACCOUNTS_EXCLUDED" -> {
+                    assistantDeepLinkAccountsFilter = "EXCLUDED"
+                    selectView(AppView.ACCOUNTS)
+                }
+                "ACCOUNTS" -> {
+                    assistantDeepLinkAccountsFilter = null
+                    selectView(AppView.ACCOUNTS)
+                }
+                "ACCOUNT_DETAIL" -> {
+                    val acc = allAccounts.firstOrNull { it.id == action.accountId }
+                    if (acc != null) {
+                        selectedAccountForDetail = acc
+                    } else {
+                        selectView(AppView.ACCOUNTS)
+                    }
+                }
+                "RM_MANAGER" -> selectView(AppView.RM_MANAGER)
+                "LEDGER" -> selectView(AppView.LEDGER)
+                "BALANCE_SHEET" -> selectView(AppView.BALANCE_SHEET)
+                "CASH_FLOW" -> selectView(AppView.CASH_FLOW)
+                "REPORTS" -> selectView(AppView.REPORTS)
+                "CATEGORIES" -> selectView(AppView.CATEGORIES)
+                else -> {}
+            }
+        }
     )
 }
 
@@ -2094,7 +2136,9 @@ private fun ScreenRouter(
     onOpenAutofillSettings: () -> Unit = {},
     onAccountClick: ((Account) -> Unit)? = null,
     dashboardConfig: com.example.util.DashboardConfig = com.example.util.DashboardConfig(),
-    paymentSourceConfig: com.example.util.PaymentSourceConfig = com.example.util.PaymentSourceConfig()
+    paymentSourceConfig: com.example.util.PaymentSourceConfig = com.example.util.PaymentSourceConfig(),
+    initialBudgetSearchQuery: String? = null,
+    initialAccountsFilter: AccountViewHierarchyFilter = AccountViewHierarchyFilter.ALL
 ) {
     when (currentView) {
         AppView.DASHBOARD -> DashboardScreen(
@@ -2285,7 +2329,8 @@ private fun ScreenRouter(
             onEditTransaction = onEditTransaction,
             onAddTransactionWithCategory = onAddTransactionWithCategory,
             onAddTransactionWithAccount = onAddTransactionWithAccount,
-            onAccountClick = onAccountClick
+            onAccountClick = onAccountClick,
+            initialSearchQuery = initialBudgetSearchQuery ?: ""
         )
         AppView.REPORTS -> ReportsScreen(
             overview = overview,
@@ -2333,6 +2378,7 @@ private fun ScreenRouter(
             onAddSubAccountClick = { parent -> onAddAccount(parent.id) },
             onEditAccountClick = onEditAccount,
             onAccountClick = onAccountClick,
+            initialHierarchyFilter = initialAccountsFilter,
             onToggleActiveStatus = { acc, active ->
                 viewModel.saveAccount(acc.copy(isActive = active))
                 if (acc.parentId == null) {

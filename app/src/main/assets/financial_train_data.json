@@ -1,9 +1,9 @@
 {
   "version": "2.1.0",
   "generator": "Budgeter Offline AI Training Pipeline",
-  "total_training_samples": 1851,
-  "intents_count": 8,
-  "categories_count": 33,
+  "total_training_samples": 2321,
+  "intents_count": 11,
+  "categories_count": 37,
   "accounts_count": 22,
   "intents": [
     {
@@ -220,6 +220,133 @@
         "জরুরি তহবিল কীভাবে করব",
         "৫০/৩০/২০ সঞ্চয়ের নিয়ম কি",
         "সঞ্চয় বাড়ানোর পরামর্শ দাও"
+      ]
+    },
+    {
+      "id": "EXCLUDED_ACCOUNTS",
+      "description": "User inquires about excluded accounts, accounts omitted from net worth, or adjusted accounts",
+      "entities": [
+        "account"
+      ],
+      "patterns_en": [
+        "excluded account",
+        "excluded accounts",
+        "which accounts are excluded",
+        "show excluded accounts",
+        "check excluded accounts",
+        "tell me about excluded accounts",
+        "what is an excluded account",
+        "why are accounts excluded",
+        "accounts excluded from net worth",
+        "excluded from net worth",
+        "how much is excluded from my balance",
+        "list excluded accounts",
+        "adjusted accounts",
+        "show accounts with balance adjustments",
+        "is any account excluded from net worth",
+        "why is my account excluded",
+        "view excluded accounts",
+        "excluded account balance"
+      ],
+      "patterns_bn": [
+        "বাদ দেওয়া অ্যাকাউন্ট",
+        "বাদ দেওয়া একাউন্ট",
+        "বাদ দেওয়া হিসাব দেখাও",
+        "কোন একাউন্টগুলো বাদ দেওয়া আছে",
+        "নেট ওর্থ থেকে বাদ দেওয়া একাউন্ট",
+        "এক্সক্লুডেড অ্যাকাউন্ট",
+        "বাদ দেওয়া একাউন্টের ব্যালেন্স কত",
+        "হিসাব থেকে বাদ দেওয়া একাউন্ট",
+        "কোন কোন একাউন্ট বাদ রাখা হয়েছে",
+        "সমন্বিত একাউন্ট দেখাও"
+      ]
+    },
+    {
+      "id": "CATEGORY_BUDGET",
+      "description": "User inquires about a specific category budget limit, spending, or deep linking to Budget Maker",
+      "entities": [
+        "category"
+      ],
+      "patterns_en": [
+        "{category} budget",
+        "{category} budget status",
+        "how much is {category} budget",
+        "what is my {category} budget",
+        "check {category} budget",
+        "show {category} budget",
+        "can i go to that budget maker page of {category}",
+        "open budget maker for {category}",
+        "status of {category} budget",
+        "how much money left in {category} budget",
+        "is there a budget for {category}",
+        "budget limit for {category}",
+        "hair cut budget",
+        "haircut budget",
+        "hair cut",
+        "haircut",
+        "salon budget",
+        "grooming budget",
+        "show hair cut budget",
+        "can i see hair cut budget",
+        "how much spent on hair cut",
+        "food budget",
+        "wifi budget",
+        "house rent budget",
+        "transport budget"
+      ],
+      "patterns_bn": [
+        "{category} এর বাজেট কত",
+        "{category} বাজেট দেখাও",
+        "{category} এর বাজেট মেকার পেজ",
+        "{category} এর বাজেট সীমা কত",
+        "{category} খাতে আর কত টাকা আছে",
+        "চুল কাটার বাজেট",
+        "চুল কাটার বাজেট কত",
+        "চুল কাটার বাজেট মেকার পেজে যাও",
+        "খাবারের বাজেট",
+        "ইন্টারনেট বাজেট",
+        "বাড়ি ভাড়ার বাজেট",
+        "যাতায়াত বাজেট",
+        "ওষুধের বাজেট"
+      ]
+    },
+    {
+      "id": "DATA_PAGE_NAVIGATION",
+      "description": "User wants to navigate directly to a specific feature, tool, or screen in the Budgeter app",
+      "entities": [
+        "page"
+      ],
+      "patterns_en": [
+        "go to budget maker",
+        "open budget maker page",
+        "take me to budget maker",
+        "go to budget maker page of hair cut",
+        "open budget maker for hair cut",
+        "go to excluded accounts",
+        "open excluded accounts",
+        "go to accounts page",
+        "take me to accounts screen",
+        "open rm manager",
+        "view rm manager debts",
+        "go to transactions ledger",
+        "open balance sheet",
+        "open cash flow",
+        "open net earnings reports",
+        "go to categories screen",
+        "take me to categories"
+      ],
+      "patterns_bn": [
+        "বাজেট মেকারে যাও",
+        "বাজেট মেকার পেজ খুলো",
+        "চুল কাটার বাজেট মেকার পেজে যাও",
+        "বাদ দেওয়া অ্যাকাউন্টে যাও",
+        "অ্যাকাউন্টস স্ক্রিন খুলো",
+        "আরএম ম্যানেজার খোলো",
+        "লেনদেন খাতা খোলো",
+        "ব্যালেন্স শিট পেজে যাও",
+        "ক্যাশ ফ্লো দেখাও",
+        "রিপোর্ট পেজ খুলো",
+        "ক্যাটাগরি পেজে যাও"
       ]
     }
   ],
@@ -10267,6 +10394,2319 @@
     {
       "text": "সঞ্চয় বাড়ানোর পরামর্শ দাও",
       "intent": "FINANCIAL_SAVINGS_TIPS"
+    },
+    {
+      "text": "excluded account",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "which accounts are excluded",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "show excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "check excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "tell me about excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "what is an excluded account",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "why are accounts excluded",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "accounts excluded from net worth",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "excluded from net worth",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "how much is excluded from my balance",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "list excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "adjusted accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "show accounts with balance adjustments",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "is any account excluded from net worth",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "why is my account excluded",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "view excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "excluded account balance",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "are there any excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "do i have excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "show me excluded accounts in my app",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "excluded accounts list",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "explain excluded accounts",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "what does excluded account mean in budgeter",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "বাদ দেওয়া অ্যাকাউন্ট",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "বাদ দেওয়া একাউন্ট",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "বাদ দেওয়া হিসাব দেখাও",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "কোন একাউন্টগুলো বাদ দেওয়া আছে",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "নেট ওর্থ থেকে বাদ দেওয়া একাউন্ট",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "এক্সক্লুডেড অ্যাকাউন্ট",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "বাদ দেওয়া একাউন্টের ব্যালেন্স কত",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "হিসাব থেকে বাদ দেওয়া একাউন্ট",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "কোন কোন একাউন্ট বাদ রাখা হয়েছে",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "সমন্বিত একাউন্ট দেখাও",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "বাদ দেওয়া একাউন্ট দেখাও",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "বাদ দেওয়া অ্যাকাউন্টগুলোর তালিকা দাও",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "আমার কি কোনো বাদ দেওয়া অ্যাকাউন্ট আছে",
+      "intent": "EXCLUDED_ACCOUNTS"
+    },
+    {
+      "text": "Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "Hair Cut budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "how much is Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "what is my Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "check Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "show Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "can i go to that budget maker page of Hair Cut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "open budget maker for Hair Cut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "status of Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "how much money left in Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "is there a budget for Hair Cut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "budget limit for Hair Cut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "check spending on Hair Cut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "how much have i spent on Hair Cut this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "budget details for Hair Cut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "manage Hair Cut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "go to Hair Cut budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "take me to Hair Cut in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "show me Hair Cut limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut"
+    },
+    {
+      "text": "Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "Haircut budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "how much is Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "what is my Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "check Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "show Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "can i go to that budget maker page of Haircut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "open budget maker for Haircut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "status of Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "how much money left in Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "is there a budget for Haircut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "budget limit for Haircut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "check spending on Haircut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "how much have i spent on Haircut this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "budget details for Haircut",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "manage Haircut budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "go to Haircut budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "take me to Haircut in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "show me Haircut limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Haircut"
+    },
+    {
+      "text": "Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "Hair Cut & Grooming budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "how much is Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "what is my Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "check Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "show Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "can i go to that budget maker page of Hair Cut & Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "open budget maker for Hair Cut & Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "status of Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "how much money left in Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "is there a budget for Hair Cut & Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "budget limit for Hair Cut & Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "check spending on Hair Cut & Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "how much have i spent on Hair Cut & Grooming this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "budget details for Hair Cut & Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "manage Hair Cut & Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "go to Hair Cut & Grooming budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "take me to Hair Cut & Grooming in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "show me Hair Cut & Grooming limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Hair Cut & Grooming"
+    },
+    {
+      "text": "Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "Grooming budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "how much is Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "what is my Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "check Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "show Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "can i go to that budget maker page of Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "open budget maker for Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "status of Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "how much money left in Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "is there a budget for Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "budget limit for Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "check spending on Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "how much have i spent on Grooming this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "budget details for Grooming",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "manage Grooming budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "go to Grooming budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "take me to Grooming in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "show me Grooming limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Grooming"
+    },
+    {
+      "text": "Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "Food & Groceries budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "how much is Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "what is my Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "check Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "show Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "can i go to that budget maker page of Food & Groceries",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "open budget maker for Food & Groceries",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "status of Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "how much money left in Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "is there a budget for Food & Groceries",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "budget limit for Food & Groceries",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "check spending on Food & Groceries",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "how much have i spent on Food & Groceries this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "budget details for Food & Groceries",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "manage Food & Groceries budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "go to Food & Groceries budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "take me to Food & Groceries in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "show me Food & Groceries limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Food & Groceries"
+    },
+    {
+      "text": "Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "Dining Out budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "how much is Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "what is my Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "check Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "show Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "can i go to that budget maker page of Dining Out",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "open budget maker for Dining Out",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "status of Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "how much money left in Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "is there a budget for Dining Out",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "budget limit for Dining Out",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "check spending on Dining Out",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "how much have i spent on Dining Out this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "budget details for Dining Out",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "manage Dining Out budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "go to Dining Out budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "take me to Dining Out in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "show me Dining Out limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Dining Out"
+    },
+    {
+      "text": "Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "Wifi & Internet budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "how much is Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "what is my Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "check Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "show Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "can i go to that budget maker page of Wifi & Internet",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "open budget maker for Wifi & Internet",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "status of Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "how much money left in Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "is there a budget for Wifi & Internet",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "budget limit for Wifi & Internet",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "check spending on Wifi & Internet",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "how much have i spent on Wifi & Internet this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "budget details for Wifi & Internet",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "manage Wifi & Internet budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "go to Wifi & Internet budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "take me to Wifi & Internet in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "show me Wifi & Internet limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Wifi & Internet"
+    },
+    {
+      "text": "House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "House Rent budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "how much is House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "what is my House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "check House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "show House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "can i go to that budget maker page of House Rent",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "open budget maker for House Rent",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "status of House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "how much money left in House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "is there a budget for House Rent",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "budget limit for House Rent",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "check spending on House Rent",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "how much have i spent on House Rent this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "budget details for House Rent",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "manage House Rent budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "go to House Rent budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "take me to House Rent in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "show me House Rent limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "House Rent"
+    },
+    {
+      "text": "Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "Shopping & Lifestyle budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "how much is Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "what is my Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "check Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "show Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "can i go to that budget maker page of Shopping & Lifestyle",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "open budget maker for Shopping & Lifestyle",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "status of Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "how much money left in Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "is there a budget for Shopping & Lifestyle",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "budget limit for Shopping & Lifestyle",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "check spending on Shopping & Lifestyle",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "how much have i spent on Shopping & Lifestyle this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "budget details for Shopping & Lifestyle",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "manage Shopping & Lifestyle budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "go to Shopping & Lifestyle budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "take me to Shopping & Lifestyle in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "show me Shopping & Lifestyle limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Shopping & Lifestyle"
+    },
+    {
+      "text": "Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "Electricity Bill budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "how much is Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "what is my Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "check Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "show Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "can i go to that budget maker page of Electricity Bill",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "open budget maker for Electricity Bill",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "status of Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "how much money left in Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "is there a budget for Electricity Bill",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "budget limit for Electricity Bill",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "check spending on Electricity Bill",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "how much have i spent on Electricity Bill this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "budget details for Electricity Bill",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "manage Electricity Bill budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "go to Electricity Bill budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "take me to Electricity Bill in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "show me Electricity Bill limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Electricity Bill"
+    },
+    {
+      "text": "Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "Fuel & Gas budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "how much is Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "what is my Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "check Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "show Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "can i go to that budget maker page of Fuel & Gas",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "open budget maker for Fuel & Gas",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "status of Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "how much money left in Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "is there a budget for Fuel & Gas",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "budget limit for Fuel & Gas",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "check spending on Fuel & Gas",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "how much have i spent on Fuel & Gas this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "budget details for Fuel & Gas",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "manage Fuel & Gas budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "go to Fuel & Gas budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "take me to Fuel & Gas in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "show me Fuel & Gas limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Fuel & Gas"
+    },
+    {
+      "text": "Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "Medicine & Health budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "how much is Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "what is my Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "check Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "show Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "can i go to that budget maker page of Medicine & Health",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "open budget maker for Medicine & Health",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "status of Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "how much money left in Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "is there a budget for Medicine & Health",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "budget limit for Medicine & Health",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "check spending on Medicine & Health",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "how much have i spent on Medicine & Health this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "budget details for Medicine & Health",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "manage Medicine & Health budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "go to Medicine & Health budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "take me to Medicine & Health in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "show me Medicine & Health limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Medicine & Health"
+    },
+    {
+      "text": "Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "Entertainment budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "how much is Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "what is my Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "check Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "show Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "can i go to that budget maker page of Entertainment",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "open budget maker for Entertainment",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "status of Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "how much money left in Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "is there a budget for Entertainment",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "budget limit for Entertainment",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "check spending on Entertainment",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "how much have i spent on Entertainment this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "budget details for Entertainment",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "manage Entertainment budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "go to Entertainment budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "take me to Entertainment in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "show me Entertainment limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Entertainment"
+    },
+    {
+      "text": "Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "Tuition & Education budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "how much is Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "what is my Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "check Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "show Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "can i go to that budget maker page of Tuition & Education",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "open budget maker for Tuition & Education",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "status of Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "how much money left in Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "is there a budget for Tuition & Education",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "budget limit for Tuition & Education",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "check spending on Tuition & Education",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "how much have i spent on Tuition & Education this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "budget details for Tuition & Education",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "manage Tuition & Education budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "go to Tuition & Education budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "take me to Tuition & Education in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "show me Tuition & Education limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Tuition & Education"
+    },
+    {
+      "text": "Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "Apparel & Fashion budget status",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "how much is Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "what is my Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "check Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "show Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "can i go to that budget maker page of Apparel & Fashion",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "open budget maker for Apparel & Fashion",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "status of Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "how much money left in Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "is there a budget for Apparel & Fashion",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "budget limit for Apparel & Fashion",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "check spending on Apparel & Fashion",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "how much have i spent on Apparel & Fashion this month",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "budget details for Apparel & Fashion",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "manage Apparel & Fashion budget",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "go to Apparel & Fashion budget page",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "take me to Apparel & Fashion in budget maker",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "show me Apparel & Fashion limit",
+      "intent": "CATEGORY_BUDGET",
+      "category": "Apparel & Fashion"
+    },
+    {
+      "text": "চুল কাটা এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটা এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটা"
+    },
+    {
+      "text": "চুল কাটার এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "চুল কাটার এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "চুল কাটার"
+    },
+    {
+      "text": "খাবার এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "খাবার এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "খাবার"
+    },
+    {
+      "text": "বাজার এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "বাজার এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাজার"
+    },
+    {
+      "text": "ইন্টারনেট এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "ইন্টারনেট এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ইন্টারনেট"
+    },
+    {
+      "text": "বাসা ভাড়া এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "বাসা ভাড়া এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বাসা ভাড়া"
+    },
+    {
+      "text": "যাতায়াত এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "যাতায়াত এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "যাতায়াত"
+    },
+    {
+      "text": "বিদ্যুৎ বিল এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "বিদ্যুৎ বিল এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিদ্যুৎ বিল"
+    },
+    {
+      "text": "ওষুধ এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "ওষুধ এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "ওষুধ"
+    },
+    {
+      "text": "কেনাকাটা এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "কেনাকাটা এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "কেনাকাটা"
+    },
+    {
+      "text": "বিনোদন এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "বিনোদন এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "বিনোদন"
+    },
+    {
+      "text": "পড়াশোনা এর বাজেট কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা বাজেট দেখাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা এর বাজেট মেকার পেজ",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা এর বাজেট সীমা কত",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা খাতে আর কত টাকা আছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা এর মাসিক বাজেট",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা বাজেট চেক করো",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা এ কত খরচ হয়েছে",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "পড়াশোনা এর বাজেট পেজে যাও",
+      "intent": "CATEGORY_BUDGET",
+      "category": "পড়াশোনা"
+    },
+    {
+      "text": "go to budget maker",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "open budget maker page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "take me to budget maker",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "go to budget maker page of hair cut",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "open budget maker for hair cut",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "go to hair cut budget maker page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "can i go to budget maker",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "open budget tracking",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET"
+    },
+    {
+      "text": "go to excluded accounts",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS_EXCLUDED"
+    },
+    {
+      "text": "open excluded accounts view",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS_EXCLUDED"
+    },
+    {
+      "text": "show excluded accounts page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS_EXCLUDED"
+    },
+    {
+      "text": "go to accounts page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS"
+    },
+    {
+      "text": "take me to accounts screen",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS"
+    },
+    {
+      "text": "open all accounts",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS"
+    },
+    {
+      "text": "open rm manager",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "RM_MANAGER"
+    },
+    {
+      "text": "view rm manager debts",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "RM_MANAGER"
+    },
+    {
+      "text": "go to rm manager page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "RM_MANAGER"
+    },
+    {
+      "text": "go to transactions ledger",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "LEDGER"
+    },
+    {
+      "text": "open ledger",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "LEDGER"
+    },
+    {
+      "text": "view all transactions page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "LEDGER"
+    },
+    {
+      "text": "open balance sheet",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BALANCE_SHEET"
+    },
+    {
+      "text": "go to balance sheet page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BALANCE_SHEET"
+    },
+    {
+      "text": "open cash flow",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "CASH_FLOW"
+    },
+    {
+      "text": "view cash flow statement",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "CASH_FLOW"
+    },
+    {
+      "text": "open net earnings reports",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "REPORTS"
+    },
+    {
+      "text": "view financial reports",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "REPORTS"
+    },
+    {
+      "text": "go to categories screen",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "CATEGORIES"
+    },
+    {
+      "text": "take me to categories page",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "CATEGORIES"
+    },
+    {
+      "text": "বাজেট মেকারে যাও",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "বাজেট মেকার পেজ খুলো",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "চুল কাটার বাজেট মেকার পেজে যাও",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BUDGET_MAKER"
+    },
+    {
+      "text": "বাদ দেওয়া অ্যাকাউন্টে যাও",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS_EXCLUDED"
+    },
+    {
+      "text": "বাদ দেওয়া একাউন্ট পেজ দেখাও",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS_EXCLUDED"
+    },
+    {
+      "text": "অ্যাকাউন্টস স্ক্রিন খুলো",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "ACCOUNTS"
+    },
+    {
+      "text": "আরএম ম্যানেজার খোলো",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "RM_MANAGER"
+    },
+    {
+      "text": "লেনদেন খাতা খোলো",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "LEDGER"
+    },
+    {
+      "text": "ব্যালেন্স শিট পেজে যাও",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "BALANCE_SHEET"
+    },
+    {
+      "text": "ক্যাশ ফ্লো দেখাও",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "CASH_FLOW"
+    },
+    {
+      "text": "রিপোর্ট পেজ খুলো",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "REPORTS"
+    },
+    {
+      "text": "ক্যাটাগরি পেজে যাও",
+      "intent": "DATA_PAGE_NAVIGATION",
+      "target": "CATEGORIES"
     }
   ],
   "categories": [
@@ -10302,7 +12742,11 @@
     "যাতায়াত",
     "রিকশা ও বাস",
     "কেনাকাটা",
-    "শিক্ষা"
+    "শিক্ষা",
+    "Hair Cut",
+    "Hair Cut & Grooming",
+    "Grooming",
+    "Personal Care & Salon"
   ],
   "accounts": [
     "RM Others",
@@ -10815,6 +13259,30 @@
       "answer_en": "When an active monthly budget reaches 85% of its allocated limit, Budgeter highlights it with an amber alert. If it exceeds 100%, it shows a red over-budget warning.",
       "question_bn": "বাজেটার অ্যাপে বাজেট সীমা সতর্কতা কীভাবে কাজ করে?",
       "answer_bn": "কোনো খাতের খরচ নির্ধারিত বরাদ্দের ৮৫% ছাড়ালে হলুদ সতর্কতা এবং ১০০% ছাড়িয়ে গেলে লাল অতিরিক্ত খরচ সতর্কতা দেখানো হয়।"
+    },
+    {
+      "question": "What are excluded accounts in Budgeter?",
+      "question_bn": "বাজেটার অ্যাপে বাদ দেওয়া অ্যাকাউন্ট (Excluded Accounts) কী?",
+      "answer": "Excluded accounts are accounts that you choose to exclude from Net Worth and Balance Sheet calculations. Their transaction history remains intact, but their balance is omitted from your total assets or liabilities so you can see your true spendable net worth. You can manage excluded accounts from Accounts screen under the Excluded tab.",
+      "answer_bn": "বাদ দেওয়া অ্যাকাউন্ট হলো এমন অ্যাকাউন্ট যা মোট সম্পদ (Net Worth) ও ব্যালেন্স শিট হিসাব থেকে বাদ রাখা হয়। এর লেনদেন ইতিহাস ঠিক থাকে, কিন্তু এর ব্যালেন্স মোট সম্পদে যোগ হয় না যাতে আপনি কেবল ব্যবহারযোগ্য অর্থের সঠিক চিত্র দেখতে পারেন। অ্যাকাউন্টস স্ক্রিনের বাদ দেওয়া ট্যাব থেকে এটি পরিচালনা করা যায়।"
+    },
+    {
+      "question": "How do I see excluded accounts?",
+      "question_bn": "বাদ দেওয়া অ্যাকাউন্ট কীভাবে দেখতে হয়?",
+      "answer": "Ask the assistant \"excluded accounts\" and tap \"Go to Excluded Accounts\", or go to the Accounts screen and select the Excluded filter chip.",
+      "answer_bn": "সহকারীকে \"বাদ দেওয়া একাউন্ট\" জিজ্ঞেস করে \"বাদ দেওয়া অ্যাকাউন্ট দেখুন\" বাটনে ট্যাপ করুন, অথবা অ্যাকাউন্টস স্ক্রিনে গিয়ে Excluded ফিল্টারে ক্লিক করুন।"
+    },
+    {
+      "question": "How does Hair Cut budget work?",
+      "question_bn": "চুল কাটার বাজেট কীভাবে কাজ করে?",
+      "answer": "You can allocate a monthly budget limit for Hair Cut in Budget Maker. The assistant tracks your spending against this limit and alerts you if you cross 85% or exceed the budget.",
+      "answer_bn": "আপনি বাজেট মেকারে চুল কাটার জন্য মাসিক বাজেট সীমা নির্ধারণ করতে পারেন। সহকারী আপনার খরচের হিসাব রাখবে এবং ৮৫% পার হলে বা বাজেট অতিক্রম করলে আপনাকে সতর্ক করবে।"
+    },
+    {
+      "question": "How do I navigate to Budget Maker for Hair Cut?",
+      "question_bn": "চুল কাটার বাজেট মেকার পেজে কীভাবে যেতে হয়?",
+      "answer": "Simply ask \"hair cut budget\" in the assistant and tap the \"Go to Hair Cut in Budget Maker\" button to jump directly to the Budget Maker screen with Hair Cut pre-selected.",
+      "answer_bn": "সহকারীকে \"hair cut budget\" অথবা \"চুল কাটার বাজেট\" জিজ্ঞেস করুন এবং \"বাজেট মেকারে যান\" বাটনে ট্যাপ করলে সরাসরি চুল কাটার ফিল্টারসহ বাজেট মেকার স্ক্রিন চালু হবে।"
     }
   ]
 }
