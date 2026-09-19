@@ -303,7 +303,7 @@ private fun SavingsSummaryCardWithGraph(
     languageMode: LanguageMode
 ) {
     Card(
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
         ),
@@ -315,8 +315,8 @@ private fun SavingsSummaryCardWithGraph(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Header Row
             Row(
@@ -326,19 +326,19 @@ private fun SavingsSummaryCardWithGraph(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 Icons.Default.Savings,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -346,11 +346,11 @@ private fun SavingsSummaryCardWithGraph(
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য সারসংক্ষেপ" else "Savings Overview",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 14.sp
                         )
                         Text(
                             text = if (languageMode == LanguageMode.BANGLA) "লক্ষ্যমাত্রা ও অর্জিত সঞ্চয়" else "Targets & Allocated Funds",
-                            fontSize = 11.5.sp,
+                            fontSize = 10.5.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
@@ -358,16 +358,16 @@ private fun SavingsSummaryCardWithGraph(
 
                 // Overall progress badge
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Text(
                         text = "${LanguageHelper.formatNumber(summary.overallProgressPercent.toDouble(), languageMode, false)}%",
-                        fontSize = 13.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                     )
                 }
             }
@@ -419,15 +419,15 @@ private fun SummaryMetricItem(
     ) {
         Text(
             text = label,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             color = MaterialTheme.colorScheme.outline,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(1.dp))
         Text(
             text = value,
-            fontSize = 13.5.sp,
+            fontSize = 12.5.sp,
             fontWeight = FontWeight.Bold,
             color = color,
             maxLines = 1,
@@ -454,10 +454,10 @@ private fun SavingsGoalsGraphView(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -466,13 +466,13 @@ private fun SavingsGoalsGraphView(
         ) {
             Text(
                 text = if (languageMode == LanguageMode.BANGLA) "সামগ্রিক অগ্রগতি বার" else "Overall Allocation Progress",
-                fontSize = 12.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = "${LanguageHelper.formatCurrency(summary.totalSaved, languageMode)} / ${LanguageHelper.formatCurrency(summary.totalTarget, languageMode)}",
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.outline
             )
         }
@@ -483,8 +483,8 @@ private fun SavingsGoalsGraphView(
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(14.dp)
-                .clip(RoundedCornerShape(7.dp))
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
         ) {
             val canvasWidth = size.width
             val canvasHeight = size.height
@@ -534,8 +534,8 @@ private fun SavingsGoalsGraphView(
         // Active Goals Legend Chips
         if (goals.isNotEmpty()) {
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(top = 1.dp)
             ) {
                 items(goals.take(5)) { item ->
                     val dotColor = try {
@@ -545,23 +545,23 @@ private fun SavingsGoalsGraphView(
                     }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(6.dp)
                                 .clip(CircleShape)
                                 .background(dotColor)
                         )
                         Text(
                             text = LanguageHelper.getLocalizedName(item.goal.name, item.goal.nameBn, languageMode),
-                            fontSize = 10.5.sp,
+                            fontSize = 9.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
                         Text(
                             text = "${LanguageHelper.formatNumber(item.progressPercent.toDouble(), languageMode, false)}%",
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             color = dotColor
                         )

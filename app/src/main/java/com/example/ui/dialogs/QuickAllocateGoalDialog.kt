@@ -214,14 +214,14 @@ fun QuickAllocateGoalDialog(
                 OutlinedTextField(
                     value = amountStr,
                     onValueChange = { amountStr = it },
-                    label = { Text(LanguageHelper.getString("amount", languageMode)) },
-                    placeholder = { Text("0") },
-                    leadingIcon = {
+                    label = { Text(LanguageHelper.getString("amount", languageMode), fontSize = 12.sp) },
+                    placeholder = { Text("0", fontSize = 13.sp) },
+                    prefix = {
                         Text(
-                            LanguageHelper.activeCurrencyConfig.activeSymbol,
+                            text = LanguageHelper.activeCurrencyConfig.activeSymbol + " ",
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 12.dp)
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -229,7 +229,8 @@ fun QuickAllocateGoalDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("allocate_amount_input"),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 )
 
                 // Quick buttons (+1000, +5000, Max)
