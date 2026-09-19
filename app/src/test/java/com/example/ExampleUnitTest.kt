@@ -159,5 +159,78 @@ class ExampleUnitTest {
     val expendable = netWorth - totalRemaining
     assertEquals(1800.0, expendable, 0.001)
   }
+
+  @Test
+  fun testFinancialAssistantEngine_rmOthersQuery() {
+    val rmOthersAccount = com.example.data.model.Account(
+        id = 10,
+        nameEn = "RM Others",
+        nameBn = "আরএম অন্যান্য",
+        type = com.example.data.model.AccountType.LIABILITY,
+        isActive = true
+    )
+    val accounts = listOf(
+        rmOthersAccount,
+        com.example.data.model.Account(id = 1, nameEn = "Cash", nameBn = "ক্যাশ", type = com.example.data.model.AccountType.ASSET, isActive = true),
+        com.example.data.model.Account(id = 2, nameEn = "Rocket", nameBn = "রকেট", type = com.example.data.model.AccountType.ASSET, isActive = true)
+    )
+    val accountsWithBalances = listOf(
+        com.example.data.repository.AccountWithBalance(account = rmOthersAccount, currentBalance = 1500.0)
+    )
+    val overview = com.example.data.repository.FinancialOverview(
+        totalAssets = 50000.0,
+        totalLiabilities = 1500.0,
+        netWorth = 48500.0,
+        monthlyIncome = 25000.0,
+        monthlyExpense = 12000.0,
+        monthlyNetSavings = 13000.0,
+        totalDebits = 50000.0,
+        totalCredits = 50000.0,
+        isLedgerBalanced = true
+    )
+
+    // Test 1: User asks "tell me about rm others"
+    val res1 = com.example.ui.components.assistant.FinancialAssistantEngine.processQuery(
+        query = "tell me about rm others",
+        languageMode = LanguageMode.ENGLISH,
+        allAccounts = accounts,
+        accountsWithBalances = accountsWithBalances,
+        allCategories = emptyList(),
+        transactions = emptyList(),
+        overview = overview,
+        budgets = emptyList()
+    )
+    assertTrue("Response should contain account name", res1.text.contains("RM Others"))
+    assertTrue("Should attach AccountDetailCard", res1.accountCard != null)
+    assertEquals("RM Others", res1.accountCard?.accountName)
+    assertEquals(1500.0, res1.accountCard?.currentBalance ?: 0.0, 0.001)
+
+    // Test 2: User asks with quotes "tell me about \"RM Others\""
+    val res2 = com.example.ui.components.assistant.FinancialAssistantEngine.processQuery(
+        query = "tell me about \"RM Others\"",
+        languageMode = LanguageMode.ENGLISH,
+        allAccounts = accounts,
+        accountsWithBalances = accountsWithBalances,
+        allCategories = emptyList(),
+        transactions = emptyList(),
+        overview = overview,
+        budgets = emptyList()
+    )
+    assertTrue("Response with quotes should also match RM Others", res2.text.contains("RM Others"))
+    assertTrue("Should attach AccountDetailCard", res2.accountCard != null)
+
+    // Test 3: Budget status query
+    val res3 = com.example.ui.components.assistant.FinancialAssistantEngine.processQuery(
+        query = "Show my budget status",
+        languageMode = LanguageMode.ENGLISH,
+        allAccounts = accounts,
+        accountsWithBalances = accountsWithBalances,
+        allCategories = emptyList(),
+        transactions = emptyList(),
+        overview = overview,
+        budgets = emptyList()
+    )
+    assertTrue(res3.text.isNotEmpty())
+  }
 }
 

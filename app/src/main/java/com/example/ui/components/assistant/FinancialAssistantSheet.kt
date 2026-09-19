@@ -7,6 +7,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,27 +27,36 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -61,9 +71,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Account
@@ -98,38 +113,38 @@ fun FinancialAssistantSheet(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // Initial greeting message with quick prompt suggestions
+    // Initial greeting message
     val initialWelcomeMessage = remember(languageMode) {
         val welcomeText = if (isBn) {
-            "👋 আসসালামু আলাইকুম! আমি আপনার অফলাইন পার্সোনাল ফাইন্যান্স সহকারী। আপনার কোনো আর্থিক তথ্য ইন্টারনেটে পাঠানো হয় না।\n\nআপনি নির্দিষ্ট কোনো অ্যাকাউন্ট (যেমন: রকেট, বিকাশ, ক্যাশ), খরচ, বাজেট বা মোট সম্পদ সম্পর্কে জানতে চাইতে পারেন:"
+            "👋 **আসসালামু আলাইকুম!** আমি আপনার অফলাইন পার্সোনাল ফাইন্যান্স সহকারী। আপনার কোনো আর্থিক ডাটা ডিভাইসের বাইরে পাঠানো হয় না।\n\nআপনি নির্দিষ্ট অ্যাকাউন্ট (যেমন RM Others, Rocket, Cash), বাজেট, চলতি মাসের খরচ, বা মোট সম্পদ সম্পর্কে প্রশ্ন করতে পারেন:"
         } else {
-            "👋 Hello! I am your 100% offline Financial Assistant. Your financial data stays strictly on your device and is never sent to the cloud.\n\nYou can ask about account transactions, date periods, spending, net worth, or budgets:"
+            "👋 **Hello!** I am your 100% private offline Financial Assistant. Your financial records stay strictly secure on your device.\n\nYou can ask about specific accounts (e.g. RM Others, Rocket, Cash), budget limits, recent activity, or net worth:"
         }
 
         val initialChips = listOf(
             AssistantChip(
-                label = if (isBn) "রকেট বিগত ৭ দিন" else "Rocket in past 7 days",
-                actionQuery = "Is there any Rocket account related transactions in past 7 days"
+                label = if (isBn) "🎯 বাজেটের অবস্থা" else "🎯 Budget Status",
+                actionQuery = "Show my budget status"
             ),
             AssistantChip(
-                label = if (isBn) "অ্যাকাউন্ট লেনদেন (৭ দিন)" else "Account transactions (7 days)",
-                actionQuery = "Is there any account related transactions in past 7 days"
+                label = if (isBn) "🏦 RM Others একাউন্ট" else "🏦 RM Others Account",
+                actionQuery = "tell me about RM Others"
             ),
             AssistantChip(
-                label = if (isBn) "মোট সম্পদ ও ব্যালেন্স" else "Net worth & Balances",
-                actionQuery = "What is my current net worth?"
+                label = if (isBn) "💰 মোট সম্পদ" else "💰 Net Worth",
+                actionQuery = "What is my net worth"
             ),
             AssistantChip(
-                label = if (isBn) "চলতি মাসের খরচ" else "This month's expenses",
+                label = if (isBn) "👥 আরএম দেনা-পাওনা" else "👥 RM Debts & Loans",
+                actionQuery = "Tell me about RM Manager"
+            ),
+            AssistantChip(
+                label = if (isBn) "📊 চলতি মাসের খরচ" else "📊 This Month Spending",
                 actionQuery = "How much did I spend this month?"
             ),
             AssistantChip(
-                label = if (isBn) "শীর্ষ খরচসমূহ" else "Top spending categories",
-                actionQuery = "Show top spending categories"
-            ),
-            AssistantChip(
-                label = if (isBn) "বাজেটের অবস্থা" else "Budget status",
-                actionQuery = "Show my budget status"
+                label = if (isBn) "💡 সঞ্চয়ের টিপস (৫০/৩০/২০)" else "💡 Savings Tips (50/30/20)",
+                actionQuery = "Give me savings tips"
             )
         )
 
@@ -177,10 +192,10 @@ fun FinancialAssistantSheet(
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        dragHandle = null,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = MaterialTheme.colorScheme.outlineVariant) },
         modifier = Modifier
-            .fillMaxHeight(0.92f)
+            .fillMaxHeight(0.95f)
             .testTag("financial_assistant_sheet")
     ) {
         Column(
@@ -193,7 +208,7 @@ fun FinancialAssistantSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 18.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -205,14 +220,21 @@ fun FinancialAssistantSheet(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary
+                                    )
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
@@ -230,31 +252,31 @@ fun FinancialAssistantSheet(
                             // Safe & Offline Badge
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f)
+                                color = Color(0xFF16A34A).copy(alpha = 0.15f)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Lock,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        tint = Color(0xFF16A34A),
                                         modifier = Modifier.size(10.dp)
                                     )
                                     Text(
                                         text = if (isBn) "অফলাইন" else "100% Offline",
-                                        fontSize = 9.sp,
+                                        fontSize = 9.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        color = Color(0xFF16A34A)
                                     )
                                 }
                             }
                         }
 
                         Text(
-                            text = if (isBn) "নিরাপদ ও স্থানীয় এআই সহকারী" else "Private On-Device Financial Intelligence",
+                            text = if (isBn) "অন-ডিভাইস নিরাপদ আর্থিক বুদ্ধিমত্তা" else "Private On-Device Financial Intelligence",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -287,7 +309,7 @@ fun FinancialAssistantSheet(
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
             // Message History List
             LazyColumn(
@@ -296,7 +318,7 @@ fun FinancialAssistantSheet(
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item { Spacer(modifier = Modifier.height(4.dp)) }
 
@@ -315,56 +337,100 @@ fun FinancialAssistantSheet(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
-            // Input Bar
+            // Quick Suggestion Chips Row above Input
+            val quickPrompts = remember(languageMode) {
+                listOf(
+                    "🎯 Budget Status" to "Show my budget status",
+                    "🏦 RM Others" to "tell me about RM Others",
+                    "💰 Net Worth" to "What is my net worth",
+                    "👥 RM Debts" to "Tell me about RM Manager",
+                    "📊 Expenses" to "How much did I spend this month?",
+                    "💡 Savings Tips" to "Give me savings tips"
+                )
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    placeholder = {
-                        Text(
-                            text = if (isBn) "লেনদেন বা হিসাব সম্পর্কে জিজ্ঞাসা করুন..." else "Ask about your transactions, budgets...",
-                            fontSize = 13.sp
-                        )
-                    },
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                    ),
-                    singleLine = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("assistant_input_text_field")
-                )
-
-                IconButton(
-                    onClick = {
-                        if (inputText.isNotBlank()) {
-                            sendMessage(inputText)
-                        }
-                    },
-                    enabled = inputText.isNotBlank(),
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        .testTag("assistant_send_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = if (inputText.isNotBlank()) Color.White else MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.size(20.dp)
+                quickPrompts.forEach { (label, actionQuery) ->
+                    SuggestionChip(
+                        onClick = { sendMessage(actionQuery) },
+                        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        ),
+                        border = SuggestionChipDefaults.suggestionChipBorder(
+                            borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            enabled = true
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     )
+                }
+            }
+
+            // Input Bar
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        placeholder = {
+                            Text(
+                                text = if (isBn) "RM Others, বাজেট বা খরচ নিয়ে লিখুন..." else "Ask about RM Others, budgets, spending...",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("assistant_input_field"),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ),
+                        maxLines = 3,
+                        singleLine = false
+                    )
+
+                    IconButton(
+                        onClick = {
+                            if (inputText.isNotBlank()) {
+                                sendMessage(inputText)
+                            }
+                        },
+                        enabled = inputText.isNotBlank(),
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (inputText.isNotBlank()) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
+                            .testTag("assistant_send_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send",
+                            tint = if (inputText.isNotBlank()) Color.White else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -385,7 +451,7 @@ private fun AssistantMessageItem(
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.95f),
+            modifier = Modifier.fillMaxWidth(if (isUser) 0.85f else 0.96f),
             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
             verticalAlignment = Alignment.Top
         ) {
@@ -394,7 +460,7 @@ private fun AssistantMessageItem(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -413,32 +479,42 @@ private fun AssistantMessageItem(
             ) {
                 Surface(
                     shape = RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isUser) 16.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 16.dp
+                        topStart = 18.dp,
+                        topEnd = 18.dp,
+                        bottomStart = if (isUser) 18.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 18.dp
                     ),
-                    color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = if (!isUser) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)) else null
+                    color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = if (!isUser) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)) else null
                 ) {
-                    Text(
+                    FormattedAssistantText(
                         text = message.text,
-                        fontSize = 13.5.sp,
-                        lineHeight = 19.sp,
-                        color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
+                        isUser = isUser,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                     )
+                }
+
+                // Account Detail Card if present (e.g. RM Others, Rocket, Cash)
+                if (message.accountCard != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AccountDetailCard(message.accountCard, languageMode)
+                }
+
+                // Budget Status Card if present
+                if (message.budgetCard != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    BudgetStatusCard(message.budgetCard, languageMode)
                 }
 
                 // Metrics Summary Card if present
                 if (message.metricsSummary != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     MetricsSummaryCard(message.metricsSummary, languageMode)
                 }
 
                 // Transaction Items List if present
                 if (message.transactionList.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     TransactionSnippetList(message.transactionList, languageMode)
                 }
 
@@ -468,15 +544,390 @@ private fun AssistantMessageItem(
                                     )
                                 },
                                 colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
                                     labelColor = MaterialTheme.colorScheme.onSurface
                                 ),
                                 border = AssistChipDefaults.assistChipBorder(
-                                    borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                    borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
                                     enabled = true
                                 ),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.testTag("assistant_chip_${chip.label}")
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Intelligent Markdown formatter that parses **bold** text, bullet points,
+ * and clean headings without rendering raw asterisks on screen.
+ */
+@Composable
+private fun FormattedAssistantText(
+    text: String,
+    isUser: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val textColor = if (isUser) Color.White else MaterialTheme.colorScheme.onSurface
+    val bulletColor = if (isUser) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary
+
+    val annotated = remember(text, isUser) {
+        buildAnnotatedString {
+            val lines = text.split("\n")
+            lines.forEachIndexed { lineIdx, line ->
+                val trimmed = line.trim()
+                val isBullet = trimmed.startsWith("•") || trimmed.startsWith("- ")
+                val cleanLine = if (isBullet) trimmed.removePrefix("- ").removePrefix("•").trim() else trimmed
+
+                if (isBullet) {
+                    withStyle(SpanStyle(color = bulletColor, fontWeight = FontWeight.Bold)) {
+                        append("  • ")
+                    }
+                }
+
+                // Parse **bold** inside the line
+                var i = 0
+                while (i < cleanLine.length) {
+                    if (i + 1 < cleanLine.length && cleanLine[i] == '*' && cleanLine[i + 1] == '*') {
+                        val closeIdx = cleanLine.indexOf("**", i + 2)
+                        if (closeIdx != -1) {
+                            val boldSegment = cleanLine.substring(i + 2, closeIdx)
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = textColor)) {
+                                append(boldSegment)
+                            }
+                            i = closeIdx + 2
+                            continue
+                        }
+                    }
+                    append(cleanLine[i])
+                    i++
+                }
+
+                if (lineIdx < lines.size - 1) {
+                    append("\n")
+                }
+            }
+        }
+    }
+
+    Text(
+        text = annotated,
+        fontSize = 13.5.sp,
+        lineHeight = 19.5.sp,
+        color = textColor,
+        modifier = modifier
+    )
+}
+
+/**
+ * Dedicated Account Detail Card rendering balance, type, and activity snapshot.
+ */
+@Composable
+private fun AccountDetailCard(
+    accountCard: AssistantAccountCard,
+    languageMode: LanguageMode
+) {
+    val isBn = languageMode == LanguageMode.BANGLA
+    val isLiability = accountCard.accountType.equals("LIABILITY", ignoreCase = true)
+    val balanceColor = if (isLiability) {
+        if (accountCard.currentBalance > 0) Color(0xFFDC2626) else Color(0xFF16A34A)
+    } else {
+        if (accountCard.currentBalance >= 0) Color(0xFF16A34A) else Color(0xFFDC2626)
+    }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header Row: Account Name & Type Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountBalance,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = accountCard.accountName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBn) "হিসাব স্থিতি" else "Account Snapshot",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                ) {
+                    Text(
+                        text = accountCard.accountType,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            // Current Balance Big Display
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (isBn) "বর্তমান ব্যালেন্স" else "CURRENT BALANCE",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = LanguageHelper.formatCurrency(accountCard.currentBalance, languageMode),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = balanceColor
+                )
+            }
+
+            // Inflow, Outflow, Count Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (isBn) "মোট জমা" else "Total Inflow",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = LanguageHelper.formatCurrency(accountCard.totalIn, languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF16A34A)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (isBn) "মোট খরচ" else "Total Outflow",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = LanguageHelper.formatCurrency(accountCard.totalOut, languageMode),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFDC2626)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (isBn) "মোট লেনদেন" else "Total Txs",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${accountCard.transactionCount}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            if (accountCard.lastActiveDate != null) {
+                Text(
+                    text = if (isBn) "সর্বশেষ লেনদেন: ${accountCard.lastActiveDate}" else "Last Activity: ${accountCard.lastActiveDate}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Dedicated Budget Status Card with visual progress bars and category health checks.
+ */
+@Composable
+private fun BudgetStatusCard(
+    budgetCard: AssistantBudgetCard,
+    languageMode: LanguageMode
+) {
+    val isBn = languageMode == LanguageMode.BANGLA
+    val totalPct = if (budgetCard.totalAllocated > 0) (budgetCard.totalSpent / budgetCard.totalAllocated * 100).toInt() else 0
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PieChart,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Text(
+                        text = if (isBn) "বাজেট অগ্রগতি সামারি" else "Budget Progress Overview",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Text(
+                    text = "$totalPct%",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (totalPct > 100) Color(0xFFDC2626) else if (totalPct >= 85) Color(0xFFEA580C) else Color(0xFF16A34A)
+                )
+            }
+
+            // Total Progress Bar
+            LinearProgressIndicator(
+                progress = { (budgetCard.totalSpent / (budgetCard.totalAllocated.coerceAtLeast(1.0))).toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape),
+                color = if (totalPct > 100) Color(0xFFDC2626) else if (totalPct >= 85) Color(0xFFEA580C) else Color(0xFF16A34A),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+
+            // Allocated vs Spent Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "${if (isBn) "খরচ:" else "Spent:"} ${LanguageHelper.formatCurrency(budgetCard.totalSpent, languageMode)}",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${if (isBn) "মোট বাজেট:" else "Total Limit:"} ${LanguageHelper.formatCurrency(budgetCard.totalAllocated, languageMode)}",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Top budget items breakdown
+            if (budgetCard.items.isNotEmpty()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    budgetCard.items.take(5).forEach { item ->
+                        val itemPct = item.percentage.toInt()
+                        val barColor = if (itemPct > 100) Color(0xFFDC2626) else if (itemPct >= 85) Color(0xFFEA580C) else Color(0xFF16A34A)
+
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = item.categoryName,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "${LanguageHelper.formatCurrency(item.spent, languageMode)} / ${LanguageHelper.formatCurrency(item.limit, languageMode)} ($itemPct%)",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = barColor
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(3.dp))
+                            LinearProgressIndicator(
+                                progress = { (item.spent / item.limit.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(CircleShape),
+                                color = barColor,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         }
                     }
@@ -492,9 +943,10 @@ private fun MetricsSummaryCard(
     languageMode: LanguageMode
 ) {
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -515,7 +967,7 @@ private fun MetricsSummaryCard(
                         text = LanguageHelper.formatCurrency(metrics.totalIn, languageMode),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF16A34A) // Green
+                        color = Color(0xFF16A34A)
                     )
                 }
             }
@@ -531,7 +983,7 @@ private fun MetricsSummaryCard(
                         text = LanguageHelper.formatCurrency(metrics.totalOut, languageMode),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFDC2626) // Red
+                        color = Color(0xFFDC2626)
                     )
                 }
             }
@@ -539,7 +991,7 @@ private fun MetricsSummaryCard(
             if (metrics.netAmount != null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "নিট প্রবাহ" else "Net Flow",
+                        text = if (languageMode == LanguageMode.BANGLA) "নিট স্থিতি" else "Net Flow",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -561,9 +1013,10 @@ private fun TransactionSnippetList(
     languageMode: LanguageMode
 ) {
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -572,12 +1025,12 @@ private fun TransactionSnippetList(
                 .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            transactions.take(8).forEach { td ->
+            transactions.take(6).forEach { td ->
                 val tx = td.transaction
                 val dateStr = DateUtils.formatDate(tx.dateEpochMs, languageMode)
                 val catName = td.category?.localizedName(languageMode)
                     ?: td.subCategory?.localizedName(languageMode)
-                    ?: if (languageMode == LanguageMode.BANGLA) "অন্যান্য" else "General"
+                    ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ" else "General"
                 val title = if (tx.payeeOrPayer.isNotBlank()) tx.payeeOrPayer
                 else if (tx.note.isNotBlank()) tx.note
                 else catName
@@ -590,7 +1043,7 @@ private fun TransactionSnippetList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -620,9 +1073,9 @@ private fun TransactionSnippetList(
                 }
             }
 
-            if (transactions.size > 8) {
+            if (transactions.size > 6) {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "+ আরও ${transactions.size - 8}টি লেনদেন রয়েছে" else "+ and ${transactions.size - 8} more transactions",
+                    text = if (languageMode == LanguageMode.BANGLA) "+ আরও ${transactions.size - 6}টি লেনদেন রয়েছে" else "+ and ${transactions.size - 6} more transactions",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 4.dp)
