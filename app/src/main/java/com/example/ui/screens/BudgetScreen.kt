@@ -148,6 +148,8 @@ import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
+import com.example.util.TabPosition
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.roundToInt
@@ -336,9 +338,10 @@ fun BudgetScreen(
     onAddTransactionWithAccount: (Account) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
-    // Top Tabs: 0 -> BM Dashboard, 1 -> Expenses, 2 -> Incomes, 3 -> Assets, 4 -> Liabilities
+    // Tabs: 0 -> BM Dashboard, 1 -> Expenses, 2 -> Incomes, 3 -> Assets, 4 -> Liabilities
     var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
-    var tabsAtTop by remember { mutableStateOf(true) }
+    val budgetMakerTabPosition by viewModel.budgetMakerTabPosition.collectAsStateWithLifecycle()
+    val tabsAtTop = budgetMakerTabPosition == TabPosition.TOP
     var showTabSettingsMenu by remember { mutableStateOf(false) }
     var showCopyPreviousConfirmDialog by remember { mutableStateOf(false) }
     var showCopyPasteDialog by remember { mutableStateOf(false) }
@@ -781,7 +784,7 @@ fun BudgetScreen(
                                             }
                                         },
                                         onClick = {
-                                            tabsAtTop = true
+                                            viewModel.setBudgetMakerTabPosition(TabPosition.TOP)
                                             showTabSettingsMenu = false
                                         }
                                     )
@@ -802,7 +805,7 @@ fun BudgetScreen(
                                             }
                                         },
                                         onClick = {
-                                            tabsAtTop = false
+                                            viewModel.setBudgetMakerTabPosition(TabPosition.BOTTOM)
                                             showTabSettingsMenu = false
                                         }
                                     )
@@ -1292,6 +1295,22 @@ fun BudgetScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // If tabs are configured at Bottom, render TabRow here
+            if (!tabsAtTop) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp,
+                    shadowElevation = 3.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    BudgetTabBar(
+                        selectedTab = selectedTab,
+                        tabLabels = tabLabels,
+                        onTabSelected = { selectedTab = it }
+                    )
                 }
             }
         }

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -69,8 +70,10 @@ fun NavigationTabsSettingsPage(
     onBack: () -> Unit
 ) {
     val tabConfig by viewModel.tabConfig.collectAsStateWithLifecycle()
+    val budgetMakerTabPosition by viewModel.budgetMakerTabPosition.collectAsStateWithLifecycle()
     val isBangla = languageMode == LanguageMode.BANGLA
     var showPositionSheet by remember { mutableStateOf(false) }
+    var showBudgetMakerPositionSheet by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -247,6 +250,72 @@ fun NavigationTabsSettingsPage(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = currentPositionTitle,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Select",
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Section: Budget Maker Tab Position Configuration
+            val bmPositionTitle = when (budgetMakerTabPosition) {
+                TabPosition.TOP -> if (isBangla) "শীর্ষে (Top Bar)" else "Top Bar"
+                TabPosition.BOTTOM -> if (isBangla) "নিচে (Bottom Bar)" else "Bottom Bar"
+            }
+
+            OutlinedCard(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showBudgetMakerPositionSheet = true }
+                    .testTag("budget_maker_tab_position_row")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingBag,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isBangla) "বাজেট মেকার ট্যাব অবস্থান" else "Budget Maker Tab Position",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBangla) "ড্যাশবোর্ড, ব্যয়, আয়, সম্পদ ও দায়: $bmPositionTitle" else "Dashboard, Expenses, Incomes, Assets, Liabilities: $bmPositionTitle",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
@@ -468,6 +537,121 @@ fun NavigationTabsSettingsPage(
                             .clickable {
                                 viewModel.setTabPosition(pos)
                                 showPositionSheet = false
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = title,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = desc,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Budget Maker Tab Position Selection Bottom Sheet
+    if (showBudgetMakerPositionSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBudgetMakerPositionSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBangla) "বাজেট মেকার ট্যাব অবস্থান" else "Budget Maker Tab Position",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (isBangla) "ড্যাশবোর্ড, ব্যয়, আয়, সম্পদ ও দায় ট্যাবের স্থান নির্বাচন করুন" else "Choose where the section tabs should appear",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    IconButton(onClick = { showBudgetMakerPositionSheet = false }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                val bmPositions = listOf(
+                    Triple(
+                        TabPosition.TOP,
+                        if (isBangla) "স্ক্রিনের উপরে (Top Bar)" else "Top Bar",
+                        if (isBangla) "শীর্ষে ক্যালেন্ডার ও ফিল্টারের নিচে ট্যাব স্ট্রিপ" else "Header-style tab bar below month selector"
+                    ),
+                    Triple(
+                        TabPosition.BOTTOM,
+                        if (isBangla) "স্ক্রিনের নিচে (Bottom Bar)" else "Bottom Bar",
+                        if (isBangla) "এক হাতে সহজে নেভিগেশনের জন্য নিচে ট্যাব স্ট্রিপ" else "Thumb-friendly tab bar at the bottom of the screen"
+                    )
+                )
+
+                bmPositions.forEach { (pos, title, desc) ->
+                    val isSelected = budgetMakerTabPosition == pos
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(
+                            if (isSelected) 1.5.dp else 1.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setBudgetMakerTabPosition(pos)
+                                showBudgetMakerPositionSheet = false
                             }
                     ) {
                         Row(

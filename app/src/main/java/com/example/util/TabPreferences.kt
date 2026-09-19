@@ -85,6 +85,23 @@ class TabPreferences(context: Context) {
     private val _config = MutableStateFlow(loadConfig())
     val config: StateFlow<NavigationTabConfig> = _config.asStateFlow()
 
+    private val _budgetMakerTabPosition = MutableStateFlow(loadBudgetMakerTabPosition())
+    val budgetMakerTabPosition: StateFlow<TabPosition> = _budgetMakerTabPosition.asStateFlow()
+
+    private fun loadBudgetMakerTabPosition(): TabPosition {
+        val positionStr = prefs.getString(KEY_BUDGET_MAKER_TAB_POSITION, TabPosition.TOP.name) ?: TabPosition.TOP.name
+        return try {
+            TabPosition.valueOf(positionStr)
+        } catch (_: Exception) {
+            TabPosition.TOP
+        }
+    }
+
+    fun setBudgetMakerTabPosition(position: TabPosition) {
+        prefs.edit().putString(KEY_BUDGET_MAKER_TAB_POSITION, position.name).apply()
+        _budgetMakerTabPosition.value = position
+    }
+
     private fun loadConfig(): NavigationTabConfig {
         val positionStr = prefs.getString(KEY_POSITION, TabPosition.BOTTOM.name) ?: TabPosition.BOTTOM.name
         val position = try {
@@ -177,6 +194,7 @@ class TabPreferences(context: Context) {
         private const val KEY_POSITION = "tab_nav_position"
         private const val KEY_TABS_ORDER = "tab_nav_order"
         private const val KEY_ENABLED_TABS = "tab_nav_enabled"
+        private const val KEY_BUDGET_MAKER_TAB_POSITION = "budget_maker_tab_position"
 
         @Volatile
         private var instance: TabPreferences? = null

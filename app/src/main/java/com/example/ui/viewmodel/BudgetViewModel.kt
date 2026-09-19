@@ -138,6 +138,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val amountFormatPrefs: AmountFormatPreferences = AmountFormatPreferences.getInstance(application)
 
     val tabConfig: StateFlow<NavigationTabConfig> = tabPrefs.config
+    val budgetMakerTabPosition: StateFlow<TabPosition> = tabPrefs.budgetMakerTabPosition
     val accountCalcConfig: StateFlow<AccountCalcConfig> = accountCalcPrefs.config
     val dashboardConfig: StateFlow<DashboardConfig> = dashboardPrefs.config
     val currencyConfig: StateFlow<CurrencyConfig> = currencyPrefs.config
@@ -342,6 +343,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setTabPosition(position: TabPosition) {
         tabPrefs.setPosition(position)
+    }
+
+    fun setBudgetMakerTabPosition(position: TabPosition) {
+        tabPrefs.setBudgetMakerTabPosition(position)
     }
 
     fun toggleTab(tab: AppTab, enabled: Boolean): Boolean {
