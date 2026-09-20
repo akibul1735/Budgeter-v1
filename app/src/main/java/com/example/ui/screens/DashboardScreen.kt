@@ -1825,6 +1825,9 @@ fun DashboardScreen(
                                 FavoriteAccountsCard(
                                     accountsWithBalances = accountsWithBalances,
                                     favoriteAccountIds = dashboardConfig.favoriteAccountIds,
+                                    accountCalcConfig = accountCalcConfig,
+                                    accountActivityTimestamps = dashboardConfig.accountActivityTimestamps,
+                                    deselectedAccountTimestamps = dashboardConfig.deselectedAccountTimestamps,
                                     languageMode = languageMode,
                                     onOpenAccountPicker = { showFavoriteAccountsPicker = true },
                                     onAccountClick = { acc ->
@@ -2068,6 +2071,9 @@ fun DashboardScreen(
         FavoriteAccountsSelectionDialog(
             allAccounts = accountsWithBalances,
             initialSelectedIds = dashboardConfig.favoriteAccountIds,
+            accountCalcConfig = accountCalcConfig,
+            accountActivityTimestamps = dashboardConfig.accountActivityTimestamps,
+            deselectedAccountTimestamps = dashboardConfig.deselectedAccountTimestamps,
             languageMode = languageMode,
             onDismiss = { showFavoriteAccountsPicker = false },
             onSave = { selectedIds ->

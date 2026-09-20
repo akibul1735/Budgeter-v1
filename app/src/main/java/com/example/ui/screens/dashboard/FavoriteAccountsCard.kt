@@ -1,5 +1,6 @@
 package com.example.ui.screens.dashboard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
@@ -26,6 +28,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -41,40 +44,67 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Account
 import com.example.data.model.LanguageMode
 import com.example.data.repository.AccountWithBalance
-import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
+import com.example.util.AccountCalcConfig
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import java.util.Locale
+import kotlin.math.abs
 
 @Composable
 fun FavoriteAccountsCard(
     accountsWithBalances: List<AccountWithBalance>,
     favoriteAccountIds: Set<Long>,
+    accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
+    accountActivityTimestamps: Map<Long, Long> = emptyMap(),
+    deselectedAccountTimestamps: Map<Long, Long> = emptyMap(),
     languageMode: LanguageMode,
     onOpenAccountPicker: () -> Unit,
     onAccountClick: (Account) -> Unit = {}
 ) {
-    val flatIndividualAccounts = remember(accountsWithBalances) {
+    // 1. Extract all active individual accounts (flatten groups)
+    val flatActiveAccounts = remember(accountsWithBalances) {
         val list = mutableListOf<AccountWithBalance>()
         for (item in accountsWithBalances) {
             if (item.subAccounts.isNotEmpty()) {
-                list.addAll(item.subAccounts)
-            } else {
+                list.addAll(item.subAccounts.filter { it.account.isActive })
+            } else if (item.account.isActive) {
                 list.add(item)
             }
         }
         list
     }
 
-    val displayAccounts = remember(flatIndividualAccounts, favoriteAccountIds) {
-        if (favoriteAccountIds.isNotEmpty()) {
-            flatIndividualAccounts.filter { it.account.id in favoriteAccountIds }
-        } else {
-            // Default to top 5 accounts if user hasn't selected yet
-            flatIndividualAccounts.take(5)
+    // 2. Compute Manually Added accounts
+    // Rule: Explicitly selected by user, not excluded from calculation.
+    // Preserved even if balance is 0.00.
+    val manualAccounts = remember(flatActiveAccounts, favoriteAccountIds, accountCalcConfig) {
+        flatActiveAccounts.filter { item ->
+            val isExcluded = !accountCalcConfig.isIncluded(item.account.id)
+            !isExcluded && item.account.id in favoriteAccountIds
         }
     }
+
+    // 3. Compute Auto Added accounts
+    // Rule: Recent activity AND non-zero effective balance AND not excluded AND not manually added
+    val autoAccounts = remember(flatActiveAccounts, favoriteAccountIds, accountCalcConfig, accountActivityTimestamps, deselectedAccountTimestamps) {
+        flatActiveAccounts.filter { item ->
+            val id = item.account.id
+            val isExcluded = !accountCalcConfig.isIncluded(id)
+            if (isExcluded || id in favoriteAccountIds) {
+                false
+            } else {
+                val effectiveBal = accountCalcConfig.getEffectiveBalance(id, item.currentBalance)
+                val isNonZero = abs(effectiveBal) > 0.0001
+                val actTs = accountActivityTimestamps[id] ?: 0L
+                val deselTs = deselectedAccountTimestamps[id] ?: 0L
+                val hasRecentActivity = actTs > 0L && actTs >= deselTs
+                isNonZero && hasRecentActivity
+            }
+        }
+    }
+
+    val hasBothSections = manualAccounts.isNotEmpty() && autoAccounts.isNotEmpty()
+    val totalAccountsCount = manualAccounts.size + autoAccounts.size
 
     Card(
         modifier = Modifier
@@ -82,7 +112,7 @@ fun FavoriteAccountsCard(
             .testTag("favorite_accounts_card"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
         )
@@ -94,12 +124,29 @@ fun FavoriteAccountsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = LanguageHelper.getString("favorite_accounts", languageMode),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = LanguageHelper.getString("favorite_accounts", languageMode),
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (totalAccountsCount > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "$totalAccountsCount",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
 
                 IconButton(
                     onClick = onOpenAccountPicker,
@@ -116,7 +163,8 @@ fun FavoriteAccountsCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (displayAccounts.isEmpty()) {
+            if (manualAccounts.isEmpty() && autoAccounts.isEmpty()) {
+                // Empty state
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -146,73 +194,161 @@ fun FavoriteAccountsCard(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    displayAccounts.forEachIndexed { index, accItem ->
-                        val balance = accItem.currentBalance
-                        val balanceColor = when {
-                            balance > 0 -> Color(0xFF10B981) // Emerald Green matching screenshot
-                            balance < 0 -> Color(0xFFEF4444) // Red
-                            else -> MaterialTheme.colorScheme.onSurface // Black/White for 0.00
+                    // 1. Manually Added Accounts Section
+                    if (manualAccounts.isNotEmpty()) {
+                        if (hasBothSections) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF59E0B),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = LanguageHelper.getString("manually_added", languageMode),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
+
+                        manualAccounts.forEachIndexed { index, accItem ->
+                            val effectiveBalance = accountCalcConfig.getEffectiveBalance(accItem.account.id, accItem.currentBalance)
+                            FavoriteAccountRow(
+                                accItem = accItem,
+                                effectiveBalance = effectiveBalance,
+                                isManual = true,
+                                languageMode = languageMode,
+                                onAccountClick = onAccountClick
+                            )
+
+                            if (index < manualAccounts.size - 1 || autoAccounts.isNotEmpty()) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                    thickness = 0.5.dp
+                                )
+                            }
+                        }
+                    }
+
+                    // 2. Auto Added Accounts Section
+                    if (autoAccounts.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(if (manualAccounts.isNotEmpty()) 6.dp else 2.dp))
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { onAccountClick(accItem.account) }
-                                .padding(vertical = 7.dp, horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(accItem.account.iconName),
-                                        contentDescription = null,
-                                        tint = SolidPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = accItem.account.localizedName(languageMode),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 2,
-                                    lineHeight = 17.sp,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = Color(0xFF3B82F6),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = LanguageHelper.formatCurrency(balance, languageMode),
-                                fontSize = 14.sp,
+                                text = LanguageHelper.getString("auto_added_recent", languageMode),
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = balanceColor
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        if (index < displayAccounts.size - 1) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                                thickness = 0.5.dp
+                        autoAccounts.forEachIndexed { index, accItem ->
+                            val effectiveBalance = accountCalcConfig.getEffectiveBalance(accItem.account.id, accItem.currentBalance)
+                            FavoriteAccountRow(
+                                accItem = accItem,
+                                effectiveBalance = effectiveBalance,
+                                isManual = false,
+                                languageMode = languageMode,
+                                onAccountClick = onAccountClick
                             )
+
+                            if (index < autoAccounts.size - 1) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                    thickness = 0.5.dp
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FavoriteAccountRow(
+    accItem: AccountWithBalance,
+    effectiveBalance: Double,
+    isManual: Boolean,
+    languageMode: LanguageMode,
+    onAccountClick: (Account) -> Unit
+) {
+    val balanceColor = when {
+        effectiveBalance > 0 -> Color(0xFF10B981) // Emerald Green
+        effectiveBalance < 0 -> Color(0xFFEF4444) // Red
+        else -> MaterialTheme.colorScheme.onSurface // Black/White for 0.00
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onAccountClick(accItem.account) }
+            .padding(vertical = 7.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = IconHelper.getIconByName(accItem.account.iconName),
+                    contentDescription = null,
+                    tint = SolidPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f, fill = false)) {
+                Text(
+                    text = accItem.account.localizedName(languageMode),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    lineHeight = 17.sp,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = LanguageHelper.formatCurrency(effectiveBalance, languageMode),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = balanceColor
+        )
     }
 }

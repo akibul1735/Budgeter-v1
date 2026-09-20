@@ -238,7 +238,9 @@ data class DashboardConfig(
     val budgetMaxCategories: Int = 6,
     val budgetShowPercentages: Boolean = true,
     val budgetShowTodayPace: Boolean = true,
-    val favoriteAccountIds: Set<Long> = emptySet(),
+    val favoriteAccountIds: Set<Long> = emptySet(), // Manually selected favorite accounts
+    val manualFavoriteAccountIds: Set<Long> = favoriteAccountIds,
+    val accountActivityTimestamps: Map<Long, Long> = emptyMap(),
     val deselectedAccountTimestamps: Map<Long, Long> = emptyMap(),
     val calendarDisplayMode: CalendarDisplayMode = CalendarDisplayMode.AMOUNTS,
     val calendarShowIncome: Boolean = true,
@@ -330,6 +332,21 @@ class DashboardPreferences private constructor(context: Context) {
             emptySet()
         }
 
+        val activityStr = prefs.getString(KEY_ACCOUNT_ACTIVITY_TIMESTAMPS, null)
+        val activityMap = mutableMapOf<Long, Long>()
+        if (!activityStr.isNullOrEmpty()) {
+            activityStr.split(",").forEach { pair ->
+                val parts = pair.split(":")
+                if (parts.size == 2) {
+                    val id = parts[0].toLongOrNull()
+                    val ts = parts[1].toLongOrNull()
+                    if (id != null && ts != null) {
+                        activityMap[id] = ts
+                    }
+                }
+            }
+        }
+
         val deselectedStr = prefs.getString(KEY_DESELECTED_ACCOUNTS, null)
         val deselectedMap = mutableMapOf<Long, Long>()
         if (!deselectedStr.isNullOrEmpty()) {
@@ -373,6 +390,8 @@ class DashboardPreferences private constructor(context: Context) {
             budgetShowPercentages = budgetShowPercentages,
             budgetShowTodayPace = budgetShowTodayPace,
             favoriteAccountIds = favIds,
+            manualFavoriteAccountIds = favIds,
+            accountActivityTimestamps = activityMap,
             deselectedAccountTimestamps = deselectedMap,
             calendarDisplayMode = calMode,
             calendarShowIncome = calShowIncome,
@@ -381,6 +400,7 @@ class DashboardPreferences private constructor(context: Context) {
     }
 
     private fun saveConfig(newConfig: DashboardConfig) {
+        val activitySerialized = newConfig.accountActivityTimestamps.entries.joinToString(",") { "${it.key}:${it.value}" }
         val deselectedSerialized = newConfig.deselectedAccountTimestamps.entries.joinToString(",") { "${it.key}:${it.value}" }
         val editor = prefs.edit()
             .putString(KEY_CARD_ORDER, newConfig.cardOrder.joinToString(",") { it.id })
@@ -400,6 +420,7 @@ class DashboardPreferences private constructor(context: Context) {
             .putBoolean(KEY_BUDGET_SHOW_PERCENTAGES, newConfig.budgetShowPercentages)
             .putBoolean(KEY_BUDGET_SHOW_TODAY_PACE, newConfig.budgetShowTodayPace)
             .putString(KEY_FAVORITE_ACCOUNTS, newConfig.favoriteAccountIds.joinToString(","))
+            .putString(KEY_ACCOUNT_ACTIVITY_TIMESTAMPS, activitySerialized)
             .putString(KEY_DESELECTED_ACCOUNTS, deselectedSerialized)
             .putString(KEY_CALENDAR_MODE, newConfig.calendarDisplayMode.name)
             .putBoolean(KEY_CALENDAR_SHOW_INCOME, newConfig.calendarShowIncome)
@@ -491,12 +512,12 @@ class DashboardPreferences private constructor(context: Context) {
     }
 
     fun setFavoriteAccounts(accountIds: Set<Long>) {
-        val currentFavs = _config.value.favoriteAccountIds
+        val currentManual = _config.value.manualFavoriteAccountIds
         val currentDeselected = _config.value.deselectedAccountTimestamps.toMutableMap()
         val now = System.currentTimeMillis()
 
-        // Any account that was previously a favorite and is now unselected gets recorded
-        val newlyDeselected = currentFavs - accountIds
+        // Any account that was previously a manual favorite and is now unselected gets recorded in deselected
+        val newlyDeselected = currentManual - accountIds
         for (id in newlyDeselected) {
             currentDeselected[id] = now
         }
@@ -509,6 +530,7 @@ class DashboardPreferences private constructor(context: Context) {
         saveConfig(
             _config.value.copy(
                 favoriteAccountIds = accountIds,
+                manualFavoriteAccountIds = accountIds,
                 deselectedAccountTimestamps = currentDeselected
             )
         )
@@ -516,35 +538,30 @@ class DashboardPreferences private constructor(context: Context) {
 
     fun onAccountActivity(accountId: Long, activityEpochMs: Long = System.currentTimeMillis()) {
         if (accountId <= 0L) return
-        val currentFavs = _config.value.favoriteAccountIds
-        val currentDeselected = _config.value.deselectedAccountTimestamps.toMutableMap()
-
-        if (accountId in currentFavs) {
-            return
-        }
-
-        val deselectedTimestamp = currentDeselected[accountId]
-        if (deselectedTimestamp == null || activityEpochMs >= deselectedTimestamp) {
-            currentDeselected.remove(accountId)
+        val currentActivity = _config.value.accountActivityTimestamps.toMutableMap()
+        val prevTs = currentActivity[accountId] ?: 0L
+        if (activityEpochMs > prevTs) {
+            currentActivity[accountId] = activityEpochMs
             saveConfig(
                 _config.value.copy(
-                    favoriteAccountIds = currentFavs + accountId,
-                    deselectedAccountTimestamps = currentDeselected
+                    accountActivityTimestamps = currentActivity
                 )
             )
         }
     }
 
     fun addFavoriteAccount(accountId: Long) {
-        onAccountActivity(accountId)
+        val current = _config.value.manualFavoriteAccountIds
+        setFavoriteAccounts(current + accountId)
     }
 
     fun addFavoriteAccounts(accountIds: Collection<Long>) {
-        accountIds.forEach { onAccountActivity(it) }
+        val current = _config.value.manualFavoriteAccountIds
+        setFavoriteAccounts(current + accountIds)
     }
 
     fun toggleFavoriteAccount(accountId: Long) {
-        val current = _config.value.favoriteAccountIds
+        val current = _config.value.manualFavoriteAccountIds
         if (accountId in current) {
             setFavoriteAccounts(current - accountId)
         } else {
@@ -593,6 +610,7 @@ class DashboardPreferences private constructor(context: Context) {
         private const val KEY_BUDGET_SHOW_PERCENTAGES = "dashboard_budget_show_percentages"
         private const val KEY_BUDGET_SHOW_TODAY_PACE = "dashboard_budget_show_today_pace"
         private const val KEY_FAVORITE_ACCOUNTS = "dashboard_favorite_accounts"
+        private const val KEY_ACCOUNT_ACTIVITY_TIMESTAMPS = "dashboard_account_activity_timestamps"
         private const val KEY_DESELECTED_ACCOUNTS = "dashboard_deselected_accounts"
         private const val KEY_CALENDAR_MODE = "dashboard_calendar_mode"
         private const val KEY_CALENDAR_SHOW_INCOME = "dashboard_calendar_show_income"

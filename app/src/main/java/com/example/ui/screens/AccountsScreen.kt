@@ -266,9 +266,9 @@ fun AccountsScreen(
         }
     }
 
-    // Helper to check if an account / sub-account has 0 balance
+    // Helper to check if an account / sub-account has 0 balance after adjustments
     fun isZeroBalance(accWithBalance: AccountWithBalance, effectiveBal: Double): Boolean {
-        return Math.abs(accWithBalance.currentBalance) < 0.0001 && Math.abs(effectiveBal) < 0.0001
+        return Math.abs(effectiveBal) < 0.0001
     }
 
     // Helper to filter zero balance in a list of groups
@@ -284,8 +284,7 @@ fun AccountsScreen(
                     !isZeroBalance(sub, effSubBal)
                 }
                 val groupEffBal = computeEffectiveGroupBalance(group)
-                val groupActualBal = computeActualGroupBalance(group)
-                val isGroupZero = Math.abs(groupActualBal) < 0.0001 && Math.abs(groupEffBal) < 0.0001
+                val isGroupZero = Math.abs(groupEffBal) < 0.0001
                 if (nonZeroSubs.isEmpty() && isGroupZero) {
                     null
                 } else {

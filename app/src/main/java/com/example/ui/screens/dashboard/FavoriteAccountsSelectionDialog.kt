@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -52,14 +53,18 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.model.LanguageMode
 import com.example.data.repository.AccountWithBalance
 import com.example.ui.theme.SolidPrimary
+import com.example.util.AccountCalcConfig
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
-import java.util.Locale
+import kotlin.math.abs
 
 @Composable
 fun FavoriteAccountsSelectionDialog(
     allAccounts: List<AccountWithBalance>,
     initialSelectedIds: Set<Long>,
+    accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
+    accountActivityTimestamps: Map<Long, Long> = emptyMap(),
+    deselectedAccountTimestamps: Map<Long, Long> = emptyMap(),
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onSave: (Set<Long>) -> Unit
@@ -67,12 +72,12 @@ fun FavoriteAccountsSelectionDialog(
     var searchQuery by remember { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf(initialSelectedIds.toMutableSet()) }
 
-    val flatIndividualAccounts = remember(allAccounts) {
+    val flatIndividualAccounts = remember(allAccounts, accountCalcConfig) {
         val list = mutableListOf<AccountWithBalance>()
         for (item in allAccounts) {
             if (item.subAccounts.isNotEmpty()) {
-                list.addAll(item.subAccounts)
-            } else {
+                list.addAll(item.subAccounts.filter { it.account.isActive && accountCalcConfig.isIncluded(it.account.id) })
+            } else if (item.account.isActive && accountCalcConfig.isIncluded(item.account.id)) {
                 list.add(item)
             }
         }
@@ -144,7 +149,9 @@ fun FavoriteAccountsSelectionDialog(
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -172,20 +179,28 @@ fun FavoriteAccountsSelectionDialog(
 
                 // Accounts List
                 LazyColumn(
-                    modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(filteredAccounts, key = { it.account.id }) { item ->
                         val isSelected = item.account.id in selectedIds
+                        val effectiveBal = accountCalcConfig.getEffectiveBalance(item.account.id, item.currentBalance)
+                        val isNonZero = abs(effectiveBal) > 0.0001
+                        val actTs = accountActivityTimestamps[item.account.id] ?: 0L
+                        val deselTs = deselectedAccountTimestamps[item.account.id] ?: 0L
+                        val isAutoAdded = !isSelected && isNonZero && actTs > 0L && actTs >= deselTs
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
                                 .clickable {
-                                    if (isSelected) {
-                                        selectedIds = (selectedIds - item.account.id).toMutableSet()
+                                    selectedIds = if (isSelected) {
+                                        (selectedIds - item.account.id).toMutableSet()
                                     } else {
-                                        selectedIds = (selectedIds + item.account.id).toMutableSet()
+                                        (selectedIds + item.account.id).toMutableSet()
                                     }
                                 }
                                 .padding(vertical = 4.dp, horizontal = 4.dp),
@@ -199,10 +214,10 @@ fun FavoriteAccountsSelectionDialog(
                                 Checkbox(
                                     checked = isSelected,
                                     onCheckedChange = { checked ->
-                                        if (checked) {
-                                            selectedIds = (selectedIds + item.account.id).toMutableSet()
+                                        selectedIds = if (checked) {
+                                            (selectedIds + item.account.id).toMutableSet()
                                         } else {
-                                            selectedIds = (selectedIds - item.account.id).toMutableSet()
+                                            (selectedIds - item.account.id).toMutableSet()
                                         }
                                     },
                                     colors = CheckboxDefaults.colors(checkedColor = SolidPrimary)
@@ -224,13 +239,41 @@ fun FavoriteAccountsSelectionDialog(
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
-                                    Text(
-                                        text = item.account.localizedName(languageMode),
-                                        fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = item.account.localizedName(languageMode),
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (isAutoAdded) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = Color(0xFF3B82F6).copy(alpha = 0.15f)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Bolt,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFF3B82F6),
+                                                        modifier = Modifier.size(10.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(2.dp))
+                                                    Text(
+                                                        text = LanguageHelper.getString("auto_added", languageMode),
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF2563EB)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                     Text(
                                         text = item.account.type.name,
                                         fontSize = 10.sp,
@@ -239,11 +282,17 @@ fun FavoriteAccountsSelectionDialog(
                                 }
                             }
 
+                            val balanceColor = when {
+                                effectiveBal > 0 -> Color(0xFF10B981)
+                                effectiveBal < 0 -> Color(0xFFEF4444)
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+
                             Text(
-                                text = LanguageHelper.formatCurrency(item.currentBalance, languageMode),
+                                text = LanguageHelper.formatCurrency(effectiveBal, languageMode),
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (item.currentBalance >= 0) Color(0xFF10B981) else Color(0xFFEF4444)
+                                color = balanceColor
                             )
                         }
                     }
