@@ -1297,22 +1297,6 @@ fun BudgetScreen(
                     }
                 }
             }
-
-            // If tabs are configured at Bottom, render TabRow here
-            if (!tabsAtTop) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp,
-                    shadowElevation = 3.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    BudgetTabBar(
-                        selectedTab = selectedTab,
-                        tabLabels = tabLabels,
-                        onTabSelected = { selectedTab = it }
-                    )
-                }
-            }
         }
     }
 

@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -23,6 +24,9 @@ object NotificationHelper {
     const val NOTIFICATION_ID_BILL_BASE = 2000
     const val NOTIFICATION_ID_BUDGET = 3001
     const val NOTIFICATION_ID_TEST = 9999
+
+    // Emerald brand theme accent for notifications
+    private const val BRAND_COLOR = 0xFF0D6E48.toInt()
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -81,8 +85,20 @@ object NotificationHelper {
         else
             "Your notifications are successfully set up and active."
 
+        val largeIconBitmap = try {
+            BitmapFactory.decodeResource(context.resources, R.drawable.app_icon_512)
+        } catch (_: Exception) {
+            null
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID_DAILY)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setColor(BRAND_COLOR)
+            .apply {
+                if (largeIconBitmap != null) {
+                    setLargeIcon(largeIconBitmap)
+                }
+            }
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
@@ -116,8 +132,20 @@ object NotificationHelper {
             else "Log today's transactions to keep your budget on track!"
         }
 
+        val largeIconBitmap = try {
+            BitmapFactory.decodeResource(context.resources, R.drawable.app_icon_512)
+        } catch (_: Exception) {
+            null
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID_DAILY)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setColor(BRAND_COLOR)
+            .apply {
+                if (largeIconBitmap != null) {
+                    setLargeIcon(largeIconBitmap)
+                }
+            }
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -159,8 +187,20 @@ object NotificationHelper {
             "$billTitle ($amountFormatted) is $dueText"
         }
 
+        val largeIconBitmap = try {
+            BitmapFactory.decodeResource(context.resources, R.drawable.app_icon_512)
+        } catch (_: Exception) {
+            null
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID_BILLS)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setColor(BRAND_COLOR)
+            .apply {
+                if (largeIconBitmap != null) {
+                    setLargeIcon(largeIconBitmap)
+                }
+            }
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
