@@ -70,6 +70,11 @@ import com.example.util.IconHelper
 import com.example.util.LanguageHelper
 import kotlin.math.abs
 
+private data class AccountGroupSuggestion(
+    val group: com.example.data.model.Account,
+    val accounts: List<AccountWithBalance>
+)
+
 @Composable
 fun FavoriteAccountsSelectionDialog(
     allAccounts: List<AccountWithBalance>,
@@ -85,13 +90,13 @@ fun FavoriteAccountsSelectionDialog(
     var searchQuery by remember { mutableStateOf("") }
     var selectedIds by remember { mutableStateOf(initialSelectedIds.toMutableSet()) }
 
-    // Flatten all active, included individual accounts (excluding those hidden from Accounts tab)
-    val flatIndividualAccounts = remember(allAccounts, accountCalcConfig) {
+    // Flatten all active individual accounts (both excluded and included from calculation)
+    val flatIndividualAccounts = remember(allAccounts) {
         val list = mutableListOf<AccountWithBalance>()
         for (item in allAccounts) {
             if (item.subAccounts.isNotEmpty()) {
-                list.addAll(item.subAccounts.filter { it.account.isActive && accountCalcConfig.isIncluded(it.account.id) })
-            } else if (item.account.isActive && accountCalcConfig.isIncluded(item.account.id)) {
+                list.addAll(item.subAccounts.filter { it.account.isActive })
+            } else if (item.account.isActive && item.account.parentId != null) {
                 list.add(item)
             }
         }
@@ -109,31 +114,55 @@ fun FavoriteAccountsSelectionDialog(
         map
     }
 
-    // Filtered accounts for manual selection search
-    val filteredAccounts = remember(flatIndividualAccounts, searchQuery) {
-        if (searchQuery.isBlank()) {
-            flatIndividualAccounts
-        } else {
-            flatIndividualAccounts.filter {
-                it.account.nameEn.contains(searchQuery, ignoreCase = true) ||
-                        it.account.nameBn.contains(searchQuery, ignoreCase = true)
+    // Group accounts for manual selection suggestions: Group -> Accounts
+    val groupedAccounts = remember(allAccounts, searchQuery) {
+        val list = mutableListOf<AccountGroupSuggestion>()
+        for (groupItem in allAccounts) {
+            val activeSubs = groupItem.subAccounts.filter { it.account.isActive }
+            if (activeSubs.isNotEmpty()) {
+                val matchingSubs = if (searchQuery.isBlank()) {
+                    activeSubs
+                } else {
+                    val groupMatches = groupItem.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                            groupItem.account.nameBn.contains(searchQuery, ignoreCase = true)
+                    if (groupMatches) {
+                        activeSubs
+                    } else {
+                        activeSubs.filter {
+                            it.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                                    it.account.nameBn.contains(searchQuery, ignoreCase = true)
+                        }
+                    }
+                }
+                if (matchingSubs.isNotEmpty()) {
+                    list.add(AccountGroupSuggestion(group = groupItem.account, accounts = matchingSubs))
+                }
+            } else if (groupItem.account.isActive && groupItem.account.parentId != null) {
+                val matches = searchQuery.isBlank() ||
+                        groupItem.account.nameEn.contains(searchQuery, ignoreCase = true) ||
+                        groupItem.account.nameBn.contains(searchQuery, ignoreCase = true)
+                if (matches) {
+                    list.add(AccountGroupSuggestion(group = groupItem.account, accounts = listOf(groupItem)))
+                }
             }
         }
+        list
+    }
+
+    val totalVisibleAccounts = remember(groupedAccounts) {
+        groupedAccounts.sumOf { it.accounts.size }
     }
 
     // Compute Auto-Added accounts dynamically
     // Rule:
-    // 1. Excluded accounts: If an account is excluded from the Accounts tab, do not auto-add or show it (enforced by flatIndividualAccounts).
-    // 2. If the account's amount is excluded and its calculated balance becomes 0, do not show it.
-    // 3. If the calculated balance remains positive or negative and it has recent activity, it can still appear.
-    // 4. Automatically add an account when it has recent activity.
-    // 5. Keep it in the Favorite Account Card while it has a non-zero balance.
-    // 6. When its balance becomes 0, automatically deselect/remove it.
-    // 7. Manual selection should remain independent from the auto-added list.
+    // 1. Excluded accounts: If an account is excluded from the Accounts tab, do not auto-add.
+    // 2. If the calculated balance remains positive or negative and it has recent activity, it appears.
+    // 3. Keep it in the Favorite Account Card while it has a non-zero balance.
     val autoAddedAccounts = remember(flatIndividualAccounts, selectedIds, accountCalcConfig, accountActivityTimestamps, deselectedAccountTimestamps) {
         flatIndividualAccounts.filter { item ->
             val id = item.account.id
-            if (id in selectedIds) {
+            val isExcluded = !accountCalcConfig.isIncluded(id)
+            if (isExcluded || id in selectedIds) {
                 false
             } else {
                 val effectiveBal = accountCalcConfig.getEffectiveBalance(id, item.currentBalance)
@@ -333,7 +362,7 @@ fun FavoriteAccountsSelectionDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${filteredAccounts.size} ${LanguageHelper.getString("selected", languageMode).lowercase()}: ${selectedIds.size}",
+                                text = "$totalVisibleAccounts ${LanguageHelper.getString("accounts", languageMode).lowercase()} • ${LanguageHelper.getString("selected", languageMode)}: ${selectedIds.size}",
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -357,135 +386,201 @@ fun FavoriteAccountsSelectionDialog(
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
 
-                        // Manual Accounts List
+                        // Manual Accounts List organized by Group
                         LazyColumn(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(vertical = 4.dp),
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            items(filteredAccounts, key = { it.account.id }) { item ->
-                                val isSelected = item.account.id in selectedIds
-                                val effectiveBal = accountCalcConfig.getEffectiveBalance(item.account.id, item.currentBalance)
-                                val isNonZero = abs(effectiveBal) > 0.0001
-                                val actTs = accountActivityTimestamps[item.account.id] ?: 0L
-                                val deselTs = deselectedAccountTimestamps[item.account.id] ?: 0L
-                                val isAutoEligible = !isSelected && isNonZero && actTs > 0L && actTs >= deselTs
-                                val parentGroup = accountParentMap[item.account.id]
-                                val groupLabel = parentGroup?.localizedName(languageMode)
+                            groupedAccounts.forEach { groupItem ->
+                                val groupAccountIds = groupItem.accounts.map { it.account.id }
+                                val allGroupSelected = groupAccountIds.isNotEmpty() && groupAccountIds.all { it in selectedIds }
 
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable {
-                                            selectedIds = if (isSelected) {
-                                                (selectedIds - item.account.id).toMutableSet()
-                                            } else {
-                                                (selectedIds + item.account.id).toMutableSet()
-                                            }
-                                        }
-                                        .padding(vertical = 4.dp, horizontal = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
+                                item(key = "group_header_${groupItem.group.id}") {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Checkbox(
-                                            checked = isSelected,
-                                            onCheckedChange = { checked ->
-                                                selectedIds = if (checked) {
-                                                    (selectedIds + item.account.id).toMutableSet()
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                selectedIds = if (allGroupSelected) {
+                                                    (selectedIds - groupAccountIds.toSet()).toMutableSet()
                                                 } else {
-                                                    (selectedIds - item.account.id).toMutableSet()
+                                                    (selectedIds + groupAccountIds).toMutableSet()
                                                 }
-                                            },
-                                            colors = CheckboxDefaults.colors(checkedColor = SolidPrimary)
-                                        )
-                                        Spacer(modifier = Modifier.width(2.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(30.dp)
-                                                .clip(CircleShape)
-                                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            IconHelper.AppIcon(
-                                                iconName = item.account.iconName,
-                                                contentDescription = null,
-                                                tint = SolidPrimary,
-                                                modifier = Modifier.size(16.dp)
+                                            }
+                                            .padding(top = 10.dp, bottom = 4.dp, start = 4.dp, end = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                IconHelper.AppIcon(
+                                                    iconName = groupItem.group.iconName,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = groupItem.group.localizedName(languageMode),
+                                                fontSize = 13.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                                            if (!groupLabel.isNullOrBlank()) {
-                                                Text(
-                                                    text = groupLabel,
-                                                    fontSize = 10.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+
+                                        Text(
+                                            text = "${groupItem.accounts.count { it.account.id in selectedIds }}/${groupItem.accounts.size}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+
+                                items(groupItem.accounts, key = { it.account.id }) { item ->
+                                    val isSelected = item.account.id in selectedIds
+                                    val isIncludedInCalc = accountCalcConfig.isIncluded(item.account.id)
+                                    val effectiveBal = if (isIncludedInCalc) {
+                                        accountCalcConfig.getEffectiveBalance(item.account.id, item.currentBalance)
+                                    } else {
+                                        item.currentBalance
+                                    }
+                                    val isNonZero = abs(effectiveBal) > 0.0001
+                                    val actTs = accountActivityTimestamps[item.account.id] ?: 0L
+                                    val deselTs = deselectedAccountTimestamps[item.account.id] ?: 0L
+                                    val isAutoEligible = !isSelected && isNonZero && actTs > 0L && actTs >= deselTs
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 20.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                selectedIds = if (isSelected) {
+                                                    (selectedIds - item.account.id).toMutableSet()
+                                                } else {
+                                                    (selectedIds + item.account.id).toMutableSet()
+                                                }
+                                            }
+                                            .padding(vertical = 4.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Checkbox(
+                                                checked = isSelected,
+                                                onCheckedChange = { checked ->
+                                                    selectedIds = if (checked) {
+                                                        (selectedIds + item.account.id).toMutableSet()
+                                                    } else {
+                                                        (selectedIds - item.account.id).toMutableSet()
+                                                    }
+                                                },
+                                                colors = CheckboxDefaults.colors(checkedColor = SolidPrimary),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(CircleShape)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                IconHelper.AppIcon(
+                                                    iconName = item.account.iconName,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(15.dp)
                                                 )
                                             }
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = if (!groupLabel.isNullOrBlank()) "   ${item.account.localizedName(languageMode)}" else item.account.localizedName(languageMode),
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                if (isAutoEligible) {
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Surface(
-                                                        shape = RoundedCornerShape(4.dp),
-                                                        color = Color(0xFF3B82F6).copy(alpha = 0.15f)
-                                                    ) {
-                                                        Row(
-                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                                            verticalAlignment = Alignment.CenterVertically
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = item.account.localizedName(languageMode),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    if (isAutoEligible) {
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = Color(0xFF3B82F6).copy(alpha = 0.15f)
                                                         ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Bolt,
-                                                                contentDescription = null,
-                                                                tint = Color(0xFF3B82F6),
-                                                                modifier = Modifier.size(10.dp)
-                                                            )
-                                                            Spacer(modifier = Modifier.width(2.dp))
-                                                            Text(
-                                                                text = LanguageHelper.getString("auto_added", languageMode),
-                                                                fontSize = 9.sp,
-                                                                fontWeight = FontWeight.Medium,
-                                                                color = Color(0xFF2563EB)
-                                                            )
+                                                            Row(
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Bolt,
+                                                                    contentDescription = null,
+                                                                    tint = Color(0xFF3B82F6),
+                                                                    modifier = Modifier.size(10.dp)
+                                                                )
+                                                                Spacer(modifier = Modifier.width(2.dp))
+                                                                Text(
+                                                                    text = LanguageHelper.getString("auto_added", languageMode),
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.Medium,
+                                                                    color = Color(0xFF2563EB)
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    if (!isIncludedInCalc) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                                                        ) {
+                                                            Text(
+                                                                text = LanguageHelper.getString("excluded", languageMode),
+                                                                fontSize = 9.sp,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = MaterialTheme.colorScheme.error,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                            )
+                                                        }
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                    }
+                                                    Text(
+                                                        text = item.account.type.name,
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.outline
+                                                    )
+                                                }
                                             }
-                                            Text(
-                                                text = item.account.type.name,
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.outline
-                                            )
                                         }
-                                    }
 
-                                    val balanceColor = when {
-                                        effectiveBal > 0 -> Color(0xFF10B981)
-                                        effectiveBal < 0 -> Color(0xFFEF4444)
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    }
+                                        val balanceColor = when {
+                                            effectiveBal > 0 -> Color(0xFF10B981)
+                                            effectiveBal < 0 -> Color(0xFFEF4444)
+                                            else -> MaterialTheme.colorScheme.onSurface
+                                        }
 
-                                    Text(
-                                        text = LanguageHelper.formatCurrency(effectiveBal, languageMode),
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = balanceColor
-                                    )
+                                        Text(
+                                            text = LanguageHelper.formatCurrency(effectiveBal, languageMode),
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = balanceColor
+                                        )
+                                    }
                                 }
                             }
                         }

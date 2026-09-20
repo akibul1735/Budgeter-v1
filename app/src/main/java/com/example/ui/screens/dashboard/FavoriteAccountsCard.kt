@@ -67,31 +67,17 @@ fun FavoriteAccountsCard(
         for (item in accountsWithBalances) {
             if (item.subAccounts.isNotEmpty()) {
                 list.addAll(item.subAccounts.filter { it.account.isActive })
-            } else if (item.account.isActive) {
+            } else if (item.account.isActive && item.account.parentId != null) {
                 list.add(item)
             }
         }
         list
     }
 
-    // Map account id to parent group account
-    val accountParentMap = remember(accountsWithBalances) {
-        val map = mutableMapOf<Long, Account>()
-        for (group in accountsWithBalances) {
-            for (sub in group.subAccounts) {
-                map[sub.account.id] = group.account
-            }
-        }
-        map
-    }
-
     // 2. Compute Manually Added accounts
-    // Rule: Explicitly selected by user, not excluded from calculation.
-    // Preserved even if balance is 0.00.
-    val manualAccounts = remember(flatActiveAccounts, favoriteAccountIds, accountCalcConfig) {
+    val manualAccounts = remember(flatActiveAccounts, favoriteAccountIds) {
         flatActiveAccounts.filter { item ->
-            val isExcluded = !accountCalcConfig.isIncluded(item.account.id)
-            !isExcluded && item.account.id in favoriteAccountIds
+            item.account.id in favoriteAccountIds
         }
     }
 
@@ -114,8 +100,24 @@ fun FavoriteAccountsCard(
         }
     }
 
-    val hasBothSections = manualAccounts.isNotEmpty() && autoAccounts.isNotEmpty()
-    val totalAccountsCount = manualAccounts.size + autoAccounts.size
+    // 4. Combine manual and auto accounts, deduplicate, and sort by name
+    val combinedAccounts = remember(manualAccounts, autoAccounts, languageMode) {
+        val list = mutableListOf<AccountWithBalance>()
+        val seenIds = mutableSetOf<Long>()
+        for (acc in manualAccounts) {
+            if (seenIds.add(acc.account.id)) {
+                list.add(acc)
+            }
+        }
+        for (acc in autoAccounts) {
+            if (seenIds.add(acc.account.id)) {
+                list.add(acc)
+            }
+        }
+        list.sortedBy { it.account.localizedName(languageMode).lowercase() }
+    }
+
+    val totalAccountsCount = combinedAccounts.size
 
     Card(
         modifier = Modifier
@@ -174,7 +176,7 @@ fun FavoriteAccountsCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (manualAccounts.isEmpty() && autoAccounts.isEmpty()) {
+            if (combinedAccounts.isEmpty()) {
                 // Empty state
                 Box(
                     modifier = Modifier
@@ -204,94 +206,26 @@ fun FavoriteAccountsCard(
                     }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // 1. Manually Added Accounts Section
-                    if (manualAccounts.isNotEmpty()) {
-                        if (hasBothSections) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = Color(0xFFF59E0B),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = LanguageHelper.getString("manually_added", languageMode),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    combinedAccounts.forEachIndexed { index, accItem ->
+                        val effectiveBalance = if (accountCalcConfig.isIncluded(accItem.account.id)) {
+                            accountCalcConfig.getEffectiveBalance(accItem.account.id, accItem.currentBalance)
+                        } else {
+                            accItem.currentBalance
                         }
 
-                        manualAccounts.forEachIndexed { index, accItem ->
-                            val effectiveBalance = accountCalcConfig.getEffectiveBalance(accItem.account.id, accItem.currentBalance)
-                            FavoriteAccountRow(
-                                accItem = accItem,
-                                parentGroup = accountParentMap[accItem.account.id],
-                                effectiveBalance = effectiveBalance,
-                                isManual = true,
-                                languageMode = languageMode,
-                                onAccountClick = onAccountClick
+                        FavoriteAccountRow(
+                            accItem = accItem,
+                            effectiveBalance = effectiveBalance,
+                            languageMode = languageMode,
+                            onAccountClick = onAccountClick
+                        )
+
+                        if (index < combinedAccounts.size - 1) {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                thickness = 0.5.dp
                             )
-
-                            if (index < manualAccounts.size - 1 || autoAccounts.isNotEmpty()) {
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                                    thickness = 0.5.dp
-                                )
-                            }
-                        }
-                    }
-
-                    // 2. Auto Added Accounts Section
-                    if (autoAccounts.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(if (manualAccounts.isNotEmpty()) 6.dp else 2.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Bolt,
-                                contentDescription = null,
-                                tint = Color(0xFF3B82F6),
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = LanguageHelper.getString("auto_added_recent", languageMode),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        autoAccounts.forEachIndexed { index, accItem ->
-                            val effectiveBalance = accountCalcConfig.getEffectiveBalance(accItem.account.id, accItem.currentBalance)
-                            FavoriteAccountRow(
-                                accItem = accItem,
-                                parentGroup = accountParentMap[accItem.account.id],
-                                effectiveBalance = effectiveBalance,
-                                isManual = false,
-                                languageMode = languageMode,
-                                onAccountClick = onAccountClick
-                            )
-
-                            if (index < autoAccounts.size - 1) {
-                                HorizontalDivider(
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                                    thickness = 0.5.dp
-                                )
-                            }
                         }
                     }
                 }
@@ -303,9 +237,7 @@ fun FavoriteAccountsCard(
 @Composable
 private fun FavoriteAccountRow(
     accItem: AccountWithBalance,
-    parentGroup: Account?,
     effectiveBalance: Double,
-    isManual: Boolean,
     languageMode: LanguageMode,
     onAccountClick: (Account) -> Unit
 ) {
@@ -314,14 +246,13 @@ private fun FavoriteAccountRow(
         effectiveBalance < 0 -> Color(0xFFEF4444) // Red
         else -> MaterialTheme.colorScheme.onSurface // Black/White for 0.00
     }
-    val groupLabel = parentGroup?.localizedName(languageMode)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .clickable { onAccountClick(accItem.account) }
-            .padding(vertical = 6.dp, horizontal = 4.dp),
+            .padding(vertical = 7.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -344,26 +275,14 @@ private fun FavoriteAccountRow(
                 )
             }
             Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f, fill = false)) {
-                if (!groupLabel.isNullOrBlank()) {
-                    Text(
-                        text = groupLabel,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Text(
-                    text = if (!groupLabel.isNullOrBlank()) "   ${accItem.account.localizedName(languageMode)}" else accItem.account.localizedName(languageMode),
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            Text(
+                text = accItem.account.localizedName(languageMode),
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
 
         Spacer(modifier = Modifier.width(8.dp))
