@@ -137,6 +137,46 @@ object DateUtils {
         }
     }
 
+    /**
+     * Parses ISO-8601/RFC-3339 UTC string from Google Drive/Dropbox or numeric string to epoch milliseconds.
+     */
+    fun parseIsoTimestamp(isoString: String): Long {
+        if (isoString.isBlank()) return 0L
+        isoString.toLongOrNull()?.let { return it }
+
+        val isoPatterns = arrayOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ssX",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd"
+        )
+        for (pat in isoPatterns) {
+            try {
+                val sdf = SimpleDateFormat(pat, Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }
+                val parsed = sdf.parse(isoString)
+                if (parsed != null) return parsed.time
+            } catch (_: Exception) {}
+        }
+        return 0L
+    }
+
+    /**
+     * Formats an ISO-8601/RFC-3339 string or epoch into the user's localized date and 12-hour AM/PM time.
+     */
+    fun formatSyncDateTime(isoStringOrEpoch: String, mode: LanguageMode): String {
+        val epoch = parseIsoTimestamp(isoStringOrEpoch)
+        if (epoch <= 0L) return if (isoStringOrEpoch.isNotBlank()) isoStringOrEpoch else "Cloud Backup"
+        val datePart = formatDate(epoch, mode)
+        val timePart = formatTime(epoch, mode)
+        return "$datePart • $timePart"
+    }
+
     fun formatDateFull(epochMs: Long, mode: LanguageMode): String {
         return formatDate(epochMs, mode)
     }

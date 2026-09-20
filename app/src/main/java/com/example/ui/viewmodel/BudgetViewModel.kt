@@ -1930,7 +1930,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                     fileId = f.id,
                                     fileName = f.name,
                                     sourceProvider = "Google Drive (Primary)",
-                                    timestamp = try { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).parse(f.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L },
+                                    timestamp = com.example.util.DateUtils.parseIsoTimestamp(f.modifiedTime),
                                     deviceName = f.deviceName,
                                     installationId = f.installationId,
                                     accountsCount = f.accountsCount,
@@ -1950,7 +1950,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                     fileId = f.id,
                                     fileName = f.name,
                                     sourceProvider = "Google Drive (Primary)",
-                                    timestamp = try { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).parse(f.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L },
+                                    timestamp = com.example.util.DateUtils.parseIsoTimestamp(f.modifiedTime),
                                     deviceName = f.deviceName,
                                     installationId = f.installationId,
                                     accountsCount = f.accountsCount,
@@ -1976,7 +1976,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                     fileId = f.id,
                                     fileName = f.name,
                                     sourceProvider = "Dropbox (Primary)",
-                                    timestamp = try { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).parse(f.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L },
+                                    timestamp = com.example.util.DateUtils.parseIsoTimestamp(f.modifiedTime),
                                     deviceName = f.deviceName,
                                     installationId = f.installationId,
                                     driveIndex = 1,
@@ -2305,9 +2305,25 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     // Cloud account setters are defined above at lines 1443-1444
 
-    fun setLocalBackupDirectory(dir: String) = backupPrefs.setLocalBackupDirectory(dir)
-    fun setAutoPhoneBackupEnabled(enabled: Boolean) = backupPrefs.setAutoPhoneBackupEnabled(enabled)
-    fun setScheduledTime(hour: Int, minute: Int) = backupPrefs.setScheduledTime(hour, minute)
+    fun clearBackupUiState() {
+        _backupUiState.value = BackupUiState.Idle
+    }
+
+    fun setLocalBackupDirectory(dir: String) {
+        backupPrefs.setLocalBackupDirectory(dir)
+        SyncManager.scheduleDailyAutoBackup(getApplication())
+    }
+
+    fun setAutoPhoneBackupEnabled(enabled: Boolean) {
+        backupPrefs.setAutoPhoneBackupEnabled(enabled)
+        SyncManager.scheduleDailyAutoBackup(getApplication())
+    }
+
+    fun setScheduledTime(hour: Int, minute: Int) {
+        backupPrefs.setScheduledTime(hour, minute)
+        SyncManager.scheduleDailyAutoBackup(getApplication())
+    }
+
     fun setUploadAttachments(enabled: Boolean) = backupPrefs.setUploadAttachments(enabled)
     fun setAutoSyncData(enabled: Boolean) = backupPrefs.setAutoSyncData(enabled)
     fun setAutoSyncOnAppStart(enabled: Boolean) = backupPrefs.setAutoSyncOnAppStart(enabled)

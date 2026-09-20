@@ -54,10 +54,15 @@ class JsonSyncWorker(
 
             val settingsBackup = BackupManager.captureSettings(applicationContext)
 
+            val backupPrefs = BackupPreferences.getInstance(applicationContext)
+            val config = backupPrefs.config.value
+
             val backupData = BudgetBackupData(
                 version = 4,
                 exportedAt = System.currentTimeMillis(),
                 app = "Budgeter",
+                installationId = backupPrefs.getInstallationId(),
+                deviceName = backupPrefs.getDeviceName(),
                 accounts = accountDao.getAllAccountsSnapshot(),
                 categories = categoryDao.getAllCategoriesSnapshot(),
                 transactions = transactionDao.getAllTransactionsSnapshot(),
@@ -76,8 +81,6 @@ class JsonSyncWorker(
             latestSyncFile.writeText(json)
 
             val timestamp = System.currentTimeMillis()
-            val backupPrefs = BackupPreferences.getInstance(applicationContext)
-            val config = backupPrefs.config.value
 
             // Cloud Sync Primary Account if configured
             if (config.primaryAccount.isLinked && config.primaryAccount.autoSync) {

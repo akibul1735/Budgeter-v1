@@ -71,7 +71,7 @@ class DatabaseBackupWorker(
                 return@withContext Result.success()
             }
 
-            // 3. Target backup directory
+            // 3. Target backup directory for SQLite archives
             val backupDir = File(applicationContext.filesDir, "db_backups")
             if (!backupDir.exists()) backupDir.mkdirs()
 
@@ -83,7 +83,27 @@ class DatabaseBackupWorker(
             copyFile(dbFile, latestBackupFile)
             copyFile(dbFile, archiveBackupFile)
 
-            // 5. Cleanup older backups (keep last 7)
+            // 5. Create full Local Phone Backup Snapshot (JSON) in configured local storage folder
+            val backupPrefs = com.example.util.BackupPreferences.getInstance(applicationContext)
+            val config = backupPrefs.config.value
+            try {
+                val localFile = com.example.util.BackupManager.createLocalBackupFile(
+                    context = applicationContext,
+                    accountDao = db.accountDao(),
+                    categoryDao = db.categoryDao(),
+                    transactionDao = db.transactionDao(),
+                    recurringBillDao = db.recurringBillDao(),
+                    monthlyBudgetDao = db.monthlyBudgetDao(),
+                    budgetAdjustmentDao = db.budgetAdjustmentDao(),
+                    targetDirectory = config.localBackupDirectory,
+                    includeSettings = true
+                )
+                Log.d(TAG, "Auto phone backup JSON created successfully: ${localFile.name}")
+            } catch (e: Exception) {
+                Log.w(TAG, "Local phone backup JSON creation warning: ${e.message}")
+            }
+
+            // 6. Cleanup older backups (keep last 7)
             val allBackups = backupDir.listFiles { file -> file.name.startsWith("budgeter_backup_") && file.extension == "db" }
             if (allBackups != null && allBackups.size > 7) {
                 allBackups.sortedBy { it.lastModified() }

@@ -4,11 +4,16 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.example.util.BackupPreferences
 import java.io.File
+import java.util.Calendar
+import java.util.concurrent.TimeUnit
 
 object SyncManager {
     private const val TAG = "SyncManager"
@@ -19,9 +24,62 @@ object SyncManager {
 
     const val WORK_JSON_SYNC = "budgeter_json_instant_sync"
     const val WORK_DB_BACKUP = "budgeter_db_24h_backup"
+    const val WORK_DAILY_AUTO_BACKUP = "budgeter_daily_auto_phone_backup"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    /**
+     * Schedules or cancels daily auto phone backup based on user preferences.
+     */
+    fun scheduleDailyAutoBackup(context: Context) {
+        try {
+            val backupPrefs = BackupPreferences.getInstance(context)
+            val config = backupPrefs.config.value
+            val workManager = WorkManager.getInstance(context.applicationContext)
+
+            if (!config.isAutoPhoneBackupEnabled) {
+                Log.d(TAG, "Auto phone backup disabled. Cancelling daily auto backup work.")
+                workManager.cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
+                return
+            }
+
+            val now = Calendar.getInstance()
+            val targetCal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, config.scheduledBackupHour)
+                set(Calendar.MINUTE, config.scheduledBackupMinute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+
+            if (targetCal.timeInMillis <= now.timeInMillis) {
+                targetCal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+
+            val initialDelayMs = (targetCal.timeInMillis - now.timeInMillis).coerceAtLeast(1000L)
+            Log.d(TAG, "Scheduling daily auto backup with initial delay of ${initialDelayMs / 1000 / 60} minutes to run at ${config.formattedScheduledTime}")
+
+            val periodicRequest = PeriodicWorkRequestBuilder<DatabaseBackupWorker>(24, TimeUnit.HOURS)
+                .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+                .build()
+
+            workManager.enqueueUniquePeriodicWork(
+                WORK_DAILY_AUTO_BACKUP,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                periodicRequest
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to schedule daily auto backup: ${e.message}", e)
+        }
+    }
+
+    fun cancelDailyAutoBackup(context: Context) {
+        try {
+            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to cancel daily auto backup: ${e.message}", e)
+        }
     }
 
     /**

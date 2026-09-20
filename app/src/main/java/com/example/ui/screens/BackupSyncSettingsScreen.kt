@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.util.CreateDocumentWithInitialUri
+import com.example.util.DateUtils
 import com.example.util.OpenDocumentWithInitialUri
 import com.example.util.StorageLocationHelper
 import androidx.compose.animation.AnimatedVisibility
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudQueue
@@ -452,7 +454,10 @@ fun BackupSyncSettingsScreen(
                 val isSelected = selectedManagementTab == tab
                 Tab(
                     selected = isSelected,
-                    onClick = { selectedManagementTab = tab },
+                    onClick = {
+                        selectedManagementTab = tab
+                        viewModel.clearBackupUiState()
+                    },
                     text = {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -560,77 +565,18 @@ fun BackupSyncSettingsScreen(
                 }
             }
 
-            // Status Feedback Card
-            when (val state = backupUiState) {
-                is BackupUiState.Success -> {
-                    item {
-                        OutlinedCard(
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = state.message,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-                is BackupUiState.Error -> {
-                    item {
-                        OutlinedCard(
-                            colors = CardDefaults.outlinedCardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = state.message,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-                else -> {}
-            }
-
             // =================================================================
             // SECTION 1: ONLINE SYNC
             // =================================================================
             if (selectedManagementTab == DataManagementTab.ONLINE) {
+                // Tab-specific Status Feedback
+                item {
+                    TabStatusFeedbackCard(
+                        state = backupUiState,
+                        onDismiss = { viewModel.clearBackupUiState() }
+                    )
+                }
+
                 // Three Tabs for Online Sync: Drive 1, Drive 2, Common
                 item {
                     TabRow(
@@ -645,7 +591,10 @@ fun BackupSyncSettingsScreen(
                             val isSelected = selectedOnlineSyncTab == subTab
                             Tab(
                                 selected = isSelected,
-                                onClick = { selectedOnlineSyncTab = subTab },
+                                onClick = {
+                                    selectedOnlineSyncTab = subTab
+                                    viewModel.clearBackupUiState()
+                                },
                                 text = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -853,7 +802,7 @@ fun BackupSyncSettingsScreen(
                                 DriveSnapshotItem(
                                     backupFile = backupFile,
                                     onRestore = {
-                                        val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
+                                        val parsedTime = DateUtils.parseIsoTimestamp(backupFile.modifiedTime)
                                         val info = DetectedBackupInfo(
                                             fileId = backupFile.id,
                                             fileName = backupFile.name,
@@ -1061,7 +1010,7 @@ fun BackupSyncSettingsScreen(
                                 DriveSnapshotItem(
                                     backupFile = backupFile,
                                     onRestore = {
-                                        val parsedTime = try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(backupFile.modifiedTime)?.time ?: 0L } catch (_: Exception) { 0L }
+                                        val parsedTime = DateUtils.parseIsoTimestamp(backupFile.modifiedTime)
                                         val info = DetectedBackupInfo(
                                             fileId = backupFile.id,
                                             fileName = backupFile.name,
@@ -1277,6 +1226,14 @@ fun BackupSyncSettingsScreen(
     // SECTION 2: LOCAL STORAGE
     // =================================================================
     if (selectedManagementTab == DataManagementTab.LOCAL) {
+        // Tab-specific Status Feedback
+        item {
+            TabStatusFeedbackCard(
+                state = backupUiState,
+                onDismiss = { viewModel.clearBackupUiState() }
+            )
+        }
+
         item {
             TreeSectionHeader(
                 title = if (languageMode == LanguageMode.BANGLA) "ডিভাইস লোকাল স্টোরেজ" else "Device Local Storage",
@@ -1401,7 +1358,7 @@ fun BackupSyncSettingsScreen(
                         }
                     } else {
                         items(localBackups) { file ->
-                            val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(file.lastModified()))
+                            val dateStr = "${DateUtils.formatDate(file.lastModified(), languageMode)} • ${DateUtils.formatTime(file.lastModified(), languageMode)}"
                             val sizeKb = (file.length() / 1024).coerceAtLeast(1)
 
                             OutlinedCard(
@@ -1600,6 +1557,14 @@ fun BackupSyncSettingsScreen(
     // SECTION 3: EXPORT IMPORT
     // =================================================================
     if (selectedManagementTab == DataManagementTab.EXPORT_IMPORT) {
+        // Tab-specific Status Feedback
+        item {
+            TabStatusFeedbackCard(
+                state = backupUiState,
+                onDismiss = { viewModel.clearBackupUiState() }
+            )
+        }
+
         item {
             TreeSectionHeader(
                 title = if (languageMode == LanguageMode.BANGLA) "এক্সপোর্ট ও ইম্পোর্ট সেটিংস" else "Export & Import Settings",
@@ -2700,9 +2665,7 @@ private fun DriveSnapshotItem(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(backupFile.name, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
-                val dateStr = if (backupFile.modifiedTime.isNotBlank()) {
-                    backupFile.modifiedTime.replace("T", " ").substringBefore(".")
-                } else "Cloud Backup"
+                val dateStr = DateUtils.formatSyncDateTime(backupFile.modifiedTime, languageMode)
                 val sizeKb = (backupFile.size / 1024).coerceAtLeast(1)
                 Text("$dateStr • $sizeKb KB", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
             }
@@ -3078,4 +3041,98 @@ private data class PendingSecurityAction(
     val isDestructive: Boolean = false,
     val onExecute: () -> Unit
 )
+
+@Composable
+private fun TabStatusFeedbackCard(
+    state: BackupUiState,
+    onDismiss: () -> Unit
+) {
+    when (state) {
+        is BackupUiState.Success -> {
+            OutlinedCard(
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = state.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+        is BackupUiState.Error -> {
+            OutlinedCard(
+                colors = CardDefaults.outlinedCardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = state.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+        else -> {}
+    }
+}
 

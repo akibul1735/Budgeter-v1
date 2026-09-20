@@ -15,7 +15,8 @@ class BudgeterApp : Application() {
         // Register process lifecycle observer for Foreground / Background SQLite DB backup checks
         ProcessLifecycleOwner.get().lifecycle.addObserver(AppLifecycleObserver(applicationContext))
 
-        // Trigger an initial check on app boot
+        // Trigger an initial check on app boot and schedule daily auto backup
         SyncManager.checkAndTriggerDatabaseBackup(applicationContext)
+        SyncManager.scheduleDailyAutoBackup(applicationContext)
     }
 }
