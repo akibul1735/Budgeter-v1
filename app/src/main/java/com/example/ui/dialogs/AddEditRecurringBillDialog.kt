@@ -340,7 +340,10 @@ fun AddEditRecurringBillDialog(
                     Switch(
                         checked = isAutoRecord,
                         onCheckedChange = { isAutoRecord = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
             }

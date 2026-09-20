@@ -318,7 +318,10 @@ private fun InputAndDateTab(
                     Switch(
                         checked = txConfig.enableQuickDatePicker,
                         onCheckedChange = { onUpdate { cfg -> cfg.copy(enableQuickDatePicker = it) } },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
 
@@ -358,7 +361,10 @@ private fun InputAndDateTab(
                     Switch(
                         checked = txConfig.showTimePicker,
                         onCheckedChange = { onUpdate { cfg -> cfg.copy(showTimePicker = it) } },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
 
@@ -398,7 +404,10 @@ private fun InputAndDateTab(
                     Switch(
                         checked = txConfig.showKeyboardImmediately,
                         onCheckedChange = { onUpdate { cfg -> cfg.copy(showKeyboardImmediately = it) } },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
             }
@@ -447,7 +456,10 @@ private fun InputAndDateTab(
                     Switch(
                         checked = txConfig.autoFocusAmount,
                         onCheckedChange = { onUpdate { cfg -> cfg.copy(autoFocusAmount = it) } },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
 
@@ -487,7 +499,10 @@ private fun InputAndDateTab(
                     Switch(
                         checked = txConfig.enableQuickAmountPresets,
                         onCheckedChange = { onUpdate { cfg -> cfg.copy(enableQuickAmountPresets = it) } },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
             }
@@ -922,7 +937,10 @@ private fun PlusOneAndDisplayTab(
                     Switch(
                         checked = txConfig.enableCategoryIcons,
                         onCheckedChange = { onUpdateTxConfig { cfg -> cfg.copy(enableCategoryIcons = it, enableAccountIcons = it) } },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
 
@@ -979,7 +997,10 @@ private fun PlusOneToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.surface,
+                checkedTrackColor = SolidPrimary
+            )
         )
     }
 }

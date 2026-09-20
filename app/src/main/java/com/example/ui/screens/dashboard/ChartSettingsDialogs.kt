@@ -774,7 +774,10 @@ fun CalendarSettingsDialog(
                     Switch(
                         checked = showIncome,
                         onCheckedChange = { showIncome = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
 
@@ -791,7 +794,10 @@ fun CalendarSettingsDialog(
                     Switch(
                         checked = showExpense,
                         onCheckedChange = { showExpense = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = SolidPrimary
+                        )
                     )
                 }
 

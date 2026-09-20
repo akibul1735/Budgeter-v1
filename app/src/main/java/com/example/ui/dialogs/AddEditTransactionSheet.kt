@@ -3701,8 +3701,8 @@ internal fun CategoryPickerModalDialog(
                                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(parent.iconName),
+                                            IconHelper.AppIcon(
+                                                iconName = parent.iconName,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(15.dp)
@@ -3779,8 +3779,8 @@ private fun Category3ColumnGrid(
                                         .background(parseItemColor(cat.colorHex)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(cat.iconName),
+                                    IconHelper.AppIcon(
+                                        iconName = cat.iconName,
                                         contentDescription = null,
                                         tint = Color.White,
                                         modifier = Modifier.size(26.dp)
@@ -3908,8 +3908,8 @@ private fun QuickCreateCategoryDialog(
                                     onClick = { selectedParentId = parent.id },
                                     label = { Text(parent.localizedName(languageMode), fontSize = 12.sp) },
                                     leadingIcon = {
-                                        Icon(
-                                            imageVector = IconHelper.getIconByName(parent.iconName),
+                                        IconHelper.AppIcon(
+                                            iconName = parent.iconName,
                                             contentDescription = null,
                                             modifier = Modifier.size(14.dp)
                                         )
@@ -4289,8 +4289,8 @@ internal fun AccountPickerModalDialog(
                                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(parent.iconName),
+                                            IconHelper.AppIcon(
+                                                iconName = parent.iconName,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(15.dp)
@@ -4385,8 +4385,8 @@ private fun Account3ColumnGrid(
                                         .background(parseItemColor(acc.colorHex, Color(0xFF2563EB))),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(acc.iconName),
+                                    IconHelper.AppIcon(
+                                        iconName = acc.iconName,
                                         contentDescription = null,
                                         tint = Color.White,
                                         modifier = Modifier.size(26.dp)
@@ -4514,8 +4514,8 @@ private fun QuickCreateAccountDialog(
                                     onClick = { selectedParentId = parent.id },
                                     label = { Text(parent.localizedName(languageMode), fontSize = 12.sp) },
                                     leadingIcon = {
-                                        Icon(
-                                            IconHelper.getIconByName(parent.iconName),
+                                        IconHelper.AppIcon(
+                                            iconName = parent.iconName,
                                             contentDescription = null,
                                             modifier = Modifier.size(14.dp)
                                         )

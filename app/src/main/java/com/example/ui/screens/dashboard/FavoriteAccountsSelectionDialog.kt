@@ -98,6 +98,17 @@ fun FavoriteAccountsSelectionDialog(
         list
     }
 
+    // Map account id to parent group account
+    val accountParentMap = remember(allAccounts) {
+        val map = mutableMapOf<Long, com.example.data.model.Account>()
+        for (group in allAccounts) {
+            for (sub in group.subAccounts) {
+                map[sub.account.id] = group.account
+            }
+        }
+        map
+    }
+
     // Filtered accounts for manual selection search
     val filteredAccounts = remember(flatIndividualAccounts, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -360,6 +371,8 @@ fun FavoriteAccountsSelectionDialog(
                                 val actTs = accountActivityTimestamps[item.account.id] ?: 0L
                                 val deselTs = deselectedAccountTimestamps[item.account.id] ?: 0L
                                 val isAutoEligible = !isSelected && isNonZero && actTs > 0L && actTs >= deselTs
+                                val parentGroup = accountParentMap[item.account.id]
+                                val groupLabel = parentGroup?.localizedName(languageMode)
 
                                 Row(
                                     modifier = Modifier
@@ -399,8 +412,8 @@ fun FavoriteAccountsSelectionDialog(
                                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(
-                                                imageVector = IconHelper.getIconByName(item.account.iconName),
+                                            IconHelper.AppIcon(
+                                                iconName = item.account.iconName,
                                                 contentDescription = null,
                                                 tint = SolidPrimary,
                                                 modifier = Modifier.size(16.dp)
@@ -408,9 +421,19 @@ fun FavoriteAccountsSelectionDialog(
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column(modifier = Modifier.weight(1f, fill = false)) {
+                                            if (!groupLabel.isNullOrBlank()) {
+                                                Text(
+                                                    text = groupLabel,
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    text = item.account.localizedName(languageMode),
+                                                    text = if (!groupLabel.isNullOrBlank()) "   ${item.account.localizedName(languageMode)}" else item.account.localizedName(languageMode),
                                                     fontSize = 13.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     maxLines = 1,
@@ -586,6 +609,8 @@ fun FavoriteAccountsSelectionDialog(
                                         effectiveBal < 0 -> Color(0xFFEF4444)
                                         else -> MaterialTheme.colorScheme.onSurface
                                     }
+                                    val parentGroup = accountParentMap[item.account.id]
+                                    val groupLabel = parentGroup?.localizedName(languageMode)
 
                                     Card(
                                         shape = RoundedCornerShape(12.dp),
@@ -611,8 +636,8 @@ fun FavoriteAccountsSelectionDialog(
                                                         .background(Color(0xFF3B82F6).copy(alpha = 0.15f)),
                                                     contentAlignment = Alignment.Center
                                                 ) {
-                                                    Icon(
-                                                        imageVector = IconHelper.getIconByName(item.account.iconName),
+                                                    IconHelper.AppIcon(
+                                                        iconName = item.account.iconName,
                                                         contentDescription = null,
                                                         tint = Color(0xFF2563EB),
                                                         modifier = Modifier.size(18.dp)
@@ -620,9 +645,19 @@ fun FavoriteAccountsSelectionDialog(
                                                 }
                                                 Spacer(modifier = Modifier.width(10.dp))
                                                 Column(modifier = Modifier.weight(1f, fill = false)) {
+                                                    if (!groupLabel.isNullOrBlank()) {
+                                                        Text(
+                                                            text = groupLabel,
+                                                            fontSize = 10.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text(
-                                                            text = item.account.localizedName(languageMode),
+                                                            text = if (!groupLabel.isNullOrBlank()) "   ${item.account.localizedName(languageMode)}" else item.account.localizedName(languageMode),
                                                             fontSize = 13.5.sp,
                                                             fontWeight = FontWeight.SemiBold,
                                                             maxLines = 1,

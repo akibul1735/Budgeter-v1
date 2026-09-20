@@ -1468,7 +1468,7 @@ private fun ViewScopePill(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) Color.White else Color.Transparent)
+            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 7.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
@@ -1477,7 +1477,7 @@ private fun ViewScopePill(
             text = label,
             fontSize = 10.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) SolidPrimary else Color.White.copy(alpha = 0.85f)
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

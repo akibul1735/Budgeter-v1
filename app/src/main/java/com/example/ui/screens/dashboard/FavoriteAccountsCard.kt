@@ -74,6 +74,17 @@ fun FavoriteAccountsCard(
         list
     }
 
+    // Map account id to parent group account
+    val accountParentMap = remember(accountsWithBalances) {
+        val map = mutableMapOf<Long, Account>()
+        for (group in accountsWithBalances) {
+            for (sub in group.subAccounts) {
+                map[sub.account.id] = group.account
+            }
+        }
+        map
+    }
+
     // 2. Compute Manually Added accounts
     // Rule: Explicitly selected by user, not excluded from calculation.
     // Preserved even if balance is 0.00.
@@ -223,6 +234,7 @@ fun FavoriteAccountsCard(
                             val effectiveBalance = accountCalcConfig.getEffectiveBalance(accItem.account.id, accItem.currentBalance)
                             FavoriteAccountRow(
                                 accItem = accItem,
+                                parentGroup = accountParentMap[accItem.account.id],
                                 effectiveBalance = effectiveBalance,
                                 isManual = true,
                                 languageMode = languageMode,
@@ -267,6 +279,7 @@ fun FavoriteAccountsCard(
                             val effectiveBalance = accountCalcConfig.getEffectiveBalance(accItem.account.id, accItem.currentBalance)
                             FavoriteAccountRow(
                                 accItem = accItem,
+                                parentGroup = accountParentMap[accItem.account.id],
                                 effectiveBalance = effectiveBalance,
                                 isManual = false,
                                 languageMode = languageMode,
@@ -290,6 +303,7 @@ fun FavoriteAccountsCard(
 @Composable
 private fun FavoriteAccountRow(
     accItem: AccountWithBalance,
+    parentGroup: Account?,
     effectiveBalance: Double,
     isManual: Boolean,
     languageMode: LanguageMode,
@@ -300,13 +314,14 @@ private fun FavoriteAccountRow(
         effectiveBalance < 0 -> Color(0xFFEF4444) // Red
         else -> MaterialTheme.colorScheme.onSurface // Black/White for 0.00
     }
+    val groupLabel = parentGroup?.localizedName(languageMode)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .clickable { onAccountClick(accItem.account) }
-            .padding(vertical = 7.dp, horizontal = 4.dp),
+            .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -316,27 +331,36 @@ private fun FavoriteAccountRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = IconHelper.getIconByName(accItem.account.iconName),
+                IconHelper.AppIcon(
+                    iconName = accItem.account.iconName,
                     contentDescription = null,
                     tint = SolidPrimary,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f, fill = false)) {
+                if (!groupLabel.isNullOrBlank()) {
+                    Text(
+                        text = groupLabel,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Text(
-                    text = accItem.account.localizedName(languageMode),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
+                    text = if (!groupLabel.isNullOrBlank()) "   ${accItem.account.localizedName(languageMode)}" else accItem.account.localizedName(languageMode),
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    lineHeight = 17.sp,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -346,7 +370,7 @@ private fun FavoriteAccountRow(
 
         Text(
             text = LanguageHelper.formatCurrency(effectiveBalance, languageMode),
-            fontSize = 14.sp,
+            fontSize = 13.5.sp,
             fontWeight = FontWeight.SemiBold,
             color = balanceColor
         )

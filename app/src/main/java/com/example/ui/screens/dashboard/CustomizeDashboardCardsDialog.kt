@@ -199,7 +199,10 @@ fun CustomizeDashboardCardsDialog(
                                     Switch(
                                         checked = isVisible,
                                         onCheckedChange = { onToggleCard(card, it) },
-                                        colors = SwitchDefaults.colors(checkedThumbColor = SolidPrimary)
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                                            checkedTrackColor = SolidPrimary
+                                        )
                                     )
                                 }
                             }
