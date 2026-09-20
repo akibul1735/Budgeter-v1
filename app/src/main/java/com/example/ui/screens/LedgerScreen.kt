@@ -1198,8 +1198,8 @@ fun LedgerScreen(
                                     if (showSourceLeg && showDestLeg) {
                                         HorizontalDivider(
                                             modifier = Modifier.padding(start = 56.dp, end = 12.dp),
-                                            thickness = 0.5.dp,
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                            thickness = 1.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
                                         )
                                     }
 
@@ -1285,8 +1285,8 @@ fun LedgerScreen(
                                 if (index < dayTxList.size - 1) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(start = 56.dp, end = 12.dp),
-                                        thickness = 0.5.dp,
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                        thickness = 1.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
                                     )
                                 }
                             }

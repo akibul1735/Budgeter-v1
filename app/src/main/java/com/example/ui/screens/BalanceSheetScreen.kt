@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
@@ -540,7 +541,7 @@ fun BalanceSheetScreen(
                             )
                         }
                     } else {
-                        items(balanceSheetData.assetGroups, key = { it.parentAccount.id }) { group ->
+                        itemsIndexed(balanceSheetData.assetGroups, key = { _, group -> group.parentAccount.id }) { index, group ->
                             val isExpanded = expandedMap[group.parentAccount.id] ?: true
                             BalanceSheetGroupItem(
                                 group = group,
@@ -560,7 +561,15 @@ fun BalanceSheetScreen(
                                 },
                                 onAccountClick = onAccountClick
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            if (index < balanceSheetData.assetGroups.size - 1) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+                                    thickness = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                         }
                     }
                 } else {
@@ -584,7 +593,7 @@ fun BalanceSheetScreen(
                             )
                         }
                     } else {
-                        items(balanceSheetData.liabilityGroups, key = { it.parentAccount.id }) { group ->
+                        itemsIndexed(balanceSheetData.liabilityGroups, key = { _, group -> group.parentAccount.id }) { index, group ->
                             val isExpanded = expandedMap[group.parentAccount.id] ?: true
                             BalanceSheetGroupItem(
                                 group = group,
@@ -604,7 +613,15 @@ fun BalanceSheetScreen(
                                 },
                                 onAccountClick = onAccountClick
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            if (index < balanceSheetData.liabilityGroups.size - 1) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+                                    thickness = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                         }
                     }
                 }
@@ -2383,7 +2400,8 @@ private fun NetWorthSummaryCard(
                 modifier = Modifier
                     .height(40.dp)
                     .padding(horizontal = 4.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
             )
 
             // 2. Total Net Worth (Center)
@@ -2443,7 +2461,8 @@ private fun NetWorthSummaryCard(
                 modifier = Modifier
                     .height(40.dp)
                     .padding(horizontal = 4.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
             )
 
             // 3. Total Liabilities (Right)
@@ -2533,7 +2552,8 @@ private fun MiniNetWorthSummaryCard(
                 modifier = Modifier
                     .height(20.dp)
                     .padding(horizontal = 2.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
 
             // Net Worth
@@ -2561,7 +2581,8 @@ private fun MiniNetWorthSummaryCard(
                 modifier = Modifier
                     .height(20.dp)
                     .padding(horizontal = 2.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
             )
 
             // Liabilities
@@ -3148,7 +3169,8 @@ private fun BalanceSheetGroupItem(
                     group.subAccounts.forEachIndexed { index, subRow ->
                         if (index > 0) {
                             HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f),
+                                thickness = 1.dp,
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
                         }
