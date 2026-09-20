@@ -75,6 +75,48 @@ object BackupManager {
         .build()
     private val adapter = moshi.adapter(BudgetBackupData::class.java)
 
+    /**
+     * Checks if byte array starts with GZIP magic bytes (0x1F, 0x8B)
+     */
+    fun isGzip(bytes: ByteArray): Boolean {
+        if (bytes.size < 2) return false
+        val b0 = bytes[0].toInt() and 0xFF
+        val b1 = bytes[1].toInt() and 0xFF
+        return b0 == 0x1F && b1 == 0x8B
+    }
+
+    /**
+     * Compresses UTF-8 string into GZIP byte array
+     */
+    fun compressGzip(data: String): ByteArray {
+        val bos = java.io.ByteArrayOutputStream()
+        java.util.zip.GZIPOutputStream(bos).use { gzip ->
+            gzip.write(data.toByteArray(Charsets.UTF_8))
+            gzip.finish()
+        }
+        return bos.toByteArray()
+    }
+
+    /**
+     * Decompresses GZIP byte array to UTF-8 string
+     */
+    fun decompressGzip(bytes: ByteArray): String {
+        val bis = java.io.ByteArrayInputStream(bytes)
+        return java.util.zip.GZIPInputStream(bis).bufferedReader(Charsets.UTF_8).use { it.readText() }
+    }
+
+    /**
+     * Safely reads text from an InputStream, automatically decompressing if GZIP encoded.
+     */
+    fun readTextFromStream(inputStream: java.io.InputStream): String {
+        val bytes = inputStream.readBytes()
+        return if (isGzip(bytes)) {
+            decompressGzip(bytes)
+        } else {
+            String(bytes, Charsets.UTF_8)
+        }
+    }
+
     fun parseBackupData(json: String): BudgetBackupData? {
         return try {
             adapter.fromJson(json)
@@ -180,11 +222,11 @@ object BackupManager {
     }
 
     /**
-     * Parses a backup file from a URI to preview contents.
+     * Parses a backup file from a URI to preview contents (supports JSON and GZIP).
      */
     fun parseBackupData(context: Context, uri: Uri): BudgetBackupData? {
         return try {
-            val json = context.contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
+            val json = context.contentResolver.openInputStream(uri)?.use { readTextFromStream(it) }
             if (!json.isNullOrBlank()) adapter.fromJson(json) else null
         } catch (_: Exception) {
             null
@@ -192,13 +234,13 @@ object BackupManager {
     }
 
     /**
-     * Parses a backup file from a File handle to preview contents.
+     * Parses a backup file from a File handle to preview contents (supports JSON and GZIP).
      */
     fun parseBackupDataFromFile(file: File): BudgetBackupData? {
         return try {
             if (file.exists()) {
-                val json = file.readText()
-                adapter.fromJson(json)
+                val json = file.inputStream().use { readTextFromStream(it) }
+                if (json.isNotBlank()) adapter.fromJson(json) else null
             } else null
         } catch (_: Exception) {
             null
@@ -590,7 +632,7 @@ object BackupManager {
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val json = context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                inputStream.bufferedReader().readText()
+                readTextFromStream(inputStream)
             } ?: return@withContext Result.failure(Exception("Cannot open backup file"))
 
             restoreFromJson(

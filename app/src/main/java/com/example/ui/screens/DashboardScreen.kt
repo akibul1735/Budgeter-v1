@@ -1,6 +1,12 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +35,8 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DashboardCustomize
 import androidx.compose.material.icons.filled.ExpandLess
@@ -39,6 +47,8 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SyncProblem
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -48,6 +58,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.draw.rotate
+import com.example.sync.SyncLiveState
+import com.example.sync.SyncLiveStatus
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -165,7 +178,9 @@ fun DashboardScreen(
     showRestoreBanner: Boolean = false,
     onRestoreDetectedBackup: (DetectedBackupInfo, Boolean) -> Unit = { _, _ -> },
     onDismissRestoreBanner: (String?) -> Unit = {},
-    onScanBackups: () -> Unit = {}
+    onScanBackups: () -> Unit = {},
+    syncLiveStatus: SyncLiveStatus = SyncLiveStatus(),
+    onTriggerSync: () -> Unit = {}
 ) {
     var showStandAloneCalculator by remember { mutableStateOf(false) }
     var showCustomizeCardsDialog by remember { mutableStateOf(false) }
@@ -1651,29 +1666,40 @@ fun DashboardScreen(
                     )
                 }
 
-                if (isDemoMode) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        modifier = Modifier
-                            .clickable { onExitDemoMode() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    SyncLiveStatusChip(
+                        status = syncLiveStatus,
+                        languageMode = languageMode,
+                        onClick = onTriggerSync
+                    )
+
+                    if (isDemoMode) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            modifier = Modifier
+                                .clickable { onExitDemoMode() }
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(MaterialTheme.colorScheme.tertiary, CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "DEMO",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(MaterialTheme.colorScheme.tertiary, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "DEMO",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
                         }
                     }
                 }
@@ -3131,3 +3157,87 @@ private fun RecentTransactionsCard(
         }
     }
 }
+
+@Composable
+private fun SyncLiveStatusChip(
+    status: SyncLiveStatus,
+    languageMode: LanguageMode,
+    onClick: () -> Unit
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "sync_spin")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "sync_rotation"
+    )
+
+    val bgColor = when (status.state) {
+        SyncLiveState.SYNCING -> MaterialTheme.colorScheme.primaryContainer
+        SyncLiveState.SUCCESS -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+        SyncLiveState.ERROR -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
+        SyncLiveState.WAITING_WIFI -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+        SyncLiveState.IDLE -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    }
+
+    val contentColor = when (status.state) {
+        SyncLiveState.SYNCING -> MaterialTheme.colorScheme.onPrimaryContainer
+        SyncLiveState.SUCCESS -> MaterialTheme.colorScheme.primary
+        SyncLiveState.ERROR -> MaterialTheme.colorScheme.onErrorContainer
+        SyncLiveState.WAITING_WIFI -> MaterialTheme.colorScheme.onTertiaryContainer
+        SyncLiveState.IDLE -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    val icon = when (status.state) {
+        SyncLiveState.SYNCING -> Icons.Default.Sync
+        SyncLiveState.SUCCESS -> Icons.Default.CloudDone
+        SyncLiveState.ERROR -> Icons.Default.SyncProblem
+        SyncLiveState.WAITING_WIFI -> Icons.Default.CloudQueue
+        SyncLiveState.IDLE -> Icons.Default.CloudQueue
+    }
+
+    val text = when (status.state) {
+        SyncLiveState.SYNCING -> if (languageMode == LanguageMode.BANGLA) "সিঙ্ক হচ্ছে..." else "Syncing..."
+        SyncLiveState.SUCCESS -> if (languageMode == LanguageMode.BANGLA) "সিঙ্কড" else "Synced"
+        SyncLiveState.ERROR -> if (languageMode == LanguageMode.BANGLA) "পুনরায় চেষ্টা" else "Retry"
+        SyncLiveState.WAITING_WIFI -> if (languageMode == LanguageMode.BANGLA) "ওয়াই-ফাই অপেক্ষায়" else "Waiting Wi-Fi"
+        SyncLiveState.IDLE -> if (languageMode == LanguageMode.BANGLA) "ক্লাউড" else "Sync"
+    }
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = bgColor,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .testTag("mini_sync_status_indicator")
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text,
+                tint = contentColor,
+                modifier = Modifier
+                    .size(13.dp)
+                    .then(
+                        if (status.state == SyncLiveState.SYNCING) {
+                            Modifier.rotate(rotation)
+                        } else Modifier
+                    )
+            )
+            Text(
+                text = text,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = contentColor
+            )
+        }
+    }
+}
+

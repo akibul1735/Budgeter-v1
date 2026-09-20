@@ -32,10 +32,13 @@ class JsonSyncWorker(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Starting JSON sync worker...")
+            SyncManager.updateSyncLiveState(SyncLiveState.SYNCING, "Syncing budget data...")
+
             val appPrefs = applicationContext.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
             val isDemoMode = appPrefs.getBoolean("app_is_demo_mode", false)
             if (isDemoMode) {
                 Log.i(TAG, "Demo mode is active. Skipping automated JSON sync so demo data is not backed up.")
+                SyncManager.updateSyncLiveState(SyncLiveState.IDLE, "Demo mode active")
                 return@withContext Result.success()
             }
             val db = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO), isDemoMode = false)
@@ -47,28 +50,50 @@ class JsonSyncWorker(
             val monthlyBudgetDao = db.monthlyBudgetDao()
             val budgetAdjustmentDao = db.budgetAdjustmentDao()
 
+            val accounts = accountDao.getAllAccountsSnapshot()
+            val categories = categoryDao.getAllCategoriesSnapshot()
+            val transactions = transactionDao.getAllTransactionsSnapshot()
+            val recurringBills = recurringBillDao.getAllBillsSnapshot()
+            val monthlyBudgets = monthlyBudgetDao.getAllBudgetsSnapshot()
+            val budgetAdjustments = budgetAdjustmentDao.getAllAdjustmentsSnapshot()
+
+            val latestTxEpoch = transactions.maxOfOrNull { it.dateEpochMs } ?: 0L
+            val latestBudgetEpoch = monthlyBudgets.maxOfOrNull { it.updatedAt } ?: 0L
+            val currentSignature = "${accounts.size}|${categories.size}|${transactions.size}|${recurringBills.size}|${monthlyBudgets.size}|${budgetAdjustments.size}|$latestTxEpoch|$latestBudgetEpoch"
+
             val backupDir = File(applicationContext.filesDir, "json_sync")
             if (!backupDir.exists()) backupDir.mkdirs()
 
             val latestSyncFile = File(backupDir, "latest_synced_data.json")
+            val previousSignature = SyncManager.getLastDataSignature(applicationContext)
+            val isDataUnchanged = previousSignature.isNotBlank() && previousSignature == currentSignature && latestSyncFile.exists()
 
-            val settingsBackup = BackupManager.captureSettings(applicationContext)
-
+            val timestamp = System.currentTimeMillis()
             val backupPrefs = BackupPreferences.getInstance(applicationContext)
             val config = backupPrefs.config.value
 
+            if (isDataUnchanged) {
+                Log.d(TAG, "Dataset is unchanged since last sync (delta check). Skipping redundant cloud upload.")
+                SyncManager.recordJsonSyncSuccess(applicationContext, timestamp)
+                backupPrefs.recordSyncTimestamp(timestamp)
+                SyncManager.updateSyncLiveState(SyncLiveState.SUCCESS, "Up to date", timestamp)
+                return@withContext Result.success()
+            }
+
+            val settingsBackup = BackupManager.captureSettings(applicationContext)
+
             val backupData = BudgetBackupData(
                 version = 4,
-                exportedAt = System.currentTimeMillis(),
+                exportedAt = timestamp,
                 app = "Budgeter",
                 installationId = backupPrefs.getInstallationId(),
                 deviceName = backupPrefs.getDeviceName(),
-                accounts = accountDao.getAllAccountsSnapshot(),
-                categories = categoryDao.getAllCategoriesSnapshot(),
-                transactions = transactionDao.getAllTransactionsSnapshot(),
-                recurringBills = recurringBillDao.getAllBillsSnapshot(),
-                monthlyBudgets = monthlyBudgetDao.getAllBudgetsSnapshot(),
-                budgetAdjustments = budgetAdjustmentDao.getAllAdjustmentsSnapshot(),
+                accounts = accounts,
+                categories = categories,
+                transactions = transactions,
+                recurringBills = recurringBills,
+                monthlyBudgets = monthlyBudgets,
+                budgetAdjustments = budgetAdjustments,
                 settings = settingsBackup
             )
 
@@ -79,8 +104,6 @@ class JsonSyncWorker(
             val json = adapter.indent("  ").toJson(backupData)
 
             latestSyncFile.writeText(json)
-
-            val timestamp = System.currentTimeMillis()
 
             // Cloud Sync Primary Account if configured
             if (config.primaryAccount.isLinked && config.primaryAccount.autoSync) {
@@ -168,12 +191,15 @@ class JsonSyncWorker(
                 }
             }
 
+            SyncManager.recordDataSignature(applicationContext, currentSignature)
             SyncManager.recordJsonSyncSuccess(applicationContext, timestamp)
             backupPrefs.recordSyncTimestamp(timestamp)
+            SyncManager.updateSyncLiveState(SyncLiveState.SUCCESS, "Synced", timestamp)
             Log.d(TAG, "JSON sync worker finished successfully.")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "JSON sync worker encountered error: ${e.message}", e)
+            SyncManager.updateSyncLiveState(SyncLiveState.ERROR, "Sync error: ${e.localizedMessage}")
             Result.retry()
         }
     }

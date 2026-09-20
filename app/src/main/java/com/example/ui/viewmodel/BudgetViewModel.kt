@@ -2305,6 +2305,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     // Cloud account setters are defined above at lines 1443-1444
 
+    val syncLiveState: StateFlow<com.example.sync.SyncLiveStatus> = SyncManager.syncLiveState
+
     fun clearBackupUiState() {
         _backupUiState.value = BackupUiState.Idle
     }

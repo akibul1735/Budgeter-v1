@@ -2104,7 +2104,9 @@ private fun ScreenRouter(
             showRestoreBanner = viewModel.showRestoreBanner.collectAsStateWithLifecycle().value,
             onRestoreDetectedBackup = { backup, isMerge -> viewModel.restoreDetectedBackup(backup, isMerge) },
             onDismissRestoreBanner = { backupId -> viewModel.dismissRestoreBanner(backupId) },
-            onScanBackups = { viewModel.scanForPreviousBackups() }
+            onScanBackups = { viewModel.scanForPreviousBackups() },
+            syncLiveStatus = viewModel.syncLiveState.collectAsStateWithLifecycle().value,
+            onTriggerSync = { viewModel.triggerInstantSync() }
         )
         AppView.LEDGER -> {
             val securityConfig = viewModel.securityConfig.collectAsStateWithLifecycle().value
