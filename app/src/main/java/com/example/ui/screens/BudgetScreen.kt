@@ -97,6 +97,8 @@ import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -108,6 +110,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -123,6 +126,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.window.Dialog
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -138,6 +143,10 @@ import com.example.ui.components.AppTabHeader
 import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.PopupCalculatorDialog
 import com.example.ui.dialogs.ActiveBudgetMakerFilterBar
+import com.example.ui.dialogs.AmountBreakdownDialog
+import com.example.ui.dialogs.AmountDetailInfo
+import com.example.ui.dialogs.BreakdownItem
+import com.example.ui.dialogs.BreakdownTabInfo
 import com.example.ui.dialogs.BudgetMakerDashboardFilter
 import com.example.ui.dialogs.BudgetMakerFilterDialog
 import com.example.ui.dialogs.BudgetMakerTabFilter
@@ -145,6 +154,7 @@ import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
 import com.example.ui.viewmodel.BudgetViewModel
+import com.example.util.AccountCalcConfig
 import com.example.util.DateUtils
 import com.example.util.IconHelper
 import com.example.util.LanguageHelper
@@ -316,6 +326,17 @@ data class EnhancedBudgetItem(
     val firstDayBalance: Double = 0.0,
     val suggestions: List<BudgetSuggestionOption>,
     val savedBudget: MonthlyBudget?
+)
+
+private data class BudgetAccountItemHolder(
+    val accountWithBal: AccountWithBalance,
+    val displayName: String,
+    val balance: Double,
+    val effectiveBalance: Double,
+    val note: String?,
+    val iconName: String?,
+    val isSubAccount: Boolean,
+    val type: AccountType
 )
 
 @Composable
@@ -566,24 +587,865 @@ fun BudgetScreen(
     val totalAssetsBudget = remember(assetItems, budgetMap) { calculateBudgetTotal(assetItems) }
     val totalInflowsBudget = totalIncomesBudget + totalAssetsBudget
 
-    val budgetedSurplus = totalInflowsBudget - totalOutflowsBudget
-    val budgetedFormulaResult = (totalExpensesBudget + totalLiabilitiesBudget) - (totalAssetsBudget + totalIncomesBudget)
+    val overview by viewModel.financialOverview.collectAsStateWithLifecycle()
+    val runningExpendable = overview.expendable
 
-    val totalExpensesActual = remember(monthTransactions) {
-        monthTransactions.filter { it.transaction.type == TransactionType.EXPENSE }.sumOf { it.transaction.amount }
+    // Amount Detail Navigation Stack for interactive breakdowns
+    val amountDetailStack = remember { mutableStateListOf<AmountDetailInfo>() }
+    fun showAmountDetail(info: AmountDetailInfo) {
+        amountDetailStack.add(info)
     }
-    val totalIncomesActual = remember(monthTransactions) {
-        monthTransactions.filter { it.transaction.type == TransactionType.INCOME }.sumOf { it.transaction.amount }
+
+    // Intercept hardware/gesture back press when an AmountDetailDialog is open
+    BackHandler(enabled = amountDetailStack.isNotEmpty()) {
+        amountDetailStack.removeLastOrNull()
     }
-    val totalAssetsActual = remember(accountsWithBalances) {
-        accountsWithBalances.filter { it.account.type == AccountType.ASSET }.sumOf { it.currentBalance }
+
+    val accountCalcConfig by viewModel.accountCalcConfig.collectAsStateWithLifecycle()
+
+    fun computeSubEffective(subItem: AccountWithBalance): Double {
+        val subSetting = accountCalcConfig.getSetting(subItem.account.id)
+        return if (subSetting.isIncluded) subItem.currentBalance + subSetting.adjustmentAmount else 0.0
     }
-    val totalLiabilitiesActual = remember(accountsWithBalances) {
-        accountsWithBalances.filter { it.account.type == AccountType.LIABILITY }.sumOf { it.currentBalance }
+
+    fun computeGroupEffective(groupItem: AccountWithBalance): Double {
+        val groupSetting = accountCalcConfig.getSetting(groupItem.account.id)
+        if (!groupSetting.isIncluded) return 0.0
+        if (groupItem.subAccounts.isEmpty()) {
+            return groupItem.currentBalance + groupSetting.adjustmentAmount
+        }
+        val activeSubs = groupItem.subAccounts.filter { it.account.isActive }
+        val sumSubs = activeSubs.sumOf { computeSubEffective(it) }
+        return sumSubs + groupSetting.adjustmentAmount
     }
-    val totalOutflowsActual = totalExpensesActual + totalLiabilitiesActual
-    val totalInflowsActual = totalIncomesActual + totalAssetsActual
-    val actualSurplus = totalInflowsActual - totalOutflowsActual
+
+    val activeAccounts = remember(accountsWithBalances) {
+        accountsWithBalances.filter { it.account.isActive }
+    }
+    val inactiveAccounts = remember(accountsWithBalances) {
+        accountsWithBalances.filter { !it.account.isActive }
+    }
+
+    val calculatedAssets = remember(activeAccounts, accountCalcConfig) {
+        activeAccounts.filter { it.account.type == AccountType.ASSET }.sumOf { computeGroupEffective(it) }
+    }
+    val calculatedLiabilities = remember(activeAccounts, accountCalcConfig) {
+        activeAccounts.filter { it.account.type == AccountType.LIABILITY }.sumOf { Math.abs(computeGroupEffective(it)) }
+    }
+
+    val calculatedAssetHolders = remember(activeAccounts, accountCalcConfig, languageMode) {
+        val list = mutableListOf<BudgetAccountItemHolder>()
+        for (group in activeAccounts.filter { it.account.type == AccountType.ASSET }) {
+            val groupSetting = accountCalcConfig.getSetting(group.account.id)
+            if (group.subAccounts.isEmpty()) {
+                if (groupSetting.isIncluded) {
+                    val eff = computeGroupEffective(group)
+                    val adjNote = if (groupSetting.adjustmentAmount != 0.0) {
+                        val sign = if (groupSetting.adjustmentAmount > 0) "+" else ""
+                        "Adj: $sign${LanguageHelper.formatCurrency(groupSetting.adjustmentAmount, languageMode)}"
+                    } else null
+                    list.add(
+                        BudgetAccountItemHolder(
+                            accountWithBal = group,
+                            displayName = group.account.localizedName(languageMode),
+                            balance = group.currentBalance,
+                            effectiveBalance = eff,
+                            note = adjNote,
+                            iconName = group.account.iconName,
+                            isSubAccount = false,
+                            type = AccountType.ASSET
+                        )
+                    )
+                }
+            } else {
+                if (groupSetting.isIncluded) {
+                    val activeSubs = group.subAccounts.filter { it.account.isActive && accountCalcConfig.isIncluded(it.account.id) }
+                    if (activeSubs.isNotEmpty()) {
+                        val eff = computeGroupEffective(group)
+                        val noteText = if (activeSubs.size > 1) {
+                            "${activeSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি সাব-একাউন্ট" else "sub-accounts"}"
+                        } else null
+                        list.add(
+                            BudgetAccountItemHolder(
+                                accountWithBal = group,
+                                displayName = group.account.localizedName(languageMode),
+                                balance = group.currentBalance,
+                                effectiveBalance = eff,
+                                note = noteText,
+                                iconName = group.account.iconName,
+                                isSubAccount = false,
+                                type = AccountType.ASSET
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        list.sortedByDescending { it.effectiveBalance }
+    }
+
+    val excludedAssetHolders = remember(activeAccounts, accountCalcConfig, languageMode) {
+        val list = mutableListOf<BudgetAccountItemHolder>()
+        for (group in activeAccounts.filter { it.account.type == AccountType.ASSET }) {
+            val isGroupIncluded = accountCalcConfig.isIncluded(group.account.id)
+            val isGroupActive = group.account.isActive
+            if (group.subAccounts.isEmpty()) {
+                if (isGroupActive && !isGroupIncluded) {
+                    list.add(
+                        BudgetAccountItemHolder(
+                            accountWithBal = group,
+                            displayName = group.account.localizedName(languageMode),
+                            balance = group.currentBalance,
+                            effectiveBalance = group.currentBalance,
+                            note = if (languageMode == LanguageMode.BANGLA) "গণনা থেকে বাদ" else "Excluded from calc",
+                            iconName = group.account.iconName,
+                            isSubAccount = false,
+                            type = AccountType.ASSET
+                        )
+                    )
+                }
+            } else {
+                if (isGroupActive) {
+                    val excludedSubs = group.subAccounts.filter { it.account.isActive && (!isGroupIncluded || !accountCalcConfig.isIncluded(it.account.id)) }
+                    if (excludedSubs.isNotEmpty()) {
+                        val excludedBal = excludedSubs.sumOf { it.currentBalance }
+                        val noteText = if (!isGroupIncluded) {
+                            if (languageMode == LanguageMode.BANGLA) "সম্পূর্ণ গ্রুপ বাদ দেওয়া" else "Entire group excluded"
+                        } else {
+                            "${excludedSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি সাব-একাউন্ট বাদ" else "sub-accounts excluded"}"
+                        }
+                        list.add(
+                            BudgetAccountItemHolder(
+                                accountWithBal = group,
+                                displayName = group.account.localizedName(languageMode),
+                                balance = excludedBal,
+                                effectiveBalance = excludedBal,
+                                note = noteText,
+                                iconName = group.account.iconName,
+                                isSubAccount = false,
+                                type = AccountType.ASSET
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        list.sortedByDescending { it.balance }
+    }
+
+    val inactiveAssetHolders = remember(accountsWithBalances, languageMode) {
+        val list = mutableListOf<BudgetAccountItemHolder>()
+        for (group in accountsWithBalances.filter { it.account.type == AccountType.ASSET }) {
+            if (!group.account.isActive) {
+                val bal = if (group.subAccounts.isEmpty()) group.currentBalance else group.subAccounts.sumOf { it.currentBalance }
+                list.add(
+                    BudgetAccountItemHolder(
+                        accountWithBal = group,
+                        displayName = group.account.localizedName(languageMode),
+                        balance = bal,
+                        effectiveBalance = bal,
+                        note = if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয় সম্পদ" else "Archived / Inactive",
+                        iconName = group.account.iconName,
+                        isSubAccount = false,
+                        type = AccountType.ASSET
+                    )
+                )
+            } else if (group.subAccounts.isNotEmpty()) {
+                val inactiveSubs = group.subAccounts.filter { !it.account.isActive }
+                if (inactiveSubs.isNotEmpty()) {
+                    val inactiveBal = inactiveSubs.sumOf { it.currentBalance }
+                    list.add(
+                        BudgetAccountItemHolder(
+                            accountWithBal = group,
+                            displayName = group.account.localizedName(languageMode),
+                            balance = inactiveBal,
+                            effectiveBalance = inactiveBal,
+                            note = "${inactiveSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি নিষ্ক্রিয় সাব-একাউন্ট" else "inactive sub-accounts"}",
+                            iconName = group.account.iconName,
+                            isSubAccount = false,
+                            type = AccountType.ASSET
+                        )
+                    )
+                }
+            }
+        }
+        list.sortedByDescending { it.balance }
+    }
+
+    val calculatedLiabHolders = remember(activeAccounts, accountCalcConfig, languageMode) {
+        val list = mutableListOf<BudgetAccountItemHolder>()
+        for (group in activeAccounts.filter { it.account.type == AccountType.LIABILITY }) {
+            val groupSetting = accountCalcConfig.getSetting(group.account.id)
+            if (group.subAccounts.isEmpty()) {
+                if (groupSetting.isIncluded) {
+                    val eff = Math.abs(computeGroupEffective(group))
+                    val adjNote = if (groupSetting.adjustmentAmount != 0.0) {
+                        val sign = if (groupSetting.adjustmentAmount > 0) "+" else ""
+                        "Adj: $sign${LanguageHelper.formatCurrency(groupSetting.adjustmentAmount, languageMode)}"
+                    } else null
+                    list.add(
+                        BudgetAccountItemHolder(
+                            accountWithBal = group,
+                            displayName = group.account.localizedName(languageMode),
+                            balance = Math.abs(group.currentBalance),
+                            effectiveBalance = eff,
+                            note = adjNote,
+                            iconName = group.account.iconName,
+                            isSubAccount = false,
+                            type = AccountType.LIABILITY
+                        )
+                    )
+                }
+            } else {
+                if (groupSetting.isIncluded) {
+                    val activeSubs = group.subAccounts.filter { it.account.isActive && accountCalcConfig.isIncluded(it.account.id) }
+                    if (activeSubs.isNotEmpty()) {
+                        val eff = Math.abs(computeGroupEffective(group))
+                        val noteText = if (activeSubs.size > 1) {
+                            "${activeSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি সাব-একাউন্ট" else "sub-accounts"}"
+                        } else null
+                        list.add(
+                            BudgetAccountItemHolder(
+                                accountWithBal = group,
+                                displayName = group.account.localizedName(languageMode),
+                                balance = Math.abs(group.currentBalance),
+                                effectiveBalance = eff,
+                                note = noteText,
+                                iconName = group.account.iconName,
+                                isSubAccount = false,
+                                type = AccountType.LIABILITY
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        list.sortedByDescending { it.effectiveBalance }
+    }
+
+    val excludedLiabHolders = remember(activeAccounts, accountCalcConfig, languageMode) {
+        val list = mutableListOf<BudgetAccountItemHolder>()
+        for (group in activeAccounts.filter { it.account.type == AccountType.LIABILITY }) {
+            val isGroupIncluded = accountCalcConfig.isIncluded(group.account.id)
+            val isGroupActive = group.account.isActive
+            if (group.subAccounts.isEmpty()) {
+                if (isGroupActive && !isGroupIncluded) {
+                    list.add(
+                        BudgetAccountItemHolder(
+                            accountWithBal = group,
+                            displayName = group.account.localizedName(languageMode),
+                            balance = Math.abs(group.currentBalance),
+                            effectiveBalance = Math.abs(group.currentBalance),
+                            note = if (languageMode == LanguageMode.BANGLA) "গণনা থেকে বাদ" else "Excluded from calc",
+                            iconName = group.account.iconName,
+                            isSubAccount = false,
+                            type = AccountType.LIABILITY
+                        )
+                    )
+                }
+            } else {
+                if (isGroupActive) {
+                    val excludedSubs = group.subAccounts.filter { it.account.isActive && (!isGroupIncluded || !accountCalcConfig.isIncluded(it.account.id)) }
+                    if (excludedSubs.isNotEmpty()) {
+                        val excludedBal = Math.abs(excludedSubs.sumOf { it.currentBalance })
+                        val noteText = if (!isGroupIncluded) {
+                            if (languageMode == LanguageMode.BANGLA) "সম্পূর্ণ গ্রুপ বাদ দেওয়া" else "Entire group excluded"
+                        } else {
+                            "${excludedSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি সাব-একাউন্ট বাদ" else "sub-accounts excluded"}"
+                        }
+                        list.add(
+                            BudgetAccountItemHolder(
+                                accountWithBal = group,
+                                displayName = group.account.localizedName(languageMode),
+                                balance = excludedBal,
+                                effectiveBalance = excludedBal,
+                                note = noteText,
+                                iconName = group.account.iconName,
+                                isSubAccount = false,
+                                type = AccountType.LIABILITY
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        list.sortedByDescending { it.balance }
+    }
+
+    val inactiveLiabHolders = remember(accountsWithBalances, languageMode) {
+        val list = mutableListOf<BudgetAccountItemHolder>()
+        for (group in accountsWithBalances.filter { it.account.type == AccountType.LIABILITY }) {
+            if (!group.account.isActive) {
+                val bal = Math.abs(if (group.subAccounts.isEmpty()) group.currentBalance else group.subAccounts.sumOf { it.currentBalance })
+                list.add(
+                    BudgetAccountItemHolder(
+                        accountWithBal = group,
+                        displayName = group.account.localizedName(languageMode),
+                        balance = bal,
+                        effectiveBalance = bal,
+                        note = if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয় দায়" else "Archived / Inactive",
+                        iconName = group.account.iconName,
+                        isSubAccount = false,
+                        type = AccountType.LIABILITY
+                    )
+                )
+            } else if (group.subAccounts.isNotEmpty()) {
+                val inactiveSubs = group.subAccounts.filter { !it.account.isActive }
+                if (inactiveSubs.isNotEmpty()) {
+                    val inactiveBal = Math.abs(inactiveSubs.sumOf { it.currentBalance })
+                    list.add(
+                        BudgetAccountItemHolder(
+                            accountWithBal = group,
+                            displayName = group.account.localizedName(languageMode),
+                            balance = inactiveBal,
+                            effectiveBalance = inactiveBal,
+                            note = "${inactiveSubs.size} ${if (languageMode == LanguageMode.BANGLA) "টি নিষ্ক্রিয় সাব-একাউন্ট" else "inactive sub-accounts"}",
+                            iconName = group.account.iconName,
+                            isSubAccount = false,
+                            type = AccountType.LIABILITY
+                        )
+                    )
+                }
+            }
+        }
+        list.sortedByDescending { it.balance }
+    }
+
+    val excludedAssets = remember(excludedAssetHolders) { excludedAssetHolders.sumOf { it.balance } }
+    val excludedLiabilities = remember(excludedLiabHolders) { excludedLiabHolders.sumOf { it.balance } }
+    val inactiveAssets = remember(inactiveAssetHolders) { inactiveAssetHolders.sumOf { it.balance } }
+    val inactiveLiabilities = remember(inactiveLiabHolders) { inactiveLiabHolders.sumOf { it.balance } }
+
+    fun openAccountTransactionsList(
+        title: String,
+        subtitle: String,
+        txs: List<TransactionWithDetails>,
+        totalAmount: Double,
+        badgeColor: Color
+    ) {
+        showAmountDetail(
+            AmountDetailInfo(
+                title = title,
+                subtitle = subtitle,
+                totalAmount = totalAmount,
+                formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                    "মোট ${txs.size} টি সম্পর্কিত লেনদেনের তালিকা।"
+                else
+                    "List of ${txs.size} related transactions.",
+                relatedTransactions = txs,
+                customBadgeColor = badgeColor
+            )
+        )
+    }
+
+    fun openAccountBreakdown(
+        accWithBal: AccountWithBalance,
+        filterMode: AccountFilterMode = AccountFilterMode.CALCULATED
+    ) {
+        val acc = accWithBal.account
+        val isGroupIncluded = accountCalcConfig.isIncluded(acc.id)
+        val isGroupActive = acc.isActive
+
+        val relevantSubAccounts = if (accWithBal.subAccounts.isNotEmpty()) {
+            when (filterMode) {
+                AccountFilterMode.CALCULATED -> accWithBal.subAccounts.filter { 
+                    it.account.isActive && isGroupActive && isGroupIncluded && accountCalcConfig.isIncluded(it.account.id) 
+                }
+                AccountFilterMode.EXCLUDED -> accWithBal.subAccounts.filter { 
+                    it.account.isActive && isGroupActive && (!isGroupIncluded || !accountCalcConfig.isIncluded(it.account.id)) 
+                }
+                AccountFilterMode.INACTIVE -> if (!isGroupActive) accWithBal.subAccounts else accWithBal.subAccounts.filter { !it.account.isActive }
+            }
+        } else {
+            emptyList()
+        }
+
+        val targetAccountIds = if (accWithBal.subAccounts.isNotEmpty()) {
+            val ids = relevantSubAccounts.map { it.account.id }.toSet()
+            if (ids.isNotEmpty()) ids else setOf(acc.id)
+        } else {
+            setOf(acc.id)
+        }
+
+        val accTxs = transactionsWithDetails.filter { txItem ->
+            val tx = txItem.transaction
+            (tx.debitAccountId != null && targetAccountIds.contains(tx.debitAccountId)) ||
+            (tx.creditAccountId != null && targetAccountIds.contains(tx.creditAccountId))
+        }
+
+        val inflowTxs = accTxs.filter { txItem ->
+            val tx = txItem.transaction
+            if (acc.type == AccountType.ASSET) {
+                tx.debitAccountId != null && targetAccountIds.contains(tx.debitAccountId)
+            } else {
+                tx.creditAccountId != null && targetAccountIds.contains(tx.creditAccountId)
+            }
+        }
+
+        val outflowTxs = accTxs.filter { txItem ->
+            val tx = txItem.transaction
+            if (acc.type == AccountType.ASSET) {
+                tx.creditAccountId != null && targetAccountIds.contains(tx.creditAccountId)
+            } else {
+                tx.debitAccountId != null && targetAccountIds.contains(tx.debitAccountId)
+            }
+        }
+
+        val totalInflows = inflowTxs.sumOf { it.transaction.amount }
+        val totalOutflows = outflowTxs.sumOf { it.transaction.amount }
+        val accName = acc.localizedName(languageMode)
+
+        val breakdownItems = mutableListOf<BreakdownItem>()
+
+        breakdownItems.add(
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "মোট ইনফ্লো / জমা" else "Total Inflow / Deposits",
+                amount = totalInflows,
+                iconName = "account_balance_wallet",
+                color = SolidIncome,
+                count = inflowTxs.size,
+                note = if (languageMode == LanguageMode.BANGLA) "ট্যাপ করে সকল ইনফ্লো লেনদেন দেখুন" else "Tap to view incoming transactions",
+                onClick = {
+                    openAccountTransactionsList(
+                        title = if (languageMode == LanguageMode.BANGLA) "$accName - ইনফ্লো তালিকা" else "$accName - Inflows",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "মোট জমা ও আগমনী লেনদেনের বিস্তারিত" else "All incoming and deposit transactions",
+                        txs = inflowTxs,
+                        totalAmount = totalInflows,
+                        badgeColor = SolidIncome
+                    )
+                }
+            )
+        )
+
+        breakdownItems.add(
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "মোট আউটফ্লো / খরচ" else "Total Outflow / Payments",
+                amount = -totalOutflows,
+                iconName = "credit_card",
+                color = SolidExpense,
+                count = outflowTxs.size,
+                note = if (languageMode == LanguageMode.BANGLA) "ট্যাপ করে সকল আউটফ্লো লেনদেন দেখুন" else "Tap to view outgoing transactions",
+                onClick = {
+                    openAccountTransactionsList(
+                        title = if (languageMode == LanguageMode.BANGLA) "$accName - আউটফ্লো তালিকা" else "$accName - Outflows",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "মোট খরচ ও বহির্গমন লেনদেনের বিস্তারিত" else "All outgoing transactions and expenses",
+                        txs = outflowTxs,
+                        totalAmount = -totalOutflows,
+                        badgeColor = SolidExpense
+                    )
+                }
+            )
+        )
+
+        if (relevantSubAccounts.isNotEmpty()) {
+            relevantSubAccounts.forEach { sub ->
+                val subBal = if (acc.type == AccountType.ASSET) sub.currentBalance else Math.abs(sub.currentBalance)
+                val subSetting = accountCalcConfig.getSetting(sub.account.id)
+                val subAdjNote = if (subSetting.adjustmentAmount != 0.0) {
+                    val sign = if (subSetting.adjustmentAmount > 0) "+" else ""
+                    "Adj: $sign${LanguageHelper.formatCurrency(subSetting.adjustmentAmount, languageMode)}"
+                } else null
+
+                val subTxs = transactionsWithDetails.filter { txItem ->
+                    val tx = txItem.transaction
+                    tx.debitAccountId == sub.account.id || tx.creditAccountId == sub.account.id
+                }
+
+                breakdownItems.add(
+                    BreakdownItem(
+                        name = sub.account.localizedName(languageMode),
+                        amount = subBal,
+                        iconName = sub.account.iconName,
+                        color = if (acc.type == AccountType.ASSET) SolidIncome else SolidExpense,
+                        count = subTxs.size,
+                        note = subAdjNote,
+                        onClick = {
+                            openAccountTransactionsList(
+                                title = sub.account.localizedName(languageMode),
+                                subtitle = if (languageMode == LanguageMode.BANGLA) "সাব-একাউন্ট লেনদেনের বিস্তারিত" else "Sub-account transaction records",
+                                txs = subTxs,
+                                totalAmount = subBal,
+                                badgeColor = if (acc.type == AccountType.ASSET) SolidIncome else SolidExpense
+                            )
+                        }
+                    )
+                )
+            }
+        }
+
+        val effBal = if (acc.type == AccountType.ASSET) computeGroupEffective(accWithBal) else Math.abs(computeGroupEffective(accWithBal))
+        val subtitleModeText = when (filterMode) {
+            AccountFilterMode.CALCULATED -> if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত একাউন্ট বিবরণ" else "Calculated Account Breakdown"
+            AccountFilterMode.EXCLUDED -> if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া একাউন্ট বিবরণ" else "Excluded Account Breakdown"
+            AccountFilterMode.INACTIVE -> if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয় একাউন্ট বিবরণ" else "Inactive Account Breakdown"
+        }
+
+        showAmountDetail(
+            AmountDetailInfo(
+                title = accName,
+                subtitle = subtitleModeText,
+                totalAmount = effBal,
+                formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                    "মোট ${accTxs.size} টি লেনদেন এবং ${relevantSubAccounts.size} টি সাব-একাউন্ট সমন্বিত ব্যালেন্স।"
+                else
+                    "Effective balance including ${accTxs.size} transactions and ${relevantSubAccounts.size} sub-accounts.",
+                relatedBreakdownItems = breakdownItems,
+                relatedTransactions = accTxs,
+                customBadgeColor = if (acc.type == AccountType.ASSET) SolidIncome else SolidExpense
+            )
+        )
+    }
+
+    fun openAssetsBreakdown(initialTab: Int = 0) {
+        val calcBreakdownItems = calculatedAssetHolders.map { holder ->
+            BreakdownItem(
+                name = holder.displayName,
+                amount = holder.effectiveBalance,
+                percentage = if (calculatedAssets > 0) (holder.effectiveBalance / calculatedAssets) * 100.0 else 0.0,
+                iconName = holder.iconName,
+                color = SolidIncome,
+                note = holder.note,
+                onClick = { openAccountBreakdown(holder.accountWithBal, AccountFilterMode.CALCULATED) }
+            )
+        }.sortedByDescending { Math.abs(it.amount) }
+        val calculatedTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত" else "Calculated",
+            totalAmount = calculatedAssets,
+            subtitle = if (languageMode == LanguageMode.BANGLA) "সক্রিয় ও অন্তর্ভুক্ত সম্পদ একাউন্ট (সমন্বয় সহ)" else "Active & included asset accounts (with adjustments)",
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "শুধুমাত্র সক্রিয় এবং গণনায় অন্তর্ভুক্ত সম্পদ একাউন্টের ব্যালেন্স ও সমন্বয়ের সমষ্টি। বাদ দেওয়া ও নিষ্ক্রিয় একাউন্টগুলো এখানে যুক্ত করা হয়নি।"
+            else
+                "Sum of active and included asset account balances plus adjustments. Excluded and inactive accounts are removed.",
+            items = calcBreakdownItems,
+            transactions = emptyList(),
+            customBadgeColor = SolidIncome,
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "কোনো সক্রিয় ও অন্তর্ভুক্ত সম্পদ একাউন্ট পাওয়া যায়নি।" else "No active & included asset accounts found."
+        )
+
+        val excludedBreakdownItems = excludedAssetHolders.map { holder ->
+            BreakdownItem(
+                name = holder.displayName,
+                amount = holder.balance,
+                percentage = if (excludedAssets > 0) (holder.balance / excludedAssets) * 100.0 else 0.0,
+                iconName = holder.iconName,
+                color = Color(0xFFF59E0B),
+                note = holder.note,
+                onClick = { openAccountBreakdown(holder.accountWithBal, AccountFilterMode.EXCLUDED) }
+            )
+        }.sortedByDescending { Math.abs(it.amount) }
+        val excludedTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া" else "Excluded",
+            totalAmount = excludedAssets,
+            subtitle = if (languageMode == LanguageMode.BANGLA) "গণনা থেকে বাদ দেওয়া সম্পদ একাউন্ট" else "Active asset accounts excluded from calculations",
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "এই একাউন্টগুলো সক্রিয় হলেও একাউন্ট সেটিংস থেকে ক্যালকুলেশনে বাদ (Excluded) রাখা হয়েছে।"
+            else
+                "These accounts are active but toggled OFF from calculations in Accounts configuration.",
+            items = excludedBreakdownItems,
+            transactions = emptyList(),
+            customBadgeColor = Color(0xFFF59E0B),
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "গণনা থেকে বাদ দেওয়া কোনো সম্পদ একাউন্ট নেই।" else "No asset accounts are excluded from calculations."
+        )
+
+        val inactiveBreakdownItems = inactiveAssetHolders.map { holder ->
+            BreakdownItem(
+                name = holder.displayName,
+                amount = holder.balance,
+                percentage = if (inactiveAssets > 0) (holder.balance / inactiveAssets) * 100.0 else 0.0,
+                iconName = holder.iconName,
+                color = Color.Gray,
+                note = holder.note,
+                onClick = { openAccountBreakdown(holder.accountWithBal, AccountFilterMode.INACTIVE) }
+            )
+        }.sortedByDescending { Math.abs(it.amount) }
+        val inactiveTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয়" else "Inactive",
+            totalAmount = inactiveAssets,
+            subtitle = if (languageMode == LanguageMode.BANGLA) "সকল নিষ্ক্রিয় সম্পদ একাউন্ট" else "Archived asset accounts",
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "এই একাউন্টগুলো নিষ্ক্রিয় (Inactive) হিসেবে চিহ্নিত রয়েছে এবং মূল আর্থিক হিসেবে যোগ করা হয় না।"
+            else
+                "These asset accounts are marked as inactive and are excluded from main financial calculations.",
+            items = inactiveBreakdownItems,
+            transactions = emptyList(),
+            customBadgeColor = Color.Gray,
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "কোনো নিষ্ক্রিয় সম্পদ একাউন্ট নেই।" else "No inactive asset accounts found."
+        )
+
+        val allTabs = listOf(calculatedTab, excludedTab, inactiveTab)
+        val activeTab = allTabs.getOrElse(initialTab) { calculatedTab }
+
+        showAmountDetail(
+            AmountDetailInfo(
+                title = if (languageMode == LanguageMode.BANGLA) "সম্পদ হিসাব ও বিবরণ" else "Assets Breakdown",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত, বাদ দেওয়া ও নিষ্ক্রিয় সম্পদ" else "Calculated, Excluded & Inactive Assets",
+                totalAmount = activeTab.totalAmount,
+                formulaExplanation = activeTab.formulaExplanation,
+                relatedBreakdownItems = activeTab.items,
+                relatedTransactions = emptyList(),
+                tabs = allTabs,
+                defaultTabIndex = initialTab,
+                customBadgeColor = SolidIncome
+            )
+        )
+    }
+
+    fun openLiabilitiesBreakdown(initialTab: Int = 0) {
+        val calcBreakdownItems = calculatedLiabHolders.map { holder ->
+            BreakdownItem(
+                name = holder.displayName,
+                amount = holder.effectiveBalance,
+                percentage = if (calculatedLiabilities > 0) (holder.effectiveBalance / calculatedLiabilities) * 100.0 else 0.0,
+                iconName = holder.iconName,
+                color = SolidExpense,
+                note = holder.note,
+                onClick = { openAccountBreakdown(holder.accountWithBal, AccountFilterMode.CALCULATED) }
+            )
+        }.sortedByDescending { Math.abs(it.amount) }
+        val calculatedTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত" else "Calculated",
+            totalAmount = calculatedLiabilities,
+            subtitle = if (languageMode == LanguageMode.BANGLA) "সক্রিয় ও অন্তর্ভুক্ত দায় ও ঋণ (সমন্বয় সহ)" else "Active & included liabilities (with adjustments)",
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "শুধুমাত্র সক্রিয় এবং গণনায় অন্তর্ভুক্ত দায় একাউন্টের ব্যালেন্স ও সমন্বয়ের সমষ্টি। বাদ দেওয়া ও নিষ্ক্রিয় একাউন্টগুলো বাদ দেওয়া হয়েছে।"
+            else
+                "Sum of active and included liability balances plus adjustments. Excluded and inactive accounts are removed.",
+            items = calcBreakdownItems,
+            transactions = emptyList(),
+            customBadgeColor = SolidExpense,
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "কোনো সক্রিয় ও অন্তর্ভুক্ত দায় একাউন্ট পাওয়া যায়নি।" else "No active & included liability accounts found."
+        )
+
+        val excludedBreakdownItems = excludedLiabHolders.map { holder ->
+            BreakdownItem(
+                name = holder.displayName,
+                amount = holder.balance,
+                percentage = if (excludedLiabilities > 0) (holder.balance / excludedLiabilities) * 100.0 else 0.0,
+                iconName = holder.iconName,
+                color = Color(0xFFF59E0B),
+                note = holder.note,
+                onClick = { openAccountBreakdown(holder.accountWithBal, AccountFilterMode.EXCLUDED) }
+            )
+        }.sortedByDescending { Math.abs(it.amount) }
+        val excludedTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "বাদ দেওয়া" else "Excluded",
+            totalAmount = excludedLiabilities,
+            subtitle = if (languageMode == LanguageMode.BANGLA) "গণনা থেকে বাদ দেওয়া দায় একাউন্ট" else "Active liability accounts excluded from calculations",
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "এই দায় একাউন্টগুলো সক্রিয় হলেও একাউন্ট সেটিংস থেকে ক্যালকুলেশনে বাদ রাখা হয়েছে।"
+            else
+                "These liability accounts are active but toggled OFF from calculations in Accounts configuration.",
+            items = excludedBreakdownItems,
+            transactions = emptyList(),
+            customBadgeColor = Color(0xFFF59E0B),
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "গণনা থেকে বাদ দেওয়া কোনো দায় একাউন্ট নেই।" else "No liability accounts are excluded from calculations."
+        )
+
+        val inactiveBreakdownItems = inactiveLiabHolders.map { holder ->
+            BreakdownItem(
+                name = holder.displayName,
+                amount = holder.balance,
+                percentage = if (inactiveLiabilities > 0) (holder.balance / inactiveLiabilities) * 100.0 else 0.0,
+                iconName = holder.iconName,
+                color = Color.Gray,
+                note = holder.note,
+                onClick = { openAccountBreakdown(holder.accountWithBal, AccountFilterMode.INACTIVE) }
+            )
+        }.sortedByDescending { Math.abs(it.amount) }
+        val inactiveTab = BreakdownTabInfo(
+            title = if (languageMode == LanguageMode.BANGLA) "নিষ্ক্রিয়" else "Inactive",
+            totalAmount = inactiveLiabilities,
+            subtitle = if (languageMode == LanguageMode.BANGLA) "সকল নিষ্ক্রিয় দায় ও ঋণ" else "Archived liability accounts",
+            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                "এই দায় একাউন্টগুলো নিষ্ক্রিয় (Inactive) হিসেবে চিহ্নিত রয়েছে এবং মূল হিসেবে ধরা হয় না।"
+            else
+                "These liability accounts are marked as inactive and are excluded from main calculations.",
+            items = inactiveBreakdownItems,
+            transactions = emptyList(),
+            customBadgeColor = Color.Gray,
+            emptyMessage = if (languageMode == LanguageMode.BANGLA) "কোনো নিষ্ক্রিয় দায় একাউন্ট নেই।" else "No inactive liability accounts found."
+        )
+
+        val allTabs = listOf(calculatedTab, excludedTab, inactiveTab)
+        val activeTab = allTabs.getOrElse(initialTab) { calculatedTab }
+
+        showAmountDetail(
+            AmountDetailInfo(
+                title = if (languageMode == LanguageMode.BANGLA) "দায় ও ঋণ হিসাব" else "Liabilities Breakdown",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত, বাদ দেওয়া ও নিষ্ক্রিয় দায়" else "Calculated, Excluded & Inactive Liabilities",
+                totalAmount = activeTab.totalAmount,
+                formulaExplanation = activeTab.formulaExplanation,
+                relatedBreakdownItems = activeTab.items,
+                relatedTransactions = emptyList(),
+                tabs = allTabs,
+                defaultTabIndex = initialTab,
+                customBadgeColor = SolidExpense
+            )
+        )
+    }
+
+    fun openRemainingExpensesBreakdown() {
+        val nowCal = Calendar.getInstance()
+        val curStartMs = DateUtils.getStartOfMonth(nowCal.get(Calendar.YEAR), nowCal.get(Calendar.MONTH) + 1)
+        val curEndMs = DateUtils.getEndOfMonth(nowCal.get(Calendar.YEAR), nowCal.get(Calendar.MONTH) + 1)
+
+        val monthlyExpenseTxs = transactionsWithDetails.filter {
+            it.transaction.type == TransactionType.EXPENSE &&
+            it.transaction.dateEpochMs in curStartMs..curEndMs
+        }
+
+        val expenseCategories = allCategories.filter { it.type == CategoryType.EXPENSE }
+        val bMap = monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+
+        val expenseTxsByCat = mutableMapOf<Long, Double>()
+        val expenseTxsListByCat = mutableMapOf<Long, MutableList<TransactionWithDetails>>()
+
+        for (txItem in monthlyExpenseTxs) {
+            val catId = txItem.transaction.subCategoryId ?: txItem.transaction.categoryId
+            if (catId != null) {
+                expenseTxsByCat[catId] = (expenseTxsByCat[catId] ?: 0.0) + txItem.transaction.amount
+                expenseTxsListByCat.getOrPut(catId) { mutableListOf() }.add(txItem)
+            }
+        }
+
+        data class RemainingBudgetItem(
+            val categoryName: String,
+            val iconName: String?,
+            val budgetLimit: Double,
+            val actualSpent: Double,
+            val remainingAmount: Double,
+            val txs: List<TransactionWithDetails>
+        )
+
+        val remainingBudgetItems = mutableListOf<RemainingBudgetItem>()
+
+        val parentExpenseCatIdsWithChildren = expenseCategories
+            .filter { it.parentId != null }
+            .mapNotNull { it.parentId }
+            .toSet()
+
+        val activeBudgetedCategories = expenseCategories.filter {
+            it.parentId != null || !parentExpenseCatIdsWithChildren.contains(it.id) || bMap.containsKey("EXPENSE_${it.id}")
+        }
+
+        for (cat in activeBudgetedCategories) {
+            val budgetEntry = bMap["EXPENSE_${cat.id}"]
+            val isEnabled = budgetEntry?.isEnabled ?: (cat.budgetLimit > 0)
+            val budgetLimit = if (isEnabled) (budgetEntry?.budgetedAmount ?: cat.budgetLimit) else 0.0
+            val spent = expenseTxsByCat[cat.id] ?: 0.0
+            val catTxs = expenseTxsListByCat[cat.id] ?: emptyList()
+
+            if (budgetLimit > 0 && spent < budgetLimit) {
+                val remaining = budgetLimit - spent
+                remainingBudgetItems.add(
+                    RemainingBudgetItem(
+                        categoryName = cat.localizedName(languageMode),
+                        iconName = cat.iconName,
+                        budgetLimit = budgetLimit,
+                        actualSpent = spent,
+                        remainingAmount = remaining,
+                        txs = catTxs
+                    )
+                )
+            }
+        }
+
+        val sortedRemaining = remainingBudgetItems.sortedByDescending { Math.abs(it.remainingAmount) }
+
+        val breakdownItems = sortedRemaining.map { item ->
+            val note = if (languageMode == LanguageMode.BANGLA)
+                "বাজেট: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | খরচ: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+            else
+                "Budget: ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} | Spent: ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)}"
+
+            BreakdownItem(
+                name = item.categoryName,
+                amount = item.remainingAmount,
+                percentage = if (overview.remainingExpenses > 0) (item.remainingAmount / overview.remainingExpenses) * 100.0 else 0.0,
+                iconName = item.iconName,
+                color = SolidPrimary,
+                count = item.txs.size,
+                note = note,
+                onClick = {
+                    showAmountDetail(
+                        AmountDetailInfo(
+                            title = item.categoryName,
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট বাজেট ও সম্পর্কিত লেনদেন" else "Remaining Budget & Transactions",
+                            totalAmount = item.remainingAmount,
+                            formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                                "বাজেট সীমা ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} − প্রকৃত খরচ ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)} = অবশিষ্ট ${LanguageHelper.formatCurrency(item.remainingAmount, languageMode)}।"
+                            else
+                                "Budget ${LanguageHelper.formatCurrency(item.budgetLimit, languageMode)} − Spent ${LanguageHelper.formatCurrency(item.actualSpent, languageMode)} = Remaining ${LanguageHelper.formatCurrency(item.remainingAmount, languageMode)}.",
+                            formulaSteps = emptyList(),
+                            relatedTransactions = item.txs,
+                            customBadgeColor = SolidPrimary
+                        )
+                    )
+                }
+            )
+        }
+
+        showAmountDetail(
+            AmountDetailInfo(
+                title = if (languageMode == LanguageMode.BANGLA) "বাজেটের অবশিষ্ট খরচ" else "Remaining Budget Expenses",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি অনুযায়ী অবশিষ্ট বাজেট" else "Category-by-category remaining budget",
+                totalAmount = overview.remainingExpenses,
+                formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                    "প্রতিটি ক্যাটাগরির জন্য পৃথকভাবে হিসাবকৃত (বাজেট সীমা − প্রকৃত খরচ, সর্বনিম্ন ০) অবশিষ্ট টাকার যোগফল। বিস্তারিত লেনদেন দেখতে প্রতিটি ক্যাটাগরিতে ট্যাপ করুন।"
+                else
+                    "Sum of remaining unspent balances across all active category budgets for this month. Tap any category to view its related transactions.",
+                formulaSteps = emptyList(),
+                relatedBreakdownItems = breakdownItems,
+                relatedTransactions = emptyList()
+            )
+        )
+    }
+
+    fun openExpendableBreakdown() {
+        val currentExpendable = calculatedAssets - calculatedLiabilities - overview.remainingExpenses
+        val components = listOf(
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত সম্পদ (Assets)" else "Calculated Assets",
+                amount = calculatedAssets,
+                iconName = "account_balance_wallet",
+                color = SolidIncome,
+                note = if (languageMode == LanguageMode.BANGLA) "সক্রিয় ও অন্তর্ভুক্ত সম্পদ" else "Active & included assets",
+                onClick = { openAssetsBreakdown(0) }
+            ),
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "হিসাবকৃত দায় (Liabilities)" else "Calculated Liabilities",
+                amount = -calculatedLiabilities,
+                iconName = "credit_card",
+                color = SolidExpense,
+                note = if (languageMode == LanguageMode.BANGLA) "সক্রিয় ও অন্তর্ভুক্ত দায়" else "Active & included liabilities",
+                onClick = { openLiabilitiesBreakdown(0) }
+            ),
+            BreakdownItem(
+                name = if (languageMode == LanguageMode.BANGLA) "বাজেটের অবশিষ্ট খরচ" else "Remaining Expenses",
+                amount = -overview.remainingExpenses,
+                iconName = "shopping_bag",
+                color = SolidExpense,
+                note = if (languageMode == LanguageMode.BANGLA) "বাজেটের বাকি খরচ" else "Remaining unspent budget",
+                onClick = { openRemainingExpensesBreakdown() }
+            )
+        ).sortedByDescending { Math.abs(it.amount) }
+
+        showAmountDetail(
+            AmountDetailInfo(
+                title = if (languageMode == LanguageMode.BANGLA) "খরচযোগ্য অবশিষ্ট অর্থের হিসাব" else "Expendable Funds Breakdown",
+                subtitle = if (languageMode == LanguageMode.BANGLA) "সক্রিয় ও অন্তর্ভুক্ত সম্পদ − দায় − অবশিষ্ট বাজেট খরচ" else "Active & Included Assets − Liabilities − Remaining Expenses",
+                totalAmount = currentExpendable,
+                formulaExplanation = if (languageMode == LanguageMode.BANGLA)
+                    "খরচযোগ্য অর্থ = সক্রিয় ও অন্তর্ভুক্ত সম্পদ (${LanguageHelper.formatCurrency(calculatedAssets, languageMode)}) − সক্রিয় ও অন্তর্ভুক্ত দায় (${LanguageHelper.formatCurrency(calculatedLiabilities, languageMode)}) − বাজেটের অবশিষ্ট খরচ (${LanguageHelper.formatCurrency(overview.remainingExpenses, languageMode)})।"
+                else
+                    "Expendable = Active & Included Assets (${LanguageHelper.formatCurrency(calculatedAssets, languageMode)}) − Active & Included Liabilities (${LanguageHelper.formatCurrency(calculatedLiabilities, languageMode)}) − Remaining Expenses (${LanguageHelper.formatCurrency(overview.remainingExpenses, languageMode)}).",
+                formulaSteps = emptyList(),
+                relatedBreakdownItems = components,
+                relatedTransactions = emptyList(),
+                statusTag = if (currentExpendable >= 0) "Safe" else "Deficit"
+            )
+        )
+    }
 
     val handleBudgetItemClick: (BudgetTargetItem) -> Unit = { item ->
         if (item.itemType == "ASSET" || item.itemType == "LIABILITY") {
@@ -1105,14 +1967,9 @@ fun BudgetScreen(
                             totalIncomes = totalIncomesBudget,
                             totalAssets = totalAssetsBudget,
                             totalInflows = totalInflowsBudget,
-                            budgetedSurplus = budgetedSurplus,
-                            budgetedFormulaResult = budgetedFormulaResult,
-                            actualExpenses = totalExpensesActual,
-                            actualLiabilities = totalLiabilitiesActual,
-                            actualIncomes = totalIncomesActual,
-                            actualAssets = totalAssetsActual,
-                            actualSurplus = actualSurplus,
-                            onNavigateToTab = { tabIdx -> selectedTab = tabIdx }
+                            runningExpendable = runningExpendable,
+                            onNavigateToTab = { tabIdx -> selectedTab = tabIdx },
+                            onRunningExpendableClick = { openExpendableBreakdown() }
                         )
                     }
                     1 -> {
@@ -1512,6 +2369,55 @@ fun BudgetScreen(
                     snackbarHostState.showSnackbar(
                         if (languageMode == LanguageMode.BANGLA) "$fromStr থেকে $toStr এ বাজেট কপি হয়েছে" else "Budgets copied from $fromStr to $toStr"
                     )
+                }
+            }
+        )
+    }
+
+    // Modal Amount Breakdown Dialog Stack
+    val activeAmountDetail = amountDetailStack.lastOrNull()
+    if (activeAmountDetail != null) {
+        AmountBreakdownDialog(
+            info = activeAmountDetail,
+            languageMode = languageMode,
+            onDismiss = {
+                if (amountDetailStack.isNotEmpty()) {
+                    amountDetailStack.removeLastOrNull()
+                }
+            },
+            onTransactionClick = { tx ->
+                onEditTransaction(tx)
+            },
+            onAccountClick = { acc ->
+                val found = accountsWithBalances.find { it.account.id == acc.id }
+                    ?: activeAccounts.find { it.account.id == acc.id }
+                    ?: inactiveAccounts.find { it.account.id == acc.id }
+                if (found != null) {
+                    val mode = if (!found.account.isActive) {
+                        AccountFilterMode.INACTIVE
+                    } else if (!accountCalcConfig.isIncluded(found.account.id)) {
+                        AccountFilterMode.EXCLUDED
+                    } else {
+                        AccountFilterMode.CALCULATED
+                    }
+                    openAccountBreakdown(found, mode)
+                } else {
+                    onAccountClick?.invoke(acc)
+                }
+            },
+            canGoBack = amountDetailStack.size > 1,
+            onBack = {
+                if (amountDetailStack.isNotEmpty()) {
+                    amountDetailStack.removeLastOrNull()
+                }
+            },
+            onCloseAll = {
+                amountDetailStack.clear()
+            },
+            onTabChanged = { tabIdx ->
+                if (amountDetailStack.isNotEmpty()) {
+                    val last = amountDetailStack.last()
+                    amountDetailStack[amountDetailStack.lastIndex] = last.copy(defaultTabIndex = tabIdx)
                 }
             }
         )
@@ -3206,18 +4112,16 @@ private fun BudgetDashboardView(
     totalIncomes: Double,
     totalAssets: Double,
     totalInflows: Double,
-    budgetedSurplus: Double,
-    budgetedFormulaResult: Double,
-    actualExpenses: Double,
-    actualLiabilities: Double,
-    actualIncomes: Double,
-    actualAssets: Double,
-    actualSurplus: Double,
-    onNavigateToTab: (Int) -> Unit
+    runningExpendable: Double,
+    onNavigateToTab: (Int) -> Unit,
+    onRunningExpendableClick: () -> Unit = {}
 ) {
-    var viewMode by remember { mutableIntStateOf(0) } // 0 = Budgeted Plan, 1 = Actual Realized
-    val actualInflows = actualIncomes + actualAssets
-    val actualOutflows = actualExpenses + actualLiabilities
+    var includeRunningExpendable by rememberSaveable { mutableStateOf(false) }
+
+    // Formula: assets + incomes - expenses - liabilities (+ expendable if toggled on)
+    val baseSurplus = (totalAssets + totalIncomes) - (totalExpenses + totalLiabilities)
+    val finalSurplus = if (includeRunningExpendable) baseSurplus + runningExpendable else baseSurplus
+    val isSurplus = finalSurplus >= 0
 
     LazyColumn(
         modifier = Modifier
@@ -3226,39 +4130,53 @@ private fun BudgetDashboardView(
         contentPadding = PaddingValues(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Top KPI Banner Switcher (Budgeted vs Actual)
+        // Top KPI Banner Header (Without Actual switcher)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Budget Insights & Analytics",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Column {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "বাজেট ড্যাশবোর্ড ও অন্তর্দৃষ্টি" else "Budget Overview & Analytics",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = DateUtils.formatMonthYear(year, month, languageMode),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = viewMode == 0,
-                        onClick = { viewMode = 0 },
-                        label = { Text("Budgeted", fontSize = 11.5.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (includeRunningExpendable) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.dp, if (includeRunningExpendable) MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "ব্যয়যোগ্য" else "Expendable",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (includeRunningExpendable) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    )
-                    FilterChip(
-                        selected = viewMode == 1,
-                        onClick = { viewMode = 1 },
-                        label = { Text("Actual", fontSize = 11.5.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Switch(
+                            checked = includeRunningExpendable,
+                            onCheckedChange = { includeRunningExpendable = it },
+                            modifier = Modifier.testTag("header_toggle_running_expendable"),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.onSecondary,
+                                checkedTrackColor = MaterialTheme.colorScheme.secondary
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -3275,10 +4193,6 @@ private fun BudgetDashboardView(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    val isBudgeted = viewMode == 0
-                    val currentSurplus = if (isBudgeted) budgetedSurplus else actualSurplus
-                    val isSurplus = currentSurplus >= 0
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -3286,14 +4200,18 @@ private fun BudgetDashboardView(
                     ) {
                         Column {
                             Text(
-                                text = if (isBudgeted) "Planned Surplus / Deficit" else "Realized Net Cashflow",
+                                text = if (includeRunningExpendable) {
+                                    if (languageMode == LanguageMode.BANGLA) "পরিকল্পিত ব্যালেন্স (ব্যয়যোগ্য সহ)" else "Planned Balance (with Expendable)"
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA) "পরিকল্পিত উদ্বৃত্ত / ঘাটতি" else "Planned Surplus / Deficit"
+                                },
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 fontWeight = FontWeight.Medium
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = (if (isSurplus) "+" else "") + LanguageHelper.formatCurrency(currentSurplus, languageMode),
+                                text = (if (isSurplus) "+" else "") + LanguageHelper.formatCurrency(finalSurplus, languageMode),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = if (isSurplus) SolidIncome else SolidExpense
@@ -3316,7 +4234,28 @@ private fun BudgetDashboardView(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Formula Breakdown Banner
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (includeRunningExpendable) {
+                                "Assets (${LanguageHelper.formatCurrency(totalAssets, languageMode)}) + Incomes (${LanguageHelper.formatCurrency(totalIncomes, languageMode)}) − Expenses (${LanguageHelper.formatCurrency(totalExpenses, languageMode)}) − Liabilities (${LanguageHelper.formatCurrency(totalLiabilities, languageMode)}) + Expendable (${LanguageHelper.formatCurrency(runningExpendable, languageMode)})"
+                            } else {
+                                "Assets (${LanguageHelper.formatCurrency(totalAssets, languageMode)}) + Incomes (${LanguageHelper.formatCurrency(totalIncomes, languageMode)}) − Expenses (${LanguageHelper.formatCurrency(totalExpenses, languageMode)}) − Liabilities (${LanguageHelper.formatCurrency(totalLiabilities, languageMode)})"
+                            },
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -3327,12 +4266,12 @@ private fun BudgetDashboardView(
                     ) {
                         Column {
                             Text(
-                                text = if (isBudgeted) "Total Target Inflows" else "Total Realized Inflows",
+                                text = if (languageMode == LanguageMode.BANGLA) "মোট পরিকল্পিত আন্তঃপ্রবাহ" else "Total Target Inflows",
                                 fontSize = 11.5.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
                             Text(
-                                text = LanguageHelper.formatCurrency(if (isBudgeted) totalInflows else actualInflows, languageMode),
+                                text = LanguageHelper.formatCurrency(totalInflows, languageMode),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
                                 color = SolidIncome
@@ -3341,12 +4280,12 @@ private fun BudgetDashboardView(
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = if (isBudgeted) "Total Target Outflows" else "Total Realized Outflows",
+                                text = if (languageMode == LanguageMode.BANGLA) "মোট পরিকল্পিত বহিঃপ্রবাহ" else "Total Target Outflows",
                                 fontSize = 11.5.sp,
                                 color = MaterialTheme.colorScheme.outline
                             )
                             Text(
-                                text = LanguageHelper.formatCurrency(if (isBudgeted) totalOutflows else actualOutflows, languageMode),
+                                text = LanguageHelper.formatCurrency(totalOutflows, languageMode),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.5.sp,
                                 color = SolidExpense
@@ -3357,10 +4296,10 @@ private fun BudgetDashboardView(
             }
         }
 
-        // 4 Category Quick Breakdown Cards (Clickable to jump directly to tabs)
+        // Section Title: Budget Allocation Options
         item {
             Text(
-                text = "Budget Allocation by Type",
+                text = if (languageMode == LanguageMode.BANGLA) "বাজেট বিভাজন ও বিকল্প" else "Budget Allocation & Options",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -3368,6 +4307,7 @@ private fun BudgetDashboardView(
             )
         }
 
+        // Row 1: Expenses & Incomes Cards
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -3375,9 +4315,8 @@ private fun BudgetDashboardView(
             ) {
                 // Expenses Card (Tab 1)
                 CategorySummaryCard(
-                    title = "Expenses",
+                    title = if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expenses",
                     amount = totalExpenses,
-                    actualAmount = actualExpenses,
                     color = SolidExpense,
                     icon = Icons.Default.RemoveCircleOutline,
                     modifier = Modifier.weight(1f),
@@ -3387,9 +4326,8 @@ private fun BudgetDashboardView(
 
                 // Incomes Card (Tab 2)
                 CategorySummaryCard(
-                    title = "Incomes",
+                    title = if (languageMode == LanguageMode.BANGLA) "আয়" else "Incomes",
                     amount = totalIncomes,
-                    actualAmount = actualIncomes,
                     color = SolidIncome,
                     icon = Icons.Default.AddCircleOutline,
                     modifier = Modifier.weight(1f),
@@ -3399,6 +4337,7 @@ private fun BudgetDashboardView(
             }
         }
 
+        // Row 2: Assets & Liabilities Cards
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -3406,9 +4345,8 @@ private fun BudgetDashboardView(
             ) {
                 // Assets Card (Tab 3)
                 CategorySummaryCard(
-                    title = "Assets",
+                    title = if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Assets",
                     amount = totalAssets,
-                    actualAmount = actualAssets,
                     color = SolidPrimary,
                     icon = Icons.Default.AccountBalance,
                     modifier = Modifier.weight(1f),
@@ -3418,15 +4356,139 @@ private fun BudgetDashboardView(
 
                 // Liabilities Card (Tab 4)
                 CategorySummaryCard(
-                    title = "Liabilities",
+                    title = if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities",
                     amount = totalLiabilities,
-                    actualAmount = actualLiabilities,
                     color = AmberGold,
                     icon = Icons.Default.CreditCard,
                     modifier = Modifier.weight(1f),
                     onClick = { onNavigateToTab(4) },
                     languageMode = languageMode
                 )
+            }
+        }
+
+        // Option 5: Running Expendable Card with Switch
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (includeRunningExpendable) {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    }
+                ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (includeRunningExpendable) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                    } else {
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    }
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onRunningExpendableClick() }
+                    .testTag("card_running_expendable")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (includeRunningExpendable) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    tint = if (includeRunningExpendable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "চলমান ব্যয়যোগ্য অর্থ" else "Running Expendable",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (includeRunningExpendable) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    }
+                                ) {
+                                    Text(
+                                        text = if (includeRunningExpendable) {
+                                            if (languageMode == LanguageMode.BANGLA) "যোগ হচ্ছে (+)" else "Added (+)"
+                                        } else {
+                                            if (languageMode == LanguageMode.BANGLA) "বাদ" else "Excluded"
+                                        },
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (includeRunningExpendable) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.outline
+                                        },
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = LanguageHelper.formatCurrency(runningExpendable, languageMode),
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (runningExpendable >= 0) SolidIncome else SolidExpense
+                            )
+                            Text(
+                                text = if (includeRunningExpendable) {
+                                    if (languageMode == LanguageMode.BANGLA) "বাজেট সূত্রে যোগ করা হয়েছে" else "Included in planned balance formula"
+                                } else {
+                                    if (languageMode == LanguageMode.BANGLA) "বাজেট হিসাব থেকে বাদ দেওয়া হয়েছে" else "Excluded from formula calculation"
+                                },
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+
+                    Switch(
+                        checked = includeRunningExpendable,
+                        onCheckedChange = { includeRunningExpendable = it },
+                        modifier = Modifier.testTag("switch_running_expendable"),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
+                }
             }
         }
 
@@ -3455,7 +4517,7 @@ private fun BudgetDashboardView(
                             modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = "Smart Budget Tips & Suggestions",
+                            text = if (languageMode == LanguageMode.BANGLA) "স্মার্ট বাজেট পরামর্শ ও সূত্র" else "Smart Budget Formula & Insights",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.5.sp,
                             color = MaterialTheme.colorScheme.onSurface
@@ -3463,17 +4525,22 @@ private fun BudgetDashboardView(
                     }
 
                     Text(
-                        text = "• Swipe horizontally across the suggestion pills (PB: Previous Budget, PE: Previous Expensed, F1/F2/F3: Frequent amounts) to set your plan instantly.",
+                        text = if (languageMode == LanguageMode.BANGLA) {
+                            "• বর্তমান সূত্র: সম্পদ + আয় − ব্যয় − দায়" + (if (includeRunningExpendable) " + চলমান ব্যয়যোগ্য" else "")
+                        } else {
+                            "• Current Formula: Assets + Incomes − Expenses − Liabilities" + (if (includeRunningExpendable) " + Running Expendable" else "")
+                        },
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "• Swipe horizontally across suggestion pills (PB, PE, F1/F2/F3) to set your plan instantly.",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "• Use the 'Frequently Budgeted' filter to review your top historical categories and quickly prepare this month's plan.",
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "• Tap 'Manual' on any category to open the quick calculator and specify a custom budget amount.",
+                        text = "• Tap 'Manual' on any item to open the calculator and specify a custom budget amount.",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3487,7 +4554,6 @@ private fun BudgetDashboardView(
 private fun CategorySummaryCard(
     title: String,
     amount: Double,
-    actualAmount: Double,
     color: Color,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier,
@@ -3537,19 +4603,18 @@ private fun CategorySummaryCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            Column {
-                Text(
-                    text = "Plan: ${LanguageHelper.formatCurrency(amount, languageMode)}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = color
-                )
-                Text(
-                    text = "Actual: ${LanguageHelper.formatCurrency(actualAmount, languageMode)}",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
+            Text(
+                text = LanguageHelper.formatCurrency(amount, languageMode),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+
+            Text(
+                text = if (languageMode == LanguageMode.BANGLA) "বাজেট লক্ষ্য" else "Budget Target",
+                fontSize = 10.5.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }
