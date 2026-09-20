@@ -350,7 +350,7 @@ fun BudgetScreen(
     selectedYear: Int,
     selectedMonth: Int,
     languageMode: LanguageMode,
-    initialTab: Int = 1, // Default to Expenses or initialTab
+    initialTab: Int = 0, // Default to BM Dashboard
     initialSearchQuery: String = "",
     onOpenDrawer: () -> Unit = {},
     onBack: (() -> Unit)? = null,
@@ -1968,7 +1968,31 @@ fun BudgetScreen(
                             totalAssets = totalAssetsBudget,
                             totalInflows = totalInflowsBudget,
                             runningExpendable = runningExpendable,
-                            onNavigateToTab = { tabIdx -> selectedTab = tabIdx },
+                            onNavigateToTab = { tabIdx ->
+                                when (tabIdx) {
+                                    1 -> {
+                                        expenseSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
+                                        expenseSelectedSort = BudgetSortOption.BUDGET_DESC
+                                        selectedTab = 1
+                                    }
+                                    2 -> {
+                                        incomeSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
+                                        incomeSelectedSort = BudgetSortOption.BUDGET_DESC
+                                        selectedTab = 2
+                                    }
+                                    3 -> {
+                                        assetSelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
+                                        assetSelectedSort = BudgetSortOption.BUDGET_DESC
+                                        selectedTab = 3
+                                    }
+                                    4 -> {
+                                        liabilitySelectedFilters = setOf(BudgetFilterOption.BUDGETED_ONLY, BudgetFilterOption.ONLY_CATEGORIES)
+                                        liabilitySelectedSort = BudgetSortOption.BUDGET_DESC
+                                        selectedTab = 4
+                                    }
+                                    else -> selectedTab = tabIdx
+                                }
+                            },
                             onRunningExpendableClick = { openExpendableBreakdown() }
                         )
                     }
