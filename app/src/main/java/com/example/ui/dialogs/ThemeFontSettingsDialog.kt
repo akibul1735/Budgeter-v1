@@ -620,7 +620,11 @@ private fun ThemesAndPalettesTab(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ThemePalette.entries.filter { !it.isNightTheme }.forEach { palette ->
-                    val isSelected = themeConfig.customThemeId == null && themeConfig.palette == palette
+                    val isSelected = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                        themeConfig.customThemeId == null && themeConfig.dayPalette == palette
+                    } else {
+                        themeConfig.customThemeId == null && themeConfig.palette == palette
+                    }
                     PresetThemeCard(
                         palette = palette,
                         isSelected = isSelected,
@@ -648,7 +652,11 @@ private fun ThemesAndPalettesTab(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ThemePalette.entries.filter { it.isNightTheme }.forEach { palette ->
-                    val isSelected = themeConfig.customThemeId == null && themeConfig.palette == palette
+                    val isSelected = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                        themeConfig.customThemeId == null && themeConfig.nightPalette == palette
+                    } else {
+                        themeConfig.customThemeId == null && themeConfig.palette == palette
+                    }
                     PresetThemeCard(
                         palette = palette,
                         isSelected = isSelected,

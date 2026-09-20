@@ -329,7 +329,12 @@ fun AppearanceSettingsPage(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (isBangla) themeConfig.palette.displayNameBn else themeConfig.palette.displayNameEn,
+                            text = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                                if (isBangla) "☀️ দিন: ${themeConfig.dayPalette.displayNameBn} • 🌙 রাত: ${themeConfig.nightPalette.displayNameBn}"
+                                else "☀️ Day: ${themeConfig.dayPalette.displayNameEn} • 🌙 Night: ${themeConfig.nightPalette.displayNameEn}"
+                            } else {
+                                if (isBangla) themeConfig.palette.displayNameBn else themeConfig.palette.displayNameEn
+                            },
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline,
                             maxLines = 1,
@@ -1067,7 +1072,11 @@ fun AppearanceSettingsPage(
                 )
 
                 ThemePalette.entries.filter { !it.isNightTheme }.forEach { palette ->
-                    val isSelected = themeConfig.palette == palette && themeConfig.customThemeId == null
+                    val isSelected = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                        themeConfig.dayPalette == palette && themeConfig.customThemeId == null
+                    } else {
+                        themeConfig.palette == palette && themeConfig.customThemeId == null
+                    }
 
                     OutlinedCard(
                         shape = RoundedCornerShape(12.dp),
@@ -1081,7 +1090,11 @@ fun AppearanceSettingsPage(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                viewModel.setThemePalette(palette)
+                                if (themeConfig.mode == ThemeMode.SYSTEM) {
+                                    viewModel.setDayPalette(palette)
+                                } else {
+                                    viewModel.setThemePalette(palette)
+                                }
                                 showPaletteSheet = false
                             }
                     ) {
@@ -1111,7 +1124,11 @@ fun AppearanceSettingsPage(
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isBangla) "দিনের স্ট্যান্ডার্ড থিম" else "Standard Day Palette",
+                                        text = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                                            if (isBangla) "অটো মোডে দিনে সক্রিয় থাকবে" else "Active during day in Auto mode"
+                                        } else {
+                                            if (isBangla) "দিনের স্ট্যান্ডার্ড থিম" else "Standard Day Palette"
+                                        },
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )
@@ -1141,7 +1158,11 @@ fun AppearanceSettingsPage(
                 )
 
                 ThemePalette.entries.filter { it.isNightTheme }.forEach { palette ->
-                    val isSelected = themeConfig.palette == palette && themeConfig.customThemeId == null
+                    val isSelected = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                        themeConfig.nightPalette == palette && themeConfig.customThemeId == null
+                    } else {
+                        themeConfig.palette == palette && themeConfig.customThemeId == null
+                    }
 
                     OutlinedCard(
                         shape = RoundedCornerShape(12.dp),
@@ -1155,7 +1176,11 @@ fun AppearanceSettingsPage(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                viewModel.setThemePalette(palette)
+                                if (themeConfig.mode == ThemeMode.SYSTEM) {
+                                    viewModel.setNightPalette(palette)
+                                } else {
+                                    viewModel.setThemePalette(palette)
+                                }
                                 showPaletteSheet = false
                             }
                     ) {
@@ -1185,7 +1210,11 @@ fun AppearanceSettingsPage(
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = if (isBangla) "রাতের স্ট্যান্ডার্ড থিম" else "Standard Night Palette",
+                                        text = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                                            if (isBangla) "অটো মোডে রাতে সক্রিয় থাকবে" else "Active during night in Auto mode"
+                                        } else {
+                                            if (isBangla) "রাতের স্ট্যান্ডার্ড থিম" else "Standard Night Palette"
+                                        },
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.outline
                                     )

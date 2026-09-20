@@ -151,6 +151,7 @@ import com.example.ui.dialogs.AutofillSettingsDialog
 import com.example.ui.dialogs.TabCustomizationDialog
 import com.example.ui.dialogs.ThemeFontSettingsDialog
 import com.example.ui.screens.AppLockScreen
+import com.example.ui.theme.AppThemeConfig
 import com.example.ui.theme.ColorIntensity
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
@@ -1783,7 +1784,7 @@ private fun DrawerContent(
 
                 if (showQuickThemeDialog) {
                     QuickThemeDialog(
-                        currentPalette = themeConfig.palette,
+                        themeConfig = themeConfig,
                         languageMode = languageMode,
                         onDismiss = { showQuickThemeDialog = false },
                         onSelectPalette = {
@@ -2501,7 +2502,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
 
 @Composable
 private fun QuickThemeDialog(
-    currentPalette: ThemePalette,
+    themeConfig: AppThemeConfig,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
     onSelectPalette: (ThemePalette) -> Unit
@@ -2538,7 +2539,11 @@ private fun QuickThemeDialog(
                     color = MaterialTheme.colorScheme.primary
                 )
                 ThemePalette.entries.filter { !it.isNightTheme }.forEach { palette ->
-                    val isSelected = currentPalette == palette
+                    val isSelected = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                        themeConfig.dayPalette == palette && themeConfig.customThemeId == null
+                    } else {
+                        themeConfig.palette == palette && themeConfig.customThemeId == null
+                    }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -2592,7 +2597,11 @@ private fun QuickThemeDialog(
                     color = MaterialTheme.colorScheme.primary
                 )
                 ThemePalette.entries.filter { it.isNightTheme }.forEach { palette ->
-                    val isSelected = currentPalette == palette
+                    val isSelected = if (themeConfig.mode == ThemeMode.SYSTEM) {
+                        themeConfig.nightPalette == palette && themeConfig.customThemeId == null
+                    } else {
+                        themeConfig.palette == palette && themeConfig.customThemeId == null
+                    }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),

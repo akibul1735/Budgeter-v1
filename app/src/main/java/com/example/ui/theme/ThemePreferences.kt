@@ -165,6 +165,8 @@ data class CustomTheme(
 
 data class AppThemeConfig(
     val palette: ThemePalette = ThemePalette.EMERALD_WEALTH,
+    val dayPalette: ThemePalette = ThemePalette.EMERALD_WEALTH,
+    val nightPalette: ThemePalette = ThemePalette.MIDNIGHT_SLATE,
     val customThemeId: String? = null,
     val customThemes: List<CustomTheme> = emptyList(),
     val mode: ThemeMode = ThemeMode.SYSTEM,
@@ -178,6 +180,21 @@ data class AppThemeConfig(
 ) {
     val activeCustomTheme: CustomTheme?
         get() = customThemes.find { it.id == customThemeId }
+
+    fun effectivePalette(isDarkMode: Boolean): ThemePalette {
+        return when (mode) {
+            ThemeMode.SYSTEM -> if (isDarkMode) nightPalette else dayPalette
+            ThemeMode.LIGHT -> if (palette.isNightTheme) dayPalette else palette
+            ThemeMode.DARK, ThemeMode.AMOLED_NIGHT -> if (!palette.isNightTheme) nightPalette else palette
+        }
+    }
+
+    fun effectiveThemeDisplayName(isDarkMode: Boolean, isBangla: Boolean = false): String {
+        val custom = activeCustomTheme
+        if (custom != null) return custom.name
+        val pal = effectivePalette(isDarkMode)
+        return if (isBangla) pal.displayNameBn else pal.displayNameEn
+    }
 
     val activeThemeDisplayName: String
         get() = activeCustomTheme?.name ?: palette.displayNameEn
@@ -221,6 +238,23 @@ class ThemePreferences(context: Context) {
             "OBSIDIAN_NIGHT", "MINIMAL_MONO" -> ThemePalette.OBSIDIAN_NIGHT
             else -> try { ThemePalette.valueOf(paletteName) } catch (_: Exception) { ThemePalette.EMERALD_WEALTH }
         }
+
+        val dayPaletteName = prefs.getString(KEY_DAY_PALETTE, null)
+        val nightPaletteName = prefs.getString(KEY_NIGHT_PALETTE, null)
+        val dayPalette = dayPaletteName?.let {
+            try {
+                val p = ThemePalette.valueOf(it)
+                if (!p.isNightTheme) p else null
+            } catch (_: Exception) { null }
+        } ?: if (!palette.isNightTheme) palette else ThemePalette.EMERALD_WEALTH
+
+        val nightPalette = nightPaletteName?.let {
+            try {
+                val p = ThemePalette.valueOf(it)
+                if (p.isNightTheme) p else null
+            } catch (_: Exception) { null }
+        } ?: if (palette.isNightTheme) palette else ThemePalette.MIDNIGHT_SLATE
+
         val mode = try { ThemeMode.valueOf(modeName) } catch (_: Exception) { ThemeMode.SYSTEM }
         val intensity = try { ColorIntensity.valueOf(intensityName) } catch (_: Exception) { ColorIntensity.STANDARD }
         val font = try { FontPreset.valueOf(fontName) } catch (_: Exception) { FontPreset.DEFAULT }
@@ -235,6 +269,8 @@ class ThemePreferences(context: Context) {
 
         return AppThemeConfig(
             palette = palette,
+            dayPalette = dayPalette,
+            nightPalette = nightPalette,
             customThemeId = validCustomThemeId,
             customThemes = customThemes,
             mode = mode,
@@ -249,13 +285,40 @@ class ThemePreferences(context: Context) {
     }
 
     fun setPalette(palette: ThemePalette) {
-        prefs.edit()
+        val isNight = palette.isNightTheme
+        val editor = prefs.edit()
             .putString(KEY_PALETTE, palette.name)
             .remove(KEY_SELECTED_CUSTOM_THEME_ID)
-            .apply()
-        _themeConfig.value = _themeConfig.value.copy(
+        if (isNight) {
+            editor.putString(KEY_NIGHT_PALETTE, palette.name)
+        } else {
+            editor.putString(KEY_DAY_PALETTE, palette.name)
+        }
+        editor.apply()
+        val current = _themeConfig.value
+        _themeConfig.value = current.copy(
             palette = palette,
+            dayPalette = if (!isNight) palette else current.dayPalette,
+            nightPalette = if (isNight) palette else current.nightPalette,
             customThemeId = null
+        )
+    }
+
+    fun setDayPalette(palette: ThemePalette) {
+        prefs.edit().putString(KEY_DAY_PALETTE, palette.name).apply()
+        val current = _themeConfig.value
+        _themeConfig.value = current.copy(
+            dayPalette = palette,
+            palette = if (current.mode == ThemeMode.LIGHT || (current.mode == ThemeMode.SYSTEM && !current.palette.isNightTheme)) palette else current.palette
+        )
+    }
+
+    fun setNightPalette(palette: ThemePalette) {
+        prefs.edit().putString(KEY_NIGHT_PALETTE, palette.name).apply()
+        val current = _themeConfig.value
+        _themeConfig.value = current.copy(
+            nightPalette = palette,
+            palette = if (current.mode == ThemeMode.DARK || current.mode == ThemeMode.AMOLED_NIGHT || (current.mode == ThemeMode.SYSTEM && current.palette.isNightTheme)) palette else current.palette
         )
     }
 
@@ -334,6 +397,8 @@ class ThemePreferences(context: Context) {
     fun updateConfig(config: AppThemeConfig) {
         prefs.edit()
             .putString(KEY_PALETTE, config.palette.name)
+            .putString(KEY_DAY_PALETTE, config.dayPalette.name)
+            .putString(KEY_NIGHT_PALETTE, config.nightPalette.name)
             .putString(KEY_SELECTED_CUSTOM_THEME_ID, config.customThemeId)
             .putString(KEY_CUSTOM_THEMES, serializeCustomThemes(config.customThemes))
             .putString(KEY_MODE, config.mode.name)
@@ -462,6 +527,8 @@ class ThemePreferences(context: Context) {
 
     companion object {
         private const val KEY_PALETTE = "theme_palette"
+        private const val KEY_DAY_PALETTE = "day_theme_palette"
+        private const val KEY_NIGHT_PALETTE = "night_theme_palette"
         private const val KEY_SELECTED_CUSTOM_THEME_ID = "selected_custom_theme_id"
         private const val KEY_CUSTOM_THEMES = "custom_themes_list_json"
         private const val KEY_MODE = "theme_mode"

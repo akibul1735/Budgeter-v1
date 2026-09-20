@@ -51,6 +51,7 @@ fun MyApplicationTheme(
     }
 
     val isAmoled = themeConfig.mode == ThemeMode.AMOLED_NIGHT
+    val effectivePalette = themeConfig.effectivePalette(isDarkMode)
 
     val colorScheme = when {
         themeConfig.dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
@@ -66,7 +67,7 @@ fun MyApplicationTheme(
             darkSurfaceTone = themeConfig.darkSurfaceTone
         )
         else -> buildThemeColorScheme(
-            palette = themeConfig.palette,
+            palette = effectivePalette,
             isDark = isDarkMode,
             isAmoled = isAmoled,
             intensity = themeConfig.colorIntensity,

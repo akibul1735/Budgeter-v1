@@ -426,6 +426,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val backupSettingsConfig: StateFlow<BackupSettingsConfig> = backupPrefs.config
 
     fun setThemePalette(palette: ThemePalette) = themePrefs.setPalette(palette)
+    fun setDayPalette(palette: ThemePalette) = themePrefs.setDayPalette(palette)
+    fun setNightPalette(palette: ThemePalette) = themePrefs.setNightPalette(palette)
     fun selectCustomTheme(themeId: String) = themePrefs.selectCustomTheme(themeId)
     fun addCustomTheme(
         name: String,
