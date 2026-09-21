@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
@@ -15,6 +16,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -24,7 +26,8 @@ import java.util.concurrent.TimeUnit
 data class OnlineIconResult(
     val title: String,
     val imageUrl: String,
-    val sourceName: String
+    val sourceName: String,
+    val isColorful: Boolean = false
 )
 
 object OnlineIconSearchService {
@@ -36,26 +39,81 @@ object OnlineIconSearchService {
 
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
+    private val KNOWN_COLORFUL_SOURCES = setOf(
+        "SVGL", "Brandfetch", "Favicon", "LOGOS", "FLAT-COLOR-ICONS",
+        "FLUENT-EMOJI", "TWEMOJI", "OPENMOJI", "CIRCLE-FLAGS", "SKILL-ICONS", "VSCODE-ICONS", "NOTO"
+    )
+
     /**
-     * Searches for logos and icons online using open, keyless providers with pagination:
-     * 1. Iconify Vector Icon Search (Open API, millions of vector icons across sets)
-     * 2. Wikimedia Commons Open Media Search
-     * 3. DuckDuckGo Instant Topics & Images
-     * 4. Brandfetch Brand Logo Search
-     * 5. Google Favicon / Clearbit
+     * Searches for logos and icons online using keyless free providers with pagination,
+     * sorting colorful icons first before colorless/monochrome icons:
+     * 1. SVGL Open Brand Logos (Vibrant vector logos for brands, tech, fintech)
+     * 2. Iconify Vector Icon Search (Open API, millions of vector icons across sets)
+     * 3. Brandfetch Brand Logo Search
+     * 4. Wikimedia Commons Open Media Search
+     * 5. DuckDuckGo Instant Topics & Images
+     * 6. Google Favicon Service
      */
-    suspend fun searchIcons(query: String, page: Int = 1): List<OnlineIconResult> = withContext(Dispatchers.IO) {
+    suspend fun searchIcons(context: Context? = null, query: String, page: Int = 1): List<OnlineIconResult> = withContext(Dispatchers.IO) {
         val cleanQuery = query.trim()
         if (cleanQuery.isBlank()) return@withContext emptyList()
 
         val results = mutableListOf<OnlineIconResult>()
         val seenUrls = mutableSetOf<String>()
 
-        // 1. Iconify Open Vector Icon API (free, open-source icons: Lucide, Material, Tabler, Remix, FontAwesome)
+        val encoded = try {
+            URLEncoder.encode(cleanQuery, "UTF-8")
+        } catch (_: Exception) {
+            cleanQuery
+        }
+
+        // 1. SVGL Open Logos API (High-res, multi-color brand and tech vector logos)
         try {
-            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
-            val start = (page - 1) * 12
-            val iconifyUrl = "https://api.iconify.design/search?query=$encoded&limit=12&start=$start"
+            val svglUrl = "https://api.svgl.app?search=$encoded"
+            val request = Request.Builder()
+                .url(svglUrl)
+                .header("User-Agent", USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string()
+                    if (!body.isNullOrBlank()) {
+                        val jsonArr = JSONArray(body)
+                        val startIdx = (page - 1) * 6
+                        val endIdx = minOf(jsonArr.length(), page * 6)
+                        for (i in startIdx until endIdx) {
+                            val obj = jsonArr.optJSONObject(i) ?: continue
+                            val title = obj.optString("title").ifBlank { obj.optString("name") }
+                            var routeUrl = obj.optString("route")
+                            if (routeUrl.isBlank()) {
+                                val routeObj = obj.optJSONObject("route")
+                                if (routeObj != null) {
+                                    routeUrl = routeObj.optString("light").ifBlank { routeObj.optString("dark") }
+                                }
+                            }
+                            if (routeUrl.isNotBlank() && routeUrl.startsWith("http") && seenUrls.add(routeUrl)) {
+                                results.add(
+                                    OnlineIconResult(
+                                        title = title.ifBlank { cleanQuery },
+                                        imageUrl = routeUrl,
+                                        sourceName = "SVGL",
+                                        isColorful = true
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Proceed to other providers
+        }
+
+        // 2. Iconify Open Vector Icon API (Supports both colorful vector sets and line icon sets)
+        try {
+            val start = (page - 1) * 14
+            val iconifyUrl = "https://api.iconify.design/search?query=$encoded&limit=14&start=$start"
             val request = Request.Builder()
                 .url(iconifyUrl)
                 .header("User-Agent", USER_AGENT)
@@ -72,17 +130,19 @@ object OnlineIconSearchService {
                                 val iconStr = iconsArr.optString(i)
                                 if (iconStr.isNotBlank() && iconStr.contains(":")) {
                                     val parts = iconStr.split(":", limit = 2)
-                                    val prefix = parts[0]
+                                    val prefix = parts[0].uppercase()
                                     val iconName = parts[1]
-                                    val svgUrl = "https://api.iconify.design/$prefix/$iconName.svg"
+                                    val svgUrl = "https://api.iconify.design/${parts[0]}/$iconName.svg"
                                     if (seenUrls.add(svgUrl)) {
                                         val cleanTitle = iconName.replace("-", " ")
                                             .replaceFirstChar { it.uppercase() }
+                                        val isKnownColorful = prefix in KNOWN_COLORFUL_SOURCES
                                         results.add(
                                             OnlineIconResult(
                                                 title = cleanTitle,
                                                 imageUrl = svgUrl,
-                                                sourceName = prefix.uppercase()
+                                                sourceName = prefix,
+                                                isColorful = isKnownColorful
                                             )
                                         )
                                     }
@@ -96,11 +156,46 @@ object OnlineIconSearchService {
             // Proceed to other providers
         }
 
-        // 2. Wikimedia Commons Open Search (supports pagination via gsroffset)
+        // 3. Search Brandfetch for company / app logos (Colorful brandmarks)
         try {
-            val encoded = URLEncoder.encode("$cleanQuery icon", "UTF-8")
-            val offset = (page - 1) * 12
-            val wmUrl = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=filetype:bitmap|drawing+$encoded&gsrlimit=12&gsroffset=$offset&prop=imageinfo&iiprop=url|thumburl&iiurlwidth=160&format=json"
+            val request = Request.Builder()
+                .url("https://api.brandfetch.io/v2/search/$encoded")
+                .header("User-Agent", USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string()
+                    if (!body.isNullOrBlank()) {
+                        val jsonArr = JSONArray(body)
+                        val startIdx = (page - 1) * 6
+                        val endIdx = minOf(jsonArr.length(), page * 6)
+                        for (i in startIdx until endIdx) {
+                            val obj = jsonArr.optJSONObject(i) ?: continue
+                            val iconUrl = obj.optString("icon")
+                            val name = obj.optString("name").ifBlank { obj.optString("domain") }
+                            if (iconUrl.isNotBlank() && iconUrl.startsWith("http") && seenUrls.add(iconUrl)) {
+                                results.add(
+                                    OnlineIconResult(
+                                        title = name,
+                                        imageUrl = iconUrl,
+                                        sourceName = "Brandfetch",
+                                        isColorful = true
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Proceed
+        }
+
+        // 4. Wikimedia Commons Open Media Search
+        try {
+            val offset = (page - 1) * 10
+            val wmUrl = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=filetype:bitmap|drawing+$encoded+logo|icon&gsrlimit=10&gsroffset=$offset&prop=imageinfo&iiprop=url|thumburl&iiurlwidth=160&format=json"
             val request = Request.Builder()
                 .url(wmUrl)
                 .header("User-Agent", "BudgeterApp/1.0 (Android; open-source)")
@@ -129,7 +224,8 @@ object OnlineIconSearchService {
                                         OnlineIconResult(
                                             title = rawTitle,
                                             imageUrl = thumbUrl,
-                                            sourceName = "Wikimedia"
+                                            sourceName = "Wikimedia",
+                                            isColorful = true
                                         )
                                     )
                                 }
@@ -142,9 +238,8 @@ object OnlineIconSearchService {
             // Proceed
         }
 
-        // 3. DuckDuckGo Instant Answer / Topics / Open Search
+        // 5. DuckDuckGo Instant Answer / Topics / Open Search
         try {
-            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val request = Request.Builder()
                 .url("https://api.duckduckgo.com/?q=$encoded&format=json")
                 .header("User-Agent", USER_AGENT)
@@ -164,7 +259,8 @@ object OnlineIconSearchService {
                                         OnlineIconResult(
                                             title = obj.optString("Heading", cleanQuery),
                                             imageUrl = fullUrl,
-                                            sourceName = "DuckDuckGo"
+                                            sourceName = "DuckDuckGo",
+                                            isColorful = true
                                         )
                                     )
                                 }
@@ -187,7 +283,8 @@ object OnlineIconSearchService {
                                             OnlineIconResult(
                                                 title = text,
                                                 imageUrl = fullUrl,
-                                                sourceName = "DuckDuckGo"
+                                                sourceName = "DuckDuckGo",
+                                                isColorful = true
                                             )
                                         )
                                     }
@@ -201,43 +298,7 @@ object OnlineIconSearchService {
             // Proceed
         }
 
-        // 4. Search Brandfetch for company / app logos
-        try {
-            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
-            val request = Request.Builder()
-                .url("https://api.brandfetch.io/v2/search/$encoded")
-                .header("User-Agent", USER_AGENT)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val jsonArr = org.json.JSONArray(body)
-                        val startIdx = (page - 1) * 6
-                        val endIdx = minOf(jsonArr.length(), page * 6)
-                        for (i in startIdx until endIdx) {
-                            val obj = jsonArr.optJSONObject(i) ?: continue
-                            val iconUrl = obj.optString("icon")
-                            val name = obj.optString("name").ifBlank { obj.optString("domain") }
-                            if (iconUrl.isNotBlank() && iconUrl.startsWith("http") && seenUrls.add(iconUrl)) {
-                                results.add(
-                                    OnlineIconResult(
-                                        title = name,
-                                        imageUrl = iconUrl,
-                                        sourceName = "Brandfetch"
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            // Proceed
-        }
-
-        // 5. Google Favicon (included on first page)
+        // 6. Google Favicon (included on first page)
         if (page == 1) {
             try {
                 val noSpaces = cleanQuery.replace(" ", "").lowercase()
@@ -248,7 +309,8 @@ object OnlineIconSearchService {
                         OnlineIconResult(
                             title = cleanQuery.replaceFirstChar { it.uppercase() },
                             imageUrl = googleFaviconUrl,
-                            sourceName = "Favicon"
+                            sourceName = "Favicon",
+                            isColorful = true
                         )
                     )
                 }
@@ -261,36 +323,51 @@ object OnlineIconSearchService {
         val validatedResults = coroutineScope {
             results.map { item ->
                 async(Dispatchers.IO) {
-                    if (isReachableAndValidImage(item.imageUrl)) item else null
+                    val analysis = validateAndAnalyzeColor(context, item)
+                    if (analysis != null) analysis else null
                 }
             }.awaitAll().filterNotNull()
         }
 
-        validatedResults
+        // Sort colorful icons first, followed by monochrome/colorless icons
+        val sortedResults = validatedResults.sortedWith(
+            compareByDescending<OnlineIconResult> { it.isColorful }
+                .thenBy { it.sourceName == "Wikimedia" } // Prefer dedicated icon/logo libraries
+        )
+
+        sortedResults
     }
 
     /**
-     * Quickly checks if an image URL is reachable, returns HTTP 200, and is valid image/svg content.
+     * Validates that an image URL is reachable, valid, and analyzes whether it is colorful or monochrome.
      */
-    private suspend fun isReachableAndValidImage(url: String): Boolean = withContext(Dispatchers.IO) {
-        if (url.isBlank() || !url.startsWith("http")) return@withContext false
+    private suspend fun validateAndAnalyzeColor(context: Context?, item: OnlineIconResult): OnlineIconResult? = withContext(Dispatchers.IO) {
+        val url = item.imageUrl
+        if (url.isBlank() || !url.startsWith("http")) return@withContext null
+
+        // 1. Check HTTP reachability and content type
         try {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", USER_AGENT)
                 .build()
 
+            var isSvg = url.endsWith(".svg", ignoreCase = true)
+            var isImage = false
+
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext false
+                if (!response.isSuccessful) return@withContext null
                 val contentType = response.header("Content-Type")?.lowercase() ?: ""
                 val contentLength = response.body?.contentLength() ?: -1L
-                if (contentLength == 0L) return@withContext false
+                if (contentLength == 0L) return@withContext null
 
-                val isImageOrSvg = contentType.startsWith("image/") ||
+                if (contentType.startsWith("text/html")) return@withContext null
+
+                isSvg = isSvg || contentType.contains("svg")
+                isImage = contentType.startsWith("image/") ||
                         contentType.contains("svg") ||
                         contentType.contains("xml") ||
                         contentType.contains("octet-stream") ||
-                        url.endsWith(".svg") ||
                         url.endsWith(".png") ||
                         url.endsWith(".webp") ||
                         url.endsWith(".jpg") ||
@@ -298,12 +375,74 @@ object OnlineIconSearchService {
                         url.endsWith(".ico") ||
                         url.contains("favicon")
 
-                if (!isImageOrSvg) return@withContext false
-                if (contentType.startsWith("text/html")) return@withContext false
-
-                true
+                if (!isImage) return@withContext null
             }
+
+            // 2. If source is inherently colorful (SVGL, Brandfetch, Favicon, Twemoji, etc.), mark as colorful
+            if (item.sourceName in KNOWN_COLORFUL_SOURCES || item.isColorful) {
+                return@withContext item.copy(isColorful = true)
+            }
+
+            // 3. For other items, check bitmap saturation if context is available
+            if (context != null) {
+                try {
+                    val loader = context.imageLoader
+                    val req = ImageRequest.Builder(context)
+                        .data(url)
+                        .size(32, 32)
+                        .allowHardware(false)
+                        .build()
+                    val res = loader.execute(req)
+                    if (res is SuccessResult) {
+                        val drawable = res.drawable
+                        val bmp = Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(bmp)
+                        drawable.setBounds(0, 0, 32, 32)
+                        drawable.draw(canvas)
+
+                        val isColorful = checkBitmapColorfulness(bmp)
+                        return@withContext item.copy(isColorful = isColorful)
+                    }
+                } catch (_: Exception) {
+                    // Fallback to initial isColorful state
+                }
+            }
+
+            item
         } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Samples pixels of a small bitmap to determine if it has meaningful color saturation.
+     */
+    private fun checkBitmapColorfulness(bitmap: Bitmap): Boolean {
+        var colorfulPixels = 0
+        var totalVisiblePixels = 0
+        val hsv = FloatArray(3)
+        val step = maxOf(1, bitmap.width / 8)
+
+        for (x in 0 until bitmap.width step step) {
+            for (y in 0 until bitmap.height step step) {
+                val pixel = bitmap.getPixel(x, y)
+                val alpha = (pixel ushr 24) and 0xFF
+                if (alpha > 30) {
+                    totalVisiblePixels++
+                    val r = (pixel ushr 16) and 0xFF
+                    val g = (pixel ushr 8) and 0xFF
+                    val b = pixel and 0xFF
+                    Color.RGBToHSV(r, g, b, hsv)
+                    // Saturation >= 0.22 and brightness >= 0.15 indicates genuine color (not black, white, or gray)
+                    if (hsv[1] >= 0.22f && hsv[2] >= 0.15f) {
+                        colorfulPixels++
+                    }
+                }
+            }
+        }
+        return if (totalVisiblePixels > 0) {
+            (colorfulPixels.toFloat() / totalVisiblePixels.toFloat()) >= 0.15f
+        } else {
             false
         }
     }

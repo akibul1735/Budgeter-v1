@@ -125,7 +125,7 @@ fun IconPickerModal(
                 searchJob?.cancel()
                 searchJob = coroutineScope.launch {
                     delay(350)
-                    val results = OnlineIconSearchService.searchIcons(query, page = 1)
+                    val results = OnlineIconSearchService.searchIcons(context, query, page = 1)
                     onlineResults = results
                     hasMoreOnline = results.size >= 4
                     isSearchingOnline = false
@@ -510,7 +510,7 @@ fun IconPickerModal(
                                                         isLoadingMore = true
                                                         coroutineScope.launch {
                                                             val nextPage = currentOnlinePage + 1
-                                                            val moreResults = OnlineIconSearchService.searchIcons(query, page = nextPage)
+                                                            val moreResults = OnlineIconSearchService.searchIcons(context, query, page = nextPage)
                                                             if (moreResults.isNotEmpty()) {
                                                                 val currentUrls = onlineResults.map { it.imageUrl }.toSet()
                                                                 val filteredNew = moreResults.filter { it.imageUrl !in currentUrls }
