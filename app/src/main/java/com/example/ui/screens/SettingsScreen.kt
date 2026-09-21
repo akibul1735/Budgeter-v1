@@ -37,8 +37,9 @@ import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -65,8 +66,11 @@ import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -84,7 +88,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -116,8 +122,10 @@ import com.example.ui.screens.settings.TransactionSetupSettingsPage
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.CalendarDisplayMode
 import com.example.util.DateFormatOption
+import com.example.util.IconHelper
 import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
+import kotlinx.coroutines.launch
 
 enum class SettingsSubPage {
     ROOT,
@@ -149,10 +157,14 @@ fun SettingsScreen(
     onOpenAutofillSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
     var showSecurityAuthDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showIconStorageDialog by remember { mutableStateOf(false) }
+    var iconCacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
+    var isCleaningIconCache by remember { mutableStateOf(false) }
     var feedbackText by remember { mutableStateOf("") }
     val rootListState = rememberLazyListState()
 
@@ -278,6 +290,172 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = { showPrivacyDialog = false }) {
                     Text(if (languageMode == LanguageMode.BANGLA) "ঠিক আছে" else "Got it")
+                }
+            }
+        )
+    }
+
+    if (showIconStorageDialog) {
+        val totalKb = (iconCacheStats.totalBytes / 1024).coerceAtLeast(if (iconCacheStats.totalCount > 0) 1 else 0)
+        val activeKb = (iconCacheStats.activeBytes / 1024).coerceAtLeast(if (iconCacheStats.activeCount > 0) 1 else 0)
+        val unusedKb = (iconCacheStats.unusedBytes / 1024).coerceAtLeast(if (iconCacheStats.unusedCount > 0) 1 else 0)
+
+        AlertDialog(
+            onDismissRequest = { if (!isCleaningIconCache) showIconStorageDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Category,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "আইকন ও ইমেজ স্টোরেজ" else "Icon & Image Cache Storage",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "অ্যাপে সংরক্ষিত কাস্টম ও ডাউনলোডকৃত আইকন এবং ছবির মেমোরি বিবরণ:"
+                        else
+                            "Storage occupied by downloaded and custom cropped icons and images:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "মোট কাস্টম আইকন:" else "Total Custom Icons:",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "${iconCacheStats.totalCount} items (~$totalKb KB)",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "ব্যবহৃত (সংরক্ষিত):" else "In Use (Protected):",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "${iconCacheStats.activeCount} items (~$activeKb KB)",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "অব্যবহৃত ক্যাশ:" else "Unused Cache (Safe to clean):",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "${iconCacheStats.unusedCount} items (~$unusedKb KB)",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (iconCacheStats.unusedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    if (iconCacheStats.unusedCount == 0) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA)
+                                "সবগুলো আইকন বর্তমানে ক্যাটাগরি, অ্যাকাউন্ট বা লক্ষ্যে সক্রিয় রয়েছে। ক্যাশ সম্পূর্ণ পরিষ্কার।"
+                            else
+                                "All icons are currently assigned to active categories, accounts, or goals. Cache is clean.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA)
+                                "ক্যাশ পরিষ্কার করলে শুধুমাত্র অব্যবহৃত আইকন মুছে যাবে, কিন্তু আপনার ব্যবহৃত কোনো আইকন নষ্ট হবে না।"
+                            else
+                                "Clearing cache only removes unused orphan icons without affecting any of your active icons.",
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (iconCacheStats.unusedCount > 0) {
+                    Button(
+                        onClick = {
+                            isCleaningIconCache = true
+                            coroutineScope.launch {
+                                val (cleanedCount, freedBytes) = viewModel.clearUnusedIconCache()
+                                iconCacheStats = viewModel.getIconCacheStats()
+                                isCleaningIconCache = false
+                                val freedKb = (freedBytes / 1024).coerceAtLeast(1)
+                                Toast.makeText(
+                                    context,
+                                    if (languageMode == LanguageMode.BANGLA)
+                                        "$cleanedCount টি অব্যবহৃত আইকন মুছে $freedKb KB মেমোরি খালি করা হয়েছে!"
+                                    else
+                                        "Cleaned $cleanedCount unused icons! Freed $freedKb KB",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        enabled = !isCleaningIconCache,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        if (isCleaningIconCache) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.onError,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(if (languageMode == LanguageMode.BANGLA) "ক্যাশ মুছুন" else "Clear Cache")
+                    }
+                } else {
+                    Button(onClick = { showIconStorageDialog = false }) {
+                        Text(if (languageMode == LanguageMode.BANGLA) "ঠিক আছে" else "Done")
+                    }
+                }
+            },
+            dismissButton = {
+                if (iconCacheStats.unusedCount > 0) {
+                    TextButton(onClick = { showIconStorageDialog = false }, enabled = !isCleaningIconCache) {
+                        Text(if (languageMode == LanguageMode.BANGLA) "বন্ধ করুন" else "Close")
+                    }
                 }
             }
         )
@@ -577,6 +755,31 @@ fun SettingsScreen(
                     item {
                         SettingsSectionHeader(
                             title = if (languageMode == LanguageMode.BANGLA) "ডাটা ও রিসেট" else "DATA & RESET"
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ, ড্রপবক্স ও অনলাইন আইকন/ইমেজ সিঙ্ক" else "Google Drive, Dropbox, Online Icons & Images",
+                            icon = Icons.Default.CloudSync,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            onClick = onNavigateToBackupSync
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "আইকন ও ইমেজ মেমোরি / ক্যাশ" else "Icon & Image Cache Storage",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "আইকন কতটুকু জায়গা দখল করেছে দেখুন ও অব্যবহৃত ক্যাশ মুছুন" else "Check icon disk usage & clear unused cache safely",
+                            icon = Icons.Default.Category,
+                            iconTint = MaterialTheme.colorScheme.secondary,
+                            onClick = {
+                                coroutineScope.launch {
+                                    iconCacheStats = viewModel.getIconCacheStats()
+                                    showIconStorageDialog = true
+                                }
+                            }
                         )
                     }
 

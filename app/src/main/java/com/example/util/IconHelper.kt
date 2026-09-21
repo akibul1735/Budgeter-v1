@@ -1467,8 +1467,26 @@ object IconHelper {
     fun getCustomIconFile(context: Context, iconName: String): File {
         val customDir = File(context.filesDir, "custom_icons")
         if (!customDir.exists()) customDir.mkdirs()
-        val cleanName = if (iconName.endsWith(".png")) iconName else "$iconName.png"
-        return File(customDir, cleanName)
+        val rawName = iconName.substringAfterLast("/")
+        val fileDirect = File(customDir, rawName)
+        if (fileDirect.exists()) return fileDirect
+        val base = rawName.substringBeforeLast(".")
+        for (ext in listOf("png", "webp", "jpg", "jpeg")) {
+            val f = File(customDir, "$base.$ext")
+            if (f.exists()) return f
+        }
+        return File(customDir, if (rawName.contains(".")) rawName else "$rawName.png")
+    }
+
+    /**
+     * Retrieves all saved custom icon file objects.
+     */
+    fun getCustomIcons(context: Context): List<File> {
+        val customDir = File(context.filesDir, "custom_icons")
+        if (!customDir.exists()) return emptyList()
+        return customDir.listFiles { file -> file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp") }
+            ?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
     }
 
     /**
@@ -1480,15 +1498,29 @@ object IconHelper {
         return customDir.listFiles { file -> file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp") }
             ?.sortedByDescending { it.lastModified() }
             ?.map { it.nameWithoutExtension }
+            ?.distinct()
             ?: emptyList()
     }
 
     data class IconCacheStats(
         val totalCount: Int = 0,
+        val usedCount: Int = 0,
         val unusedCount: Int = 0,
         val totalBytes: Long = 0L,
+        val usedBytes: Long = 0L,
         val unusedBytes: Long = 0L
-    )
+    ) {
+        val activeCount: Int get() = usedCount
+        val activeBytes: Long get() = usedBytes
+    }
+
+    fun formatFileSize(bytes: Long): String {
+        return when {
+            bytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB", bytes / (1024f * 1024f))
+            bytes >= 1024 -> String.format(java.util.Locale.US, "%.1f KB", bytes / 1024f)
+            else -> "$bytes B"
+        }
+    }
 
     /**
      * Decodes a Bitmap from a Uri with a maximum dimension constraint.
@@ -1580,7 +1612,7 @@ object IconHelper {
     }
 
     /**
-     * Saves a Bitmap directly into the app's internal custom icons directory.
+     * Saves a Bitmap directly into the app's internal custom icons directory with optimal compression.
      */
     fun saveCustomIconBitmap(context: Context, bitmap: Bitmap): String? {
         return try {
@@ -1590,8 +1622,34 @@ object IconHelper {
             val iconKey = "custom_icon_${System.currentTimeMillis()}"
             val destFile = File(customDir, "$iconKey.png")
 
+            // Ensure optimized size (up to 384x384 for maximum sharpness on xxxhdpi screens with tiny storage size)
+            val optimizedBitmap = if (bitmap.width > 384 || bitmap.height > 384) {
+                val scaleFactor = 384f / maxOf(bitmap.width, bitmap.height)
+                Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * scaleFactor).toInt().coerceAtLeast(1),
+                    (bitmap.height * scaleFactor).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else {
+                bitmap
+            }
+
             FileOutputStream(destFile).use { outStream ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 95, outStream)
+                val format = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSY
+                } else {
+                    @Suppress("DEPRECATION")
+                    Bitmap.CompressFormat.WEBP
+                }
+                val compressed = try {
+                    optimizedBitmap.compress(format, 92, outStream)
+                } catch (_: Exception) {
+                    optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                }
+                if (!compressed) {
+                    optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                }
                 outStream.flush()
             }
             iconKey
@@ -1602,7 +1660,7 @@ object IconHelper {
     }
 
     /**
-     * Computes statistics about unused custom icons currently stored on disk.
+     * Computes statistics about unused and used custom icons currently stored on disk.
      */
     fun getUnusedCustomIconsStats(context: Context, activeIconNames: Set<String>): IconCacheStats {
         val customDir = File(context.filesDir, "custom_icons")
@@ -1614,15 +1672,22 @@ object IconHelper {
 
         var totalBytes = 0L
         var unusedBytes = 0L
+        var usedBytes = 0L
         var unusedCount = 0
+        var usedCount = 0
 
-        val normalizedActive = activeIconNames.map { it.removeSuffix(".png") }.toSet()
+        val normalizedActive = activeIconNames.map {
+            it.substringAfterLast("/").substringBeforeLast(".")
+        }.toSet()
 
         for (file in allFiles) {
             val size = file.length()
             totalBytes += size
             val nameNoExt = file.nameWithoutExtension
-            if (nameNoExt !in normalizedActive && file.name !in activeIconNames) {
+            if (nameNoExt in normalizedActive || file.name in activeIconNames) {
+                usedCount++
+                usedBytes += size
+            } else {
                 unusedCount++
                 unusedBytes += size
             }
@@ -1630,8 +1695,10 @@ object IconHelper {
 
         return IconCacheStats(
             totalCount = allFiles.size,
+            usedCount = usedCount,
             unusedCount = unusedCount,
             totalBytes = totalBytes,
+            usedBytes = usedBytes,
             unusedBytes = unusedBytes
         )
     }

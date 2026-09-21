@@ -2669,6 +2669,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Icon Cache & Storage Management
+    suspend fun getIconCacheStats(): com.example.util.IconHelper.IconCacheStats = withContext(Dispatchers.IO) {
+        activeRepo.getUnusedIconCacheStats(getApplication())
+    }
+
+    suspend fun clearUnusedIconCache(): Pair<Int, Long> = withContext(Dispatchers.IO) {
+        activeRepo.clearUnusedIconCache(getApplication())
+    }
+
     // 7. Reset Everything from App (Factory Clean State)
     fun resetEverything(onComplete: () -> Unit = {}) {
         viewModelScope.launch {

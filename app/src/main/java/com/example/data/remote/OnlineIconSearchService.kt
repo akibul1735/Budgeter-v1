@@ -28,7 +28,25 @@ data class OnlineIconResult(
     val imageUrl: String,
     val sourceName: String,
     val isColorful: Boolean = false
-)
+) {
+    val name: String get() = title
+    val downloadUrl: String get() = imageUrl
+    val previewUrl: String get() = imageUrl
+}
+
+data class OnlineImageResult(
+    val title: String,
+    val imageUrl: String,
+    val thumbUrl: String = imageUrl,
+    val sourceName: String,
+    val width: Int = 0,
+    val height: Int = 0
+) {
+    val name: String get() = title
+    val downloadUrl: String get() = imageUrl
+    val previewUrl: String get() = thumbUrl
+    val source: String get() = sourceName
+}
 
 object OnlineIconSearchService {
 
@@ -54,7 +72,9 @@ object OnlineIconSearchService {
      * 5. DuckDuckGo Instant Topics & Images
      * 6. Google Favicon Service
      */
-    suspend fun searchIcons(context: Context? = null, query: String, page: Int = 1): List<OnlineIconResult> = withContext(Dispatchers.IO) {
+    suspend fun searchIcons(context: Context?, query: String, page: Int = 1): List<OnlineIconResult> = searchIcons(query, context, page)
+
+    suspend fun searchIcons(query: String, context: Context? = null, page: Int = 1): List<OnlineIconResult> = withContext(Dispatchers.IO) {
         val cleanQuery = query.trim()
         if (cleanQuery.isBlank()) return@withContext emptyList()
 
@@ -448,11 +468,203 @@ object OnlineIconSearchService {
     }
 
     /**
+     * Searches online images and photos across multiple free, keyless endpoints:
+     * 1. Wikimedia Commons High-Res Media API
+     * 2. Openverse Open Image Library
+     * 3. DuckDuckGo Image Results
+     * 4. Unsplash Public Search
+     */
+    suspend fun searchImages(context: Context?, query: String, page: Int = 1): List<OnlineImageResult> = searchImages(query, context, page)
+
+    suspend fun searchImages(query: String, context: Context? = null, page: Int = 1): List<OnlineImageResult> = withContext(Dispatchers.IO) {
+        val cleanQuery = query.trim()
+        if (cleanQuery.isBlank()) return@withContext emptyList()
+
+        val results = mutableListOf<OnlineImageResult>()
+        val seenUrls = mutableSetOf<String>()
+
+        val encoded = try {
+            URLEncoder.encode(cleanQuery, "UTF-8")
+        } catch (_: Exception) {
+            cleanQuery
+        }
+
+        coroutineScope {
+            // 1. Wikimedia Commons High Quality Media
+            val wikiJob = async {
+                try {
+                    val offset = (page - 1) * 16
+                    val url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=filetype:bitmap+$encoded&gsrlimit=16&gsroffset=$offset&prop=imageinfo&iiprop=url|thumburl|dimensions&iiurlwidth=500&format=json"
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", USER_AGENT)
+                        .build()
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string().orEmpty()
+                        response.close()
+                        val json = JSONObject(body)
+                        val queryObj = json.optJSONObject("query")
+                        val pages = queryObj?.optJSONObject("pages")
+                        if (pages != null) {
+                            val keys = pages.keys()
+                            val pageResults = mutableListOf<OnlineImageResult>()
+                            while (keys.hasNext()) {
+                                val key = keys.next()
+                                val pageItem = pages.optJSONObject(key) ?: continue
+                                val title = pageItem.optString("title", "Image")
+                                    .removePrefix("File:")
+                                    .substringBeforeLast(".")
+                                    .replace("_", " ")
+                                val imageinfo = pageItem.optJSONArray("imageinfo")
+                                if (imageinfo != null && imageinfo.length() > 0) {
+                                    val info = imageinfo.optJSONObject(0) ?: continue
+                                    val fullUrl = info.optString("url")
+                                    val thumbUrl = info.optString("thumburl", fullUrl)
+                                    val width = info.optInt("width", 0)
+                                    val height = info.optInt("height", 0)
+                                    if (fullUrl.isNotBlank() && !fullUrl.endsWith(".svg", ignoreCase = true)) {
+                                        pageResults.add(
+                                            OnlineImageResult(
+                                                title = title,
+                                                imageUrl = fullUrl,
+                                                thumbUrl = thumbUrl,
+                                                sourceName = "Wikimedia",
+                                                width = width,
+                                                height = height
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                            pageResults
+                        } else emptyList()
+                    } else {
+                        response.close()
+                        emptyList()
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+
+            // 2. Openverse Free Photos
+            val openverseJob = async {
+                try {
+                    val url = "https://api.openverse.org/v1/images/?q=$encoded&page=$page&page_size=16"
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", USER_AGENT)
+                        .build()
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string().orEmpty()
+                        response.close()
+                        val json = JSONObject(body)
+                        val resultsArr = json.optJSONArray("results")
+                        val items = mutableListOf<OnlineImageResult>()
+                        if (resultsArr != null) {
+                            for (i in 0 until resultsArr.length()) {
+                                val item = resultsArr.optJSONObject(i) ?: continue
+                                val title = item.optString("title", cleanQuery)
+                                val imgUrl = item.optString("url")
+                                val thumb = item.optString("thumbnail", imgUrl)
+                                val provider = item.optString("provider", "Openverse").uppercase()
+                                if (imgUrl.isNotBlank()) {
+                                    items.add(
+                                        OnlineImageResult(
+                                            title = title,
+                                            imageUrl = imgUrl,
+                                            thumbUrl = thumb,
+                                            sourceName = provider
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        items
+                    } else {
+                        response.close()
+                        emptyList()
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+
+            // 3. Unsplash Public Search
+            val unsplashJob = async {
+                try {
+                    val url = "https://unsplash.com/napi/search/photos?query=$encoded&per_page=16&page=$page"
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", USER_AGENT)
+                        .build()
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string().orEmpty()
+                        response.close()
+                        val json = JSONObject(body)
+                        val resultsArr = json.optJSONArray("results")
+                        val items = mutableListOf<OnlineImageResult>()
+                        if (resultsArr != null) {
+                            for (i in 0 until resultsArr.length()) {
+                                val item = resultsArr.optJSONObject(i) ?: continue
+                                val title = item.optString("alt_description", item.optString("description", cleanQuery))
+                                val urls = item.optJSONObject("urls") ?: continue
+                                val regular = urls.optString("regular")
+                                val small = urls.optString("small", regular)
+                                if (regular.isNotBlank()) {
+                                    items.add(
+                                        OnlineImageResult(
+                                            title = if (title.isBlank()) cleanQuery else title,
+                                            imageUrl = regular,
+                                            thumbUrl = small,
+                                            sourceName = "Unsplash"
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        items
+                    } else {
+                        response.close()
+                        emptyList()
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+
+            val (wikiResults, openverseResults, unsplashResults) = awaitAll(wikiJob, openverseJob, unsplashJob)
+            
+            // Interleave and deduplicate results
+            val maxLen = maxOf(wikiResults.size, openverseResults.size, unsplashResults.size)
+            for (i in 0 until maxLen) {
+                if (i < wikiResults.size) {
+                    val item = wikiResults[i]
+                    if (seenUrls.add(item.imageUrl)) results.add(item)
+                }
+                if (i < unsplashResults.size) {
+                    val item = unsplashResults[i]
+                    if (seenUrls.add(item.imageUrl)) results.add(item)
+                }
+                if (i < openverseResults.size) {
+                    val item = openverseResults[i]
+                    if (seenUrls.add(item.imageUrl)) results.add(item)
+                }
+            }
+        }
+
+        results
+    }
+
+    /**
      * Downloads an online image by URL (supports vector SVG, PNG, WebP, JPG)
-     * and persists it locally into the app's custom icons directory.
+     * and persists it locally into the app's custom icons directory with optimal compression.
      * Returns the persistent custom icon key (e.g. "custom_icon_172...").
      */
-    suspend fun downloadAndSaveIcon(context: Context, imageUrl: String): String? = withContext(Dispatchers.IO) {
+    suspend fun downloadAndSaveIcon(context: Context, imageUrl: String, name: String? = null): String? = withContext(Dispatchers.IO) {
         try {
             val customDir = File(context.filesDir, "custom_icons")
             if (!customDir.exists()) customDir.mkdirs()
@@ -465,22 +677,36 @@ object OnlineIconSearchService {
                 val loader = context.imageLoader
                 val request = ImageRequest.Builder(context)
                     .data(imageUrl)
-                    .size(256, 256)
+                    .size(384, 384)
                     .allowHardware(false)
                     .build()
 
                 val result = loader.execute(request)
                 if (result is SuccessResult) {
                     val drawable = result.drawable
-                    val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
+                    val targetSize = 384
+                    val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
-                    drawable.setBounds(0, 0, 256, 256)
+                    drawable.setBounds(0, 0, targetSize, targetSize)
                     drawable.draw(canvas)
 
-                    val outStream = FileOutputStream(destFile)
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 95, outStream)
-                    outStream.flush()
-                    outStream.close()
+                    FileOutputStream(destFile).use { outStream ->
+                        val format = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            Bitmap.CompressFormat.WEBP_LOSSY
+                        } else {
+                            @Suppress("DEPRECATION")
+                            Bitmap.CompressFormat.WEBP
+                        }
+                        val compressed = try {
+                            bitmap.compress(format, 92, outStream)
+                        } catch (_: Exception) {
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                        }
+                        if (!compressed) {
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                        }
+                        outStream.flush()
+                    }
                     return@withContext iconKey
                 }
             } catch (_: Exception) {
@@ -505,13 +731,32 @@ object OnlineIconSearchService {
             val originalBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 ?: return@withContext null
 
-            val size = 256
-            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, size, size, true)
+            val targetDim = 384
+            val scaleFactor = targetDim.toFloat() / maxOf(originalBitmap.width, originalBitmap.height)
+            val scaledBitmap = Bitmap.createScaledBitmap(
+                originalBitmap,
+                (originalBitmap.width * scaleFactor).toInt().coerceAtLeast(1),
+                (originalBitmap.height * scaleFactor).toInt().coerceAtLeast(1),
+                true
+            )
 
-            val outStream = FileOutputStream(destFile)
-            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 95, outStream)
-            outStream.flush()
-            outStream.close()
+            FileOutputStream(destFile).use { outStream ->
+                val format = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSY
+                } else {
+                    @Suppress("DEPRECATION")
+                    Bitmap.CompressFormat.WEBP
+                }
+                val compressed = try {
+                    scaledBitmap.compress(format, 92, outStream)
+                } catch (_: Exception) {
+                    scaledBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                }
+                if (!compressed) {
+                    scaledBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
+                }
+                outStream.flush()
+            }
 
             iconKey
         } catch (e: Exception) {
