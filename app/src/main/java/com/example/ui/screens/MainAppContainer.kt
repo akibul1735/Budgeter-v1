@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Assessment
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Dashboard
@@ -53,7 +55,9 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.zIndex
+import coil.compose.AsyncImage
 import com.example.ui.theme.ThemePreferences
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
@@ -1509,7 +1513,58 @@ private fun DrawerContent(
     val trashedItems by viewModel.trashedItems.collectAsStateWithLifecycle()
     val savingsSummary by viewModel.savingsSummary.collectAsStateWithLifecycle()
     val backupConfig by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
+    val signedInAccount by viewModel.signedInGoogleAccount.collectAsStateWithLifecycle()
+    val secondarySignedInAccount by viewModel.secondarySignedInGoogleAccount.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
+
+    // Determine active cloud drive account (prefer Drive 1, consider Drive 2 if Drive 1 is inactive)
+    val drive1 = backupConfig.primaryAccount
+    val drive2 = backupConfig.secondaryAccount
+
+    val isDrive1Active = drive1.isLinked || drive1.email.isNotBlank() || drive1.displayName.isNotBlank() || signedInAccount != null
+    val isDrive2Active = drive2.isLinked || drive2.email.isNotBlank() || drive2.displayName.isNotBlank() || secondarySignedInAccount != null
+
+    val (activeDrive, activeGoogleAccount, isAnyDriveActive) = when {
+        isDrive1Active -> Triple(drive1, signedInAccount, true)
+        isDrive2Active -> Triple(drive2, secondarySignedInAccount, true)
+        else -> Triple(drive1, null, false)
+    }
+
+    val driveProviderName = when {
+        isAnyDriveActive -> activeDrive.provider.ifBlank { "Google Drive" }
+        else -> drive1.provider.ifBlank { "Google Drive" }
+    }
+
+    val driveDisplayName = when {
+        isAnyDriveActive -> {
+            activeDrive.displayName.ifBlank {
+                activeGoogleAccount?.displayName ?: if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ" else "Drive User"
+            }
+        }
+        else -> {
+            if (languageMode == LanguageMode.BANGLA) "একাউন্ট যুক্ত নেই" else "No Account Connected"
+        }
+    }
+
+    val driveEmail = when {
+        isAnyDriveActive -> {
+            activeDrive.email.ifBlank {
+                activeGoogleAccount?.email ?: ""
+            }
+        }
+        else -> {
+            if (languageMode == LanguageMode.BANGLA) "ড্রাইভ সিঙ্ক সেটআপ করুন" else "Tap to connect cloud backup"
+        }
+    }
+
+    val drivePhotoUrl = when {
+        isAnyDriveActive -> {
+            activeDrive.photoUrl.ifBlank {
+                activeGoogleAccount?.photoUrl?.toString() ?: ""
+            }
+        }
+        else -> ""
+    }
 
     val isCloudSyncConfigured = backupConfig.primaryAccount.isLinked || backupConfig.secondaryAccount.isLinked
     val effectiveLastSyncTime = if (isCloudSyncConfigured) {
@@ -1603,41 +1658,86 @@ private fun DrawerContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                Text(
-                    text = LanguageHelper.getString("net_worth", languageMode),
-                    fontSize = 11.sp,
-                    color = headerTextColor.copy(alpha = 0.75f)
-                )
-                Text(
-                    text = LanguageHelper.formatCurrency(netWorth, languageMode),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = headerTextColor
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
+                // Profile Picture, Name, and Cloud Account Section (from Drive 1 / Drive 2)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onSelectView(AppView.BACKUP_SYNC) }
+                        .padding(vertical = 4.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (isBalanced) Icons.Default.CheckCircle else Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = if (isBalanced) SolidIncome else SolidExpense,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                    // Profile Avatar (Photo with Circle Shape or Fallback Avatar)
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isDarkModeActive) MaterialTheme.colorScheme.surface.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.22f),
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        if (drivePhotoUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = drivePhotoUrl,
+                                contentDescription = driveDisplayName,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (isAnyDriveActive && driveDisplayName.isNotBlank() && driveDisplayName.firstOrNull()?.isLetter() == true) {
+                                    Text(
+                                        text = driveDisplayName.take(1).uppercase(),
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = headerTextColor
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountCircle,
+                                        contentDescription = null,
+                                        tint = headerTextColor,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
                         Text(
-                            text = if (isBalanced) "Dr = Cr Balanced" else "Unbalanced",
-                            fontSize = 11.sp,
-                            color = headerTextColor.copy(alpha = 0.85f),
-                            fontWeight = FontWeight.Medium
+                            text = driveProviderName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = headerTextColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = driveDisplayName,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = headerTextColor.copy(alpha = 0.95f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (driveEmail.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(1.dp))
+                            Text(
+                                text = driveEmail,
+                                fontSize = 11.5.sp,
+                                color = headerTextColor.copy(alpha = 0.80f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
