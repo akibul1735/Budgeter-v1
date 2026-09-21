@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,13 +28,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -47,10 +49,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,12 +63,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import com.example.data.remote.OnlineIconResult
+import com.example.data.remote.OnlineIconSearchService
 import com.example.ui.theme.SolidPrimary
 import com.example.util.IconHelper
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun IconPickerModal(
@@ -73,6 +84,7 @@ fun IconPickerModal(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedCategory by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     val customIcons = remember {
@@ -81,6 +93,32 @@ fun IconPickerModal(
         }
     }
     var iconToDelete by remember { mutableStateOf<String?>(null) }
+
+    // Online search state
+    var onlineResults by remember { mutableStateOf<List<OnlineIconResult>>(emptyList()) }
+    var isSearchingOnline by remember { mutableStateOf(false) }
+    var downloadingUrl by remember { mutableStateOf<String?>(null) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
+
+    // Trigger online search whenever in "Online Search" tab or user is actively searching
+    LaunchedEffect(searchQuery, selectedCategory) {
+        val query = searchQuery.trim()
+        if (selectedCategory == "Online Search") {
+            if (query.length >= 2) {
+                isSearchingOnline = true
+                searchJob?.cancel()
+                searchJob = coroutineScope.launch {
+                    delay(350)
+                    val results = OnlineIconSearchService.searchIcons(query)
+                    onlineResults = results
+                    isSearchingOnline = false
+                }
+            } else {
+                onlineResults = emptyList()
+                isSearchingOnline = false
+            }
+        }
+    }
 
     // Media picker launcher for custom PNG/images
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -158,8 +196,21 @@ fun IconPickerModal(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search icons (e.g. food, car, bank...)", fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    placeholder = {
+                        Text(
+                            text = if (selectedCategory == "Online Search") "Search brands, logos & icons online..." else "Search icons (e.g. food, car, bank...)",
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    leadingIcon = {
+                        if (selectedCategory == "Online Search") {
+                            Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(20.dp), tint = SolidPrimary)
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp))
+                        }
+                    },
                     trailingIcon = {
                         if (searchQuery.isNotBlank()) {
                             IconButton(onClick = { searchQuery = "" }) {
@@ -190,6 +241,16 @@ fun IconPickerModal(
                                 selectedCategory = cat
                                 searchQuery = ""
                             },
+                            leadingIcon = if (cat == "Online Search") {
+                                {
+                                    Icon(
+                                        Icons.Default.Language,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else null,
                             label = {
                                 Text(
                                     text = "$cat$countLabel",
@@ -208,7 +269,7 @@ fun IconPickerModal(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Custom Icon Action Bar
+                // Action Bar for Custom Image or Quick Online Search Switch
                 if (selectedCategory == "Custom" || selectedCategory == "All") {
                     OutlinedButton(
                         onClick = {
@@ -228,111 +289,296 @@ fun IconPickerModal(
                     Spacer(modifier = Modifier.height(10.dp))
                 }
 
-                // Filtered icons
-                val filteredBuiltins = remember(searchQuery, selectedCategory) {
-                    val query = searchQuery.trim().lowercase()
-                    IconHelper.BUILTIN_ICONS.filter { item ->
-                        val matchesSearch = query.isEmpty() ||
-                                item.name.lowercase().contains(query) ||
-                                item.category.lowercase().contains(query) ||
-                                item.tags.any { it.contains(query) }
-                        val matchesCategory = selectedCategory == "All" || item.category == selectedCategory
-                        matchesSearch && matchesCategory
-                    }
-                }
-
-                val showCustomGrid = (selectedCategory == "Custom" || selectedCategory == "All") && searchQuery.isBlank()
-
-                // Icons Grid
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(5),
-                    contentPadding = PaddingValues(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.height(300.dp)
-                ) {
-                    // Show custom icons
-                    if (showCustomGrid && customIcons.isNotEmpty()) {
-                        items(customIcons) { customIconKey ->
-                            val isSelected = customIconKey == selectedIconName
-                            val file = IconHelper.getCustomIconFile(context, customIconKey)
-
-                            Box(
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (isSelected) SolidPrimary.copy(alpha = 0.18f)
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                    )
-                                    .border(
-                                        width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable {
-                                        onIconSelected(customIconKey)
-                                        onDismiss()
-                                    },
-                                contentAlignment = Alignment.Center
+                // If in Online Search mode
+                if (selectedCategory == "Online Search") {
+                    if (isSearchingOnline) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(36.dp),
+                                    color = SolidPrimary,
+                                    strokeWidth = 3.dp
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Searching online icons...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else if (searchQuery.trim().length < 2) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(horizontal = 24.dp)
                             ) {
-                                if (file != null && file.exists()) {
-                                    AsyncImage(
-                                        model = file,
-                                        contentDescription = "Custom Icon",
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.AddPhotoAlternate,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(22.dp)
-                                    )
+                                Icon(
+                                    Icons.Default.Language,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    tint = SolidPrimary.copy(alpha = 0.6f)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Search Any Logo or Icon Online",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Type any company, bank, or keyword (e.g. 'Netflix', 'bKash', 'Coffee', 'Gym', 'Groceries') to search and download high-quality icons directly.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else if (onlineResults.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Category,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(36.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "No online icons found for \"$searchQuery\"",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(4),
+                            contentPadding = PaddingValues(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.height(300.dp)
+                        ) {
+                            items(onlineResults) { item ->
+                                val isDownloading = downloadingUrl == item.imageUrl
+                                Box(
+                                    modifier = Modifier
+                                        .size(68.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .border(
+                                            width = 1.dp,
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable(enabled = !isDownloading) {
+                                            downloadingUrl = item.imageUrl
+                                            coroutineScope.launch {
+                                                val savedKey = OnlineIconSearchService.downloadAndSaveIcon(
+                                                    context = context,
+                                                    imageUrl = item.imageUrl
+                                                )
+                                                downloadingUrl = null
+                                                if (savedKey != null) {
+                                                    if (!customIcons.contains(savedKey)) {
+                                                        customIcons.add(0, savedKey)
+                                                    }
+                                                    onIconSelected(savedKey)
+                                                    Toast.makeText(context, "Icon saved & selected!", Toast.LENGTH_SHORT).show()
+                                                    onDismiss()
+                                                } else {
+                                                    Toast.makeText(context, "Failed to download icon", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.padding(4.dp)
+                                    ) {
+                                        if (isDownloading) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                color = SolidPrimary,
+                                                strokeWidth = 2.5.dp
+                                            )
+                                        } else {
+                                            AsyncImage(
+                                                model = item.imageUrl,
+                                                contentDescription = item.title,
+                                                modifier = Modifier
+                                                    .size(38.dp)
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                                contentScale = ContentScale.Fit
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = item.title,
+                                                fontSize = 9.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                } else {
+                    // Filtered icons for built-in categories
+                    val filteredBuiltins = remember(searchQuery, selectedCategory) {
+                        val query = searchQuery.trim().lowercase()
+                        IconHelper.BUILTIN_ICONS.filter { item ->
+                            val matchesSearch = query.isEmpty() ||
+                                    item.name.lowercase().contains(query) ||
+                                    item.category.lowercase().contains(query) ||
+                                    item.tags.any { it.contains(query) }
+                            val matchesCategory = selectedCategory == "All" || item.category == selectedCategory
+                            matchesSearch && matchesCategory
+                        }
+                    }
 
-                    // Show built-in icons
-                    if (selectedCategory != "Custom") {
-                        items(filteredBuiltins) { item ->
-                            val isSelected = item.name == selectedIconName
-                            Box(
-                                modifier = Modifier
-                                    .size(52.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        if (isSelected) SolidPrimary.copy(alpha = 0.18f)
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                    )
-                                    .border(
-                                        width = if (isSelected) 2.dp else 0.dp,
-                                        color = if (isSelected) SolidPrimary else Color.Transparent,
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable {
-                                        onIconSelected(item.name)
-                                        onDismiss()
-                                    },
-                                contentAlignment = Alignment.Center
+                    val showCustomGrid = (selectedCategory == "Custom" || selectedCategory == "All") && searchQuery.isBlank()
+
+                    // If user is searching and no local match, suggest switching to Online Search
+                    if (searchQuery.isNotBlank() && filteredBuiltins.isEmpty() && (!showCustomGrid || customIcons.isEmpty())) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "No local icons found for \"$searchQuery\"",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    selectedCategory = "Online Search"
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
                             ) {
-                                if (IconHelper.isDrawableIcon(item.name)) {
-                                    IconHelper.AppIcon(
-                                        iconName = item.name,
-                                        contentDescription = item.name,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(item.name),
-                                        contentDescription = item.name,
-                                        tint = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Search \"$searchQuery\" Online", fontSize = 12.5.sp)
+                            }
+                        }
+                    } else {
+                        // Icons Grid
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(5),
+                            contentPadding = PaddingValues(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.height(300.dp)
+                        ) {
+                            // Show custom icons
+                            if (showCustomGrid && customIcons.isNotEmpty()) {
+                                items(customIcons) { customIconKey ->
+                                    val isSelected = customIconKey == selectedIconName
+                                    val file = IconHelper.getCustomIconFile(context, customIconKey)
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                if (isSelected) SolidPrimary.copy(alpha = 0.18f)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                            .border(
+                                                width = if (isSelected) 2.dp else 1.dp,
+                                                color = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable {
+                                                onIconSelected(customIconKey)
+                                                onDismiss()
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (file.exists()) {
+                                            AsyncImage(
+                                                model = file,
+                                                contentDescription = "Custom Icon",
+                                                modifier = Modifier
+                                                    .size(34.dp)
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.AddPhotoAlternate,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Show built-in icons
+                            if (selectedCategory != "Custom") {
+                                items(filteredBuiltins) { item ->
+                                    val isSelected = item.name == selectedIconName
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                if (isSelected) SolidPrimary.copy(alpha = 0.18f)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                            )
+                                            .border(
+                                                width = if (isSelected) 2.dp else 0.dp,
+                                                color = if (isSelected) SolidPrimary else Color.Transparent,
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable {
+                                                onIconSelected(item.name)
+                                                onDismiss()
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (IconHelper.isDrawableIcon(item.name)) {
+                                            IconHelper.AppIcon(
+                                                iconName = item.name,
+                                                contentDescription = item.name,
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = IconHelper.getIconByName(item.name),
+                                                contentDescription = item.name,
+                                                tint = if (isSelected) SolidPrimary else MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

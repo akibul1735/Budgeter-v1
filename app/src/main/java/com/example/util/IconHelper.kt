@@ -40,6 +40,7 @@ object IconHelper {
 
     val CATEGORIES = listOf(
         "All",
+        "Online Search",
         "BD Banks & MFS",
         "Custom",
         "Finance",
