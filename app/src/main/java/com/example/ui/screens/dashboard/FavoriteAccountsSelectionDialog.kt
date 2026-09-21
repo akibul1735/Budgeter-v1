@@ -62,6 +62,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -113,7 +114,7 @@ fun FavoriteAccountsSelectionDialog(
         for (item in allAccounts) {
             if (item.subAccounts.isNotEmpty()) {
                 list.addAll(item.subAccounts.filter { it.account.isActive })
-            } else if (item.account.isActive && item.account.parentId != null) {
+            } else if (item.account.isActive) {
                 list.add(item)
             }
         }
@@ -154,7 +155,7 @@ fun FavoriteAccountsSelectionDialog(
                 if (matchingSubs.isNotEmpty()) {
                     list.add(AccountGroupSuggestion(group = groupItem.account, accounts = matchingSubs))
                 }
-            } else if (groupItem.account.isActive && groupItem.account.parentId != null) {
+            } else if (groupItem.account.isActive) {
                 val matches = searchQuery.isBlank() ||
                         groupItem.account.nameEn.contains(searchQuery, ignoreCase = true) ||
                         groupItem.account.nameBn.contains(searchQuery, ignoreCase = true)
@@ -806,7 +807,9 @@ private fun FavoriteAccountsReorderSection(
         val accountMap = remember(flatIndividualAccounts) {
             flatIndividualAccounts.associateBy { it.account.id }
         }
-        var draggingIndex by remember { mutableStateOf<Int?>(null) }
+        val currentOrderedIds by rememberUpdatedState(orderedSelectedIds)
+        val currentOnReorder by rememberUpdatedState(onReorder)
+        var draggingId by remember { mutableStateOf<Long?>(null) }
         var dragOffsetY by remember { mutableFloatStateOf(0f) }
         val density = LocalDensity.current
         val itemHeightPx = with(density) { 68.dp.toPx() }
@@ -875,13 +878,13 @@ private fun FavoriteAccountsReorderSection(
                         } else {
                             item.currentBalance
                         }
-                        val isBeingDragged = draggingIndex == index
+                        val isBeingDragged = draggingId == accountId
 
                         Card(
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isBeingDragged) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                                 } else {
                                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                                 }
@@ -899,42 +902,49 @@ private fun FavoriteAccountsReorderSection(
                                         scaleX = 1.02f
                                         scaleY = 1.02f
                                         shadowElevation = 8.dp.toPx()
+                                    } else {
+                                        translationY = 0f
+                                        scaleX = 1f
+                                        scaleY = 1f
+                                        shadowElevation = 0f
                                     }
                                 }
                                 .pointerInput(accountId) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = {
-                                            draggingIndex = index
+                                            draggingId = accountId
                                             dragOffsetY = 0f
                                         },
                                         onDrag = { change, dragAmount ->
                                             change.consume()
                                             dragOffsetY += dragAmount.y
-                                            val currentIdx = draggingIndex ?: return@detectDragGesturesAfterLongPress
-                                            if (dragOffsetY > itemHeightPx * 0.5f && currentIdx < orderedSelectedIds.size - 1) {
-                                                val targetIdx = currentIdx + 1
-                                                val list = orderedSelectedIds.toMutableList()
-                                                val moved = list.removeAt(currentIdx)
-                                                list.add(targetIdx, moved)
-                                                onReorder(list)
-                                                draggingIndex = targetIdx
-                                                dragOffsetY -= itemHeightPx
-                                            } else if (dragOffsetY < -itemHeightPx * 0.5f && currentIdx > 0) {
-                                                val targetIdx = currentIdx - 1
-                                                val list = orderedSelectedIds.toMutableList()
-                                                val moved = list.removeAt(currentIdx)
-                                                list.add(targetIdx, moved)
-                                                onReorder(list)
-                                                draggingIndex = targetIdx
-                                                dragOffsetY += itemHeightPx
+                                            val list = currentOrderedIds
+                                            val currentIdx = list.indexOf(accountId)
+                                            if (currentIdx != -1) {
+                                                val swapThreshold = itemHeightPx * 0.45f
+                                                if (dragOffsetY > swapThreshold && currentIdx < list.size - 1) {
+                                                    val targetIdx = currentIdx + 1
+                                                    val mutable = list.toMutableList()
+                                                    val moved = mutable.removeAt(currentIdx)
+                                                    mutable.add(targetIdx, moved)
+                                                    currentOnReorder(mutable)
+                                                    dragOffsetY -= itemHeightPx
+                                                } else if (dragOffsetY < -swapThreshold && currentIdx > 0) {
+                                                    val targetIdx = currentIdx - 1
+                                                    val mutable = list.toMutableList()
+                                                    val moved = mutable.removeAt(currentIdx)
+                                                    mutable.add(targetIdx, moved)
+                                                    currentOnReorder(mutable)
+                                                    dragOffsetY += itemHeightPx
+                                                }
                                             }
                                         },
                                         onDragEnd = {
-                                            draggingIndex = null
+                                            draggingId = null
                                             dragOffsetY = 0f
                                         },
                                         onDragCancel = {
-                                            draggingIndex = null
+                                            draggingId = null
                                             dragOffsetY = 0f
                                         }
                                     )
@@ -1071,37 +1081,39 @@ private fun FavoriteAccountsReorderSection(
                                             .pointerInput(accountId) {
                                                 detectDragGestures(
                                                     onDragStart = {
-                                                        draggingIndex = index
+                                                        draggingId = accountId
                                                         dragOffsetY = 0f
                                                     },
                                                     onDrag = { change, dragAmount ->
                                                         change.consume()
                                                         dragOffsetY += dragAmount.y
-                                                        val currentIdx = draggingIndex ?: return@detectDragGestures
-                                                        if (dragOffsetY > itemHeightPx * 0.5f && currentIdx < orderedSelectedIds.size - 1) {
-                                                            val targetIdx = currentIdx + 1
-                                                            val list = orderedSelectedIds.toMutableList()
-                                                            val moved = list.removeAt(currentIdx)
-                                                            list.add(targetIdx, moved)
-                                                            onReorder(list)
-                                                            draggingIndex = targetIdx
-                                                            dragOffsetY -= itemHeightPx
-                                                        } else if (dragOffsetY < -itemHeightPx * 0.5f && currentIdx > 0) {
-                                                            val targetIdx = currentIdx - 1
-                                                            val list = orderedSelectedIds.toMutableList()
-                                                            val moved = list.removeAt(currentIdx)
-                                                            list.add(targetIdx, moved)
-                                                            onReorder(list)
-                                                            draggingIndex = targetIdx
-                                                            dragOffsetY += itemHeightPx
+                                                        val list = currentOrderedIds
+                                                        val currentIdx = list.indexOf(accountId)
+                                                        if (currentIdx != -1) {
+                                                            val swapThreshold = itemHeightPx * 0.45f
+                                                            if (dragOffsetY > swapThreshold && currentIdx < list.size - 1) {
+                                                                val targetIdx = currentIdx + 1
+                                                                val mutable = list.toMutableList()
+                                                                val moved = mutable.removeAt(currentIdx)
+                                                                mutable.add(targetIdx, moved)
+                                                                currentOnReorder(mutable)
+                                                                dragOffsetY -= itemHeightPx
+                                                            } else if (dragOffsetY < -swapThreshold && currentIdx > 0) {
+                                                                val targetIdx = currentIdx - 1
+                                                                val mutable = list.toMutableList()
+                                                                val moved = mutable.removeAt(currentIdx)
+                                                                mutable.add(targetIdx, moved)
+                                                                currentOnReorder(mutable)
+                                                                dragOffsetY += itemHeightPx
+                                                            }
                                                         }
                                                     },
                                                     onDragEnd = {
-                                                        draggingIndex = null
+                                                        draggingId = null
                                                         dragOffsetY = 0f
                                                     },
                                                     onDragCancel = {
-                                                        draggingIndex = null
+                                                        draggingId = null
                                                         dragOffsetY = 0f
                                                     }
                                                 )

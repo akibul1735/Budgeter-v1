@@ -67,7 +67,7 @@ fun FavoriteAccountsCard(
         for (item in accountsWithBalances) {
             if (item.subAccounts.isNotEmpty()) {
                 list.addAll(item.subAccounts.filter { it.account.isActive })
-            } else if (item.account.isActive && item.account.parentId != null) {
+            } else if (item.account.isActive) {
                 list.add(item)
             }
         }
