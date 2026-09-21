@@ -40,19 +40,20 @@ object OnlineIconSearchService {
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
     private val KNOWN_COLORFUL_SOURCES = setOf(
-        "SVGL", "Brandfetch", "Favicon", "LOGOS", "FLAT-COLOR-ICONS",
+        "Google", "SVGL", "Brandfetch", "Favicon", "LOGOS", "FLAT-COLOR-ICONS",
         "FLUENT-EMOJI", "TWEMOJI", "OPENMOJI", "CIRCLE-FLAGS", "SKILL-ICONS", "VSCODE-ICONS", "NOTO"
     )
 
     /**
-     * Searches for logos and icons online using keyless free providers with pagination,
+     * Searches for logos and icons online using Google Custom Search and open providers with pagination,
      * sorting colorful icons first before colorless/monochrome icons:
-     * 1. SVGL Open Brand Logos (Vibrant vector logos for brands, tech, fintech)
-     * 2. Iconify Vector Icon Search (Open API, millions of vector icons across sets)
-     * 3. Brandfetch Brand Logo Search
-     * 4. Wikimedia Commons Open Media Search
-     * 5. DuckDuckGo Instant Topics & Images
-     * 6. Google Favicon Service
+     * 1. Google Custom Search JSON API (Official Google Image Search for icons & logos)
+     * 2. SVGL Open Brand Logos (Vibrant vector logos for brands, tech, fintech)
+     * 3. Iconify Vector Icon Search (Open API, millions of vector icons across sets)
+     * 4. Brandfetch Brand Logo Search
+     * 5. Wikimedia Commons Open Media Search
+     * 6. DuckDuckGo Instant Topics & Images
+     * 7. Google Favicon Service
      */
     suspend fun searchIcons(context: Context? = null, query: String, page: Int = 1): List<OnlineIconResult> = withContext(Dispatchers.IO) {
         val cleanQuery = query.trim()
@@ -67,7 +68,65 @@ object OnlineIconSearchService {
             cleanQuery
         }
 
-        // 1. SVGL Open Logos API (High-res, multi-color brand and tech vector logos)
+        // 1. Google Custom Search API (Official Google Images for logos & icons)
+        try {
+            val apiKey = try {
+                com.example.BuildConfig.GOOGLE_SEARCH_API_KEY.ifBlank { "AIzaSyAL_UJkHytNLqXTXBqEpX49A0k27QRhtmk" }
+            } catch (_: Exception) {
+                "AIzaSyAL_UJkHytNLqXTXBqEpX49A0k27QRhtmk"
+            }
+            val engineId = try {
+                com.example.BuildConfig.GOOGLE_SEARCH_ENGINE_ID.ifBlank { "f5e8509db9cee4ae6" }
+            } catch (_: Exception) {
+                "f5e8509db9cee4ae6"
+            }
+
+            if (apiKey.isNotBlank() && engineId.isNotBlank()) {
+                val start = (page - 1) * 10 + 1
+                val googleSearchUrl = "https://customsearch.googleapis.com/customsearch/v1?q=$encoded+icon+logo&cx=$engineId&key=$apiKey&searchType=image&fileType=png,svg,webp,jpg&num=10&start=$start"
+                val request = Request.Builder()
+                    .url(googleSearchUrl)
+                    .header("User-Agent", USER_AGENT)
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        if (!body.isNullOrBlank()) {
+                            val root = JSONObject(body)
+                            val itemsArr = root.optJSONArray("items")
+                            if (itemsArr != null) {
+                                for (i in 0 until itemsArr.length()) {
+                                    val itemObj = itemsArr.optJSONObject(i) ?: continue
+                                    val link = itemObj.optString("link")
+                                    val imageObj = itemObj.optJSONObject("image")
+                                    val thumbLink = imageObj?.optString("thumbnailLink") ?: ""
+                                    val effectiveUrl = if (link.isNotBlank()) link else thumbLink
+                                    val rawTitle = itemObj.optString("title", cleanQuery)
+                                        .substringBefore(" - ")
+                                        .substringBefore(" | ")
+                                        .take(30)
+                                    if (effectiveUrl.isNotBlank() && seenUrls.add(effectiveUrl)) {
+                                        results.add(
+                                            OnlineIconResult(
+                                                title = rawTitle.ifBlank { cleanQuery },
+                                                imageUrl = effectiveUrl,
+                                                sourceName = "Google",
+                                                isColorful = true
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Proceed to other providers
+        }
+
+        // 2. SVGL Open Logos API (High-res, multi-color brand and tech vector logos)
         try {
             val svglUrl = "https://api.svgl.app?search=$encoded"
             val request = Request.Builder()

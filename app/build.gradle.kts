@@ -23,6 +23,8 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     buildConfigField("String", "GEMINI_API_KEY", "\"\"")
+    buildConfigField("String", "GOOGLE_SEARCH_API_KEY", "\"AIzaSyAL_UJkHytNLqXTXBqEpX49A0k27QRhtmk\"")
+    buildConfigField("String", "GOOGLE_SEARCH_ENGINE_ID", "\"f5e8509db9cee4ae6\"")
   }
 
   val storePasswordEnv = System.getenv("STORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
@@ -112,6 +114,8 @@ secrets {
   defaultPropertiesFileName = ".env.example"
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
   ignoreList.add("GEMINI_API_KEY")
+  ignoreList.add("GOOGLE_SEARCH_API_KEY")
+  ignoreList.add("GOOGLE_SEARCH_ENGINE_ID")
 }
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
