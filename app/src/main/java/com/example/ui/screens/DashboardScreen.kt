@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -1644,18 +1647,17 @@ fun DashboardScreen(
 
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFFFFD700),
                         shadowElevation = 1.dp,
+                        color = Color.Transparent,
                         modifier = Modifier.size(28.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "৳",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF4A3800)
-                            )
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.app_icon_512),
+                            contentDescription = LanguageHelper.getString("app_name", languageMode),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
                     }
 
                     Text(

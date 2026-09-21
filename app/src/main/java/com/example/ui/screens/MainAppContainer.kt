@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -1620,22 +1623,21 @@ private fun DrawerContent(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = Color(0xFFFFD700),
                             shadowElevation = 2.dp,
-                            modifier = Modifier.size(28.dp)
+                            color = Color.Transparent,
+                            modifier = Modifier.size(30.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = "৳",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF4A3800)
-                                )
-                            }
+                            Image(
+                                painter = painterResource(id = R.drawable.app_icon_512),
+                                contentDescription = LanguageHelper.getString("app_name", languageMode),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                            )
                         }
                         Text(
                             text = LanguageHelper.getString("app_name", languageMode),
@@ -1658,15 +1660,17 @@ private fun DrawerContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(
+                    color = headerTextColor.copy(alpha = 0.20f),
+                    thickness = 0.8.dp,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
 
                 // Profile Picture, Name, and Cloud Account Section (from Drive 1 / Drive 2)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onSelectView(AppView.BACKUP_SYNC) }
-                        .padding(vertical = 4.dp, horizontal = 2.dp),
+                        .padding(vertical = 2.dp, horizontal = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Profile Avatar (Photo with Circle Shape or Fallback Avatar)

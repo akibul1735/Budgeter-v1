@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,6 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
@@ -166,20 +171,19 @@ fun AppTabHeader(
                 } else if (showCoinIcon) {
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFFFFD700),
                         shadowElevation = 1.dp,
+                        color = Color.Transparent,
                         modifier = Modifier
                             .size(28.dp)
                             .testTag("app_gold_coin")
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "৳",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF4A3800)
-                            )
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.app_icon_512),
+                            contentDescription = "Budgeter App Icon",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
                     }
                 }
 
