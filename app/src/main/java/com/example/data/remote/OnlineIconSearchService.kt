@@ -3,13 +3,16 @@ package com.example.data.remote
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.example.util.IconHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URLEncoder
@@ -31,24 +34,27 @@ object OnlineIconSearchService {
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
     /**
-     * Searches for logos and icons online using reliable, keyless services:
-     * 1. Brandfetch Logos/App Icons
-     * 2. DuckDuckGo Instant Answers & Topics
-     * 3. Wikimedia Commons Icons / Logos
-     * 4. Google Favicon Service (for brand names / domains)
+     * Searches for logos and icons online using open, keyless providers with pagination:
+     * 1. Iconify Vector Icon Search (Open API, millions of vector icons across sets)
+     * 2. Wikimedia Commons Open Media Search
+     * 3. DuckDuckGo Instant Topics & Images
+     * 4. Brandfetch Brand Logo Search
+     * 5. Google Favicon / Clearbit
      */
-    suspend fun searchIcons(query: String): List<OnlineIconResult> = withContext(Dispatchers.IO) {
+    suspend fun searchIcons(query: String, page: Int = 1): List<OnlineIconResult> = withContext(Dispatchers.IO) {
         val cleanQuery = query.trim()
         if (cleanQuery.isBlank()) return@withContext emptyList()
 
         val results = mutableListOf<OnlineIconResult>()
         val seenUrls = mutableSetOf<String>()
 
-        // 1. Search Brandfetch for branded logos and high-res vector app icons
+        // 1. Iconify Open Vector Icon API (free, open-source icons: Lucide, Material, Tabler, Remix, FontAwesome)
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
+            val start = (page - 1) * 12
+            val iconifyUrl = "https://api.iconify.design/search?query=$encoded&limit=12&start=$start"
             val request = Request.Builder()
-                .url("https://api.brandfetch.io/v2/search/$encoded")
+                .url(iconifyUrl)
                 .header("User-Agent", USER_AGENT)
                 .build()
 
@@ -56,70 +62,24 @@ object OnlineIconSearchService {
                 if (response.isSuccessful) {
                     val body = response.body?.string()
                     if (!body.isNullOrBlank()) {
-                        val jsonArr = org.json.JSONArray(body)
-                        for (i in 0 until minOf(jsonArr.length(), 6)) {
-                            val obj = jsonArr.optJSONObject(i) ?: continue
-                            val iconUrl = obj.optString("icon")
-                            val name = obj.optString("name").ifBlank { obj.optString("domain") }
-                            if (iconUrl.isNotBlank() && iconUrl.startsWith("http") && seenUrls.add(iconUrl)) {
-                                results.add(
-                                    OnlineIconResult(
-                                        title = name,
-                                        imageUrl = iconUrl,
-                                        sourceName = "Brandfetch"
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            // Ignore failure from single provider and proceed to others
-        }
-
-        // 2. DuckDuckGo Instant Answer / Topics
-        try {
-            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
-            val request = Request.Builder()
-                .url("https://api.duckduckgo.com/?q=$encoded&format=json")
-                .header("User-Agent", USER_AGENT)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val obj = JSONObject(body)
-                        val mainImg = obj.optString("Image")
-                        if (mainImg.isNotBlank()) {
-                            val fullUrl = if (mainImg.startsWith("/")) "https://duckduckgo.com$mainImg" else mainImg
-                            if (seenUrls.add(fullUrl)) {
-                                results.add(
-                                    OnlineIconResult(
-                                        title = obj.optString("Heading", cleanQuery),
-                                        imageUrl = fullUrl,
-                                        sourceName = "Web"
-                                    )
-                                )
-                            }
-                        }
-
-                        val relatedTopics = obj.optJSONArray("RelatedTopics")
-                        if (relatedTopics != null) {
-                            for (i in 0 until minOf(relatedTopics.length(), 5)) {
-                                val topic = relatedTopics.optJSONObject(i) ?: continue
-                                val iconObj = topic.optJSONObject("Icon") ?: continue
-                                val iconUrl = iconObj.optString("URL")
-                                if (iconUrl.isNotBlank()) {
-                                    val fullUrl = if (iconUrl.startsWith("/")) "https://duckduckgo.com$iconUrl" else iconUrl
-                                    if (seenUrls.add(fullUrl)) {
-                                        val text = topic.optString("Text", cleanQuery).take(30)
+                        val json = JSONObject(body)
+                        val iconsArr = json.optJSONArray("icons")
+                        if (iconsArr != null) {
+                            for (i in 0 until iconsArr.length()) {
+                                val iconStr = iconsArr.optString(i)
+                                if (iconStr.isNotBlank() && iconStr.contains(":")) {
+                                    val parts = iconStr.split(":", limit = 2)
+                                    val prefix = parts[0]
+                                    val iconName = parts[1]
+                                    val svgUrl = "https://api.iconify.design/$prefix/$iconName.svg"
+                                    if (seenUrls.add(svgUrl)) {
+                                        val cleanTitle = iconName.replace("-", " ")
+                                            .replaceFirstChar { it.uppercase() }
                                         results.add(
                                             OnlineIconResult(
-                                                title = text,
-                                                imageUrl = fullUrl,
-                                                sourceName = "Web"
+                                                title = cleanTitle,
+                                                imageUrl = svgUrl,
+                                                sourceName = prefix.uppercase()
                                             )
                                         )
                                     }
@@ -130,13 +90,14 @@ object OnlineIconSearchService {
                 }
             }
         } catch (_: Exception) {
-            // Proceed
+            // Proceed to other providers
         }
 
-        // 3. Search Wikimedia Commons for icons, vector drawings & cliparts
+        // 2. Wikimedia Commons Open Search (supports pagination via gsroffset)
         try {
             val encoded = URLEncoder.encode("$cleanQuery icon", "UTF-8")
-            val wmUrl = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=filetype:bitmap|drawing+$encoded&gsrlimit=8&prop=imageinfo&iiprop=url|thumburl&iiurlwidth=160&format=json"
+            val offset = (page - 1) * 12
+            val wmUrl = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=filetype:bitmap|drawing+$encoded&gsrlimit=12&gsroffset=$offset&prop=imageinfo&iiprop=url|thumburl&iiurlwidth=160&format=json"
             val request = Request.Builder()
                 .url(wmUrl)
                 .header("User-Agent", "BudgeterApp/1.0 (Android; open-source)")
@@ -152,12 +113,12 @@ object OnlineIconSearchService {
                             val keys = pages.keys()
                             while (keys.hasNext()) {
                                 val key = keys.next()
-                                val page = pages.optJSONObject(key) ?: continue
-                                val imageInfoArr = page.optJSONArray("imageinfo") ?: continue
+                                val pageObj = pages.optJSONObject(key) ?: continue
+                                val imageInfoArr = pageObj.optJSONArray("imageinfo") ?: continue
                                 val info = imageInfoArr.optJSONObject(0) ?: continue
                                 val thumbUrl = info.optString("thumburl").ifBlank { info.optString("url") }
                                 if (thumbUrl.isNotBlank() && seenUrls.add(thumbUrl)) {
-                                    val rawTitle = page.optString("title", cleanQuery)
+                                    val rawTitle = pageObj.optString("title", cleanQuery)
                                         .replace("File:", "")
                                         .substringBeforeLast(".")
                                         .take(28)
@@ -178,33 +139,165 @@ object OnlineIconSearchService {
             // Proceed
         }
 
-        // 4. Google Favicon fallback (especially useful if the user types a company or service like bkash, uber, netflix)
+        // 3. DuckDuckGo Instant Answer / Topics / Open Search
         try {
-            val noSpaces = cleanQuery.replace(" ", "").lowercase()
-            val domain = if (noSpaces.contains(".")) noSpaces else "$noSpaces.com"
-            val googleFaviconUrl = "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://$domain&size=128"
-            if (seenUrls.add(googleFaviconUrl)) {
-                results.add(
-                    OnlineIconResult(
-                        title = cleanQuery.replaceFirstChar { it.uppercase() },
-                        imageUrl = googleFaviconUrl,
-                        sourceName = "Google"
-                    )
-                )
+            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
+            val request = Request.Builder()
+                .url("https://api.duckduckgo.com/?q=$encoded&format=json")
+                .header("User-Agent", USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string()
+                    if (!body.isNullOrBlank()) {
+                        val obj = JSONObject(body)
+                        if (page == 1) {
+                            val mainImg = obj.optString("Image")
+                            if (mainImg.isNotBlank()) {
+                                val fullUrl = if (mainImg.startsWith("/")) "https://duckduckgo.com$mainImg" else mainImg
+                                if (seenUrls.add(fullUrl)) {
+                                    results.add(
+                                        OnlineIconResult(
+                                            title = obj.optString("Heading", cleanQuery),
+                                            imageUrl = fullUrl,
+                                            sourceName = "DuckDuckGo"
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        val relatedTopics = obj.optJSONArray("RelatedTopics")
+                        if (relatedTopics != null) {
+                            val startIdx = (page - 1) * 6
+                            val endIdx = minOf(relatedTopics.length(), page * 6)
+                            for (i in startIdx until endIdx) {
+                                val topic = relatedTopics.optJSONObject(i) ?: continue
+                                val iconObj = topic.optJSONObject("Icon") ?: continue
+                                val iconUrl = iconObj.optString("URL")
+                                if (iconUrl.isNotBlank()) {
+                                    val fullUrl = if (iconUrl.startsWith("/")) "https://duckduckgo.com$iconUrl" else iconUrl
+                                    if (seenUrls.add(fullUrl)) {
+                                        val text = topic.optString("Text", cleanQuery).take(30)
+                                        results.add(
+                                            OnlineIconResult(
+                                                title = text,
+                                                imageUrl = fullUrl,
+                                                sourceName = "DuckDuckGo"
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         } catch (_: Exception) {
             // Proceed
+        }
+
+        // 4. Search Brandfetch for company / app logos
+        try {
+            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
+            val request = Request.Builder()
+                .url("https://api.brandfetch.io/v2/search/$encoded")
+                .header("User-Agent", USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string()
+                    if (!body.isNullOrBlank()) {
+                        val jsonArr = org.json.JSONArray(body)
+                        val startIdx = (page - 1) * 6
+                        val endIdx = minOf(jsonArr.length(), page * 6)
+                        for (i in startIdx until endIdx) {
+                            val obj = jsonArr.optJSONObject(i) ?: continue
+                            val iconUrl = obj.optString("icon")
+                            val name = obj.optString("name").ifBlank { obj.optString("domain") }
+                            if (iconUrl.isNotBlank() && iconUrl.startsWith("http") && seenUrls.add(iconUrl)) {
+                                results.add(
+                                    OnlineIconResult(
+                                        title = name,
+                                        imageUrl = iconUrl,
+                                        sourceName = "Brandfetch"
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Proceed
+        }
+
+        // 5. Google Favicon (included on first page)
+        if (page == 1) {
+            try {
+                val noSpaces = cleanQuery.replace(" ", "").lowercase()
+                val domain = if (noSpaces.contains(".")) noSpaces else "$noSpaces.com"
+                val googleFaviconUrl = "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://$domain&size=128"
+                if (seenUrls.add(googleFaviconUrl)) {
+                    results.add(
+                        OnlineIconResult(
+                            title = cleanQuery.replaceFirstChar { it.uppercase() },
+                            imageUrl = googleFaviconUrl,
+                            sourceName = "Favicon"
+                        )
+                    )
+                }
+            } catch (_: Exception) {
+                // Proceed
+            }
         }
 
         results
     }
 
     /**
-     * Downloads an online image by URL and persists it locally into the app's custom icons directory.
+     * Downloads an online image by URL (supports vector SVG, PNG, WebP, JPG)
+     * and persists it locally into the app's custom icons directory.
      * Returns the persistent custom icon key (e.g. "custom_icon_172...").
      */
     suspend fun downloadAndSaveIcon(context: Context, imageUrl: String): String? = withContext(Dispatchers.IO) {
         try {
+            val customDir = File(context.filesDir, "custom_icons")
+            if (!customDir.exists()) customDir.mkdirs()
+
+            val iconKey = "custom_icon_${System.currentTimeMillis()}"
+            val destFile = File(customDir, "$iconKey.png")
+
+            // 1. Attempt loading and rasterizing via Coil ImageLoader (handles SVGs, PNGs, WebP, JPG)
+            try {
+                val loader = context.imageLoader
+                val request = ImageRequest.Builder(context)
+                    .data(imageUrl)
+                    .size(256, 256)
+                    .allowHardware(false)
+                    .build()
+
+                val result = loader.execute(request)
+                if (result is SuccessResult) {
+                    val drawable = result.drawable
+                    val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    drawable.setBounds(0, 0, 256, 256)
+                    drawable.draw(canvas)
+
+                    val outStream = FileOutputStream(destFile)
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 95, outStream)
+                    outStream.flush()
+                    outStream.close()
+                    return@withContext iconKey
+                }
+            } catch (_: Exception) {
+                // Fallback to direct HTTP stream
+            }
+
+            // 2. Direct HTTP download fallback
             val request = Request.Builder()
                 .url(imageUrl)
                 .header("User-Agent", USER_AGENT)
@@ -222,15 +315,8 @@ object OnlineIconSearchService {
             val originalBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                 ?: return@withContext null
 
-            // Scale to max 256x256 while preserving clarity
             val size = 256
             val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, size, size, true)
-
-            val customDir = File(context.filesDir, "custom_icons")
-            if (!customDir.exists()) customDir.mkdirs()
-
-            val iconKey = "custom_icon_${System.currentTimeMillis()}"
-            val destFile = File(customDir, "$iconKey.png")
 
             val outStream = FileOutputStream(destFile)
             scaledBitmap.compress(Bitmap.CompressFormat.PNG, 95, outStream)

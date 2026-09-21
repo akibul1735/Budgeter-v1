@@ -1661,8 +1661,8 @@ private fun DrawerContent(
                 }
 
                 HorizontalDivider(
-                    color = headerTextColor.copy(alpha = 0.20f),
-                    thickness = 0.8.dp,
+                    color = headerTextColor.copy(alpha = 0.38f),
+                    thickness = 2.dp,
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
 

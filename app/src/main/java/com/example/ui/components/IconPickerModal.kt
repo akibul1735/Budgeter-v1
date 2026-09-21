@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -100,6 +103,9 @@ fun IconPickerModal(
     // Online search state
     var onlineResults by remember { mutableStateOf<List<OnlineIconResult>>(emptyList()) }
     var isSearchingOnline by remember { mutableStateOf(false) }
+    var isLoadingMore by remember { mutableStateOf(false) }
+    var currentOnlinePage by remember { mutableStateOf(1) }
+    var hasMoreOnline by remember { mutableStateOf(true) }
     var downloadingUrl by remember { mutableStateOf<String?>(null) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
 
@@ -109,16 +115,21 @@ fun IconPickerModal(
         if (selectedCategory == "Online Search") {
             if (query.length >= 2) {
                 isSearchingOnline = true
+                currentOnlinePage = 1
+                hasMoreOnline = true
                 searchJob?.cancel()
                 searchJob = coroutineScope.launch {
                     delay(350)
-                    val results = OnlineIconSearchService.searchIcons(query)
+                    val results = OnlineIconSearchService.searchIcons(query, page = 1)
                     onlineResults = results
+                    hasMoreOnline = results.size >= 4
                     isSearchingOnline = false
                 }
             } else {
                 onlineResults = emptyList()
                 isSearchingOnline = false
+                currentOnlinePage = 1
+                hasMoreOnline = false
             }
         }
     }
@@ -449,6 +460,82 @@ fun IconPickerModal(
                                                 overflow = TextOverflow.Ellipsis,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (onlineResults.isNotEmpty()) {
+                                item(span = { GridItemSpan(4) }) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp, bottom = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isLoadingMore) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier.padding(8.dp)
+                                            ) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(18.dp),
+                                                    color = SolidPrimary,
+                                                    strokeWidth = 2.dp
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "Loading more icons...",
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        } else if (hasMoreOnline) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val query = searchQuery.trim()
+                                                    if (query.isNotBlank() && !isLoadingMore) {
+                                                        isLoadingMore = true
+                                                        coroutineScope.launch {
+                                                            val nextPage = currentOnlinePage + 1
+                                                            val moreResults = OnlineIconSearchService.searchIcons(query, page = nextPage)
+                                                            if (moreResults.isNotEmpty()) {
+                                                                val currentUrls = onlineResults.map { it.imageUrl }.toSet()
+                                                                val filteredNew = moreResults.filter { it.imageUrl !in currentUrls }
+                                                                if (filteredNew.isNotEmpty()) {
+                                                                    onlineResults = onlineResults + filteredNew
+                                                                    currentOnlinePage = nextPage
+                                                                } else {
+                                                                    hasMoreOnline = false
+                                                                }
+                                                            } else {
+                                                                hasMoreOnline = false
+                                                            }
+                                                            isLoadingMore = false
+                                                        }
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                border = BorderStroke(1.dp, SolidPrimary.copy(alpha = 0.5f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(40.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.ExpandMore,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Load More Icons",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = SolidPrimary
+                                                )
+                                            }
                                         }
                                     }
                                 }
