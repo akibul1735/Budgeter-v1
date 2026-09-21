@@ -363,6 +363,16 @@ fun BackupSyncSettingsScreen(
         }
     }
 
+    val onlineFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            cropEditorImageUrl = it.toString()
+            cropEditorInitialName = "Custom File Image"
+            showCropEditor = true
+        }
+    }
+
     LaunchedEffect(iconSearchQuery, selectedOnlineSyncTab) {
         if (selectedOnlineSyncTab == OnlineSyncTab.ICONS) {
             refreshCustomIconsAndStats()
@@ -1737,12 +1747,29 @@ fun BackupSyncSettingsScreen(
                                         },
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.weight(1f),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                                     ) {
                                         Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "গ্যালারি থেকে ফটো ক্রপ" else "Pick & Crop from Gallery",
+                                            text = if (languageMode == LanguageMode.BANGLA) "গ্যালারি" else "Gallery",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            onlineFilePickerLauncher.launch("image/*")
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.weight(1.2f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                                    ) {
+                                        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ফাইল ম্যানেজার" else "File Manager",
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Bold
                                         )

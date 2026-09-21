@@ -105,6 +105,7 @@ fun IconCropEditorModal(
     var rotationDegrees by remember { mutableFloatStateOf(0f) }
     var panX by remember { mutableFloatStateOf(0f) }
     var panY by remember { mutableFloatStateOf(0f) }
+    var cropDiameterPx by remember { mutableFloatStateOf(300f) }
     var flipHorizontal by remember { mutableStateOf(false) }
     var flipVertical by remember { mutableStateOf(false) }
     var isCircleShape by remember { mutableStateOf(true) }
@@ -120,8 +121,11 @@ fun IconCropEditorModal(
         isLoadingImage = true
         withContext(Dispatchers.IO) {
             val bitmap = when {
-                imageUrl != null -> OnlineIconSearchService.downloadBitmap(context, imageUrl, 1024)
-                imageUri != null -> IconHelper.decodeBitmapFromUri(context, imageUri, 1024)
+                imageUri != null -> IconHelper.decodeBitmapFromUri(context, imageUri, 1200)
+                imageUrl != null && (imageUrl.startsWith("content://") || imageUrl.startsWith("file://")) -> {
+                    IconHelper.decodeBitmapFromUri(context, Uri.parse(imageUrl), 1200)
+                }
+                imageUrl != null -> OnlineIconSearchService.downloadBitmap(context, imageUrl, 1200)
                 initialIconKey != null -> IconHelper.decodeBitmapFromCustomKey(context, initialIconKey)
                 else -> null
             }
@@ -201,7 +205,7 @@ fun IconCropEditorModal(
                         .pointerInput(loadedBitmap) {
                             if (loadedBitmap == null) return@pointerInput
                             detectTransformGestures { _, pan, zoom, rotation ->
-                                scale = (scale * zoom).coerceIn(0.4f, 5.0f)
+                                scale = (scale * zoom).coerceIn(0.2f, 5.0f)
                                 panX += pan.x
                                 panY += pan.y
                                 rotationDegrees = (rotationDegrees + rotation) % 360f
@@ -221,7 +225,9 @@ fun IconCropEditorModal(
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val canvasW = size.width
                             val canvasH = size.height
-                            val cropRadius = minOf(canvasW, canvasH) * 0.40f
+                            val cropRadius = minOf(canvasW, canvasH) * 0.42f
+                            val cropDiameter = cropRadius * 2f
+                            cropDiameterPx = cropDiameter
                             val centerX = canvasW / 2f
                             val centerY = canvasH / 2f
 
@@ -243,8 +249,8 @@ fun IconCropEditorModal(
                                             right = centerX + cropRadius,
                                             bottom = centerY + cropRadius,
                                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                                                cropRadius * 0.35f,
-                                                cropRadius * 0.35f
+                                                cropRadius * 0.36f,
+                                                cropRadius * 0.36f
                                             )
                                         )
                                     )
@@ -252,7 +258,7 @@ fun IconCropEditorModal(
                             }
 
                             // 1. Draw image with scale, rotate, pan
-                            val baseScale = (cropRadius * 2f) / maxOf(bmp.width, bmp.height).toFloat()
+                            val baseScale = cropDiameter / maxOf(bmp.width, bmp.height).toFloat()
                             val effectiveScaleX = if (flipHorizontal) -scale * baseScale else scale * baseScale
                             val effectiveScaleY = if (flipVertical) -scale * baseScale else scale * baseScale
 
@@ -268,31 +274,50 @@ fun IconCropEditorModal(
                             // 2. Dim outside area
                             clipPath(cropPath, clipOp = ClipOp.Difference) {
                                 drawRect(
-                                    color = Color.Black.copy(alpha = 0.65f),
+                                    color = Color.Black.copy(alpha = 0.68f),
                                     size = size
                                 )
                             }
 
-                            // 3. Draw crop boundary stroke & grid
+                            // 3. Draw crop boundary stroke & rule-of-thirds grid
                             drawPath(
                                 path = cropPath,
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = Color.White.copy(alpha = 0.90f),
                                 style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5.dp.toPx())
                             )
 
-                            // Subtle guideline crosses
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.25f),
-                                start = Offset(centerX - cropRadius, centerY),
-                                end = Offset(centerX + cropRadius, centerY),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.25f),
-                                start = Offset(centerX, centerY - cropRadius),
-                                end = Offset(centerX, centerY + cropRadius),
-                                strokeWidth = 1.dp.toPx()
-                            )
+                            val step = cropDiameter / 3f
+                            val left = centerX - cropRadius
+                            val top = centerY - cropRadius
+                            val right = centerX + cropRadius
+                            val bottom = centerY + cropRadius
+
+                            clipPath(cropPath) {
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.30f),
+                                    start = Offset(left + step, top),
+                                    end = Offset(left + step, bottom),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.30f),
+                                    start = Offset(left + step * 2, top),
+                                    end = Offset(left + step * 2, bottom),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.30f),
+                                    start = Offset(left, top + step),
+                                    end = Offset(right, top + step),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.30f),
+                                    start = Offset(left, top + step * 2),
+                                    end = Offset(right, top + step * 2),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                            }
                         }
                     } else {
                         Text(
@@ -393,6 +418,67 @@ fun IconCropEditorModal(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
+                    // Quick Fit & Fill Presets
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scale = 1.0f
+                                panX = 0f
+                                panY = 0f
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("Fit Image", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val bmp = loadedBitmap
+                                if (bmp != null) {
+                                    val maxDim = maxOf(bmp.width, bmp.height).toFloat()
+                                    val minDim = minOf(bmp.width, bmp.height).toFloat().coerceAtLeast(1f)
+                                    scale = (maxDim / minDim).coerceIn(1.0f, 4.0f)
+                                } else {
+                                    scale = 1.5f
+                                }
+                                panX = 0f
+                                panY = 0f
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("Fill Circle/Box", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                panX = 0f
+                                panY = 0f
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("Center", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
                     // Zoom Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -412,7 +498,7 @@ fun IconCropEditorModal(
                             modifier = Modifier.width(76.dp)
                         )
                         IconButton(
-                            onClick = { scale = (scale - 0.15f).coerceAtLeast(0.4f) },
+                            onClick = { scale = (scale - 0.15f).coerceAtLeast(0.2f) },
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
@@ -424,7 +510,7 @@ fun IconCropEditorModal(
                         Slider(
                             value = scale,
                             onValueChange = { scale = it },
-                            valueRange = 0.4f..4.0f,
+                            valueRange = 0.2f..4.0f,
                             modifier = Modifier.weight(1f),
                             colors = SliderDefaults.colors(
                                 thumbColor = SolidPrimary,
@@ -497,12 +583,14 @@ fun IconCropEditorModal(
                             isSaving = true
                             coroutineScope.launch {
                                 withContext(Dispatchers.IO) {
+                                    val panXRatio = if (cropDiameterPx > 0f) panX / cropDiameterPx else 0f
+                                    val panYRatio = if (cropDiameterPx > 0f) panY / cropDiameterPx else 0f
                                     val rendered = IconHelper.renderTransformedBitmap(
                                         sourceBitmap = bitmapToSave,
                                         scale = scale,
                                         rotationDegrees = rotationDegrees,
-                                        panX = panX,
-                                        panY = panY,
+                                        panXRatio = panXRatio,
+                                        panYRatio = panYRatio,
                                         flipHorizontal = flipHorizontal,
                                         flipVertical = flipVertical,
                                         isCircleShape = isCircleShape,

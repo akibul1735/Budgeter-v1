@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.CircleShape
@@ -1523,9 +1524,9 @@ object IconHelper {
     }
 
     /**
-     * Decodes a Bitmap from a Uri with a maximum dimension constraint.
+     * Decodes a Bitmap from a Uri with a maximum dimension constraint, preserving EXIF orientation.
      */
-    fun decodeBitmapFromUri(context: Context, uri: Uri, maxDimension: Int = 1024): Bitmap? {
+    fun decodeBitmapFromUri(context: Context, uri: Uri, maxDimension: Int = 1200): Bitmap? {
         return try {
             val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             context.contentResolver.openInputStream(uri)?.use {
@@ -1545,8 +1546,40 @@ object IconHelper {
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
 
-            context.contentResolver.openInputStream(uri)?.use {
+            val decoded = context.contentResolver.openInputStream(uri)?.use {
                 BitmapFactory.decodeStream(it, null, decodeOptions)
+            } ?: return null
+
+            val orientation = try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    val exif = android.media.ExifInterface(stream)
+                    exif.getAttributeInt(
+                        android.media.ExifInterface.TAG_ORIENTATION,
+                        android.media.ExifInterface.ORIENTATION_NORMAL
+                    )
+                } ?: android.media.ExifInterface.ORIENTATION_NORMAL
+            } catch (_: Exception) {
+                android.media.ExifInterface.ORIENTATION_NORMAL
+            }
+
+            val exifMatrix = Matrix()
+            when (orientation) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> exifMatrix.postRotate(90f)
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> exifMatrix.postRotate(180f)
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> exifMatrix.postRotate(270f)
+                android.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> exifMatrix.postScale(-1f, 1f)
+                android.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> exifMatrix.postScale(1f, -1f)
+                else -> null
+            }
+
+            if (exifMatrix.isIdentity) {
+                decoded
+            } else {
+                val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, exifMatrix, true)
+                if (oriented != decoded) {
+                    decoded.recycle()
+                }
+                oriented
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -1571,25 +1604,37 @@ object IconHelper {
 
     /**
      * Renders a transformed (scaled, rotated, translated, flipped, and masked) Bitmap.
+     * [panXRatio] and [panYRatio] are normalized pan offsets relative to the crop viewport diameter.
      */
     fun renderTransformedBitmap(
         sourceBitmap: Bitmap,
         scale: Float,
         rotationDegrees: Float,
-        panX: Float,
-        panY: Float,
+        panXRatio: Float,
+        panYRatio: Float,
         flipHorizontal: Boolean = false,
         flipVertical: Boolean = false,
-        isCircleShape: Boolean = false,
+        isCircleShape: Boolean = true,
         outputSize: Int = 384
     ): Bitmap {
         val output = Bitmap.createBitmap(outputSize, outputSize, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            isDither = true
+            isFilterBitmap = true
+        }
 
+        // Apply masking shape
         if (isCircleShape) {
             val path = Path().apply {
                 addCircle(outputSize / 2f, outputSize / 2f, outputSize / 2f, Path.Direction.CW)
+            }
+            canvas.clipPath(path)
+        } else {
+            val cornerRadius = outputSize * 0.18f
+            val rectF = RectF(0f, 0f, outputSize.toFloat(), outputSize.toFloat())
+            val path = Path().apply {
+                addRoundRect(rectF, cornerRadius, cornerRadius, Path.Direction.CW)
             }
             canvas.clipPath(path)
         }
@@ -1597,15 +1642,23 @@ object IconHelper {
         val matrix = Matrix()
         val srcW = sourceBitmap.width.toFloat()
         val srcH = sourceBitmap.height.toFloat()
-        val initialScale = outputSize.toFloat() / maxOf(srcW, srcH)
+        val baseScale = outputSize.toFloat() / maxOf(srcW, srcH)
 
+        // 1. Move bitmap center to origin (0,0)
         matrix.postTranslate(-srcW / 2f, -srcH / 2f)
-        matrix.postScale(
-            if (flipHorizontal) -scale * initialScale else scale * initialScale,
-            if (flipVertical) -scale * initialScale else scale * initialScale
-        )
+
+        // 2. Scale with flip
+        val effectiveScaleX = if (flipHorizontal) -scale * baseScale else scale * baseScale
+        val effectiveScaleY = if (flipVertical) -scale * baseScale else scale * baseScale
+        matrix.postScale(effectiveScaleX, effectiveScaleY)
+
+        // 3. Rotate around origin
         matrix.postRotate(rotationDegrees)
-        matrix.postTranslate((outputSize / 2f) + panX, (outputSize / 2f) + panY)
+
+        // 4. Translate to output center + normalized pan offset
+        val outputPanX = panXRatio * outputSize.toFloat()
+        val outputPanY = panYRatio * outputSize.toFloat()
+        matrix.postTranslate((outputSize / 2f) + outputPanX, (outputSize / 2f) + outputPanY)
 
         canvas.drawBitmap(sourceBitmap, matrix, paint)
         return output

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -201,6 +202,16 @@ fun IconPickerModal(
         }
     }
 
+    // Generic file manager / document picker launcher (opens system file picker / custom file managers)
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            cropEditorUri = uri
+            cropEditorIconKey = null
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -342,7 +353,7 @@ fun IconPickerModal(
                 if (selectedCategory == "Custom" || selectedCategory == "All") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         OutlinedButton(
                             onClick = {
@@ -353,11 +364,27 @@ fun IconPickerModal(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(40.dp)
+                                .height(38.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
                         ) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(17.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add & Crop Image", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Gallery", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                filePickerLauncher.launch("image/*")
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(38.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("File Manager", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                         }
 
                         if (selectedCategory == "Custom" && unusedCacheStats.unusedCount > 0) {
@@ -368,13 +395,14 @@ fun IconPickerModal(
                                     contentColor = MaterialTheme.colorScheme.error
                                 ),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                                modifier = Modifier.height(40.dp)
+                                modifier = Modifier.height(38.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(17.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                    text = "Clean (${unusedCacheStats.unusedCount})",
-                                    fontSize = 12.sp,
+                                    text = "${unusedCacheStats.unusedCount}",
+                                    fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
