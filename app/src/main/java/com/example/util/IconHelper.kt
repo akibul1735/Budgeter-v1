@@ -3,6 +3,10 @@ package com.example.util
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Path
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.CircleShape
@@ -1477,6 +1481,190 @@ object IconHelper {
             ?.sortedByDescending { it.lastModified() }
             ?.map { it.nameWithoutExtension }
             ?: emptyList()
+    }
+
+    data class IconCacheStats(
+        val totalCount: Int = 0,
+        val unusedCount: Int = 0,
+        val totalBytes: Long = 0L,
+        val unusedBytes: Long = 0L
+    )
+
+    /**
+     * Decodes a Bitmap from a Uri with a maximum dimension constraint.
+     */
+    fun decodeBitmapFromUri(context: Context, uri: Uri, maxDimension: Int = 1024): Bitmap? {
+        return try {
+            val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, boundsOptions)
+            }
+            val origW = boundsOptions.outWidth
+            val origH = boundsOptions.outHeight
+            if (origW <= 0 || origH <= 0) return null
+
+            var sampleSize = 1
+            while (origW / (sampleSize * 2) >= maxDimension || origH / (sampleSize * 2) >= maxDimension) {
+                sampleSize *= 2
+            }
+
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, decodeOptions)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Decodes a Bitmap from an existing stored custom icon key.
+     */
+    fun decodeBitmapFromCustomKey(context: Context, iconKey: String): Bitmap? {
+        return try {
+            val file = getCustomIconFile(context, iconKey)
+            if (file.exists()) {
+                BitmapFactory.decodeFile(file.absolutePath)
+            } else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Renders a transformed (scaled, rotated, translated, flipped, and masked) Bitmap.
+     */
+    fun renderTransformedBitmap(
+        sourceBitmap: Bitmap,
+        scale: Float,
+        rotationDegrees: Float,
+        panX: Float,
+        panY: Float,
+        flipHorizontal: Boolean = false,
+        flipVertical: Boolean = false,
+        isCircleShape: Boolean = false,
+        outputSize: Int = 384
+    ): Bitmap {
+        val output = Bitmap.createBitmap(outputSize, outputSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
+        if (isCircleShape) {
+            val path = Path().apply {
+                addCircle(outputSize / 2f, outputSize / 2f, outputSize / 2f, Path.Direction.CW)
+            }
+            canvas.clipPath(path)
+        }
+
+        val matrix = Matrix()
+        val srcW = sourceBitmap.width.toFloat()
+        val srcH = sourceBitmap.height.toFloat()
+        val initialScale = outputSize.toFloat() / maxOf(srcW, srcH)
+
+        matrix.postTranslate(-srcW / 2f, -srcH / 2f)
+        matrix.postScale(
+            if (flipHorizontal) -scale * initialScale else scale * initialScale,
+            if (flipVertical) -scale * initialScale else scale * initialScale
+        )
+        matrix.postRotate(rotationDegrees)
+        matrix.postTranslate((outputSize / 2f) + panX, (outputSize / 2f) + panY)
+
+        canvas.drawBitmap(sourceBitmap, matrix, paint)
+        return output
+    }
+
+    /**
+     * Saves a Bitmap directly into the app's internal custom icons directory.
+     */
+    fun saveCustomIconBitmap(context: Context, bitmap: Bitmap): String? {
+        return try {
+            val customDir = File(context.filesDir, "custom_icons")
+            if (!customDir.exists()) customDir.mkdirs()
+
+            val iconKey = "custom_icon_${System.currentTimeMillis()}"
+            val destFile = File(customDir, "$iconKey.png")
+
+            FileOutputStream(destFile).use { outStream ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 95, outStream)
+                outStream.flush()
+            }
+            iconKey
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Computes statistics about unused custom icons currently stored on disk.
+     */
+    fun getUnusedCustomIconsStats(context: Context, activeIconNames: Set<String>): IconCacheStats {
+        val customDir = File(context.filesDir, "custom_icons")
+        if (!customDir.exists()) return IconCacheStats()
+
+        val allFiles = customDir.listFiles { file ->
+            file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp")
+        } ?: return IconCacheStats()
+
+        var totalBytes = 0L
+        var unusedBytes = 0L
+        var unusedCount = 0
+
+        val normalizedActive = activeIconNames.map { it.removeSuffix(".png") }.toSet()
+
+        for (file in allFiles) {
+            val size = file.length()
+            totalBytes += size
+            val nameNoExt = file.nameWithoutExtension
+            if (nameNoExt !in normalizedActive && file.name !in activeIconNames) {
+                unusedCount++
+                unusedBytes += size
+            }
+        }
+
+        return IconCacheStats(
+            totalCount = allFiles.size,
+            unusedCount = unusedCount,
+            totalBytes = totalBytes,
+            unusedBytes = unusedBytes
+        )
+    }
+
+    /**
+     * Deletes all custom icon files that are not referenced in the database.
+     * Returns Pair(number_of_files_deleted, bytes_freed).
+     */
+    fun clearUnusedCustomIcons(context: Context, activeIconNames: Set<String>): Pair<Int, Long> {
+        val customDir = File(context.filesDir, "custom_icons")
+        if (!customDir.exists()) return 0 to 0L
+
+        val allFiles = customDir.listFiles { file ->
+            file.extension.lowercase() in listOf("png", "jpg", "jpeg", "webp")
+        } ?: return 0 to 0L
+
+        var deletedCount = 0
+        var bytesFreed = 0L
+
+        val normalizedActive = activeIconNames.map { it.removeSuffix(".png") }.toSet()
+
+        for (file in allFiles) {
+            val nameNoExt = file.nameWithoutExtension
+            if (nameNoExt !in normalizedActive && file.name !in activeIconNames) {
+                val size = file.length()
+                if (file.delete()) {
+                    deletedCount++
+                    bytesFreed += size
+                }
+            }
+        }
+
+        return deletedCount to bytesFreed
     }
 
     /**

@@ -10,8 +10,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.util.CreateDocumentWithInitialUri
 import com.example.util.DateUtils
+import com.example.util.IconHelper
 import com.example.util.OpenDocumentWithInitialUri
 import com.example.util.StorageLocationHelper
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -192,6 +198,7 @@ fun BackupSyncSettingsScreen(
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     val config by viewModel.backupSettingsConfig.collectAsStateWithLifecycle()
     val securityConfig by viewModel.securityConfig.collectAsStateWithLifecycle()
     val signedInAccount by viewModel.signedInGoogleAccount.collectAsStateWithLifecycle()
@@ -1423,6 +1430,124 @@ fun BackupSyncSettingsScreen(
                                         ) {
                                             Text(if (languageMode == LanguageMode.BANGLA) "রিস্টোর" else "Restore", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Unused Custom Icons Cache Cleaner
+                item {
+                    var cacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
+                    var isClearingIcons by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(Unit) {
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val db = com.example.data.local.AppDatabase.getDatabase(context)
+                                val catIcons = db.categoryDao().getAllCategoriesSnapshot().map { it.iconName }
+                                val accIcons = db.accountDao().getAllAccountsSnapshot().map { it.iconName }
+                                val goalIcons = db.savingsGoalDao().getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
+                                val active = (catIcons + accIcons + goalIcons).filter { it.isNotBlank() }.toSet()
+                                val stats = IconHelper.getUnusedCustomIconsStats(context, active)
+                                withContext(Dispatchers.Main) {
+                                    cacheStats = stats
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+
+                    OutlinedCard(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteSweep,
+                                    contentDescription = null,
+                                    tint = if (cacheStats.unusedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "অব্যবহৃত আইকন ক্যাশ" else "Unused Custom Icons Cache",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp
+                                    )
+                                    val unusedKb = (cacheStats.unusedBytes / 1024).coerceAtLeast(0)
+                                    Text(
+                                        text = if (cacheStats.unusedCount > 0) {
+                                            if (languageMode == LanguageMode.BANGLA)
+                                                "${cacheStats.unusedCount} টি অব্যবহৃত আইকন (~$unusedKb KB খালি করা যাবে)"
+                                            else
+                                                "${cacheStats.unusedCount} unused icons (~$unusedKb KB reclaimable)"
+                                        } else {
+                                            if (languageMode == LanguageMode.BANGLA) "কোনো অতিরিক্ত আইকন ক্যাশ নেই" else "Storage is clean, no unassigned icons"
+                                        },
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            if (cacheStats.unusedCount > 0) {
+                                Button(
+                                    onClick = {
+                                        isClearingIcons = true
+                                        coroutineScope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                val db = com.example.data.local.AppDatabase.getDatabase(context)
+                                                val catIcons = db.categoryDao().getAllCategoriesSnapshot().map { it.iconName }
+                                                val accIcons = db.accountDao().getAllAccountsSnapshot().map { it.iconName }
+                                                val goalIcons = db.savingsGoalDao().getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
+                                                val active = (catIcons + accIcons + goalIcons).filter { it.isNotBlank() }.toSet()
+                                                val (deletedCount, freedBytes) = IconHelper.clearUnusedCustomIcons(context, active)
+                                                val updatedStats = IconHelper.getUnusedCustomIconsStats(context, active)
+                                                withContext(Dispatchers.Main) {
+                                                    cacheStats = updatedStats
+                                                    isClearingIcons = false
+                                                    val freedKb = (freedBytes / 1024).coerceAtLeast(1)
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (languageMode == LanguageMode.BANGLA)
+                                                            "$deletedCount টি অব্যবহৃত আইকন মুছে $freedKb KB খালি করা হয়েছে"
+                                                        else
+                                                            "Cleaned $deletedCount unused icons ($freedKb KB freed)",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = !isClearingIcons,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    if (isClearingIcons) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            color = androidx.compose.ui.graphics.Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text(
+                                            if (languageMode == LanguageMode.BANGLA) "ক্যাশ মুছুন" else "Clear Cache",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }

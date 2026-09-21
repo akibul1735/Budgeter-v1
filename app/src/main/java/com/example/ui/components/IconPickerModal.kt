@@ -35,7 +35,9 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
@@ -79,9 +81,12 @@ import com.example.data.remote.OnlineIconResult
 import com.example.data.remote.OnlineIconSearchService
 import com.example.ui.theme.SolidPrimary
 import com.example.util.IconHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun IconPickerModal(
@@ -99,6 +104,37 @@ fun IconPickerModal(
         }
     }
     var iconToDelete by remember { mutableStateOf<String?>(null) }
+
+    // Crop / Rotate / Zoom Editor state
+    var cropEditorUri by remember { mutableStateOf<Uri?>(null) }
+    var cropEditorIconKey by remember { mutableStateOf<String?>(null) }
+
+    // Cache Stats & Cleaner state
+    var unusedCacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
+    var showCleanConfirmDialog by remember { mutableStateOf(false) }
+    var isCleaningCache by remember { mutableStateOf(false) }
+
+    fun refreshCustomStats() {
+        coroutineScope.launch {
+            withContext(Dispatchers.IO) {
+                try {
+                    val db = com.example.data.local.AppDatabase.getDatabase(context)
+                    val catIcons = db.categoryDao().getAllCategoriesSnapshot().map { it.iconName }
+                    val accIcons = db.accountDao().getAllAccountsSnapshot().map { it.iconName }
+                    val goalIcons = db.savingsGoalDao().getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
+                    val active = (catIcons + accIcons + goalIcons).filter { it.isNotBlank() }.toSet()
+                    val stats = IconHelper.getUnusedCustomIconsStats(context, active)
+                    withContext(Dispatchers.Main) {
+                        unusedCacheStats = stats
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshCustomStats()
+    }
 
     // Online search state
     var onlineResults by remember { mutableStateOf<List<OnlineIconResult>>(emptyList()) }
@@ -140,23 +176,13 @@ fun IconPickerModal(
         }
     }
 
-    // Media picker launcher for custom PNG/images
+    // Media picker launcher for custom PNG/images -> Opens interactive Crop & Rotate editor!
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            val savedIconKey = IconHelper.saveCustomIconFromUri(context, uri)
-            if (savedIconKey != null) {
-                if (!customIcons.contains(savedIconKey)) {
-                    customIcons.add(0, savedIconKey)
-                }
-                selectedCategory = "Custom"
-                onIconSelected(savedIconKey)
-                Toast.makeText(context, "Custom icon added!", Toast.LENGTH_SHORT).show()
-                onDismiss()
-            } else {
-                Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
-            }
+            cropEditorUri = uri
+            cropEditorIconKey = null
         }
     }
 
@@ -170,7 +196,7 @@ fun IconPickerModal(
             tonalElevation = 6.dp,
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .fillMaxHeight(0.67f)
+                .fillMaxHeight(0.72f)
         ) {
             Column(
                 modifier = Modifier
@@ -267,6 +293,7 @@ fun IconPickerModal(
                             onClick = {
                                 selectedCategory = cat
                                 searchQuery = ""
+                                if (cat == "Custom") refreshCustomStats()
                             },
                             leadingIcon = if (cat == "Online Search") {
                                 {
@@ -294,24 +321,49 @@ fun IconPickerModal(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Action Bar for Custom Image or Quick Online Search Switch
+                // Action Bar for Custom Images & Cache Cleaner
                 if (selectedCategory == "Custom" || selectedCategory == "All") {
-                    OutlinedButton(
-                        onClick = {
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(42.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add Custom Icon from PNG / Image", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                        OutlinedButton(
+                            onClick = {
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                        ) {
+                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(17.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Add & Crop Image", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        if (selectedCategory == "Custom" && unusedCacheStats.unusedCount > 0) {
+                            OutlinedButton(
+                                onClick = { showCleanConfirmDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                modifier = Modifier.height(40.dp)
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(17.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Clean (${unusedCacheStats.unusedCount})",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -489,7 +541,7 @@ fun IconPickerModal(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.Center,
                                                 modifier = Modifier.padding(8.dp)
-                                            ) {
+                                             ) {
                                                 CircularProgressIndicator(
                                                     modifier = Modifier.size(18.dp),
                                                     color = SolidPrimary,
@@ -569,7 +621,6 @@ fun IconPickerModal(
 
                     val showCustomGrid = (selectedCategory == "Custom" || selectedCategory == "All") && searchQuery.isBlank()
 
-                    // If user is searching and no local match, suggest switching to Online Search
                     if (searchQuery.isNotBlank() && filteredBuiltins.isEmpty() && (!showCustomGrid || customIcons.isEmpty())) {
                         Column(
                             modifier = Modifier
@@ -615,7 +666,7 @@ fun IconPickerModal(
 
                                     Box(
                                         modifier = Modifier
-                                            .size(52.dp)
+                                            .size(54.dp)
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(
                                                 if (isSelected) SolidPrimary.copy(alpha = 0.18f)
@@ -648,6 +699,52 @@ fun IconPickerModal(
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(22.dp)
                                             )
+                                        }
+
+                                        // Action buttons overlay when in Custom category
+                                        if (selectedCategory == "Custom") {
+                                            Row(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(1.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                                                        .clickable {
+                                                            cropEditorIconKey = customIconKey
+                                                            cropEditorUri = null
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Crop,
+                                                        contentDescription = "Crop",
+                                                        modifier = Modifier.size(10.dp),
+                                                        tint = SolidPrimary
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                                                        .clickable {
+                                                            iconToDelete = customIconKey
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Delete",
+                                                        modifier = Modifier.size(10.dp),
+                                                        tint = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -700,12 +797,35 @@ fun IconPickerModal(
         }
     }
 
-    // Delete custom icon dialog confirmation
+    // Crop, Rotate & Zoom Editor Modal
+    if (cropEditorUri != null || cropEditorIconKey != null) {
+        IconCropEditorModal(
+            imageUri = cropEditorUri,
+            initialIconKey = cropEditorIconKey,
+            onCroppedIconSaved = { savedKey ->
+                if (!customIcons.contains(savedKey)) {
+                    customIcons.add(0, savedKey)
+                }
+                selectedCategory = "Custom"
+                onIconSelected(savedKey)
+                cropEditorUri = null
+                cropEditorIconKey = null
+                refreshCustomStats()
+                onDismiss()
+            },
+            onDismiss = {
+                cropEditorUri = null
+                cropEditorIconKey = null
+            }
+        )
+    }
+
+    // Delete single custom icon confirmation
     if (iconToDelete != null) {
         AlertDialog(
             onDismissRequest = { iconToDelete = null },
             title = { Text("Delete Custom Icon") },
-            text = { Text("Are you sure you want to remove this custom icon?") },
+            text = { Text("Are you sure you want to remove this custom icon from storage?") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -713,6 +833,7 @@ fun IconPickerModal(
                         IconHelper.deleteCustomIcon(context, key)
                         customIcons.remove(key)
                         iconToDelete = null
+                        refreshCustomStats()
                         if (selectedIconName == key) {
                             onIconSelected("Category")
                         }
@@ -724,6 +845,67 @@ fun IconPickerModal(
             },
             dismissButton = {
                 TextButton(onClick = { iconToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Clear unused custom icons confirmation dialog
+    if (showCleanConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCleanConfirmDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteSweep,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = { Text("Clear Unused Custom Icons") },
+            text = {
+                val kb = (unusedCacheStats.unusedBytes / 1024).coerceAtLeast(1)
+                Text(
+                    "Found ${unusedCacheStats.unusedCount} custom icon(s) (~$kb KB) that are not assigned to any category, account, or goal.\n\nDo you want to permanently remove them from storage to free up space?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCleanConfirmDialog = false
+                        isCleaningCache = true
+                        coroutineScope.launch {
+                            withContext(Dispatchers.IO) {
+                                val db = com.example.data.local.AppDatabase.getDatabase(context)
+                                val catIcons = db.categoryDao().getAllCategoriesSnapshot().map { it.iconName }
+                                val accIcons = db.accountDao().getAllAccountsSnapshot().map { it.iconName }
+                                val goalIcons = db.savingsGoalDao().getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
+                                val active = (catIcons + accIcons + goalIcons).filter { it.isNotBlank() }.toSet()
+                                val (deletedCount, freedBytes) = IconHelper.clearUnusedCustomIcons(context, active)
+                                val updatedIcons = IconHelper.getAllCustomIcons(context)
+                                withContext(Dispatchers.Main) {
+                                    customIcons.clear()
+                                    customIcons.addAll(updatedIcons)
+                                    isCleaningCache = false
+                                    refreshCustomStats()
+                                    val freedKb = (freedBytes / 1024).coerceAtLeast(1)
+                                    Toast.makeText(
+                                        context,
+                                        "Cleaned $deletedCount unused icons! Freed $freedKb KB",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Clean Cache")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCleanConfirmDialog = false }) {
                     Text("Cancel")
                 }
             }

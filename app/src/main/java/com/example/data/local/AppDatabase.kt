@@ -145,7 +145,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        fun getDatabase(context: Context, scope: CoroutineScope, isDemoMode: Boolean = false): AppDatabase {
+        fun getDatabase(context: Context, scope: CoroutineScope = CoroutineScope(Dispatchers.IO), isDemoMode: Boolean = false): AppDatabase {
             return if (isDemoMode) {
                 getDemoDatabase(context, scope)
             } else {
@@ -153,7 +153,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        fun getRealDatabase(context: Context, scope: CoroutineScope): AppDatabase {
+        fun getRealDatabase(context: Context, scope: CoroutineScope = CoroutineScope(Dispatchers.IO)): AppDatabase {
             return REAL_INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,

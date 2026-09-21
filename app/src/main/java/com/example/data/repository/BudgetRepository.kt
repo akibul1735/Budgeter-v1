@@ -28,6 +28,7 @@ import com.example.data.model.TransactionWithDetails
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
@@ -1108,6 +1109,27 @@ class BudgetRepository(
         transactionDao.deleteAll()
         monthlyBudgetDao.deleteAll()
         categoryDao.deleteAll()
+    }
+
+    suspend fun getAllActiveIconNames(): Set<String> {
+        return try {
+            val categoryIcons = categoryDao.getAllCategoriesSnapshot().map { it.iconName }
+            val accountIcons = accountDao.getAllAccountsSnapshot().map { it.iconName }
+            val goalIcons = savingsGoalDao.getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
+            (categoryIcons + accountIcons + goalIcons).filter { it.isNotBlank() }.toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    suspend fun getUnusedIconCacheStats(context: android.content.Context): com.example.util.IconHelper.IconCacheStats {
+        val activeIcons = getAllActiveIconNames()
+        return com.example.util.IconHelper.getUnusedCustomIconsStats(context, activeIcons)
+    }
+
+    suspend fun clearUnusedIconCache(context: android.content.Context): Pair<Int, Long> {
+        val activeIcons = getAllActiveIconNames()
+        return com.example.util.IconHelper.clearUnusedCustomIcons(context, activeIcons)
     }
 
     suspend fun resetEverything() {
