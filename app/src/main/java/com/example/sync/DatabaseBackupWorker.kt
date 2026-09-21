@@ -115,6 +115,9 @@ class DatabaseBackupWorker(
             SyncManager.recordDbBackupSuccess(applicationContext, timestamp)
             Log.d(TAG, "Database backup successful: ${archiveBackupFile.absolutePath}, size: ${archiveBackupFile.length()} bytes")
 
+            // Re-arm exact alarm and fallback for tomorrow
+            SyncManager.scheduleDailyAutoBackup(applicationContext)
+
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Database backup failed: ${e.message}", e)

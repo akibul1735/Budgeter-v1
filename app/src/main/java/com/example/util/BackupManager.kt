@@ -890,6 +890,29 @@ object BackupManager {
     }
 
     /**
+     * Extracts true timestamp of backup file, prioritizing filename date-time pattern (e.g. 20260920_220000)
+     * over file.lastModified() which might reflect temporary cache copy time.
+     */
+    fun getBackupFileTimestamp(file: File): Long {
+        val regex = Regex(".*_(\\d{8})_(\\d{6}).*")
+        val match = regex.find(file.name)
+        if (match != null) {
+            val datePart = match.groupValues[1]
+            val timePart = match.groupValues[2]
+            try {
+                val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).apply {
+                    timeZone = java.util.TimeZone.getDefault()
+                }
+                val parsed = sdf.parse("${datePart}_${timePart}")
+                if (parsed != null) {
+                    return parsed.time
+                }
+            } catch (_: Exception) {}
+        }
+        return file.lastModified()
+    }
+
+    /**
      * Lists local backups from the specific configured directory ONLY.
      */
     fun listLocalBackups(context: Context, customDirectoryPath: String? = null): List<File> {
@@ -911,6 +934,19 @@ object BackupManager {
                                         tempFile.outputStream().use { output -> input.copyTo(output) }
                                     }
                                 }
+                                val docTime = doc.lastModified()
+                                if (docTime > 0) {
+                                    try {
+                                        tempFile.setLastModified(docTime)
+                                    } catch (_: Exception) {}
+                                } else {
+                                    val parsedTime = getBackupFileTimestamp(tempFile)
+                                    if (parsedTime > 0) {
+                                        try {
+                                            tempFile.setLastModified(parsedTime)
+                                        } catch (_: Exception) {}
+                                    }
+                                }
                                 resultList.add(tempFile)
                             }
                         }
@@ -918,7 +954,7 @@ object BackupManager {
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-                return resultList.distinctBy { it.name }.sortedByDescending { it.lastModified() }
+                return resultList.distinctBy { it.name }.sortedByDescending { getBackupFileTimestamp(it) }
             } else if (customDirectoryPath.equals("internal", ignoreCase = true) || customDirectoryPath.contains("files/backups")) {
                 val internalDir = File(context.filesDir, "backups")
                 if (internalDir.exists() && internalDir.isDirectory) {
@@ -926,7 +962,7 @@ object BackupManager {
                         resultList.addAll(it)
                     }
                 }
-                return resultList.distinctBy { it.name }.sortedByDescending { it.lastModified() }
+                return resultList.distinctBy { it.name }.sortedByDescending { getBackupFileTimestamp(it) }
             } else {
                 val targetDir = when {
                     customDirectoryPath.equals("Documents/Budgeter", ignoreCase = true) || customDirectoryPath.startsWith("Documents") -> {
@@ -951,7 +987,7 @@ object BackupManager {
                         }
                     }
                 }
-                return resultList.distinctBy { it.name }.sortedByDescending { it.lastModified() }
+                return resultList.distinctBy { it.name }.sortedByDescending { getBackupFileTimestamp(it) }
             }
         }
 
@@ -979,7 +1015,7 @@ object BackupManager {
             }
         }
 
-        return resultList.distinctBy { it.name }.sortedByDescending { it.lastModified() }
+        return resultList.distinctBy { it.name }.sortedByDescending { getBackupFileTimestamp(it) }
     }
 
     /**

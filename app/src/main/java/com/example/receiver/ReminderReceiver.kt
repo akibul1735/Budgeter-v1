@@ -61,6 +61,19 @@ class ReminderReceiver : BroadcastReceiver() {
                         notifConfig.dailyReminderMinute
                     )
                 }
+                // Reschedule daily automated backup and check for any missed backups during reboot
+                com.example.sync.SyncManager.scheduleDailyAutoBackup(context)
+                com.example.sync.SyncManager.checkAndTriggerDatabaseBackup(context)
+            }
+
+            ACTION_SCHEDULED_BACKUP -> {
+                android.util.Log.d("ReminderReceiver", "Alarm fired for daily scheduled backup.")
+                val backupPrefs = com.example.util.BackupPreferences.getInstance(context)
+                if (backupPrefs.config.value.isAutoPhoneBackupEnabled) {
+                    com.example.sync.SyncManager.triggerScheduledAutoBackupNow(context)
+                    // Re-arm exact alarm for the next cycle
+                    com.example.sync.SyncManager.scheduleDailyAutoBackup(context)
+                }
             }
         }
     }
@@ -119,5 +132,6 @@ class ReminderReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_DAILY_REMINDER = "com.example.budgeter.ACTION_DAILY_REMINDER"
         const val ACTION_BILL_REMINDER = "com.example.budgeter.ACTION_BILL_REMINDER"
+        const val ACTION_SCHEDULED_BACKUP = "com.example.budgeter.ACTION_SCHEDULED_BACKUP"
     }
 }

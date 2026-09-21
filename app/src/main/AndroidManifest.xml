@@ -58,6 +58,7 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="com.example.budgeter.ACTION_DAILY_REMINDER" />
                 <action android:name="com.example.budgeter.ACTION_BILL_REMINDER" />
+                <action android:name="com.example.budgeter.ACTION_SCHEDULED_BACKUP" />
             </intent-filter>
         </receiver>
 

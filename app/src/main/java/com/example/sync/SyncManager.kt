@@ -1,7 +1,11 @@
 package com.example.sync
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Build
 import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -12,6 +16,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
+import com.example.receiver.ReminderReceiver
 import com.example.util.BackupPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,16 +87,28 @@ object SyncManager {
 
     /**
      * Schedules or cancels daily auto phone backup based on user preferences.
+     * Uses AlarmManager exact alarm (RTC_WAKEUP) to fire on the exact minute even in Doze mode,
+     * supplemented by a WorkManager request as an auxiliary fallback.
      */
     fun scheduleDailyAutoBackup(context: Context) {
         try {
             val backupPrefs = BackupPreferences.getInstance(context)
             val config = backupPrefs.config.value
-            val workManager = WorkManager.getInstance(context.applicationContext)
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            val intent = Intent(context, ReminderReceiver::class.java).apply {
+                action = ReminderReceiver.ACTION_SCHEDULED_BACKUP
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                1002,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
 
             if (!config.isAutoPhoneBackupEnabled) {
-                Log.d(TAG, "Auto phone backup disabled. Cancelling daily auto backup work.")
-                workManager.cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
+                Log.d(TAG, "Auto phone backup disabled. Cancelling daily auto backup alarm and work.")
+                alarmManager?.cancel(pendingIntent)
+                WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
                 return
             }
 
@@ -107,16 +124,48 @@ object SyncManager {
                 targetCal.add(Calendar.DAY_OF_YEAR, 1)
             }
 
-            val initialDelayMs = (targetCal.timeInMillis - now.timeInMillis).coerceAtLeast(1000L)
-            Log.d(TAG, "Scheduling daily auto backup with initial delay of ${initialDelayMs / 1000 / 60} minutes to run at ${config.formattedScheduledTime}")
+            val delayMinutes = (targetCal.timeInMillis - now.timeInMillis) / 1000 / 60
+            Log.d(TAG, "Scheduling exact daily auto backup alarm for ${config.formattedScheduledTime} (in $delayMinutes mins)")
 
-            val periodicRequest = PeriodicWorkRequestBuilder<DatabaseBackupWorker>(24, TimeUnit.HOURS)
+            // 1. Exact AlarmManager (wakes device up from Doze mode at exact minute)
+            if (alarmManager != null) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        if (alarmManager.canScheduleExactAlarms()) {
+                            alarmManager.setExactAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                targetCal.timeInMillis,
+                                pendingIntent
+                            )
+                        } else {
+                            alarmManager.setAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                targetCal.timeInMillis,
+                                pendingIntent
+                            )
+                        }
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            targetCal.timeInMillis,
+                            pendingIntent
+                        )
+                    } else {
+                        alarmManager.set(
+                            AlarmManager.RTC_WAKEUP,
+                            targetCal.timeInMillis,
+                            pendingIntent
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not set exact alarm for backup: ${e.message}")
+                }
+            }
+
+            // 2. Secondary fallback via WorkManager with initial delay (without battery gating to avoid silent cancellations)
+            val initialDelayMs = (targetCal.timeInMillis - now.timeInMillis).coerceAtLeast(1000L)
+            val workRequest = OneTimeWorkRequestBuilder<DatabaseBackupWorker>()
                 .setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiresBatteryNotLow(true)
-                        .build()
-                )
                 .setBackoffCriteria(
                     BackoffPolicy.EXPONENTIAL,
                     15,
@@ -124,10 +173,10 @@ object SyncManager {
                 )
                 .build()
 
-            workManager.enqueueUniquePeriodicWork(
+            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 WORK_DAILY_AUTO_BACKUP,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                periodicRequest
+                ExistingWorkPolicy.REPLACE,
+                workRequest
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to schedule daily auto backup: ${e.message}", e)
@@ -136,9 +185,45 @@ object SyncManager {
 
     fun cancelDailyAutoBackup(context: Context) {
         try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+            val intent = Intent(context, ReminderReceiver::class.java).apply {
+                action = ReminderReceiver.ACTION_SCHEDULED_BACKUP
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                1002,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager?.cancel(pendingIntent)
             WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
+            Log.d(TAG, "Daily auto backup cancelled.")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to cancel daily auto backup: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Executes the daily scheduled backup worker immediately when the scheduled alarm fires.
+     */
+    fun triggerScheduledAutoBackupNow(context: Context) {
+        try {
+            Log.d(TAG, "Triggering scheduled auto backup immediately")
+            val workRequest = OneTimeWorkRequestBuilder<DatabaseBackupWorker>()
+                .setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    15,
+                    TimeUnit.MINUTES
+                )
+                .build()
+
+            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+                WORK_DAILY_AUTO_BACKUP,
+                ExistingWorkPolicy.REPLACE,
+                workRequest
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to trigger scheduled auto backup now: ${e.message}", e)
         }
     }
 
@@ -169,39 +254,42 @@ object SyncManager {
     }
 
     /**
-     * Checks if 24 hours have passed since the last SQLite DB backup.
-     * If so, triggers a OneTimeWorkRequest for full DB backup.
+     * Checks if the scheduled local backup was missed (e.g. phone turned off at night).
+     * If missed, triggers a catch-up backup immediately so data is never skipped.
      */
     fun checkAndTriggerDatabaseBackup(context: Context) {
         try {
+            val backupPrefs = BackupPreferences.getInstance(context)
+            val config = backupPrefs.config.value
+            if (!config.isAutoPhoneBackupEnabled) return
+
             val prefs = getPrefs(context)
             val lastBackupTime = prefs.getLong(KEY_LAST_DB_BACKUP, 0L)
-            val currentTime = System.currentTimeMillis()
-            val twentyFourHoursMs = 24 * 60 * 60 * 1000L
+            val now = Calendar.getInstance()
 
-            if (currentTime - lastBackupTime >= twentyFourHoursMs || lastBackupTime == 0L) {
-                Log.d(TAG, "24 hours elapsed since last DB backup. Triggering DatabaseBackupWorker.")
-                val workRequest = OneTimeWorkRequestBuilder<DatabaseBackupWorker>()
-                    .setConstraints(
-                        Constraints.Builder()
-                            .setRequiresBatteryNotLow(true)
-                            .build()
-                    )
-                    .setBackoffCriteria(
-                        BackoffPolicy.EXPONENTIAL,
-                        15,
-                        TimeUnit.MINUTES
-                    )
-                    .build()
+            // Calculate the most recent scheduled backup window that should have taken place
+            val targetToday = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, config.scheduledBackupHour)
+                set(Calendar.MINUTE, config.scheduledBackupMinute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
 
-                WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
-                    WORK_DB_BACKUP,
-                    ExistingWorkPolicy.KEEP,
-                    workRequest
-                )
+            val mostRecentTargetTime = if (now.after(targetToday)) {
+                targetToday.timeInMillis
             } else {
-                val hoursRemaining = (twentyFourHoursMs - (currentTime - lastBackupTime)) / (1000 * 60 * 60)
-                Log.d(TAG, "DB backup up to date. Next backup in approx $hoursRemaining hours.")
+                targetToday.apply { add(Calendar.DAY_OF_YEAR, -1) }.timeInMillis
+            }
+
+            val gracePeriodMs = 15 * 60 * 1000L // 15 mins grace period after scheduled time
+            val isMissed = (lastBackupTime < mostRecentTargetTime) && (now.timeInMillis >= mostRecentTargetTime + gracePeriodMs)
+            val isNeverBackedUp = (lastBackupTime == 0L)
+
+            if (isMissed || isNeverBackedUp) {
+                Log.d(TAG, "Scheduled backup missed (last: $lastBackupTime, expected: $mostRecentTargetTime). Catching up now.")
+                forceImmediateDatabaseBackup(context)
+            } else {
+                Log.d(TAG, "Scheduled backup is up-to-date for cycle ending ${config.formattedScheduledTime}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to check or trigger DB backup: ${e.message}", e)
@@ -209,16 +297,11 @@ object SyncManager {
     }
 
     /**
-     * Forces an immediate full SQLite DB backup regardless of 24h timer
+     * Forces an immediate full SQLite DB backup regardless of schedule.
      */
     fun forceImmediateDatabaseBackup(context: Context) {
         try {
             val workRequest = OneTimeWorkRequestBuilder<DatabaseBackupWorker>()
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiresBatteryNotLow(true)
-                        .build()
-                )
                 .setBackoffCriteria(
                     BackoffPolicy.EXPONENTIAL,
                     15,
@@ -231,6 +314,7 @@ object SyncManager {
                 ExistingWorkPolicy.REPLACE,
                 workRequest
             )
+            Log.d(TAG, "Forced immediate DB backup enqueued successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to force DB backup: ${e.message}", e)
         }

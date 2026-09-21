@@ -1358,7 +1358,8 @@ fun BackupSyncSettingsScreen(
                         }
                     } else {
                         items(localBackups) { file ->
-                            val dateStr = "${DateUtils.formatDate(file.lastModified(), languageMode)} • ${DateUtils.formatTime(file.lastModified(), languageMode)}"
+                            val fileTimestamp = BackupManager.getBackupFileTimestamp(file)
+                            val dateStr = "${DateUtils.formatDate(fileTimestamp, languageMode)} • ${DateUtils.formatTime(fileTimestamp, languageMode)}"
                             val sizeKb = (file.length() / 1024).coerceAtLeast(1)
 
                             OutlinedCard(
@@ -1411,7 +1412,7 @@ fun BackupSyncSettingsScreen(
                                                     fileId = file.name,
                                                     fileName = file.name,
                                                     sourceProvider = "Local Storage",
-                                                    timestamp = file.lastModified(),
+                                                    timestamp = fileTimestamp,
                                                     localFile = file
                                                 )
                                                 selectedBackupForOptionsDialog = info
