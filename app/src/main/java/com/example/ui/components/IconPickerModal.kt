@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -68,6 +70,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.data.remote.OnlineIconResult
 import com.example.data.remote.OnlineIconSearchService
@@ -140,15 +143,22 @@ fun IconPickerModal(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.67f)
         ) {
             Column(
-                modifier = Modifier.padding(18.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(18.dp)
             ) {
                 // Header
                 Row(
@@ -295,7 +305,7 @@ fun IconPickerModal(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp),
+                                .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -316,7 +326,7 @@ fun IconPickerModal(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp),
+                                .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
@@ -349,7 +359,7 @@ fun IconPickerModal(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp),
+                                .weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -373,7 +383,9 @@ fun IconPickerModal(
                             contentPadding = PaddingValues(2.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.height(300.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
                         ) {
                             items(onlineResults) { item ->
                                 val isDownloading = downloadingUrl == item.imageUrl
@@ -464,7 +476,7 @@ fun IconPickerModal(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(260.dp),
+                                .weight(1f),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -493,7 +505,9 @@ fun IconPickerModal(
                             contentPadding = PaddingValues(2.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.height(300.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
                         ) {
                             // Show custom icons
                             if (showCustomGrid && customIcons.isNotEmpty()) {
