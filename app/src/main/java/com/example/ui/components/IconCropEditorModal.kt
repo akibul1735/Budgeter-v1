@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.data.remote.OnlineIconSearchService
 import com.example.ui.theme.SolidPrimary
 import com.example.util.IconHelper
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +88,7 @@ import kotlin.math.roundToInt
 @Composable
 fun IconCropEditorModal(
     imageUri: Uri? = null,
+    imageUrl: String? = null,
     initialIconKey: String? = null,
     sourceBitmap: Bitmap? = null,
     onCroppedIconSaved: (String) -> Unit,
@@ -109,7 +111,7 @@ fun IconCropEditorModal(
     var isSaving by remember { mutableStateOf(false) }
 
     // Load bitmap asynchronously
-    LaunchedEffect(imageUri, initialIconKey, sourceBitmap) {
+    LaunchedEffect(imageUri, imageUrl, initialIconKey, sourceBitmap) {
         if (sourceBitmap != null) {
             loadedBitmap = sourceBitmap
             isLoadingImage = false
@@ -118,6 +120,7 @@ fun IconCropEditorModal(
         isLoadingImage = true
         withContext(Dispatchers.IO) {
             val bitmap = when {
+                imageUrl != null -> OnlineIconSearchService.downloadBitmap(context, imageUrl, 1024)
                 imageUri != null -> IconHelper.decodeBitmapFromUri(context, imageUri, 1024)
                 initialIconKey != null -> IconHelper.decodeBitmapFromCustomKey(context, initialIconKey)
                 else -> null

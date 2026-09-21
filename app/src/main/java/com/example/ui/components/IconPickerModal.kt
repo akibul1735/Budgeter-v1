@@ -107,6 +107,7 @@ fun IconPickerModal(
 
     // Crop / Rotate / Zoom Editor state
     var cropEditorUri by remember { mutableStateOf<Uri?>(null) }
+    var cropEditorImageUrl by remember { mutableStateOf<String?>(null) }
     var cropEditorIconKey by remember { mutableStateOf<String?>(null) }
 
     // Cache Stats & Cleaner state
@@ -525,6 +526,35 @@ fun IconPickerModal(
                                             )
                                         }
                                     }
+
+                                    // Quick Edit & Crop action button
+                                    if (!isDownloading) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(2.dp)
+                                                .size(18.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                                                .border(
+                                                    BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                    shape = CircleShape
+                                                )
+                                                .clickable {
+                                                    cropEditorImageUrl = item.imageUrl
+                                                    cropEditorUri = null
+                                                    cropEditorIconKey = null
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Crop,
+                                                contentDescription = "Edit & Crop",
+                                                modifier = Modifier.size(10.dp),
+                                                tint = SolidPrimary
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
@@ -798,9 +828,10 @@ fun IconPickerModal(
     }
 
     // Crop, Rotate & Zoom Editor Modal
-    if (cropEditorUri != null || cropEditorIconKey != null) {
+    if (cropEditorUri != null || cropEditorIconKey != null || cropEditorImageUrl != null) {
         IconCropEditorModal(
             imageUri = cropEditorUri,
+            imageUrl = cropEditorImageUrl,
             initialIconKey = cropEditorIconKey,
             onCroppedIconSaved = { savedKey ->
                 if (!customIcons.contains(savedKey)) {
@@ -809,12 +840,14 @@ fun IconPickerModal(
                 selectedCategory = "Custom"
                 onIconSelected(savedKey)
                 cropEditorUri = null
+                cropEditorImageUrl = null
                 cropEditorIconKey = null
                 refreshCustomStats()
                 onDismiss()
             },
             onDismiss = {
                 cropEditorUri = null
+                cropEditorImageUrl = null
                 cropEditorIconKey = null
             }
         )

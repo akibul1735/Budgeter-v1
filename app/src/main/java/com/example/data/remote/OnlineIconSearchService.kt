@@ -519,4 +519,52 @@ object OnlineIconSearchService {
             null
         }
     }
+
+    /**
+     * Downloads an online image into a high-res in-memory Bitmap suitable for editing and cropping.
+     */
+    suspend fun downloadBitmap(context: Context, imageUrl: String, targetSize: Int = 512): Bitmap? = withContext(Dispatchers.IO) {
+        try {
+            // 1. Attempt loading and rasterizing via Coil ImageLoader (supports SVGs, PNGs, WebP, JPG)
+            try {
+                val loader = context.imageLoader
+                val request = ImageRequest.Builder(context)
+                    .data(imageUrl)
+                    .size(targetSize, targetSize)
+                    .allowHardware(false)
+                    .build()
+
+                val result = loader.execute(request)
+                if (result is SuccessResult) {
+                    val drawable = result.drawable
+                    val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    drawable.setBounds(0, 0, targetSize, targetSize)
+                    drawable.draw(canvas)
+                    return@withContext bitmap
+                }
+            } catch (_: Exception) {}
+
+            // 2. Direct HTTP download fallback
+            val request = Request.Builder()
+                .url(imageUrl)
+                .header("User-Agent", USER_AGENT)
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                response.close()
+                return@withContext null
+            }
+
+            val bytes = response.body?.bytes() ?: return@withContext null
+            response.close()
+
+            val originalBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@withContext null
+            Bitmap.createScaledBitmap(originalBitmap, targetSize, targetSize, true)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }
