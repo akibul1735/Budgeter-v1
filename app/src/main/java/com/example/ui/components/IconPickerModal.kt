@@ -102,6 +102,10 @@ fun IconPickerModal(
 
     // Online search state
     var onlineResults by remember { mutableStateOf<List<OnlineIconResult>>(emptyList()) }
+    val failedImageUrls = remember { mutableStateListOf<String>() }
+    val visibleOnlineResults = remember(onlineResults, failedImageUrls.size) {
+        onlineResults.filter { it.imageUrl !in failedImageUrls }
+    }
     var isSearchingOnline by remember { mutableStateOf(false) }
     var isLoadingMore by remember { mutableStateOf(false) }
     var currentOnlinePage by remember { mutableStateOf(1) }
@@ -115,6 +119,7 @@ fun IconPickerModal(
         if (selectedCategory == "Online Search") {
             if (query.length >= 2) {
                 isSearchingOnline = true
+                failedImageUrls.clear()
                 currentOnlinePage = 1
                 hasMoreOnline = true
                 searchJob?.cancel()
@@ -127,6 +132,7 @@ fun IconPickerModal(
                 }
             } else {
                 onlineResults = emptyList()
+                failedImageUrls.clear()
                 isSearchingOnline = false
                 currentOnlinePage = 1
                 hasMoreOnline = false
@@ -366,7 +372,7 @@ fun IconPickerModal(
                                 )
                             }
                         }
-                    } else if (onlineResults.isEmpty()) {
+                    } else if (visibleOnlineResults.isEmpty() && !isSearchingOnline) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -398,7 +404,7 @@ fun IconPickerModal(
                                 .fillMaxWidth()
                                 .weight(1f)
                         ) {
-                            items(onlineResults) { item ->
+                            items(visibleOnlineResults) { item ->
                                 val isDownloading = downloadingUrl == item.imageUrl
                                 Box(
                                     modifier = Modifier
@@ -447,6 +453,11 @@ fun IconPickerModal(
                                             AsyncImage(
                                                 model = item.imageUrl,
                                                 contentDescription = item.title,
+                                                onError = {
+                                                    if (!failedImageUrls.contains(item.imageUrl)) {
+                                                        failedImageUrls.add(item.imageUrl)
+                                                    }
+                                                },
                                                 modifier = Modifier
                                                     .size(38.dp)
                                                     .clip(RoundedCornerShape(8.dp)),
@@ -465,7 +476,7 @@ fun IconPickerModal(
                                 }
                             }
 
-                            if (onlineResults.isNotEmpty()) {
+                            if (visibleOnlineResults.isNotEmpty()) {
                                 item(span = { GridItemSpan(4) }) {
                                     Box(
                                         modifier = Modifier

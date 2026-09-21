@@ -9,6 +9,9 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.example.util.IconHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -254,7 +257,55 @@ object OnlineIconSearchService {
             }
         }
 
-        results
+        // Concurrently pre-validate all candidate images so dead, broken, or unrenderable URLs are excluded before returning
+        val validatedResults = coroutineScope {
+            results.map { item ->
+                async(Dispatchers.IO) {
+                    if (isReachableAndValidImage(item.imageUrl)) item else null
+                }
+            }.awaitAll().filterNotNull()
+        }
+
+        validatedResults
+    }
+
+    /**
+     * Quickly checks if an image URL is reachable, returns HTTP 200, and is valid image/svg content.
+     */
+    private suspend fun isReachableAndValidImage(url: String): Boolean = withContext(Dispatchers.IO) {
+        if (url.isBlank() || !url.startsWith("http")) return@withContext false
+        try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext false
+                val contentType = response.header("Content-Type")?.lowercase() ?: ""
+                val contentLength = response.body?.contentLength() ?: -1L
+                if (contentLength == 0L) return@withContext false
+
+                val isImageOrSvg = contentType.startsWith("image/") ||
+                        contentType.contains("svg") ||
+                        contentType.contains("xml") ||
+                        contentType.contains("octet-stream") ||
+                        url.endsWith(".svg") ||
+                        url.endsWith(".png") ||
+                        url.endsWith(".webp") ||
+                        url.endsWith(".jpg") ||
+                        url.endsWith(".jpeg") ||
+                        url.endsWith(".ico") ||
+                        url.contains("favicon")
+
+                if (!isImageOrSvg) return@withContext false
+                if (contentType.startsWith("text/html")) return@withContext false
+
+                true
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**
