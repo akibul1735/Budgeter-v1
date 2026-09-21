@@ -53,7 +53,7 @@ import kotlin.math.abs
 @Composable
 fun FavoriteAccountsCard(
     accountsWithBalances: List<AccountWithBalance>,
-    favoriteAccountIds: Set<Long>,
+    favoriteAccountIds: List<Long>,
     accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
     accountActivityTimestamps: Map<Long, Long> = emptyMap(),
     deselectedAccountTimestamps: Map<Long, Long> = emptyMap(),
@@ -77,16 +77,17 @@ fun FavoriteAccountsCard(
     // 2. Compute Manually Added accounts in preserved user order
     val manualAccounts = remember(flatActiveAccounts, favoriteAccountIds) {
         val accountMap = flatActiveAccounts.associateBy { it.account.id }
-        favoriteAccountIds.mapNotNull { accountMap[it] }
+        favoriteAccountIds.distinct().mapNotNull { accountMap[it] }
     }
 
     // 3. Compute Auto Added accounts
     // Rule: Recent activity AND non-zero effective balance AND not excluded AND not manually added
     val autoAccounts = remember(flatActiveAccounts, favoriteAccountIds, accountCalcConfig, accountActivityTimestamps, deselectedAccountTimestamps) {
+        val favIdSet = favoriteAccountIds.toSet()
         flatActiveAccounts.filter { item ->
             val id = item.account.id
             val isExcluded = !accountCalcConfig.isIncluded(id)
-            if (isExcluded || id in favoriteAccountIds) {
+            if (isExcluded || id in favIdSet) {
                 false
             } else {
                 val effectiveBal = accountCalcConfig.getEffectiveBalance(id, item.currentBalance)

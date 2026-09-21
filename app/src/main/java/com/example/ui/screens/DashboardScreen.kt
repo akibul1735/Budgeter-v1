@@ -175,7 +175,7 @@ fun DashboardScreen(
     onUpdateDailySummarySettings: (DailySummaryMode, DailySummaryPeriod, DailyChartType, Boolean, Boolean, DecimalPrecision, Boolean, Boolean) -> Unit,
     onUpdateBudgetSummarySettings: (BudgetChartShape, BudgetSummaryType, Int, Boolean, Boolean) -> Unit,
     onUpdateCalendarSettings: (CalendarDisplayMode, Boolean, Boolean) -> Unit,
-    onUpdateFavoriteAccounts: (Set<Long>) -> Unit,
+    onUpdateFavoriteAccounts: (List<Long>) -> Unit,
     onResetDashboardDefaults: () -> Unit,
     detectedBackups: List<DetectedBackupInfo> = emptyList(),
     showRestoreBanner: Boolean = false,

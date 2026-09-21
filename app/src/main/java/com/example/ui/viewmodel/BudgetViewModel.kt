@@ -301,7 +301,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    fun setFavoriteAccounts(accountIds: Set<Long>) {
+    fun setFavoriteAccounts(accountIds: Collection<Long>) {
         dashboardPrefs.setFavoriteAccounts(accountIds)
     }
 

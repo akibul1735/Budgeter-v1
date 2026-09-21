@@ -94,17 +94,17 @@ private data class AccountGroupSuggestion(
 @Composable
 fun FavoriteAccountsSelectionDialog(
     allAccounts: List<AccountWithBalance>,
-    initialSelectedIds: Set<Long>,
+    initialSelectedIds: List<Long>,
     accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
     accountActivityTimestamps: Map<Long, Long> = emptyMap(),
     deselectedAccountTimestamps: Map<Long, Long> = emptyMap(),
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onSave: (Set<Long>) -> Unit
+    onSave: (List<Long>) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
-    var orderedSelectedIds by remember { mutableStateOf(initialSelectedIds.toList()) }
+    var orderedSelectedIds by remember(initialSelectedIds) { mutableStateOf(initialSelectedIds.distinct()) }
     val selectedIds by remember { derivedStateOf { orderedSelectedIds.toSet() } }
     var manualViewMode by remember { mutableIntStateOf(if (initialSelectedIds.isNotEmpty()) 0 else 1) }
 
@@ -744,7 +744,7 @@ fun FavoriteAccountsSelectionDialog(
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Button(
-                        onClick = { onSave(orderedSelectedIds.toCollection(LinkedHashSet())) },
+                        onClick = { onSave(orderedSelectedIds.distinct()) },
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary)
                     ) {
