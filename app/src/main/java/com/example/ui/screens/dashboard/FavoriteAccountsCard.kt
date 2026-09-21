@@ -74,11 +74,10 @@ fun FavoriteAccountsCard(
         list
     }
 
-    // 2. Compute Manually Added accounts
+    // 2. Compute Manually Added accounts in preserved user order
     val manualAccounts = remember(flatActiveAccounts, favoriteAccountIds) {
-        flatActiveAccounts.filter { item ->
-            item.account.id in favoriteAccountIds
-        }
+        val accountMap = flatActiveAccounts.associateBy { it.account.id }
+        favoriteAccountIds.mapNotNull { accountMap[it] }
     }
 
     // 3. Compute Auto Added accounts
@@ -100,7 +99,9 @@ fun FavoriteAccountsCard(
         }
     }
 
-    // 4. Combine manual and auto accounts, deduplicate, and sort by name
+    // 4. Combine manual and auto accounts:
+    // Manual accounts strictly follow the user's manual drag order.
+    // Auto accounts (if any) are appended, sorted alphabetically.
     val combinedAccounts = remember(manualAccounts, autoAccounts, languageMode) {
         val list = mutableListOf<AccountWithBalance>()
         val seenIds = mutableSetOf<Long>()
@@ -109,12 +110,11 @@ fun FavoriteAccountsCard(
                 list.add(acc)
             }
         }
-        for (acc in autoAccounts) {
-            if (seenIds.add(acc.account.id)) {
-                list.add(acc)
-            }
-        }
-        list.sortedBy { it.account.localizedName(languageMode).lowercase() }
+        val remainingAuto = autoAccounts
+            .filter { seenIds.add(it.account.id) }
+            .sortedBy { it.account.localizedName(languageMode).lowercase() }
+        list.addAll(remainingAuto)
+        list
     }
 
     val totalAccountsCount = combinedAccounts.size

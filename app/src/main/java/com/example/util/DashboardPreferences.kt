@@ -527,10 +527,12 @@ class DashboardPreferences private constructor(context: Context) {
             currentDeselected.remove(id)
         }
 
+        val orderedSet = LinkedHashSet(accountIds)
+
         saveConfig(
             _config.value.copy(
-                favoriteAccountIds = accountIds,
-                manualFavoriteAccountIds = accountIds,
+                favoriteAccountIds = orderedSet,
+                manualFavoriteAccountIds = orderedSet,
                 deselectedAccountTimestamps = currentDeselected
             )
         )
