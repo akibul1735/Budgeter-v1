@@ -114,6 +114,12 @@ fun IconCropEditorModal(
 
     // Load bitmap asynchronously
     LaunchedEffect(imageUri, imageUrl, initialIconKey, sourceBitmap) {
+        scale = 1.0f
+        rotationDegrees = 0f
+        panX = 0f
+        panY = 0f
+        flipHorizontal = false
+        flipVertical = false
         if (sourceBitmap != null) {
             loadedBitmap = sourceBitmap
             isLoadingImage = false

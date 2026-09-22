@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.exifinterface.media.ExifInterface
 import coil.compose.AsyncImage
 import java.io.File
 import java.io.FileOutputStream
@@ -1552,23 +1553,23 @@ object IconHelper {
 
             val orientation = try {
                 context.contentResolver.openInputStream(uri)?.use { stream ->
-                    val exif = android.media.ExifInterface(stream)
+                    val exif = ExifInterface(stream)
                     exif.getAttributeInt(
-                        android.media.ExifInterface.TAG_ORIENTATION,
-                        android.media.ExifInterface.ORIENTATION_NORMAL
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
                     )
-                } ?: android.media.ExifInterface.ORIENTATION_NORMAL
+                } ?: ExifInterface.ORIENTATION_NORMAL
             } catch (_: Exception) {
-                android.media.ExifInterface.ORIENTATION_NORMAL
+                ExifInterface.ORIENTATION_NORMAL
             }
 
             val exifMatrix = Matrix()
             when (orientation) {
-                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> exifMatrix.postRotate(90f)
-                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> exifMatrix.postRotate(180f)
-                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> exifMatrix.postRotate(270f)
-                android.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> exifMatrix.postScale(-1f, 1f)
-                android.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> exifMatrix.postScale(1f, -1f)
+                ExifInterface.ORIENTATION_ROTATE_90 -> exifMatrix.postRotate(90f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> exifMatrix.postRotate(180f)
+                ExifInterface.ORIENTATION_ROTATE_270 -> exifMatrix.postRotate(270f)
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> exifMatrix.postScale(-1f, 1f)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> exifMatrix.postScale(1f, -1f)
                 else -> null
             }
 
@@ -1689,20 +1690,7 @@ object IconHelper {
             }
 
             FileOutputStream(destFile).use { outStream ->
-                val format = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                    Bitmap.CompressFormat.WEBP_LOSSY
-                } else {
-                    @Suppress("DEPRECATION")
-                    Bitmap.CompressFormat.WEBP
-                }
-                val compressed = try {
-                    optimizedBitmap.compress(format, 92, outStream)
-                } catch (_: Exception) {
-                    optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
-                }
-                if (!compressed) {
-                    optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
-                }
+                optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
                 outStream.flush()
             }
             iconKey
