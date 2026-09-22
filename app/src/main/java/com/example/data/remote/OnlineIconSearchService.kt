@@ -59,8 +59,24 @@ object OnlineIconSearchService {
 
     private val KNOWN_COLORFUL_SOURCES = setOf(
         "SVGL", "Brandfetch", "Favicon", "LOGOS", "FLAT-COLOR-ICONS",
-        "FLUENT-EMOJI", "TWEMOJI", "OPENMOJI", "CIRCLE-FLAGS", "SKILL-ICONS", "VSCODE-ICONS", "NOTO"
+        "FLUENT-EMOJI", "FLUENT-EMOJI-FLAT", "TWEMOJI", "OPENMOJI", "CIRCLE-FLAGS",
+        "SKILL-ICONS", "VSCODE-ICONS", "NOTO", "STREAMLINE-COLOR", "STREAMLINE-PLUMP-COLOR",
+        "STREAMLINE-ULTIMATE-COLOR", "THESVG-COLOR", "ICON-PARK", "MARKETEQ", "TOKEN-BRANDED",
+        "DEVICON", "DEVICON-PLAIN", "BI", "EMOJIONE", "NOTO-V1", "VectorLogoZone",
+        "Wikipedia", "CoinGecko", "DuckDuckGo Favicon", "SIMPLE-ICONS"
     )
+
+    /**
+     * Sanitizes user search queries by stripping redundant stop-words like 'icon', 'logo', 'symbol',
+     * which cause zero-hit failures on strict search APIs like Iconify.
+     */
+    fun cleanSearchQuery(query: String): String {
+        val raw = query.trim()
+        if (raw.isBlank()) return ""
+        val stopWordsRegex = Regex("(?i)\\b(icon|icons|logo|logos|symbol|symbols|vector|svg|png|image|images|pic|picture|pictures|clipart|graphic|graphics)\\b")
+        val stripped = raw.replace(stopWordsRegex, "").trim().replace(Regex("\\s+"), " ")
+        return if (stripped.length >= 2) stripped else raw
+    }
 
     /**
      * Searches for logos and icons online using keyless free providers with pagination,
@@ -75,7 +91,7 @@ object OnlineIconSearchService {
     suspend fun searchIcons(context: Context?, query: String, page: Int = 1): List<OnlineIconResult> = searchIcons(query, context, page)
 
     suspend fun searchIcons(query: String, context: Context? = null, page: Int = 1): List<OnlineIconResult> = withContext(Dispatchers.IO) {
-        val cleanQuery = query.trim()
+        val cleanQuery = cleanSearchQuery(query)
         if (cleanQuery.isBlank()) return@withContext emptyList()
 
         val results = mutableListOf<OnlineIconResult>()
@@ -87,82 +103,56 @@ object OnlineIconSearchService {
             cleanQuery
         }
 
-        // 1. SVGL Open Logos API (High-res, multi-color brand and tech vector logos)
-        try {
-            val svglUrl = "https://api.svgl.app?search=$encoded"
-            val request = Request.Builder()
-                .url(svglUrl)
-                .header("User-Agent", USER_AGENT)
-                .build()
+        val cleanLower = cleanQuery.lowercase()
+        val isTechQuery = cleanLower in setOf("technology", "tech", "techno", "it", "electronics", "gadget", "gadgets")
+        val isFinanceQuery = cleanLower in setOf("finance", "financial", "money", "bank", "banking")
+        val isFoodQuery = cleanLower in setOf("food", "dining", "restaurant", "meal", "coffee", "grocery", "groceries")
+        val isTransportQuery = cleanLower in setOf("transport", "travel", "car", "vehicle", "ride")
+        val isHealthQuery = cleanLower in setOf("health", "medical", "hospital", "medicine", "doctor")
+        val isShoppingQuery = cleanLower in setOf("shopping", "shop", "store", "market")
+        val isEducationQuery = cleanLower in setOf("education", "school", "study", "books", "course")
+        val isIslamicQuery = cleanLower in setOf("islam", "islamic", "charity", "zakat", "sadakah", "mosque")
 
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val jsonArr = JSONArray(body)
-                        val startIdx = (page - 1) * 6
-                        val endIdx = minOf(jsonArr.length(), page * 6)
-                        for (i in startIdx until endIdx) {
-                            val obj = jsonArr.optJSONObject(i) ?: continue
-                            val title = obj.optString("title").ifBlank { obj.optString("name") }
-                            var routeUrl = obj.optString("route")
-                            if (routeUrl.isBlank()) {
-                                val routeObj = obj.optJSONObject("route")
-                                if (routeObj != null) {
-                                    routeUrl = routeObj.optString("light").ifBlank { routeObj.optString("dark") }
-                                }
-                            }
-                            if (routeUrl.isNotBlank() && routeUrl.startsWith("http") && seenUrls.add(routeUrl)) {
-                                results.add(
-                                    OnlineIconResult(
-                                        title = title.ifBlank { cleanQuery },
-                                        imageUrl = routeUrl,
-                                        sourceName = "SVGL",
-                                        isColorful = true
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
+        coroutineScope {
+            // 1. SVGL Open Logos API (High-res, multi-color brand and tech vector logos)
+            val svglQueries = mutableListOf(cleanQuery)
+            if (isTechQuery && page == 1) {
+                svglQueries.addAll(listOf("ai", "cloud", "code", "react", "android", "apple", "linux"))
             }
-        } catch (_: Exception) {
-            // Proceed to other providers
-        }
 
-        // 2. Iconify Open Vector Icon API (Supports both colorful vector sets and line icon sets)
-        try {
-            val start = (page - 1) * 14
-            val iconifyUrl = "https://api.iconify.design/search?query=$encoded&limit=14&start=$start"
-            val request = Request.Builder()
-                .url(iconifyUrl)
-                .header("User-Agent", USER_AGENT)
-                .build()
+            for (svglQ in svglQueries.take(if (page == 1) 4 else 1)) {
+                try {
+                    val svglEnc = URLEncoder.encode(svglQ, "UTF-8")
+                    val svglUrl = "https://api.svgl.app?search=$svglEnc"
+                    val request = Request.Builder()
+                        .url(svglUrl)
+                        .header("User-Agent", USER_AGENT)
+                        .build()
 
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val json = JSONObject(body)
-                        val iconsArr = json.optJSONArray("icons")
-                        if (iconsArr != null) {
-                            for (i in 0 until iconsArr.length()) {
-                                val iconStr = iconsArr.optString(i)
-                                if (iconStr.isNotBlank() && iconStr.contains(":")) {
-                                    val parts = iconStr.split(":", limit = 2)
-                                    val prefix = parts[0].uppercase()
-                                    val iconName = parts[1]
-                                    val svgUrl = "https://api.iconify.design/${parts[0]}/$iconName.svg"
-                                    if (seenUrls.add(svgUrl)) {
-                                        val cleanTitle = iconName.replace("-", " ")
-                                            .replaceFirstChar { it.uppercase() }
-                                        val isKnownColorful = prefix in KNOWN_COLORFUL_SOURCES
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string()
+                            if (!body.isNullOrBlank()) {
+                                val jsonArr = JSONArray(body)
+                                val startIdx = if (svglQ == cleanQuery) (page - 1) * 6 else 0
+                                val endIdx = minOf(jsonArr.length(), if (svglQ == cleanQuery) page * 6 else 2)
+                                for (i in startIdx until endIdx) {
+                                    val obj = jsonArr.optJSONObject(i) ?: continue
+                                    val title = obj.optString("title").ifBlank { obj.optString("name") }
+                                    var routeUrl = obj.optString("route")
+                                    if (routeUrl.isBlank()) {
+                                        val routeObj = obj.optJSONObject("route")
+                                        if (routeObj != null) {
+                                            routeUrl = routeObj.optString("light").ifBlank { routeObj.optString("dark") }
+                                        }
+                                    }
+                                    if (routeUrl.isNotBlank() && routeUrl.startsWith("http") && seenUrls.add(routeUrl)) {
                                         results.add(
                                             OnlineIconResult(
-                                                title = cleanTitle,
-                                                imageUrl = svgUrl,
-                                                sourceName = prefix,
-                                                isColorful = isKnownColorful
+                                                title = title.ifBlank { cleanQuery },
+                                                imageUrl = routeUrl,
+                                                sourceName = "SVGL",
+                                                isColorful = true
                                             )
                                         )
                                     }
@@ -170,46 +160,175 @@ object OnlineIconSearchService {
                             }
                         }
                     }
+                } catch (_: Exception) {
+                    // Proceed
                 }
             }
-        } catch (_: Exception) {
-            // Proceed to other providers
-        }
 
-        // 3. Search Brandfetch for company / app logos (Colorful brandmarks)
-        try {
-            val request = Request.Builder()
-                .url("https://api.brandfetch.io/v2/search/$encoded")
-                .header("User-Agent", USER_AGENT)
-                .build()
+            // 2. Iconify Open Vector Icon API (Supports both colorful vector sets and line icon sets)
+            val iconifySearchTerms = mutableListOf(cleanQuery)
+            if (page == 1) {
+                if (isTechQuery) {
+                    iconifySearchTerms.addAll(listOf("electronics", "computer", "chip", "robot", "code"))
+                } else if (isFinanceQuery) {
+                    iconifySearchTerms.addAll(listOf("banking", "wallet", "cash", "crypto"))
+                } else if (isFoodQuery) {
+                    iconifySearchTerms.addAll(listOf("restaurant", "coffee", "grocery", "meal"))
+                } else if (isTransportQuery) {
+                    iconifySearchTerms.addAll(listOf("vehicle", "travel", "taxi"))
+                } else if (isHealthQuery) {
+                    iconifySearchTerms.addAll(listOf("medical", "doctor", "hospital", "pharmacy"))
+                } else if (isShoppingQuery) {
+                    iconifySearchTerms.addAll(listOf("store", "market", "cart", "bag"))
+                } else if (isEducationQuery) {
+                    iconifySearchTerms.addAll(listOf("school", "study", "books"))
+                } else if (isIslamicQuery) {
+                    iconifySearchTerms.addAll(listOf("mosque", "crescent", "charity"))
+                }
+            }
 
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    val body = response.body?.string()
-                    if (!body.isNullOrBlank()) {
-                        val jsonArr = JSONArray(body)
-                        val startIdx = (page - 1) * 6
-                        val endIdx = minOf(jsonArr.length(), page * 6)
-                        for (i in startIdx until endIdx) {
-                            val obj = jsonArr.optJSONObject(i) ?: continue
-                            val iconUrl = obj.optString("icon")
-                            val name = obj.optString("name").ifBlank { obj.optString("domain") }
-                            if (iconUrl.isNotBlank() && iconUrl.startsWith("http") && seenUrls.add(iconUrl)) {
-                                results.add(
-                                    OnlineIconResult(
-                                        title = name,
-                                        imageUrl = iconUrl,
-                                        sourceName = "Brandfetch",
-                                        isColorful = true
+            val iconifyJobs = iconifySearchTerms.map { term ->
+                async {
+                    try {
+                        val termEnc = URLEncoder.encode(term, "UTF-8")
+                        val limit = if (term == cleanQuery) 28 else 10
+                        val start = if (term == cleanQuery) (page - 1) * limit else 0
+                        val iconifyUrl = "https://api.iconify.design/search?query=$termEnc&limit=$limit&start=$start"
+                        val request = Request.Builder()
+                            .url(iconifyUrl)
+                            .header("User-Agent", USER_AGENT)
+                            .build()
+
+                        client.newCall(request).execute().use { response ->
+                            if (response.isSuccessful) {
+                                val body = response.body?.string()
+                                if (!body.isNullOrBlank()) {
+                                    val json = JSONObject(body)
+                                    val iconsArr = json.optJSONArray("icons")
+                                    if (iconsArr != null) {
+                                        val subResults = mutableListOf<OnlineIconResult>()
+                                        for (i in 0 until iconsArr.length()) {
+                                            val iconStr = iconsArr.optString(i)
+                                            if (iconStr.isNotBlank() && iconStr.contains(":")) {
+                                                val parts = iconStr.split(":", limit = 2)
+                                                val prefix = parts[0].uppercase()
+                                                val iconName = parts[1]
+                                                val svgUrl = "https://api.iconify.design/${parts[0]}/$iconName.svg"
+                                                val cleanTitle = iconName.replace("-", " ")
+                                                    .replaceFirstChar { it.uppercase() }
+                                                val isKnownColorful = prefix in KNOWN_COLORFUL_SOURCES
+                                                subResults.add(
+                                                    OnlineIconResult(
+                                                        title = cleanTitle,
+                                                        imageUrl = svgUrl,
+                                                        sourceName = prefix,
+                                                        isColorful = isKnownColorful
+                                                    )
+                                                )
+                                            }
+                                        }
+                                        subResults
+                                    } else emptyList()
+                                } else emptyList()
+                            } else emptyList()
+                        }
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+            }
+
+            val curatedJob = async {
+                if (page != 1) return@async emptyList<OnlineIconResult>()
+                try {
+                    val curatedPrefixes = "flat-color-icons,skill-icons,vscode-icons,devicon,thesvg-color,streamline-color,streamline-plump-color,token-branded,circle-flags,openmoji,fluent-emoji-flat"
+                    val curatedUrl = "https://api.iconify.design/search?query=$encoded&prefixes=$curatedPrefixes&limit=16"
+                    val request = Request.Builder()
+                        .url(curatedUrl)
+                        .header("User-Agent", USER_AGENT)
+                        .build()
+
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) {
+                            val body = response.body?.string()
+                            if (!body.isNullOrBlank()) {
+                                val json = JSONObject(body)
+                                val iconsArr = json.optJSONArray("icons")
+                                if (iconsArr != null) {
+                                    val subResults = mutableListOf<OnlineIconResult>()
+                                    for (i in 0 until iconsArr.length()) {
+                                        val iconStr = iconsArr.optString(i)
+                                        if (iconStr.isNotBlank() && iconStr.contains(":")) {
+                                            val parts = iconStr.split(":", limit = 2)
+                                            val prefix = parts[0].uppercase()
+                                            val iconName = parts[1]
+                                            val svgUrl = "https://api.iconify.design/${parts[0]}/$iconName.svg"
+                                            val cleanTitle = iconName.replace("-", " ")
+                                                .replaceFirstChar { it.uppercase() }
+                                            subResults.add(
+                                                OnlineIconResult(
+                                                    title = cleanTitle,
+                                                    imageUrl = svgUrl,
+                                                    sourceName = prefix,
+                                                    isColorful = true
+                                                )
+                                            )
+                                        }
+                                    }
+                                    subResults
+                                } else emptyList()
+                            } else emptyList()
+                        } else emptyList()
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+
+            val iconifyResults = (iconifyJobs.awaitAll().flatten() + curatedJob.await())
+            for (item in iconifyResults) {
+                if (seenUrls.add(item.imageUrl)) {
+                    results.add(item)
+                }
+            }
+
+            // 3. Search Brandfetch for company / app logos (Colorful brandmarks)
+            // Limit Brandfetch for generic queries so corporate B2B listings do not displace pure icons
+            try {
+                val request = Request.Builder()
+                    .url("https://api.brandfetch.io/v2/search/$encoded")
+                    .header("User-Agent", USER_AGENT)
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        if (!body.isNullOrBlank()) {
+                            val jsonArr = JSONArray(body)
+                            val maxAllowed = if (isTechQuery || isFinanceQuery || isFoodQuery || isTransportQuery || isHealthQuery || isShoppingQuery || isEducationQuery || isIslamicQuery) 3 else 6
+                            val startIdx = (page - 1) * maxAllowed
+                            val endIdx = minOf(jsonArr.length(), page * maxAllowed)
+                            for (i in startIdx until endIdx) {
+                                val obj = jsonArr.optJSONObject(i) ?: continue
+                                val iconUrl = obj.optString("icon")
+                                val name = obj.optString("name").ifBlank { obj.optString("domain") }
+                                if (iconUrl.isNotBlank() && iconUrl.startsWith("http") && seenUrls.add(iconUrl)) {
+                                    results.add(
+                                        OnlineIconResult(
+                                            title = name,
+                                            imageUrl = iconUrl,
+                                            sourceName = "Brandfetch",
+                                            isColorful = true
+                                        )
                                     )
-                                )
+                                }
                             }
                         }
                     }
                 }
+            } catch (_: Exception) {
+                // Proceed
             }
-        } catch (_: Exception) {
-            // Proceed
         }
 
         // 4. Wikimedia Commons Open Media Search
@@ -339,6 +458,150 @@ object OnlineIconSearchService {
             }
         }
 
+        // 7. DuckDuckGo Favicon Service
+        if (page == 1) {
+            try {
+                val noSpaces = cleanQuery.replace(" ", "").lowercase()
+                val domain = if (noSpaces.contains(".")) noSpaces else "$noSpaces.com"
+                val ddgFaviconUrl = "https://icons.duckduckgo.com/ip3/$domain.ico"
+                if (seenUrls.add(ddgFaviconUrl)) {
+                    results.add(
+                        OnlineIconResult(
+                            title = cleanQuery.replaceFirstChar { it.uppercase() },
+                            imageUrl = ddgFaviconUrl,
+                            sourceName = "DuckDuckGo Favicon",
+                            isColorful = true
+                        )
+                    )
+                }
+            } catch (_: Exception) {
+                // Proceed
+            }
+        }
+
+        // 8. Wikipedia Knowledge Graph & Page Images
+        try {
+            val wikiPrefixUrl = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages|pageterms&generator=prefixsearch&gpssearch=$encoded&gpslimit=8&piprop=thumbnail&pithumbsize=256"
+            val request = Request.Builder()
+                .url(wikiPrefixUrl)
+                .header("User-Agent", USER_AGENT)
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string()
+                    if (!body.isNullOrBlank()) {
+                        val json = JSONObject(body)
+                        val pages = json.optJSONObject("query")?.optJSONObject("pages")
+                        if (pages != null) {
+                            val keys = pages.keys()
+                            while (keys.hasNext()) {
+                                val key = keys.next()
+                                val pageObj = pages.optJSONObject(key) ?: continue
+                                val title = pageObj.optString("title", cleanQuery)
+                                val thumbObj = pageObj.optJSONObject("thumbnail")
+                                val thumbUrl = thumbObj?.optString("source")
+                                if (!thumbUrl.isNullOrBlank() && seenUrls.add(thumbUrl)) {
+                                    results.add(
+                                        OnlineIconResult(
+                                            title = title,
+                                            imageUrl = thumbUrl,
+                                            sourceName = "Wikipedia",
+                                            isColorful = true
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Proceed
+        }
+
+        // 9. VectorLogoZone SVG Vector Library
+        if (page == 1) {
+            val slugCandidates = listOf(
+                cleanQuery.lowercase().replace(" ", ""),
+                cleanQuery.lowercase().replace(" ", "-"),
+                cleanQuery.lowercase().replace(" ", "_")
+            ).distinct()
+
+            for (slug in slugCandidates) {
+                val candidateUrls = listOf(
+                    "https://www.vectorlogo.zone/logos/$slug/$slug-icon.svg",
+                    "https://www.vectorlogo.zone/logos/$slug/$slug-tile.svg"
+                )
+                for (candUrl in candidateUrls) {
+                    if (seenUrls.contains(candUrl)) continue
+                    try {
+                        val req = Request.Builder()
+                            .url(candUrl)
+                            .header("User-Agent", USER_AGENT)
+                            .head()
+                            .build()
+                        client.newCall(req).execute().use { resp ->
+                            if (resp.isSuccessful && seenUrls.add(candUrl)) {
+                                results.add(
+                                    OnlineIconResult(
+                                        title = cleanQuery.replaceFirstChar { it.uppercase() },
+                                        imageUrl = candUrl,
+                                        sourceName = "VectorLogoZone",
+                                        isColorful = true
+                                    )
+                                )
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // Proceed
+                    }
+                }
+            }
+        }
+
+        // 10. CoinGecko Financial & Token Logos
+        if (isFinanceQuery || cleanLower in setOf("crypto", "token", "coin", "bitcoin", "ethereum", "usdt", "binance", "solana", "cardano", "ripple", "doge")) {
+            try {
+                val cgUrl = "https://api.coingecko.com/api/v3/search?query=$encoded"
+                val request = Request.Builder()
+                    .url(cgUrl)
+                    .header("User-Agent", USER_AGENT)
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string()
+                        if (!body.isNullOrBlank()) {
+                            val json = JSONObject(body)
+                            val coinsArr = json.optJSONArray("coins")
+                            if (coinsArr != null) {
+                                val limit = minOf(coinsArr.length(), if (page == 1) 6 else 3)
+                                for (i in 0 until limit) {
+                                    val coin = coinsArr.optJSONObject(i) ?: continue
+                                    val name = coin.optString("name")
+                                    val symbol = coin.optString("symbol")
+                                    val imgUrl = coin.optString("large").ifBlank { coin.optString("thumb") }
+                                    if (imgUrl.isNotBlank() && seenUrls.add(imgUrl)) {
+                                        results.add(
+                                            OnlineIconResult(
+                                                title = "$name ($symbol)",
+                                                imageUrl = imgUrl,
+                                                sourceName = "CoinGecko",
+                                                isColorful = true
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Proceed
+            }
+        }
+
         // Concurrently pre-validate all candidate images so dead, broken, or unrenderable URLs are excluded before returning
         val validatedResults = coroutineScope {
             results.map { item ->
@@ -349,10 +612,13 @@ object OnlineIconSearchService {
             }.awaitAll().filterNotNull()
         }
 
-        // Sort colorful icons first, followed by monochrome/colorless icons
+        // Sort colorful icons first, followed by monochrome/colorless icons.
+        // Dedicated icon sets (Iconify, SVGL, Flat-Color-Icons, VectorLogoZone, CoinGecko, etc.) are prioritized before corporate brand logos.
         val sortedResults = validatedResults.sortedWith(
-            compareByDescending<OnlineIconResult> { it.isColorful }
-                .thenBy { it.sourceName == "Wikimedia" } // Prefer dedicated icon/logo libraries
+            compareByDescending<OnlineIconResult> { it.isColorful && it.sourceName != "Brandfetch" && it.sourceName != "Favicon" && it.sourceName != "DuckDuckGo Favicon" }
+                .thenByDescending { it.sourceName in setOf("SVGL", "VectorLogoZone", "CoinGecko") || (it.sourceName.isNotBlank() && it.sourceName !in setOf("Brandfetch", "Favicon", "DuckDuckGo Favicon", "Wikimedia")) }
+                .thenByDescending { it.isColorful }
+                .thenBy { it.sourceName == "Wikimedia" }
         )
 
         sortedResults
@@ -477,7 +743,7 @@ object OnlineIconSearchService {
     suspend fun searchImages(context: Context?, query: String, page: Int = 1): List<OnlineImageResult> = searchImages(query, context, page)
 
     suspend fun searchImages(query: String, context: Context? = null, page: Int = 1): List<OnlineImageResult> = withContext(Dispatchers.IO) {
-        val cleanQuery = query.trim()
+        val cleanQuery = cleanSearchQuery(query)
         if (cleanQuery.isBlank()) return@withContext emptyList()
 
         val results = mutableListOf<OnlineImageResult>()
@@ -494,7 +760,7 @@ object OnlineIconSearchService {
             val wikiJob = async {
                 try {
                     val offset = (page - 1) * 16
-                    val url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=filetype:bitmap+$encoded&gsrlimit=16&gsroffset=$offset&prop=imageinfo&iiprop=url|thumburl|dimensions&iiurlwidth=500&format=json"
+                    val url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=filetype:bitmap+$encoded&gsrlimit=16&gsroffset=$offset&prop=imageinfo&iiprop=url|dimensions&iiurlwidth=500&format=json"
                     val request = Request.Builder()
                         .url(url)
                         .header("User-Agent", USER_AGENT)
@@ -636,10 +902,57 @@ object OnlineIconSearchService {
                 }
             }
 
-            val (wikiResults, openverseResults, unsplashResults) = awaitAll(wikiJob, openverseJob, unsplashJob)
+            // 4. Wikipedia Page Images & High-Res Articles
+            val wikiPageJob = async {
+                try {
+                    val offset = (page - 1) * 12
+                    val url = "https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=$encoded&gsrlimit=12&gsroffset=$offset&prop=pageimages&piprop=original|thumbnail&pithumbsize=600&format=json"
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", USER_AGENT)
+                        .build()
+                    val response = client.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val body = response.body?.string().orEmpty()
+                        response.close()
+                        val json = JSONObject(body)
+                        val pages = json.optJSONObject("query")?.optJSONObject("pages")
+                        val items = mutableListOf<OnlineImageResult>()
+                        if (pages != null) {
+                            val keys = pages.keys()
+                            while (keys.hasNext()) {
+                                val key = keys.next()
+                                val pageObj = pages.optJSONObject(key) ?: continue
+                                val title = pageObj.optString("title", cleanQuery)
+                                val orig = pageObj.optJSONObject("original")?.optString("source")
+                                val thumb = pageObj.optJSONObject("thumbnail")?.optString("source")
+                                val fullImg = orig ?: thumb
+                                if (!fullImg.isNullOrBlank() && !fullImg.endsWith(".svg", ignoreCase = true)) {
+                                    items.add(
+                                        OnlineImageResult(
+                                            title = title,
+                                            imageUrl = fullImg,
+                                            thumbUrl = thumb ?: fullImg,
+                                            sourceName = "Wikipedia"
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                        items
+                    } else {
+                        response.close()
+                        emptyList()
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            }
+
+            val (wikiResults, openverseResults, unsplashResults, wikiPageResults) = awaitAll(wikiJob, openverseJob, unsplashJob, wikiPageJob)
             
             // Interleave and deduplicate results
-            val maxLen = maxOf(wikiResults.size, openverseResults.size, unsplashResults.size)
+            val maxLen = maxOf(wikiResults.size, openverseResults.size, unsplashResults.size, wikiPageResults.size)
             for (i in 0 until maxLen) {
                 if (i < wikiResults.size) {
                     val item = wikiResults[i]
@@ -647,6 +960,10 @@ object OnlineIconSearchService {
                 }
                 if (i < unsplashResults.size) {
                     val item = unsplashResults[i]
+                    if (seenUrls.add(item.imageUrl)) results.add(item)
+                }
+                if (i < wikiPageResults.size) {
+                    val item = wikiPageResults[i]
                     if (seenUrls.add(item.imageUrl)) results.add(item)
                 }
                 if (i < openverseResults.size) {

@@ -85,6 +85,15 @@ object SyncManager {
             .build()
     }
 
+    private fun getWorkManager(context: Context): WorkManager? {
+        return try {
+            WorkManager.getInstance(context.applicationContext)
+        } catch (e: Throwable) {
+            Log.e(TAG, "WorkManager instance could not be retrieved: ${e.message}")
+            null
+        }
+    }
+
     /**
      * Schedules or cancels daily auto phone backup based on user preferences.
      * Uses AlarmManager exact alarm (RTC_WAKEUP) to fire on the exact minute even in Doze mode,
@@ -108,7 +117,7 @@ object SyncManager {
             if (!config.isAutoPhoneBackupEnabled) {
                 Log.d(TAG, "Auto phone backup disabled. Cancelling daily auto backup alarm and work.")
                 alarmManager?.cancel(pendingIntent)
-                WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
+                getWorkManager(context)?.cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
                 return
             }
 
@@ -173,7 +182,7 @@ object SyncManager {
                 )
                 .build()
 
-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            getWorkManager(context)?.enqueueUniqueWork(
                 WORK_DAILY_AUTO_BACKUP,
                 ExistingWorkPolicy.REPLACE,
                 workRequest
@@ -196,7 +205,7 @@ object SyncManager {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             alarmManager?.cancel(pendingIntent)
-            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
+            getWorkManager(context)?.cancelUniqueWork(WORK_DAILY_AUTO_BACKUP)
             Log.d(TAG, "Daily auto backup cancelled.")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to cancel daily auto backup: ${e.message}", e)
@@ -217,7 +226,7 @@ object SyncManager {
                 )
                 .build()
 
-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            getWorkManager(context)?.enqueueUniqueWork(
                 WORK_DAILY_AUTO_BACKUP,
                 ExistingWorkPolicy.REPLACE,
                 workRequest
@@ -242,7 +251,7 @@ object SyncManager {
                 )
                 .build()
 
-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            getWorkManager(context)?.enqueueUniqueWork(
                 WORK_JSON_SYNC,
                 ExistingWorkPolicy.REPLACE,
                 workRequest
@@ -309,7 +318,7 @@ object SyncManager {
                 )
                 .build()
 
-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            getWorkManager(context)?.enqueueUniqueWork(
                 WORK_DB_BACKUP,
                 ExistingWorkPolicy.REPLACE,
                 workRequest

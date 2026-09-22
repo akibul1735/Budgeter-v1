@@ -60,6 +60,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -493,6 +495,32 @@ fun IconPickerModal(
                         )
                     }
 
+                    // Quick topic discovery chips for instant search
+                    val quickTopics = listOf("Technology", "Computer", "Chip / CPU", "AI & Robot", "Code", "Electronics", "Fintech", "Food", "Shopping", "Transport")
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        items(quickTopics) { topic ->
+                            val isSelectedTopic = searchQuery.equals(topic, ignoreCase = true)
+                            SuggestionChip(
+                                onClick = { searchQuery = topic },
+                                label = { Text(topic, fontSize = 11.5.sp, fontWeight = if (isSelectedTopic) FontWeight.Bold else FontWeight.Normal) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = if (isSelectedTopic) SolidPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    labelColor = if (isSelectedTopic) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                border = BorderStroke(
+                                    0.5.dp,
+                                    if (isSelectedTopic) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                )
+                            )
+                        }
+                    }
+
                     if (isSearchingOnline) {
                         Box(
                             modifier = Modifier
@@ -541,9 +569,9 @@ fun IconPickerModal(
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = if (onlineSearchSubMode == 0) {
-                                        "Type any brand, company, bank, or category (e.g. 'Netflix', 'bKash', 'Coffee', 'Gym', 'Groceries') to download high-res logos."
+                                        "Searches SVGL, Iconify (100+ sets), VectorLogoZone, CoinGecko, Wikipedia, Brandfetch, DuckDuckGo & Favicons."
                                     } else {
-                                        "Search photos across Wikimedia Commons, Openverse, & Unsplash. Tap any image to crop, rotate, zoom, and save as compressed icon."
+                                        "Searches Wikimedia Commons, Wikipedia Media, Openverse & Unsplash. Tap any image to crop, rotate, zoom, and save as compressed icon."
                                     },
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -832,6 +860,15 @@ fun IconPickerModal(
                                                 overflow = TextOverflow.Ellipsis,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+                                            if (item.sourceName.isNotBlank()) {
+                                                Text(
+                                                    text = item.sourceName.take(12),
+                                                    fontSize = 7.5.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    color = SolidPrimary.copy(alpha = 0.75f)
+                                                )
+                                            }
                                         }
                                     }
 
@@ -946,12 +983,45 @@ fun IconPickerModal(
                 } else {
                     // Filtered icons for built-in categories
                     val filteredBuiltins = remember(searchQuery, selectedCategory) {
-                        val query = searchQuery.trim().lowercase()
+                        val rawQuery = searchQuery.trim().lowercase()
+                        val stopWords = setOf("icon", "icons", "logo", "logos", "symbol", "symbols", "vector", "svg", "png", "image", "pic")
+                        val queryTokens = rawQuery.split(Regex("\\s+")).filter { it.isNotBlank() && it !in stopWords }
+                        val cleanQuery = queryTokens.joinToString(" ").ifBlank { rawQuery }
+
                         IconHelper.BUILTIN_ICONS.filter { item ->
-                            val matchesSearch = query.isEmpty() ||
-                                    item.name.lowercase().contains(query) ||
-                                    item.category.lowercase().contains(query) ||
-                                    item.tags.any { it.contains(query) }
+                            val itemCategoryLower = item.category.lowercase()
+                            val itemNameLower = item.name.lowercase()
+                            val itemTags = item.tags.map { it.lowercase() }
+
+                            val categoryAliases = when (item.category) {
+                                "Tech & Tools" -> listOf("tech", "technology", "tools", "gadgets", "electronics", "hardware", "software", "code", "ai", "computer", "robot")
+                                "BD Banks & MFS" -> listOf("bank", "banking", "mfs", "wallet", "bangladesh")
+                                "Food & Drinks" -> listOf("food", "drink", "drinks", "restaurant", "groceries", "dining", "meal", "coffee", "bazar")
+                                "Transport" -> listOf("transport", "travel", "car", "vehicle", "ride", "fuel")
+                                "Bills & Housing" -> listOf("bills", "bill", "housing", "rent", "utility", "electricity", "water", "gas")
+                                "Health" -> listOf("health", "medical", "doctor", "hospital", "medicine", "pharmacy")
+                                "Education & Study" -> listOf("education", "study", "school", "college", "books", "course", "tuition")
+                                "Islamic & Charity" -> listOf("islam", "islamic", "charity", "zakat", "sadakah", "donation", "mosque")
+                                "Finance" -> listOf("finance", "money", "salary", "loan", "investment", "tax", "income")
+                                "Entertainment" -> listOf("entertainment", "fun", "movie", "cinema", "music", "game", "gaming")
+                                "Shopping" -> listOf("shopping", "shop", "store", "market", "cloth", "fashion")
+                                else -> emptyList()
+                            }
+
+                            val matchesSearch = if (cleanQuery.isEmpty()) true else {
+                                itemNameLower.contains(cleanQuery) ||
+                                itemCategoryLower.contains(cleanQuery) ||
+                                categoryAliases.any { it.contains(cleanQuery) || cleanQuery.contains(it) } ||
+                                itemTags.any { it.contains(cleanQuery) || cleanQuery.contains(it) } ||
+                                queryTokens.any { token ->
+                                    token.length >= 2 && (
+                                        itemNameLower.contains(token) ||
+                                        itemCategoryLower.contains(token) ||
+                                        categoryAliases.any { it.contains(token) } ||
+                                        itemTags.any { it.contains(token) }
+                                    )
+                                }
+                            }
                             val matchesCategory = selectedCategory == "All" || item.category == selectedCategory
                             matchesSearch && matchesCategory
                         }
