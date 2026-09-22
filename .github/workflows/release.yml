@@ -101,14 +101,18 @@ jobs:
           fi
 
       - name: Run Unit & Robolectric Tests
+        id: unit-tests
         run: |
+          mkdir -p build_logs
+          set -o pipefail
           if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            ./gradlew testDebugUnitTest --no-daemon --stacktrace
+            ./gradlew testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
           else
-            gradle testDebugUnitTest --no-daemon --stacktrace
+            gradle testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
           fi
 
       - name: Build Release APK
+        id: build-apk
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
@@ -116,6 +120,8 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8"
         run: |
+          mkdir -p build_logs build_output
+          
           # If release.keystore is missing or invalid with the password, clear environment secrets so Gradle signs with debugConfig
           if [ ! -f "release.keystore" ] || [ -z "$STORE_PASSWORD" ] || ! keytool -list -keystore release.keystore -storepass "$STORE_PASSWORD" >/dev/null 2>&1; then
             echo "Signing with debug configuration..."
@@ -128,10 +134,28 @@ jobs:
             rm -f release.keystore release.keystore.base64
           fi
 
+          set +e
+          set -o pipefail
           if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            ./gradlew assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace
+            ./gradlew assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
+            GRADLE_EXIT_CODE=$?
           else
-            gradle assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace
+            gradle assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
+            GRADLE_EXIT_CODE=$?
+          fi
+
+          if [ $GRADLE_EXIT_CODE -ne 0 ]; then
+            echo "::error::Gradle assembleRelease failed with exit code $GRADLE_EXIT_CODE"
+            echo "### ❌ Gradle assembleRelease Failed" >> $GITHUB_STEP_SUMMARY
+            echo "<details><summary>Click to view Gradle Build Error Log (last 200 lines)</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 200 build_logs/build_release.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+            exit $GRADLE_EXIT_CODE
+          else
+            echo "### ✅ Gradle assembleRelease Succeeded" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Prepare Release Artifacts (APK)
@@ -148,12 +172,34 @@ jobs:
             cp "$RELEASE_APK" build_output/Budgeter-release.apk
           else
             echo "::error::No APK found in app/build/outputs/apk!"
+            echo "### ❌ No APK Found in Build Outputs" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
           echo "Release artifacts ready:"
           ls -la build_output/
 
+      - name: Collect Diagnostic Reports & Logs
+        if: always()
+        run: |
+          mkdir -p build_logs/reports
+          if [ -d "app/build/reports" ]; then
+            cp -r app/build/reports/* build_logs/reports/ 2>/dev/null || true
+          fi
+          if [ -d "app/build/test-results" ]; then
+            mkdir -p build_logs/test-results
+            cp -r app/build/test-results/* build_logs/test-results/ 2>/dev/null || true
+          fi
+
+      - name: Upload Error Logs & Build Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: budgeter-build-error-logs
+          path: build_logs/
+          retention-days: 7
+
       - name: Upload Build Artifacts
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: budgeter-release-artifacts
