@@ -77,6 +77,7 @@ import com.example.util.LanguageHelper
 import com.example.util.NotificationConfig
 import com.example.util.NotificationHelper
 import com.example.util.NotificationPreferences
+import com.example.util.PermissionHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,16 +96,20 @@ fun NotificationSettingsPage(
     var showNotificationRationaleDialog by remember { mutableStateOf(false) }
 
     var hasNotificationPermission by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-            } else {
-                true
+        mutableStateOf(PermissionHelper.areNotificationsGranted(context))
+    }
+
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                hasNotificationPermission = PermissionHelper.areNotificationsGranted(context)
             }
-        )
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -254,11 +259,19 @@ fun NotificationSettingsPage(
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
-                        Button(
-                            onClick = { showNotificationRationaleDialog = true },
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(if (isBangla) "অনুমতি দিন" else "Grant", fontSize = 12.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Button(
+                                onClick = { showNotificationRationaleDialog = true },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (isBangla) "অনুমতি দিন" else "Grant", fontSize = 12.sp)
+                            }
+                            OutlinedButton(
+                                onClick = { PermissionHelper.openAppSystemSettings(context) },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(if (isBangla) "সেটিংস" else "Settings", fontSize = 11.5.sp)
+                            }
                         }
                     }
                 }

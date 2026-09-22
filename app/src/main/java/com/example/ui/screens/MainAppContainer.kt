@@ -61,9 +61,12 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import com.example.ui.dialogs.AppUpdatePermissionDialog
 import com.example.ui.theme.ThemePreferences
 import com.example.ui.theme.ThemeMode
 import com.example.ui.theme.ThemePalette
+import com.example.util.PermissionHelper
+import com.example.util.PermissionPreferences
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
@@ -319,6 +322,20 @@ fun MainAppContainer(
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
 
+    val permissionPrefs = remember { PermissionPreferences.getInstance(context) }
+    val permissionConfig by permissionPrefs.config.collectAsStateWithLifecycle()
+    var showAppUpdatePermissionDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(permissionConfig) {
+        val missing = PermissionHelper.getMissingRuntimePermissions(context)
+        if (missing.isNotEmpty() &&
+            !permissionConfig.hasCompletedUpdatePermissionPrompt &&
+            !permissionConfig.isPermissionPromptDismissed
+        ) {
+            showAppUpdatePermissionDialog = true
+        }
+    }
+
     val headerScrollState = rememberHeaderScrollState()
 
     val visibleTabs = tabConfig.visibleTabs
@@ -393,6 +410,10 @@ fun MainAppContainer(
             showAddTransactionSheet -> {
                 showAddTransactionSheet = false
                 editingTransaction = null
+            }
+            showAppUpdatePermissionDialog -> {
+                permissionPrefs.markPromptDismissed()
+                showAppUpdatePermissionDialog = false
             }
             showTabCustomizationDialog -> showTabCustomizationDialog = false
             showAddAccountDialog -> showAddAccountDialog = false
@@ -1274,6 +1295,13 @@ fun MainAppContainer(
             onToggleCard = { card, visible -> viewModel.toggleDashboardCard(card, visible) },
             onMoveCard = { from, to -> viewModel.moveDashboardCard(from, to) },
             onResetDefaults = { viewModel.resetDashboardDefaults() }
+        )
+    }
+
+    if (showAppUpdatePermissionDialog) {
+        AppUpdatePermissionDialog(
+            languageMode = languageMode,
+            onDismiss = { showAppUpdatePermissionDialog = false }
         )
     }
 

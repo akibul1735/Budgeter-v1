@@ -109,6 +109,7 @@ import com.example.ui.components.AppTabHeader
 import com.example.ui.dialogs.SecurityAuthDialog
 import com.example.ui.screens.settings.AboutSettingsPage
 import com.example.ui.screens.settings.AppearanceSettingsPage
+import com.example.ui.screens.settings.AppPermissionsSettingsPage
 import com.example.ui.screens.settings.CalendarSettingsPage
 import com.example.ui.screens.settings.CurrencySettingsPage
 import com.example.ui.screens.settings.DateSettingsPage
@@ -139,6 +140,7 @@ enum class SettingsSubPage {
     SMART_AUTOFILL,
     CALENDAR,
     NOTIFICATIONS,
+    PERMISSIONS,
     SECURITY,
     ABOUT,
     FAQ
@@ -534,6 +536,12 @@ fun SettingsScreen(
                 onBack = { currentSubPage = SettingsSubPage.ROOT }
             )
         }
+        SettingsSubPage.PERMISSIONS -> {
+            AppPermissionsSettingsPage(
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
         SettingsSubPage.SECURITY -> {
             SecuritySettingsPage(
                 securityConfig = securityConfig,
@@ -718,6 +726,15 @@ fun SettingsScreen(
                             subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডার ও বিল অ্যালার্ট" else "Daily expense alarms & reminders",
                             icon = Icons.Default.NotificationsNone,
                             onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "অ্যাপের অনুমতিসমূহ" else "App Permissions",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যামেরা, নোটিফিকেশন ও সিস্টেম অনুমতি নিয়ন্ত্রণ" else "Manage camera, notifications & system access",
+                            icon = Icons.Default.Security,
+                            onClick = { currentSubPage = SettingsSubPage.PERMISSIONS }
                         )
                     }
 
