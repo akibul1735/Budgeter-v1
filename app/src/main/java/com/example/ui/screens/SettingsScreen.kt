@@ -126,6 +126,7 @@ import com.example.util.DateFormatOption
 import com.example.util.IconHelper
 import com.example.util.ItemDisplayFormat
 import com.example.util.LanguageHelper
+import androidx.compose.material.icons.filled.Widgets
 import kotlinx.coroutines.launch
 
 enum class SettingsSubPage {
@@ -142,6 +143,7 @@ enum class SettingsSubPage {
     NOTIFICATIONS,
     PERMISSIONS,
     SECURITY,
+    WIDGETS,
     ABOUT,
     FAQ
 }
@@ -561,6 +563,13 @@ fun SettingsScreen(
                 onBack = { currentSubPage = SettingsSubPage.ROOT }
             )
         }
+        SettingsSubPage.WIDGETS -> {
+            com.example.ui.screens.settings.WidgetsSettingsPage(
+                viewModel = viewModel,
+                languageMode = languageMode,
+                onBack = { currentSubPage = SettingsSubPage.ROOT }
+            )
+        }
         SettingsSubPage.ABOUT -> {
             AboutSettingsPage(
                 languageMode = languageMode,
@@ -747,6 +756,15 @@ fun SettingsScreen(
                                 (if (languageMode == LanguageMode.BANGLA) "বায়োমেট্রিক ও পিন সুরক্ষা" else "Biometric authentication & PIN lock"),
                             icon = Icons.Default.Fingerprint,
                             onClick = { handleSecurityAccess() }
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "হোম স্ক্রিন উইজেট" else "Home Screen Widgets",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "প্রিমিয়াম কুইক অ্যাকশন ও বাজেট উইজেট পিন করুন" else "Quick actions, live budget meter & live feeds",
+                            icon = Icons.Default.Widgets,
+                            onClick = { currentSubPage = SettingsSubPage.WIDGETS }
                         )
                     }
 

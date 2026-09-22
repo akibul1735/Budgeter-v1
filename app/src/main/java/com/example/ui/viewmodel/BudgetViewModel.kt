@@ -475,6 +475,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             activeRepo.ensureOthersGroupIntegrity()
             checkForPreviousBackupsOnLaunch()
+            com.example.widget.WidgetUpdateHelper.updateAllWidgets(getApplication<android.app.Application>())
         }
     }
 
@@ -816,6 +817,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
             transaction.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, transaction.dateEpochMs) }
             transaction.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, transaction.dateEpochMs) }
+            com.example.widget.WidgetUpdateHelper.updateAllWidgets(getApplication<android.app.Application>())
         }
     }
 
@@ -847,6 +849,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else if (previousFeeTxId != null && previousFeeTxId > 0L) {
                 activeRepo.deleteTransactionById(previousFeeTxId)
             }
+            com.example.widget.WidgetUpdateHelper.updateAllWidgets(getApplication<android.app.Application>())
         }
     }
 
@@ -857,6 +860,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 tx.debitAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, tx.dateEpochMs) }
                 tx.creditAccountId?.let { id -> if (id > 0L) dashboardPrefs.onAccountActivity(id, tx.dateEpochMs) }
             }
+            com.example.widget.WidgetUpdateHelper.updateAllWidgets(getApplication<android.app.Application>())
         }
     }
 
@@ -886,6 +890,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
             }
+            com.example.widget.WidgetUpdateHelper.updateAllWidgets(getApplication<android.app.Application>())
         }
     }
 

@@ -1920,22 +1920,18 @@ object IconHelper {
             return
         }
         if (isCustomIcon(iconName)) {
-            val customFile = getCustomIconFile(context, iconName ?: "")
-            if (customFile.exists()) {
-                AsyncImage(
-                    model = customFile,
-                    contentDescription = contentDescription,
-                    modifier = modifier.clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
+            val model: Any = if (iconName?.startsWith("content://") == true || iconName?.startsWith("file://") == true) {
+                android.net.Uri.parse(iconName)
             } else {
-                Icon(
-                    imageVector = Icons.Default.Category,
-                    contentDescription = contentDescription,
-                    modifier = modifier,
-                    tint = tint
-                )
+                getCustomIconFile(context, iconName ?: "")
             }
+            AsyncImage(
+                model = model,
+                contentDescription = contentDescription,
+                modifier = modifier,
+                contentScale = ContentScale.Fit
+            )
+            return
         } else {
             Icon(
                 imageVector = getIconByName(iconName),

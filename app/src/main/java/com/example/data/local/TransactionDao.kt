@@ -60,6 +60,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions")
     suspend fun getAllTransactionsSnapshot(): List<Transaction>
 
+    @Query("SELECT * FROM transactions ORDER BY dateEpochMs DESC, id DESC LIMIT :limit")
+    suspend fun getRecentTransactions(limit: Int): List<Transaction>
+
     @Query("DELETE FROM transactions")
     suspend fun deleteAll()
 }

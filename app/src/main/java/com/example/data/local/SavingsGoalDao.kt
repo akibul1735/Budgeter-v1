@@ -15,6 +15,9 @@ interface SavingsGoalDao {
     @Query("SELECT * FROM savings_goals ORDER BY isCompleted ASC, createdAt DESC")
     fun getAllGoals(): Flow<List<SavingsGoal>>
 
+    @Query("SELECT * FROM savings_goals ORDER BY isCompleted ASC, createdAt DESC")
+    suspend fun getAllGoalsSnapshot(): List<SavingsGoal>
+
     @Query("SELECT * FROM savings_goals WHERE id = :id")
     suspend fun getGoalById(id: Long): SavingsGoal?
 

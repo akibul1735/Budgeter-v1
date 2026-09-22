@@ -226,6 +226,7 @@ fun AddEditTransactionSheet(
     monthlyBudgets: List<MonthlyBudget> = emptyList(),
     languageMode: LanguageMode,
     existingTransaction: Transaction? = null,
+    defaultType: TransactionType = TransactionType.EXPENSE,
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
     onSaveSplit: ((splitGroupId: String, baseTx: Transaction, items: List<TransactionSplitItem>, existingTxs: List<Transaction>) -> Unit)? = null,
@@ -261,7 +262,7 @@ fun AddEditTransactionSheet(
     }
 
     var txType by remember {
-        mutableStateOf(existingTransaction?.type ?: TransactionType.EXPENSE)
+        mutableStateOf(existingTransaction?.type ?: defaultType)
     }
 
     var selectedSign by remember {
@@ -273,7 +274,7 @@ fun AddEditTransactionSheet(
                     TransactionType.TRANSFER -> "⇄"
                 }
             } else {
-                when (existingTransaction?.type ?: TransactionType.EXPENSE) {
+                when (defaultType) {
                     TransactionType.EXPENSE -> "−"
                     TransactionType.INCOME -> "+"
                     TransactionType.TRANSFER -> "⇄"
@@ -2110,8 +2111,8 @@ fun AddEditTransactionSheet(
 
                                 OptionRowItem(
                                     icon = {
-                                        Icon(
-                                            imageVector = if (isSplitActive) Icons.Default.CallSplit else IconHelper.getIconByName(selectedCategory?.iconName ?: "MoreHoriz"),
+                                        IconHelper.AppIcon(
+                                            iconName = if (isSplitActive) "CallSplit" else (selectedCategory?.iconName ?: "MoreHoriz"),
                                             contentDescription = "Category",
                                             tint = typePrimaryColor,
                                             modifier = Modifier.size(20.dp)
@@ -2528,8 +2529,8 @@ fun AddEditTransactionSheet(
 
                                             OptionRowItem(
                                                 icon = {
-                                                    Icon(
-                                                        imageVector = IconHelper.getIconByName(feeCat?.iconName ?: "Category"),
+                                                    IconHelper.AppIcon(
+                                                        iconName = feeCat?.iconName ?: "Category",
                                                         contentDescription = "Fee Category",
                                                         tint = SolidExpense,
                                                         modifier = Modifier.size(18.dp)

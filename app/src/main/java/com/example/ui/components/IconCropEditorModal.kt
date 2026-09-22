@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -202,6 +203,10 @@ fun IconCropEditorModal(
                         .aspectRatio(1.05f)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black.copy(alpha = 0.88f))
+                        .onSizeChanged { intSize ->
+                            val d = minOf(intSize.width, intSize.height) * 0.84f
+                            if (d > 0f) cropDiameterPx = d
+                        }
                         .pointerInput(loadedBitmap) {
                             if (loadedBitmap == null) return@pointerInput
                             detectTransformGestures { _, pan, zoom, rotation ->

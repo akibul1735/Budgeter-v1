@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -16,16 +18,24 @@ import com.example.util.DropboxAuthBridge
 
 class MainActivity : FragmentActivity() {
 
+    private var currentWidgetAction by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleAuthRedirect(intent)
+        currentWidgetAction = intent?.action
+
         setContent {
             val viewModel: BudgetViewModel = viewModel()
             val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
 
             MyApplicationTheme(themeConfig = themeConfig) {
-                MainAppContainer(viewModel = viewModel)
+                MainAppContainer(
+                    viewModel = viewModel,
+                    widgetAction = currentWidgetAction,
+                    onWidgetActionHandled = { currentWidgetAction = null }
+                )
             }
         }
     }
@@ -34,6 +44,7 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleAuthRedirect(intent)
+        currentWidgetAction = intent.action
     }
 
     private fun handleAuthRedirect(intent: Intent?) {

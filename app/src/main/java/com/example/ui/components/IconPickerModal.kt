@@ -1058,10 +1058,8 @@ fun IconPickerModal(
                                             AsyncImage(
                                                 model = file,
                                                 contentDescription = "Custom Icon",
-                                                modifier = Modifier
-                                                    .size(34.dp)
-                                                    .clip(RoundedCornerShape(8.dp)),
-                                                contentScale = ContentScale.Crop
+                                                modifier = Modifier.size(36.dp),
+                                                contentScale = ContentScale.Fit
                                             )
                                         } else {
                                             Icon(
@@ -1144,7 +1142,7 @@ fun IconPickerModal(
                                             },
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        if (IconHelper.isDrawableIcon(item.name)) {
+                                        if (IconHelper.isDrawableIcon(item.name) || IconHelper.isCustomIcon(item.name)) {
                                             IconHelper.AppIcon(
                                                 iconName = item.name,
                                                 contentDescription = item.name,

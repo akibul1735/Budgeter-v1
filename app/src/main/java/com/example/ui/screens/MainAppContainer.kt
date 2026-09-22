@@ -236,7 +236,9 @@ enum class WindowSizeClassType {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainAppContainer(
-    viewModel: BudgetViewModel
+    viewModel: BudgetViewModel,
+    widgetAction: String? = null,
+    onWidgetActionHandled: () -> Unit = {}
 ) {
     val languageMode by viewModel.languageMode.collectAsStateWithLifecycle()
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
@@ -321,6 +323,35 @@ fun MainAppContainer(
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
     var showTabCustomizationDialog by remember { mutableStateOf(false) }
     var showDashboardCustomizerDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(widgetAction) {
+        if (widgetAction != null) {
+            when (widgetAction) {
+                com.example.widget.WidgetUpdateHelper.ACTION_ADD_EXPENSE -> {
+                    presetTxType = TransactionType.EXPENSE
+                    editingTransaction = null
+                    showAddTransactionSheet = true
+                }
+                com.example.widget.WidgetUpdateHelper.ACTION_ADD_INCOME -> {
+                    presetTxType = TransactionType.INCOME
+                    editingTransaction = null
+                    showAddTransactionSheet = true
+                }
+                com.example.widget.WidgetUpdateHelper.ACTION_ADD_TRANSFER -> {
+                    presetTxType = TransactionType.TRANSFER
+                    editingTransaction = null
+                    showAddTransactionSheet = true
+                }
+                com.example.widget.WidgetUpdateHelper.ACTION_VIEW_GOALS -> {
+                    currentView = AppView.SAVINGS_GOALS
+                }
+                com.example.widget.WidgetUpdateHelper.ACTION_VIEW_TRANSACTIONS -> {
+                    currentView = AppView.LEDGER
+                }
+            }
+            onWidgetActionHandled()
+        }
+    }
 
     val permissionPrefs = remember { PermissionPreferences.getInstance(context) }
     val permissionConfig by permissionPrefs.config.collectAsStateWithLifecycle()
@@ -1191,6 +1222,7 @@ fun MainAppContainer(
             monthlyBudgets = allMonthlyBudgets,
             languageMode = languageMode,
             existingTransaction = editingTransaction,
+            defaultType = presetTxType,
             onDismiss = { showAddTransactionSheet = false },
             onSave = { tx -> viewModel.saveTransaction(tx) },
             onSaveSplit = { splitGroupId, baseTx, items, existingTxs ->
