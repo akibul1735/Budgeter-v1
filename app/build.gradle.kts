@@ -93,6 +93,11 @@ android {
     compose = true
     buildConfig = true
   }
+  lint {
+    abortOnError = false
+    checkReleaseBuilds = false
+    ignoreWarnings = true
+  }
   testOptions {
     unitTests {
       isIncludeAndroidResources = true

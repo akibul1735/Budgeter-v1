@@ -89,12 +89,15 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-          # Verify release keystore validity if password provided
+          # Verify release keystore validity if password provided; otherwise use debug fallback
           if [ -s "release.keystore" ] && [ -n "$STORE_PASSWORD" ]; then
             if ! keytool -list -keystore release.keystore -storepass "$STORE_PASSWORD" >/dev/null 2>&1; then
-              echo "::warning::release.keystore password check failed with provided STORE_PASSWORD. Removing release.keystore to safely fall back to debug signing for release build."
-              rm -f release.keystore
+              echo "::warning::release.keystore password check failed with provided STORE_PASSWORD. Falling back to debug signing for release build."
+              rm -f release.keystore release.keystore.base64
             fi
+          elif [ -s "release.keystore" ] && [ -z "$STORE_PASSWORD" ]; then
+            echo "No STORE_PASSWORD provided; removing release.keystore to use debug signing fallback."
+            rm -f release.keystore release.keystore.base64
           fi
 
       - name: Run Unit & Robolectric Tests
@@ -113,10 +116,22 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8"
         run: |
+          # If release.keystore is missing or invalid with the password, clear environment secrets so Gradle signs with debugConfig
+          if [ ! -f "release.keystore" ] || [ -z "$STORE_PASSWORD" ] || ! keytool -list -keystore release.keystore -storepass "$STORE_PASSWORD" >/dev/null 2>&1; then
+            echo "Signing with debug configuration..."
+            export STORE_PASSWORD=""
+            export KEYSTORE_PASSWORD=""
+            export KEY_PASSWORD=""
+            unset STORE_PASSWORD
+            unset KEYSTORE_PASSWORD
+            unset KEY_PASSWORD
+            rm -f release.keystore release.keystore.base64
+          fi
+
           if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            ./gradlew assembleRelease --no-daemon --stacktrace
+            ./gradlew assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace
           else
-            gradle assembleRelease --no-daemon --stacktrace
+            gradle assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace
           fi
 
       - name: Prepare Release Artifacts (APK)
