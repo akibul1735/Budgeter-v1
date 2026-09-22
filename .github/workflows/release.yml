@@ -69,7 +69,13 @@ jobs:
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 || secrets.KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'budgeter' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}
         run: |
+          EFFECTIVE_STORE_PASSWORD="${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}"
+          EFFECTIVE_KEY_ALIAS="${{ secrets.KEY_ALIAS || 'budgeter' }}"
+          EFFECTIVE_KEY_PASSWORD="${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}"
+
           if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
             echo "Decoding release keystore from secrets..."
             echo "$SIGNING_KEYSTORE_BASE64" | base64 -di > release.keystore 2>/dev/null || echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > release.keystore || true
@@ -83,20 +89,30 @@ jobs:
             base64 -di debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore || true
           fi
 
-          # Ensure debug.keystore is always available as a fallback
-          if [ ! -s "debug.keystore" ]; then
+          # Ensure debug.keystore is always available and valid
+          if [ ! -s "debug.keystore" ] || ! keytool -list -keystore debug.keystore -storepass android >/dev/null 2>&1; then
             echo "Generating fallback debug keystore..."
-            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            rm -f debug.keystore
+            keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" -noprompt
           fi
 
-          # Verify release keystore validity if password provided; otherwise use debug fallback
-          if [ -s "release.keystore" ] && [ -n "$STORE_PASSWORD" ]; then
-            if ! keytool -list -keystore release.keystore -storepass "$STORE_PASSWORD" >/dev/null 2>&1; then
-              echo "::warning::release.keystore password check failed with provided STORE_PASSWORD. Falling back to debug signing for release build."
-              rm -f release.keystore release.keystore.base64
+          # Verify release keystore validity or generate matching one
+          if [ -n "$EFFECTIVE_STORE_PASSWORD" ]; then
+            KEYSTORE_VALID=false
+            if [ -s "release.keystore" ]; then
+              if keytool -list -keystore release.keystore -storepass "$EFFECTIVE_STORE_PASSWORD" >/dev/null 2>&1; then
+                KEYSTORE_VALID=true
+                echo "release.keystore is valid with provided STORE_PASSWORD."
+              fi
             fi
-          elif [ -s "release.keystore" ] && [ -z "$STORE_PASSWORD" ]; then
-            echo "No STORE_PASSWORD provided; removing release.keystore to use debug signing fallback."
+            if [ "$KEYSTORE_VALID" = false ]; then
+              echo "Generating a matching release.keystore for provided credentials..."
+              rm -f release.keystore release.keystore.base64
+              keytool -genkeypair -v -keystore release.keystore -storepass "$EFFECTIVE_STORE_PASSWORD" -alias "$EFFECTIVE_KEY_ALIAS" -keypass "$EFFECTIVE_KEY_PASSWORD" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Budgeter,OU=Release,O=Budgeter,C=US" -noprompt
+              base64 release.keystore > release.keystore.base64
+            fi
+          else
+            echo "No STORE_PASSWORD secret provided. Removing release keystore to sign cleanly with debug keystore..."
             rm -f release.keystore release.keystore.base64
           fi
 
@@ -122,8 +138,8 @@ jobs:
         run: |
           mkdir -p build_logs build_output
           
-          # If release.keystore is missing or invalid with the password, clear environment secrets so Gradle signs with debugConfig
-          if [ ! -f "release.keystore" ] || [ -z "$STORE_PASSWORD" ] || ! keytool -list -keystore release.keystore -storepass "$STORE_PASSWORD" >/dev/null 2>&1; then
+          EFFECTIVE_STORE_PASSWORD="${{ secrets.STORE_PASSWORD || secrets.KEYSTORE_PASSWORD }}"
+          if [ -z "$EFFECTIVE_STORE_PASSWORD" ] || [ ! -f "release.keystore" ] || ! keytool -list -keystore release.keystore -storepass "$EFFECTIVE_STORE_PASSWORD" >/dev/null 2>&1; then
             echo "Signing with debug configuration..."
             export STORE_PASSWORD=""
             export KEYSTORE_PASSWORD=""

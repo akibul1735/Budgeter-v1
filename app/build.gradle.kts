@@ -33,7 +33,7 @@ android {
     val debugBase64File = file("${rootDir}/debug.keystore.base64")
     if (!debugKeystoreFile.exists() && debugBase64File.exists()) {
       try {
-        val decoded = Base64.getDecoder().decode(debugBase64File.readText().trim())
+        val decoded = Base64.getMimeDecoder().decode(debugBase64File.readText().trim())
         debugKeystoreFile.writeBytes(decoded)
       } catch (_: Exception) {}
     }
@@ -42,7 +42,7 @@ android {
     val releaseBase64File = file("${rootDir}/release.keystore.base64")
     if (!releaseKeystoreFile.exists() && releaseBase64File.exists()) {
       try {
-        val decoded = Base64.getDecoder().decode(releaseBase64File.readText().trim())
+        val decoded = Base64.getMimeDecoder().decode(releaseBase64File.readText().trim())
         releaseKeystoreFile.writeBytes(decoded)
       } catch (_: Exception) {}
     }
