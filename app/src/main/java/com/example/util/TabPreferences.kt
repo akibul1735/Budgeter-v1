@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Payments
@@ -38,7 +39,8 @@ enum class AppTab(
     NET_EARNINGS("net_earnings", "Net Earnings", "নেট আয় ও রিপোর্ট"),
     LABELS("labels", "Labels", "লেবেল"),
     ITEMS_SUMMARY("items_summary", "Items Summary", "আইটেম সামারি"),
-    REMINDERS("reminders", "Reminders", "রিমাইন্ডার ও বিল");
+    REMINDERS("reminders", "Reminders", "রিমাইন্ডার ও বিল"),
+    WISHLIST("wishlist", "Wishlist", "ইচ্ছেতালিকা");
 
     val icon: ImageVector
         get() = when (this) {
@@ -53,6 +55,7 @@ enum class AppTab(
             LABELS -> Icons.Default.Tag
             ITEMS_SUMMARY -> Icons.Default.Bookmark
             REMINDERS -> Icons.Default.Alarm
+            WISHLIST -> Icons.Default.CardGiftcard
         }
 
     fun getTitle(languageMode: LanguageMode): String {

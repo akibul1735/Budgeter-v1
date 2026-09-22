@@ -7,6 +7,7 @@ import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
 import com.example.data.local.SavingsGoalDao
 import com.example.data.local.TransactionDao
+import com.example.data.local.WishlistDao
 import com.example.data.model.Account
 import com.example.data.model.AccountType
 import com.example.data.model.BillStatus
@@ -25,6 +26,8 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
+import com.example.data.model.WishlistItem
+import com.example.data.model.WishlistItemWithCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -74,7 +77,8 @@ class BudgetRepository(
     val recurringBillDao: RecurringBillDao,
     val monthlyBudgetDao: MonthlyBudgetDao,
     val budgetAdjustmentDao: BudgetAdjustmentDao,
-    val savingsGoalDao: SavingsGoalDao
+    val savingsGoalDao: SavingsGoalDao,
+    val wishlistDao: WishlistDao
 ) {
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
@@ -83,6 +87,56 @@ class BudgetRepository(
     val allMonthlyBudgets: Flow<List<MonthlyBudget>> = monthlyBudgetDao.getAllBudgetsFlow()
     val allSavingsGoals: Flow<List<SavingsGoal>> = savingsGoalDao.getAllGoals()
     val allGoalAllocations: Flow<List<GoalAllocation>> = savingsGoalDao.getAllAllocations()
+    val allWishlistItems: Flow<List<WishlistItem>> = wishlistDao.getAllWishlistItems()
+    val activeWishlistItems: Flow<List<WishlistItem>> = wishlistDao.getActiveWishlistItems()
+
+    val wishlistWithDetails: Flow<List<WishlistItemWithCategory>> = combine(
+        wishlistDao.getAllWishlistItems(),
+        categoryDao.getAllCategories(),
+        savingsGoalDao.getAllGoals()
+    ) { items, categories, goals ->
+        val catMap = categories.associateBy { it.id }
+        val goalMap = goals.associateBy { it.id }
+        items.map { item ->
+            WishlistItemWithCategory(
+                item = item,
+                category = item.categoryId?.let { catMap[it] },
+                subCategory = item.subCategoryId?.let { catMap[it] },
+                linkedGoal = item.linkedGoalId?.let { goalMap[it] }
+            )
+        }
+    }.flowOn(Dispatchers.Default)
+
+    fun getWishlistItemsForMonth(year: Int, month: Int): Flow<List<WishlistItem>> =
+        wishlistDao.getWishlistItemsForMonth(year, month)
+
+    suspend fun saveWishlistItem(item: WishlistItem): Long {
+        return if (item.id == 0L) {
+            wishlistDao.insertWishlistItem(item)
+        } else {
+            wishlistDao.updateWishlistItem(item.copy(updatedAt = System.currentTimeMillis()))
+            item.id
+        }
+    }
+
+    suspend fun deleteWishlistItem(id: Long) {
+        wishlistDao.deleteWishlistItemById(id)
+    }
+
+    suspend fun toggleWishlistPurchased(id: Long, isPurchased: Boolean) {
+        val item = wishlistDao.getWishlistItemById(id) ?: return
+        wishlistDao.updateWishlistItem(item.copy(isPurchased = isPurchased, updatedAt = System.currentTimeMillis()))
+    }
+
+    suspend fun setWishlistAddedToBudget(id: Long, isAdded: Boolean) {
+        val item = wishlistDao.getWishlistItemById(id) ?: return
+        wishlistDao.updateWishlistItem(item.copy(isAddedToBudget = isAdded, updatedAt = System.currentTimeMillis()))
+    }
+
+    suspend fun linkWishlistToSavingsGoal(wishlistId: Long, goalId: Long) {
+        val item = wishlistDao.getWishlistItemById(wishlistId) ?: return
+        wishlistDao.updateWishlistItem(item.copy(linkedGoalId = goalId, updatedAt = System.currentTimeMillis()))
+    }
 
     suspend fun saveSavingsGoal(
         goal: SavingsGoal,
@@ -1133,6 +1187,7 @@ class BudgetRepository(
     }
 
     suspend fun resetEverything() {
+        wishlistDao.deleteAllWishlistItems()
         transactionDao.deleteAll()
         recurringBillDao.deleteAll()
         monthlyBudgetDao.deleteAll()

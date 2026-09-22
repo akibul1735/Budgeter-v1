@@ -10,13 +10,18 @@ import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
+import com.example.data.local.SavingsGoalDao
 import com.example.data.local.TransactionDao
+import com.example.data.local.WishlistDao
 import com.example.data.model.Account
 import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
+import com.example.data.model.GoalAllocation
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
+import com.example.data.model.SavingsGoal
 import com.example.data.model.Transaction
+import com.example.data.model.WishlistItem
 import com.example.ui.theme.AppThemeConfig
 import com.example.ui.theme.ThemePreferences
 import com.squareup.moshi.Moshi
@@ -65,6 +70,9 @@ data class BudgetBackupData(
     val recurringBills: List<RecurringBill> = emptyList(),
     val monthlyBudgets: List<MonthlyBudget> = emptyList(),
     val budgetAdjustments: List<BudgetAdjustment> = emptyList(),
+    val savingsGoals: List<SavingsGoal> = emptyList(),
+    val goalAllocations: List<GoalAllocation> = emptyList(),
+    val wishlistItems: List<WishlistItem> = emptyList(),
     val settings: AppSettingsBackup? = null
 )
 
@@ -270,6 +278,8 @@ object BackupManager {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         targetDirectory: String? = null,
         includeSettings: Boolean = true
     ): File = withContext(Dispatchers.IO) {
@@ -284,6 +294,8 @@ object BackupManager {
             recurringBills = recurringBillDao.getAllBillsSnapshot(),
             monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList(),
             budgetAdjustments = budgetAdjustmentDao?.getAllAdjustmentsSnapshot() ?: emptyList(),
+            savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
+            wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
             settings = settingsBackup
         )
         val json = adapter.indent("  ").toJson(backupData)
@@ -586,6 +598,8 @@ object BackupManager {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         includeSettings: Boolean = true
     ): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -600,6 +614,8 @@ object BackupManager {
                 recurringBills = recurringBillDao.getAllBillsSnapshot(),
                 monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList(),
                 budgetAdjustments = budgetAdjustmentDao?.getAllAdjustmentsSnapshot() ?: emptyList(),
+                savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
+                wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
                 settings = settingsBackup
             )
             val json = adapter.indent("  ").toJson(backupData)
@@ -627,6 +643,8 @@ object BackupManager {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
@@ -644,6 +662,8 @@ object BackupManager {
                 recurringBillDao = recurringBillDao,
                 monthlyBudgetDao = monthlyBudgetDao,
                 budgetAdjustmentDao = budgetAdjustmentDao,
+                savingsGoalDao = savingsGoalDao,
+                wishlistDao = wishlistDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -665,6 +685,8 @@ object BackupManager {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
@@ -679,6 +701,7 @@ object BackupManager {
                 recurringBillDao.deleteAll()
                 monthlyBudgetDao?.deleteAll()
                 budgetAdjustmentDao?.deleteAll()
+                wishlistDao?.deleteAllWishlistItems()
                 categoryDao.deleteAll()
                 accountDao.deleteAll()
 
@@ -705,6 +728,16 @@ object BackupManager {
                 if (backupData.budgetAdjustments.isNotEmpty() && budgetAdjustmentDao != null) {
                     budgetAdjustmentDao.insertAdjustments(backupData.budgetAdjustments)
                     recordsCount += backupData.budgetAdjustments.size
+                }
+                if (backupData.savingsGoals.isNotEmpty() && savingsGoalDao != null) {
+                    for (goal in backupData.savingsGoals) {
+                        savingsGoalDao.insertGoal(goal)
+                    }
+                    recordsCount += backupData.savingsGoals.size
+                }
+                if (backupData.wishlistItems.isNotEmpty() && wishlistDao != null) {
+                    wishlistDao.insertWishlistItems(backupData.wishlistItems)
+                    recordsCount += backupData.wishlistItems.size
                 }
             }
 
@@ -733,6 +766,8 @@ object BackupManager {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
@@ -873,6 +908,36 @@ object BackupManager {
                 if (adjToInsert.isNotEmpty()) {
                     budgetAdjustmentDao.insertAdjustments(adjToInsert)
                     mergedCount += adjToInsert.size
+                }
+            }
+
+            // 6.5. Merge Savings Goals
+            if (savingsGoalDao != null && backupData.savingsGoals.isNotEmpty()) {
+                val existingGoals = savingsGoalDao.getAllGoalsSnapshot()
+                val existingGoalNames = existingGoals.map { it.name.trim().lowercase() }.toSet()
+                for (goal in backupData.savingsGoals) {
+                    if (!existingGoalNames.contains(goal.name.trim().lowercase())) {
+                        savingsGoalDao.insertGoal(goal.copy(id = 0))
+                        mergedCount++
+                    }
+                }
+            }
+
+            // 6.6. Merge Wishlist Items
+            if (wishlistDao != null && backupData.wishlistItems.isNotEmpty()) {
+                val existingWishlist = wishlistDao.getAllWishlistItemsSnapshot()
+                val existingTitles = existingWishlist.map { it.title.trim().lowercase() }.toSet()
+                val wishToInsert = mutableListOf<WishlistItem>()
+                for (item in backupData.wishlistItems) {
+                    if (!existingTitles.contains(item.title.trim().lowercase())) {
+                        val mappedCat = item.categoryId?.let { categoryIdMap[it] ?: it }
+                        val mappedSubCat = item.subCategoryId?.let { categoryIdMap[it] ?: it }
+                        wishToInsert.add(item.copy(id = 0, categoryId = mappedCat, subCategoryId = mappedSubCat))
+                    }
+                }
+                if (wishToInsert.isNotEmpty()) {
+                    wishlistDao.insertWishlistItems(wishToInsert)
+                    mergedCount += wishToInsert.size
                 }
             }
 

@@ -179,6 +179,7 @@ enum class AppView {
     LEDGER,
     CASH_FLOW,
     PAYMENT_SOURCE,
+    WISHLIST,
     BALANCE_SHEET,
     ACCOUNTS,
     RM_MANAGER,
@@ -210,6 +211,7 @@ fun AppTab.toAppView(): AppView = when (this) {
     AppTab.LABELS -> AppView.LABELS
     AppTab.ITEMS_SUMMARY -> AppView.ITEMS_SUMMARY
     AppTab.REMINDERS -> AppView.RECURRING_BILLS
+    AppTab.WISHLIST -> AppView.WISHLIST
 }
 
 fun AppView.toAppTab(): AppTab? = when (this) {
@@ -224,6 +226,7 @@ fun AppView.toAppTab(): AppTab? = when (this) {
     AppView.LABELS -> AppTab.LABELS
     AppView.ITEMS_SUMMARY -> AppTab.ITEMS_SUMMARY
     AppView.RECURRING_BILLS -> AppTab.REMINDERS
+    AppView.WISHLIST -> AppTab.WISHLIST
     else -> null
 }
 
@@ -1579,6 +1582,7 @@ private fun DrawerContent(
     val signedInAccount by viewModel.signedInGoogleAccount.collectAsStateWithLifecycle()
     val secondarySignedInAccount by viewModel.secondarySignedInGoogleAccount.collectAsStateWithLifecycle()
     val isDemoMode by viewModel.isDemoMode.collectAsStateWithLifecycle()
+    val activeWishlistCount by viewModel.activeWishlistCount.collectAsStateWithLifecycle()
 
     // Determine active cloud drive account (prefer Drive 1, consider Drive 2 if Drive 1 is inactive)
     val drive1 = backupConfig.primaryAccount
@@ -2028,6 +2032,16 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.PAYMENT_SOURCE) }
         )
 
+        // 4.5. Wishlist
+        DrawerItemRow(
+            title = LanguageHelper.getString("wishlist", languageMode).ifEmpty { "Wishlist" },
+            icon = Icons.Default.ShoppingBag,
+            iconTint = MaterialTheme.colorScheme.primary,
+            badge = if (activeWishlistCount > 0) "$activeWishlistCount" else null,
+            isSelected = currentView == AppView.WISHLIST,
+            onClick = { onSelectView(AppView.WISHLIST) }
+        )
+
         // 5. Settings
         DrawerItemRow(
             title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
@@ -2446,6 +2460,29 @@ private fun ScreenRouter(
                 onOpenDrawer = onOpenDrawer
             )
         }
+        AppView.WISHLIST -> {
+            val wishlistItemsWithDetails by viewModel.wishlistWithDetails.collectAsStateWithLifecycle()
+            WishlistScreen(
+                wishlistItemsWithDetails = wishlistItemsWithDetails,
+                categories = allCategories,
+                languageMode = languageMode,
+                onSaveWishlistItem = { item -> viewModel.saveWishlistItem(item) },
+                onDeleteWishlistItem = { id -> viewModel.deleteWishlistItem(id) },
+                onTogglePurchased = { id, isPurchased -> viewModel.toggleWishlistPurchased(id, isPurchased) },
+                onAddToBudget = { item, year, month -> viewModel.addWishlistToMonthBudget(item, year, month) },
+                onConvertToGoal = { item, targetDate -> viewModel.convertWishlistToSavingsGoal(item, targetDate) },
+                onRecordPurchase = { item ->
+                    val cat = allCategories.firstOrNull { it.id == item.categoryId }
+                    if (cat != null) {
+                        onAddTransactionWithCategory(cat)
+                    } else {
+                        onAddTransactionWithType(com.example.data.model.TransactionType.EXPENSE)
+                    }
+                    viewModel.toggleWishlistPurchased(item.id, true)
+                },
+                onOpenDrawer = onOpenDrawer
+            )
+        }
         AppView.REPORTS -> ReportsScreen(
             overview = overview,
             accountsWithBalances = accountsWithBalances,
@@ -2646,6 +2683,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.LEDGER -> LanguageHelper.getString("transactions", languageMode)
         AppView.CASH_FLOW -> LanguageHelper.getString("cash_flow", languageMode).ifEmpty { "Cash Flow" }
         AppView.PAYMENT_SOURCE -> LanguageHelper.getString("payment_source", languageMode)
+        AppView.WISHLIST -> LanguageHelper.getString("wishlist", languageMode).ifEmpty { "Wishlist" }
         AppView.BALANCE_SHEET -> LanguageHelper.getString("balance_sheet", languageMode)
         AppView.BUDGET -> LanguageHelper.getString("budget", languageMode)
         AppView.BUDGET_MAKER -> LanguageHelper.getString("budget_maker", languageMode)

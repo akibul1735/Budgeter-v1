@@ -23,6 +23,10 @@ import com.example.data.model.SavingsSummary
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
+import com.example.data.model.WishlistItem
+import com.example.data.model.WishlistItemWithCategory
+import com.example.data.model.WishlistPriority
+import com.example.data.model.WishlistTargetType
 import com.example.data.repository.AccountWithBalance
 import com.example.data.repository.BudgetRepository
 import com.example.data.repository.FinancialOverview
@@ -93,6 +97,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -374,7 +380,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             recurringBillDao = db.recurringBillDao(),
             monthlyBudgetDao = db.monthlyBudgetDao(),
             budgetAdjustmentDao = db.budgetAdjustmentDao(),
-            savingsGoalDao = db.savingsGoalDao()
+            savingsGoalDao = db.savingsGoalDao(),
+            wishlistDao = db.wishlistDao()
         )
     }
 
@@ -784,6 +791,87 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             initialValue = SavingsSummary(0.0, 0.0, 0.0, 0.0, 0, 0, 0f)
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val wishlistWithDetails: StateFlow<List<WishlistItemWithCategory>> = _activeRepository
+        .flatMapLatest { it.wishlistWithDetails }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val activeWishlistCount: StateFlow<Int> = _activeRepository
+        .flatMapLatest { it.activeWishlistItems }
+        .map { it.size }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
+    fun saveWishlistItem(item: WishlistItem) {
+        viewModelScope.launch {
+            activeRepo.saveWishlistItem(item)
+        }
+    }
+
+    fun deleteWishlistItem(id: Long) {
+        viewModelScope.launch {
+            activeRepo.deleteWishlistItem(id)
+        }
+    }
+
+    fun toggleWishlistPurchased(id: Long, isPurchased: Boolean) {
+        viewModelScope.launch {
+            activeRepo.toggleWishlistPurchased(id, isPurchased)
+        }
+    }
+
+    fun addWishlistToMonthBudget(item: WishlistItem, year: Int, month: Int) {
+        viewModelScope.launch {
+            val targetCategory = item.categoryId
+            if (targetCategory != null && targetCategory > 0L) {
+                val existingBudgets = activeRepo.getMonthlyBudgets(year, month).firstOrNull() ?: emptyList()
+                val currentCategoryBudget = existingBudgets.firstOrNull { it.itemType == "CATEGORY" && it.itemId == targetCategory }
+                val currentBudgetedAmount = currentCategoryBudget?.budgetedAmount ?: 0.0
+                val newAmount = currentBudgetedAmount + item.estimatedAmount
+                
+                activeRepo.saveMonthlyBudget(
+                    MonthlyBudget(
+                        year = year,
+                        month = month,
+                        itemType = "CATEGORY",
+                        itemId = targetCategory,
+                        budgetedAmount = newAmount,
+                        isEnabled = true,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+                activeRepo.setWishlistAddedToBudget(item.id, true)
+            }
+        }
+    }
+
+    fun convertWishlistToSavingsGoal(item: WishlistItem, targetDateMs: Long) {
+        viewModelScope.launch {
+            val goal = SavingsGoal(
+                name = item.title,
+                targetAmount = item.estimatedAmount,
+                targetDate = targetDateMs,
+                notes = if (item.notes.isNotBlank()) "Wishlist item: ${item.notes}" else "Converted from Wishlist",
+                colorHex = "#10B981",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+            val goalId = activeRepo.saveSavingsGoal(goal, emptyList())
+            activeRepo.linkWishlistToSavingsGoal(item.id, goalId)
+            activeRepo.saveWishlistItem(item.copy(targetType = WishlistTargetType.SAVINGS_GOAL, linkedGoalId = goalId))
+        }
+    }
+
+    fun getWishlistItemsForMonth(year: Int, month: Int) = activeRepo.getWishlistItemsForMonth(year, month)
+
     fun saveSavingsGoal(goal: SavingsGoal, allocations: List<Pair<Long, Double>>) {
         viewModelScope.launch {
             activeRepo.saveSavingsGoal(goal, allocations)
@@ -1171,6 +1259,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     recurringBillDao = activeRepo.recurringBillDao,
                     monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    savingsGoalDao = activeRepo.savingsGoalDao,
+                    wishlistDao = activeRepo.wishlistDao,
                     targetDirectory = targetDir,
                     includeSettings = true
                 )
@@ -1194,6 +1284,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 includeSettings = includeSettings
             )
             if (success) {
@@ -1216,6 +1308,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -1247,6 +1341,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     recurringBillDao = activeRepo.recurringBillDao,
                     monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    savingsGoalDao = activeRepo.savingsGoalDao,
+                    wishlistDao = activeRepo.wishlistDao,
                     restoreSettings = restoreSettings
                 )
                 result.onSuccess { count ->
@@ -1302,6 +1398,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     recurringBillDao = activeRepo.recurringBillDao,
                     monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    savingsGoalDao = activeRepo.savingsGoalDao,
+                    wishlistDao = activeRepo.wishlistDao,
                     restoreSettings = restoreSettings
                 )
                 result.onSuccess { count ->
@@ -2042,7 +2140,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             transactionDao = activeRepo.transactionDao,
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao
                         )
                     } else {
                         BackupManager.restoreFromJson(
@@ -2053,7 +2153,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             transactionDao = activeRepo.transactionDao,
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao
                         )
                     }
                     result.onSuccess { count ->

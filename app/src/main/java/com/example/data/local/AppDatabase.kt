@@ -14,6 +14,7 @@ import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.SavingsGoal
 import com.example.data.model.Transaction
+import com.example.data.model.WishlistItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,9 +28,10 @@ import kotlinx.coroutines.launch
         MonthlyBudget::class,
         BudgetAdjustment::class,
         SavingsGoal::class,
-        GoalAllocation::class
+        GoalAllocation::class,
+        WishlistItem::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun monthlyBudgetDao(): MonthlyBudgetDao
     abstract fun budgetAdjustmentDao(): BudgetAdjustmentDao
     abstract fun savingsGoalDao(): SavingsGoalDao
+    abstract fun wishlistDao(): WishlistDao
 
     companion object {
         @Volatile
@@ -145,6 +148,35 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `wishlist_items` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `estimatedAmount` REAL NOT NULL,
+                        `categoryId` INTEGER,
+                        `subCategoryId` INTEGER,
+                        `targetType` TEXT NOT NULL DEFAULT 'NEXT_MONTH',
+                        `targetYear` INTEGER,
+                        `targetMonth` INTEGER,
+                        `priority` TEXT NOT NULL DEFAULT 'MEDIUM',
+                        `notes` TEXT NOT NULL DEFAULT '',
+                        `url` TEXT NOT NULL DEFAULT '',
+                        `isPurchased` INTEGER NOT NULL DEFAULT 0,
+                        `isAddedToBudget` INTEGER NOT NULL DEFAULT 0,
+                        `linkedGoalId` INTEGER,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_wishlist_items_categoryId` ON `wishlist_items` (`categoryId`)")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope = CoroutineScope(Dispatchers.IO), isDemoMode: Boolean = false): AppDatabase {
             return if (isDemoMode) {
                 getDemoDatabase(context, scope)
@@ -160,7 +192,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_double_entry_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -189,7 +221,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_demo_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

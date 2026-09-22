@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.VerticalAlignBottom
@@ -461,6 +462,21 @@ fun BudgetScreen(
     // Map monthly budget items: "itemType_itemId" -> MonthlyBudget
     val budgetMap = remember(monthlyBudgets) {
         monthlyBudgets.associateBy { "${it.itemType}_${it.itemId}" }
+    }
+
+    val allWishlistWithDetails by viewModel.wishlistWithDetails.collectAsStateWithLifecycle()
+    val monthWishlistItems = remember(allWishlistWithDetails, selectedYear, selectedMonth) {
+        val nextCalInstance = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MONTH, 1) }
+        val nextY = nextCalInstance.get(java.util.Calendar.YEAR)
+        val nextM = nextCalInstance.get(java.util.Calendar.MONTH) + 1
+
+        allWishlistWithDetails.filter { itemWithCat ->
+            val w = itemWithCat.item
+            !w.isPurchased && (
+                (w.targetType == com.example.data.model.WishlistTargetType.SPECIFIC_MONTH && w.targetYear == selectedYear && w.targetMonth == selectedMonth) ||
+                (w.targetType == com.example.data.model.WishlistTargetType.NEXT_MONTH && selectedYear == nextY && selectedMonth == nextM)
+            )
+        }
     }
 
     // Prepare categorized items
@@ -1993,6 +2009,15 @@ fun BudgetScreen(
                             totalAssets = totalAssetsBudget,
                             totalInflows = totalInflowsBudget,
                             runningExpendable = runningExpendable,
+                            wishlistItemsForMonth = monthWishlistItems,
+                            onAddWishlistToBudget = { item ->
+                                viewModel.addWishlistToMonthBudget(item, selectedYear, selectedMonth)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (languageMode == LanguageMode.BANGLA) "${item.title} বাজেটে যুক্ত হয়েছে" else "Added ${item.title} to budget"
+                                    )
+                                }
+                            },
                             onNavigateToTab = { tabIdx ->
                                 when (tabIdx) {
                                     1 -> {
@@ -4162,6 +4187,8 @@ private fun BudgetDashboardView(
     totalAssets: Double,
     totalInflows: Double,
     runningExpendable: Double,
+    wishlistItemsForMonth: List<com.example.data.model.WishlistItemWithCategory> = emptyList(),
+    onAddWishlistToBudget: ((com.example.data.model.WishlistItem) -> Unit)? = null,
     onNavigateToTab: (Int) -> Unit,
     onRunningExpendableClick: () -> Unit = {}
 ) {
@@ -4339,6 +4366,117 @@ private fun BudgetDashboardView(
                                 fontSize = 14.5.sp,
                                 color = SolidExpense
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Wishlist items planned for this month
+        if (wishlistItemsForMonth.isNotEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ShoppingBag,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "এই মাসের উইশলিস্ট পরিকল্পনা" else "Planned Wishlist for This Month",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "${wishlistItemsForMonth.size}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        wishlistItemsForMonth.forEach { itemWithCat ->
+                            val item = itemWithCat.item
+                            val cat = itemWithCat.category
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.title,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (cat != null) {
+                                        Text(
+                                            text = cat.localizedName(languageMode),
+                                            fontSize = 11.5.sp,
+                                            color = MaterialTheme.colorScheme.outline
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = LanguageHelper.formatCurrency(item.estimatedAmount, languageMode),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    OutlinedButton(
+                                        onClick = { onAddWishlistToBudget?.invoke(item) },
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "+ বাজেটে যোগ" else "+ Add to Budget",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                            if (itemWithCat != wishlistItemsForMonth.last()) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
