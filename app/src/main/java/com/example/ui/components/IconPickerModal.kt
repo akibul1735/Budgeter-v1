@@ -219,73 +219,13 @@ fun IconPickerModal(
         }
     }
 
-    var showRationaleDialogForPicker by remember { mutableStateOf<AppPermissionType?>(null) }
-    var pendingPickerAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-
-    val pickerPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            pendingPickerAction?.invoke()
-        }
-        pendingPickerAction = null
+    // 1. Gallery option: Directly opens the gallery view (menu inside provides Browse option)
+    val openGallery = {
+        galleryPickerLauncher.launch("image/*")
     }
 
-    val runWithPermissionCheck = { type: AppPermissionType, action: () -> Unit ->
-        val permission = if (type == AppPermissionType.PHOTOS_MEDIA) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Manifest.permission.READ_MEDIA_IMAGES
-            } else {
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            }
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingPickerAction = action
-            showRationaleDialogForPicker = type
-        } else {
-            action()
-        }
-    }
-
-    // 1. Gallery option: Opens gallery view first, with Browse option to access the file manager
-    val openGalleryWithBrowseOption = {
-        val galleryIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "image/*"
-            putExtra(
-                Intent.EXTRA_MIME_TYPES,
-                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
-            )
-        }
-        val browseDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "image/*"
-            putExtra(
-                Intent.EXTRA_MIME_TYPES,
-                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
-            )
-        }
-        try {
-            val chooser = Intent.createChooser(galleryIntent, "Gallery (Browse via File Manager)").apply {
-                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(browseDocIntent))
-            }
-            directFileManagerLauncher.launch(chooser)
-        } catch (_: Exception) {
-            try {
-                directFileManagerLauncher.launch(galleryIntent)
-            } catch (_: Exception) {
-                galleryPickerLauncher.launch("image/*")
-            }
-        }
-    }
-
-    // 2. Direct File Manager launcher with Custom option
-    val openDirectFileManagerWithCustom = {
+    // 2. Direct File Manager launcher: Directly opens the file manager / storage provider without permissions
+    val openDirectFileManager = {
         val openDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -299,26 +239,14 @@ fun IconPickerModal(
                     "image/webp",
                     "image/svg+xml",
                     "image/gif",
-                    "image/bmp",
-                    "application/octet-stream"
+                    "image/bmp"
                 )
             )
         }
-        val getContentIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-        }
         try {
-            val chooser = Intent.createChooser(openDocIntent, "File Manager (Custom)").apply {
-                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(getContentIntent))
-            }
-            directFileManagerLauncher.launch(chooser)
+            directFileManagerLauncher.launch(openDocIntent)
         } catch (_: Exception) {
-            try {
-                directFileManagerLauncher.launch(openDocIntent)
-            } catch (_: Exception) {
-                galleryPickerLauncher.launch("image/*")
-            }
+            galleryPickerLauncher.launch("image/*")
         }
     }
 
@@ -466,11 +394,7 @@ fun IconPickerModal(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         OutlinedButton(
-                            onClick = {
-                                runWithPermissionCheck(AppPermissionType.PHOTOS_MEDIA) {
-                                    openGalleryWithBrowseOption()
-                                }
-                            },
+                            onClick = { openGallery() },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
@@ -483,11 +407,7 @@ fun IconPickerModal(
                         }
 
                         OutlinedButton(
-                            onClick = {
-                                runWithPermissionCheck(AppPermissionType.STORAGE) {
-                                    openDirectFileManagerWithCustom()
-                                }
-                            },
+                            onClick = { openDirectFileManager() },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1.2f)
@@ -1362,29 +1282,6 @@ fun IconPickerModal(
                 TextButton(onClick = { showCleanConfirmDialog = false }) {
                     Text("Cancel")
                 }
-            }
-        )
-    }
-
-    showRationaleDialogForPicker?.let { permType ->
-        PermissionRationaleDialog(
-            permissionType = permType,
-            languageMode = LanguageMode.ENGLISH,
-            onConfirm = {
-                val permission = if (permType == AppPermissionType.PHOTOS_MEDIA) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        Manifest.permission.READ_MEDIA_IMAGES
-                    } else {
-                        Manifest.permission.READ_EXTERNAL_STORAGE
-                    }
-                } else {
-                    Manifest.permission.READ_EXTERNAL_STORAGE
-                }
-                pickerPermissionLauncher.launch(permission)
-            },
-            onDismiss = {
-                showRationaleDialogForPicker = null
-                pendingPickerAction = null
             }
         )
     }

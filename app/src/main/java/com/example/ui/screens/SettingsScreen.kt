@@ -696,15 +696,6 @@ fun SettingsScreen(
 
                     item {
                         ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা" else "Data Management",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক (ড্রাইভ ১, ২, কমন), লোকাল ও ব্যাকআপ" else "Online Sync (Drive 1, 2, Common), Local & Export",
-                            icon = Icons.Default.Storage,
-                            onClick = onNavigateToBackupSync
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
                             title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
                             subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম, দ্রুত লেনদেন ও প্রদর্শন" else "Default accounts, layout & autofill",
                             icon = Icons.Default.AddCircleOutline,

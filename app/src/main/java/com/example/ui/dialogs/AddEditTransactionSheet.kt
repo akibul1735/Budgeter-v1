@@ -545,18 +545,7 @@ fun AddEditTransactionSheet(
     }
 
     val runWithAttachmentPermission = { type: AppPermissionType, action: () -> Unit ->
-        val permission = when (type) {
-            AppPermissionType.CAMERA -> Manifest.permission.CAMERA
-            AppPermissionType.PHOTOS_MEDIA -> {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    Manifest.permission.READ_MEDIA_IMAGES
-                } else {
-                    Manifest.permission.READ_EXTERNAL_STORAGE
-                }
-            }
-            AppPermissionType.STORAGE -> Manifest.permission.READ_EXTERNAL_STORAGE
-            else -> null
-        }
+        val permission = if (type == AppPermissionType.CAMERA) Manifest.permission.CAMERA else null
 
         if (permission != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
             ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
@@ -3424,9 +3413,7 @@ fun AddEditTransactionSheet(
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
                             showAttachmentSourceSheet = false
-                            runWithAttachmentPermission(AppPermissionType.PHOTOS_MEDIA) {
-                                attachmentGalleryLauncher.launch("image/*")
-                            }
+                            attachmentGalleryLauncher.launch("image/*")
                         }
                 )
 
@@ -3465,9 +3452,7 @@ fun AddEditTransactionSheet(
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
                             showAttachmentSourceSheet = false
-                            runWithAttachmentPermission(AppPermissionType.STORAGE) {
-                                attachmentFileManagerLauncher.launch("*/*")
-                            }
+                            attachmentFileManagerLauncher.launch("*/*")
                         }
                 )
 
@@ -3503,21 +3488,7 @@ fun AddEditTransactionSheet(
             permissionType = permType,
             languageMode = languageMode,
             onConfirm = {
-                val perm = when (permType) {
-                    AppPermissionType.CAMERA -> Manifest.permission.CAMERA
-                    AppPermissionType.PHOTOS_MEDIA -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            Manifest.permission.READ_MEDIA_IMAGES
-                        } else {
-                            Manifest.permission.READ_EXTERNAL_STORAGE
-                        }
-                    }
-                    AppPermissionType.STORAGE -> Manifest.permission.READ_EXTERNAL_STORAGE
-                    else -> null
-                }
-                if (perm != null) {
-                    attachmentPermissionLauncher.launch(perm)
-                }
+                attachmentPermissionLauncher.launch(Manifest.permission.CAMERA)
             },
             onDismiss = {
                 showAttachmentRationaleDialog = null

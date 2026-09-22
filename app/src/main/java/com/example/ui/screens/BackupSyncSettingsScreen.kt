@@ -378,76 +378,13 @@ fun BackupSyncSettingsScreen(
         }
     }
 
-    var showRationaleDialogForOnlinePicker by remember { mutableStateOf<AppPermissionType?>(null) }
-    var pendingOnlinePickerAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-
-    val onlinePickerPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            pendingOnlinePickerAction?.invoke()
-        }
-        pendingOnlinePickerAction = null
+    // 1. Gallery option: Directly opens the gallery view (menu provides Browse option)
+    val openOnlineGallery = {
+        onlineGalleryPickerLauncher.launch("image/*")
     }
 
-    val runWithOnlinePermissionCheck = { type: AppPermissionType, action: () -> Unit ->
-        val permission = if (type == AppPermissionType.PHOTOS_MEDIA) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Manifest.permission.READ_MEDIA_IMAGES
-            } else {
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            }
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingOnlinePickerAction = action
-            showRationaleDialogForOnlinePicker = type
-        } else {
-            action()
-        }
-    }
-
-    // 1. Gallery option: Opens gallery view first, with Browse option to access file manager
-    val openOnlineGalleryWithBrowseOption = {
-        val galleryIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "image/*"
-            putExtra(
-                Intent.EXTRA_MIME_TYPES,
-                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
-            )
-        }
-        val browseDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "image/*"
-            putExtra(
-                Intent.EXTRA_MIME_TYPES,
-                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
-            )
-        }
-        try {
-            val chooser = Intent.createChooser(
-                galleryIntent,
-                if (languageMode == LanguageMode.BANGLA) "গ্যালারি (ব্রাউজ অপশনসহ)" else "Gallery (with Browse option)"
-            ).apply {
-                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(browseDocIntent))
-            }
-            onlineDirectFileManagerLauncher.launch(chooser)
-        } catch (_: Exception) {
-            try {
-                onlineDirectFileManagerLauncher.launch(galleryIntent)
-            } catch (_: Exception) {
-                onlineGalleryPickerLauncher.launch("image/*")
-            }
-        }
-    }
-
-    // 2. Direct File Manager launcher with Custom option
-    val openOnlineDirectFileManagerWithCustom = {
+    // 2. Direct File Manager launcher: Directly opens the file manager / storage provider without permissions
+    val openOnlineDirectFileManager = {
         val openDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -461,29 +398,14 @@ fun BackupSyncSettingsScreen(
                     "image/webp",
                     "image/svg+xml",
                     "image/gif",
-                    "image/bmp",
-                    "application/octet-stream"
+                    "image/bmp"
                 )
             )
         }
-        val getContentIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-        }
         try {
-            val chooser = Intent.createChooser(
-                openDocIntent,
-                if (languageMode == LanguageMode.BANGLA) "ফাইল ম্যানেজার (কাস্টম)" else "File Manager (Custom)"
-            ).apply {
-                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(getContentIntent))
-            }
-            onlineDirectFileManagerLauncher.launch(chooser)
+            onlineDirectFileManagerLauncher.launch(openDocIntent)
         } catch (_: Exception) {
-            try {
-                onlineDirectFileManagerLauncher.launch(openDocIntent)
-            } catch (_: Exception) {
-                onlineGalleryPickerLauncher.launch("image/*")
-            }
+            onlineGalleryPickerLauncher.launch("image/*")
         }
     }
 
@@ -684,7 +606,7 @@ fun BackupSyncSettingsScreen(
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "ডাটা ব্যবস্থাপনা" else "Data Management",
+                        text = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1854,11 +1776,7 @@ fun BackupSyncSettingsScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Button(
-                                        onClick = {
-                                            runWithOnlinePermissionCheck(AppPermissionType.PHOTOS_MEDIA) {
-                                                openOnlineGalleryWithBrowseOption()
-                                            }
-                                        },
+                                        onClick = { openOnlineGallery() },
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.weight(1f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
@@ -1873,11 +1791,7 @@ fun BackupSyncSettingsScreen(
                                     }
 
                                     OutlinedButton(
-                                        onClick = {
-                                            runWithOnlinePermissionCheck(AppPermissionType.STORAGE) {
-                                                openOnlineDirectFileManagerWithCustom()
-                                            }
-                                        },
+                                        onClick = { openOnlineDirectFileManager() },
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.weight(1.2f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
@@ -3389,29 +3303,6 @@ fun BackupSyncSettingsScreen(
                     if (languageMode == LanguageMode.BANGLA) "আইকন সফলভাবে সংরক্ষিত হয়েছে!" else "Saved icon to custom icons!",
                     Toast.LENGTH_SHORT
                 ).show()
-            }
-        )
-    }
-
-    showRationaleDialogForOnlinePicker?.let { permType ->
-        PermissionRationaleDialog(
-            permissionType = permType,
-            languageMode = languageMode,
-            onConfirm = {
-                val permission = if (permType == AppPermissionType.PHOTOS_MEDIA) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        Manifest.permission.READ_MEDIA_IMAGES
-                    } else {
-                        Manifest.permission.READ_EXTERNAL_STORAGE
-                    }
-                } else {
-                    Manifest.permission.READ_EXTERNAL_STORAGE
-                }
-                onlinePickerPermissionLauncher.launch(permission)
-            },
-            onDismiss = {
-                showRationaleDialogForOnlinePicker = null
-                pendingOnlinePickerAction = null
             }
         )
     }
