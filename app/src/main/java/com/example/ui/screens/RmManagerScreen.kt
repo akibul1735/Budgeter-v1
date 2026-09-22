@@ -43,6 +43,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -109,6 +113,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -186,6 +191,18 @@ fun RmManagerScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var isSearchExpanded by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) {
+            delay(100)
+            try {
+                searchFocusRequester.requestFocus()
+                keyboardController?.show()
+            } catch (_: Exception) {}
+        }
+    }
     var isUnifiedFilterOpen by remember { mutableStateOf(false) }
     var selectedFilterCategory by remember { mutableStateOf(RmFilterCategory.ALL) }
     var selectedSortOption by remember { mutableStateOf(RmSortOption.HIGHEST_DUE) }
@@ -318,9 +335,18 @@ fun RmManagerScreen(
                         }
                     } else {
                         // Search Button
-                        IconButton(onClick = { isSearchExpanded = !isSearchExpanded }) {
+                        IconButton(
+                            onClick = {
+                                isSearchExpanded = !isSearchExpanded
+                                if (!isSearchExpanded) {
+                                    searchQuery = ""
+                                    focusManager.clearFocus()
+                                    keyboardController?.hide()
+                                }
+                            }
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.Search,
+                                imageVector = if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
                                 contentDescription = "Search",
                                 tint = if (isSearchExpanded || searchQuery.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
@@ -498,7 +524,9 @@ fun RmManagerScreen(
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                                 keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(searchFocusRequester)
                             )
                         }
                         if (searchQuery.isNotEmpty()) {

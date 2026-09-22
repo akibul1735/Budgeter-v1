@@ -1,10 +1,15 @@
 package com.example.ui.components
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.example.data.model.LanguageMode
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +47,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -192,9 +198,9 @@ fun IconPickerModal(
         }
     }
 
-    // Media picker launcher for custom PNG/images -> Opens interactive Crop & Rotate editor!
-    val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
+    // Gallery picker launcher (opens gallery view first, with Browse option to access file manager)
+    val galleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             cropEditorUri = uri
@@ -202,13 +208,117 @@ fun IconPickerModal(
         }
     }
 
-    // Generic file manager / document picker launcher (opens system file picker / custom file managers)
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
+    // Direct File Manager launcher with custom file manager app support
+    val directFileManagerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
         if (uri != null) {
             cropEditorUri = uri
             cropEditorIconKey = null
+        }
+    }
+
+    var showRationaleDialogForPicker by remember { mutableStateOf<AppPermissionType?>(null) }
+    var pendingPickerAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val pickerPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingPickerAction?.invoke()
+        }
+        pendingPickerAction = null
+    }
+
+    val runWithPermissionCheck = { type: AppPermissionType, action: () -> Unit ->
+        val permission = if (type == AppPermissionType.PHOTOS_MEDIA) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Manifest.permission.READ_MEDIA_IMAGES
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingPickerAction = action
+            showRationaleDialogForPicker = type
+        } else {
+            action()
+        }
+    }
+
+    // 1. Gallery option: Opens gallery view first, with Browse option to access the file manager
+    val openGalleryWithBrowseOption = {
+        val galleryIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
+            )
+        }
+        val browseDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
+            )
+        }
+        try {
+            val chooser = Intent.createChooser(galleryIntent, "Gallery (Browse via File Manager)").apply {
+                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(browseDocIntent))
+            }
+            directFileManagerLauncher.launch(chooser)
+        } catch (_: Exception) {
+            try {
+                directFileManagerLauncher.launch(galleryIntent)
+            } catch (_: Exception) {
+                galleryPickerLauncher.launch("image/*")
+            }
+        }
+    }
+
+    // 2. Direct File Manager launcher with Custom option
+    val openDirectFileManagerWithCustom = {
+        val openDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf(
+                    "image/*",
+                    "image/png",
+                    "image/jpeg",
+                    "image/jpg",
+                    "image/webp",
+                    "image/svg+xml",
+                    "image/gif",
+                    "image/bmp",
+                    "application/octet-stream"
+                )
+            )
+        }
+        val getContentIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        try {
+            val chooser = Intent.createChooser(openDocIntent, "File Manager (Custom)").apply {
+                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(getContentIntent))
+            }
+            directFileManagerLauncher.launch(chooser)
+        } catch (_: Exception) {
+            try {
+                directFileManagerLauncher.launch(openDocIntent)
+            } catch (_: Exception) {
+                galleryPickerLauncher.launch("image/*")
+            }
         }
     }
 
@@ -357,9 +467,9 @@ fun IconPickerModal(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
+                                runWithPermissionCheck(AppPermissionType.PHOTOS_MEDIA) {
+                                    openGalleryWithBrowseOption()
+                                }
                             },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
@@ -367,14 +477,16 @@ fun IconPickerModal(
                                 .height(38.dp),
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
                         ) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Gallery", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                         }
 
                         OutlinedButton(
                             onClick = {
-                                filePickerLauncher.launch("image/*")
+                                runWithPermissionCheck(AppPermissionType.STORAGE) {
+                                    openDirectFileManagerWithCustom()
+                                }
                             },
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
@@ -965,6 +1077,39 @@ fun IconPickerModal(
                                 .weight(1f)
                         ) {
                             // Show custom icons
+                            if (selectedCategory == "Custom" && customIcons.isEmpty()) {
+                                item(span = { GridItemSpan(5) }) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 28.dp, horizontal = 12.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AddPhotoAlternate,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(36.dp),
+                                            tint = SolidPrimary.copy(alpha = 0.6f)
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = "No Custom Icons Yet",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Use Gallery (opens gallery first with Browse option) or File Manager (browse folders directly) above to add and crop custom photos or icons.",
+                                            fontSize = 11.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+
                             if (showCustomGrid && customIcons.isNotEmpty()) {
                                 items(customIcons) { customIconKey ->
                                     val isSelected = customIconKey == selectedIconName
@@ -1217,6 +1362,29 @@ fun IconPickerModal(
                 TextButton(onClick = { showCleanConfirmDialog = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    showRationaleDialogForPicker?.let { permType ->
+        PermissionRationaleDialog(
+            permissionType = permType,
+            languageMode = LanguageMode.ENGLISH,
+            onConfirm = {
+                val permission = if (permType == AppPermissionType.PHOTOS_MEDIA) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        Manifest.permission.READ_MEDIA_IMAGES
+                    } else {
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    }
+                } else {
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                }
+                pickerPermissionLauncher.launch(permission)
+            },
+            onDismiss = {
+                showRationaleDialogForPicker = null
+                pendingPickerAction = null
             }
         )
     }

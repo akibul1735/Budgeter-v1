@@ -1,11 +1,20 @@
 package com.example.ui.dialogs
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import java.io.File
+import java.io.FileOutputStream
+import com.example.ui.components.AppPermissionType
+import com.example.ui.components.PermissionRationaleDialog
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -74,6 +83,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
@@ -85,9 +95,11 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
@@ -116,7 +128,10 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -477,12 +492,79 @@ fun AddEditTransactionSheet(
     var showAutofillSettingsDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
-    // Attachment Picker
-    val attachmentPickerLauncher = rememberLauncherForActivityResult(
+    var showAttachmentSourceSheet by remember { mutableStateOf(false) }
+    var showAttachmentRationaleDialog by remember { mutableStateOf<AppPermissionType?>(null) }
+    var pendingAttachmentAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            try {
+                val file = File(context.cacheDir, "receipt_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                attachmentUri = Uri.fromFile(file).toString()
+            } catch (_: Exception) {
+                Toast.makeText(
+                    context,
+                    if (languageMode == LanguageMode.BANGLA) "ছবি সংরক্ষণ করতে ব্যর্থ" else "Failed to save photo",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    val attachmentPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingAttachmentAction?.invoke()
+        }
+        pendingAttachmentAction = null
+    }
+
+    // Attachment Picker for gallery
+    val attachmentGalleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
             attachmentUri = uri.toString()
+        }
+    }
+
+    // Attachment Picker for file manager
+    val attachmentFileManagerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            attachmentUri = uri.toString()
+        }
+    }
+
+    val runWithAttachmentPermission = { type: AppPermissionType, action: () -> Unit ->
+        val permission = when (type) {
+            AppPermissionType.CAMERA -> Manifest.permission.CAMERA
+            AppPermissionType.PHOTOS_MEDIA -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    Manifest.permission.READ_MEDIA_IMAGES
+                } else {
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                }
+            }
+            AppPermissionType.STORAGE -> Manifest.permission.READ_EXTERNAL_STORAGE
+            else -> null
+        }
+
+        if (permission != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingAttachmentAction = action
+            showAttachmentRationaleDialog = type
+        } else {
+            action()
         }
     }
 
@@ -1447,7 +1529,7 @@ fun AddEditTransactionSheet(
                                             )
                                         }
                                     }
-                                    IconButton(onClick = { attachmentPickerLauncher.launch("*/*") }) {
+                                    IconButton(onClick = { showAttachmentSourceSheet = true }) {
                                         Icon(
                                             Icons.Default.AttachFile,
                                             contentDescription = "Attach File/Image",
@@ -3244,6 +3326,203 @@ fun AddEditTransactionSheet(
             },
             onAddNewCategory = { newCat -> onAddNewCategory?.invoke(newCat) },
             onAddNewAccount = { newAcc -> onAddNewAccount?.invoke(newAcc) }
+        )
+    }
+
+    if (showAttachmentSourceSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAttachmentSourceSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .navigationBarsPadding()
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "সংযুক্তি যোগ করুন" else "Add Attachment",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Option 1: Camera
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            if (languageMode == LanguageMode.BANGLA) "ক্যামেরা (ছবি তুলুন)" else "Camera (Take Photo)",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            if (languageMode == LanguageMode.BANGLA) "রসিদ বা ডকুমেন্টের সরাসরি ছবি তুলুন" else "Take a direct photo of the receipt or document",
+                            fontSize = 12.sp
+                        )
+                    },
+                    leadingContent = {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.CameraAlt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            showAttachmentSourceSheet = false
+                            runWithAttachmentPermission(AppPermissionType.CAMERA) {
+                                cameraLauncher.launch(null)
+                            }
+                        }
+                )
+
+                // Option 2: Gallery
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            if (languageMode == LanguageMode.BANGLA) "গ্যালারি (ছবি বাছুন)" else "Gallery (Choose Photo)",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            if (languageMode == LanguageMode.BANGLA) "ডিভাইস গ্যালারি থেকে রসিদের ছবি বাছুন" else "Select a photo from device gallery",
+                            fontSize = 12.sp
+                        )
+                    },
+                    leadingContent = {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.PhotoLibrary,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            showAttachmentSourceSheet = false
+                            runWithAttachmentPermission(AppPermissionType.PHOTOS_MEDIA) {
+                                attachmentGalleryLauncher.launch("image/*")
+                            }
+                        }
+                )
+
+                // Option 3: File Manager
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            if (languageMode == LanguageMode.BANGLA) "ফাইল ম্যানেজার (ডকুমেন্ট বাছুন)" else "File Manager (Browse Files)",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            if (languageMode == LanguageMode.BANGLA) "পিডিএফ বা অন্যান্য ফাইল বাছুন" else "Browse documents or other files",
+                            fontSize = 12.sp
+                        )
+                    },
+                    leadingContent = {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.FolderOpen,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            showAttachmentSourceSheet = false
+                            runWithAttachmentPermission(AppPermissionType.STORAGE) {
+                                attachmentFileManagerLauncher.launch("*/*")
+                            }
+                        }
+                )
+
+                if (attachmentUri.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            attachmentUri = ""
+                            showAttachmentSourceSheet = false
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            if (languageMode == LanguageMode.BANGLA) "সংযুক্তি মুছে ফেলুন" else "Remove Attachment",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+
+    showAttachmentRationaleDialog?.let { permType ->
+        PermissionRationaleDialog(
+            permissionType = permType,
+            languageMode = languageMode,
+            onConfirm = {
+                val perm = when (permType) {
+                    AppPermissionType.CAMERA -> Manifest.permission.CAMERA
+                    AppPermissionType.PHOTOS_MEDIA -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            Manifest.permission.READ_MEDIA_IMAGES
+                        } else {
+                            Manifest.permission.READ_EXTERNAL_STORAGE
+                        }
+                    }
+                    AppPermissionType.STORAGE -> Manifest.permission.READ_EXTERNAL_STORAGE
+                    else -> null
+                }
+                if (perm != null) {
+                    attachmentPermissionLauncher.launch(perm)
+                }
+            },
+            onDismiss = {
+                showAttachmentRationaleDialog = null
+                pendingAttachmentAction = null
+            }
         )
     }
 }

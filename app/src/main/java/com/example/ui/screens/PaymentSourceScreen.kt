@@ -196,7 +196,7 @@ fun PaymentSourceScreen(
     // Assigned items tab filters
     var assignedSectionFilter by remember { mutableStateOf(AssignedItemSectionFilter.ALL) }
     var assignedStatusFilter by remember { mutableStateOf(AssignedItemStatusFilter.ALL) }
-    var assignedSearchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
 
     // Dialogs state
     var showSourceSelectorDialog by remember { mutableStateOf(false) }
@@ -285,6 +285,10 @@ fun PaymentSourceScreen(
             AppTabHeader(
                 title = LanguageHelper.getString("payment_source", languageMode),
                 onOpenDrawer = onOpenDrawer,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                showSearchButton = true,
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স বা আইটেম খুঁজুন..." else "Search payment sources or items...",
                 actions = {
                     // Payment Sources Selector Action
                     Surface(
@@ -428,6 +432,7 @@ fun PaymentSourceScreen(
                     AccountsPaymentSourceTabContent(
                         overview = analysisOverview,
                         languageMode = languageMode,
+                        searchQuery = searchQuery,
                         accountStatusFilter = accountStatusFilter,
                         onStatusFilterChange = { accountStatusFilter = it },
                         onOpenSourceSelector = { showSourceSelectorDialog = true },
@@ -459,8 +464,8 @@ fun PaymentSourceScreen(
                         onSectionFilterChange = { assignedSectionFilter = it },
                         statusFilter = assignedStatusFilter,
                         onStatusFilterChange = { assignedStatusFilter = it },
-                        searchQuery = assignedSearchQuery,
-                        onSearchChange = { assignedSearchQuery = it },
+                        searchQuery = searchQuery,
+                        onSearchChange = { searchQuery = it },
                         usageFrequencyMap = categoryUsageFrequencyMap,
                         onOpenCategorySplitDialog = { showCategorySplitDialog = it },
                         onOpenOtherAccountSplitDialog = { showOtherAccountSplitDialog = it },
@@ -652,6 +657,7 @@ fun PaymentSourceScreen(
 private fun AccountsPaymentSourceTabContent(
     overview: PaymentSourceAnalysisOverview,
     languageMode: LanguageMode,
+    searchQuery: String = "",
     accountStatusFilter: AccountStatusFilter,
     onStatusFilterChange: (AccountStatusFilter) -> Unit,
     onOpenSourceSelector: () -> Unit,
@@ -662,11 +668,20 @@ private fun AccountsPaymentSourceTabContent(
     onAssignItem: (Account) -> Unit,
     onDeleteObligation: (String) -> Unit
 ) {
-    val filteredAccounts = remember(overview.accountAnalyses, accountStatusFilter) {
-        when (accountStatusFilter) {
+    val filteredAccounts = remember(overview.accountAnalyses, accountStatusFilter, searchQuery) {
+        val byStatus = when (accountStatusFilter) {
             AccountStatusFilter.ALL -> overview.accountAnalyses
             AccountStatusFilter.SHORTFALL_ONLY -> overview.accountAnalyses.filter { it.isShortfall }
             AccountStatusFilter.SURPLUS_ONLY -> overview.accountAnalyses.filter { it.isSurplus }
+        }
+        val q = searchQuery.trim().lowercase()
+        if (q.isEmpty()) {
+            byStatus
+        } else {
+            byStatus.filter {
+                it.account.nameEn.lowercase().contains(q) ||
+                it.account.nameBn.lowercase().contains(q)
+            }
         }
     }
 

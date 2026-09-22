@@ -34,6 +34,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -104,6 +108,7 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -376,6 +381,18 @@ fun BudgetScreen(
     // Search and Filter State
     var isSearchActive by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery.isNotBlank()) }
     var searchQuery by remember(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(isSearchActive) {
+        if (isSearchActive) {
+            delay(100)
+            try {
+                searchFocusRequester.requestFocus()
+                keyboardController?.show()
+            } catch (_: Exception) {}
+        }
+    }
     var showFilterDialog by remember { mutableStateOf(false) }
 
     // Tab-specific filters and sorting for Budget Maker (Independent per tab)
@@ -1538,7 +1555,13 @@ fun BudgetScreen(
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             IconButton(
-                                onClick = { isSearchActive = !isSearchActive },
+                                onClick = {
+                                    isSearchActive = !isSearchActive
+                                    if (!isSearchActive) {
+                                        searchQuery = ""
+                                        keyboardController?.hide()
+                                    }
+                                },
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
@@ -1910,7 +1933,9 @@ fun BudgetScreen(
                                         }
                                         innerTextField()
                                     },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(searchFocusRequester)
                                 )
                                 if (searchQuery.isNotEmpty()) {
                                     IconButton(

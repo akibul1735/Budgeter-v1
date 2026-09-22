@@ -69,6 +69,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.components.AppPermissionType
+import com.example.ui.components.PermissionRationaleDialog
 import com.example.ui.theme.SolidPrimary
 import com.example.util.NotificationConfig
 import com.example.util.NotificationHelper
@@ -98,6 +100,7 @@ fun PhoneNotificationDialog(
             }
         )
     }
+    var showNotificationRationaleDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -118,6 +121,19 @@ fun PhoneNotificationDialog(
                 )
             }
         }
+    }
+
+    if (showNotificationRationaleDialog) {
+        PermissionRationaleDialog(
+            permissionType = AppPermissionType.NOTIFICATION,
+            languageMode = languageMode,
+            onConfirm = {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onDismiss = {
+                showNotificationRationaleDialog = false
+            }
+        )
     }
 
     ModalBottomSheet(
@@ -238,7 +254,7 @@ fun PhoneNotificationDialog(
 
                                 Button(
                                     onClick = {
-                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        showNotificationRationaleDialog = true
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                                     shape = RoundedCornerShape(8.dp),

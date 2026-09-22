@@ -70,6 +70,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LanguageMode
+import com.example.ui.components.AppPermissionType
+import com.example.ui.components.PermissionRationaleDialog
 import com.example.ui.components.AppTabHeader
 import com.example.util.LanguageHelper
 import com.example.util.NotificationConfig
@@ -90,6 +92,7 @@ fun NotificationSettingsPage(
     var showTimePickerSheet by remember { mutableStateOf(false) }
     var showBillNoticeSheet by remember { mutableStateOf(false) }
     var testNotificationSent by remember { mutableStateOf(false) }
+    var showNotificationRationaleDialog by remember { mutableStateOf(false) }
 
     var hasNotificationPermission by remember {
         mutableStateOf(
@@ -252,7 +255,7 @@ fun NotificationSettingsPage(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Button(
-                            onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                            onClick = { showNotificationRationaleDialog = true },
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(if (isBangla) "অনুমতি দিন" else "Grant", fontSize = 12.sp)
@@ -339,7 +342,7 @@ fun NotificationSettingsPage(
                                 if (enabled) {
                                     NotificationHelper.scheduleDailyReminder(context, notifConfig.dailyReminderHour, notifConfig.dailyReminderMinute)
                                     if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        showNotificationRationaleDialog = true
                                     }
                                 } else {
                                     NotificationHelper.cancelDailyReminder(context)
@@ -427,7 +430,7 @@ fun NotificationSettingsPage(
                             onCheckedChange = { enabled ->
                                 notifPrefs.updateConfig { it.copy(isBillReminderEnabled = enabled) }
                                 if (enabled && !hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    showNotificationRationaleDialog = true
                                 }
                             },
                             colors = SwitchDefaults.colors(
@@ -483,6 +486,19 @@ fun NotificationSettingsPage(
     }
 
     // Modal Bottom Sheet: Reminder Time Picker
+    if (showNotificationRationaleDialog) {
+        PermissionRationaleDialog(
+            permissionType = AppPermissionType.NOTIFICATION,
+            languageMode = if (isBangla) LanguageMode.BANGLA else LanguageMode.ENGLISH,
+            onConfirm = {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onDismiss = {
+                showNotificationRationaleDialog = false
+            }
+        )
+    }
+
     if (showTimePickerSheet) {
         ModalBottomSheet(
             onDismissRequest = { showTimePickerSheet = false },

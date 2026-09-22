@@ -78,7 +78,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import com.example.ui.components.AppPermissionType
+import com.example.ui.components.PermissionRationaleDialog
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -353,8 +356,9 @@ fun BackupSyncSettingsScreen(
         }
     }
 
-    val onlineImagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
+    // Gallery picker launcher (opens gallery view first, with Browse option to access file manager)
+    val onlineGalleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
             cropEditorImageUrl = it.toString()
@@ -363,13 +367,123 @@ fun BackupSyncSettingsScreen(
         }
     }
 
-    val onlineFilePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            cropEditorImageUrl = it.toString()
+    // Direct File Manager launcher with custom file manager app support
+    val onlineDirectFileManagerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        result.data?.data?.let { uri ->
+            cropEditorImageUrl = uri.toString()
             cropEditorInitialName = "Custom File Image"
             showCropEditor = true
+        }
+    }
+
+    var showRationaleDialogForOnlinePicker by remember { mutableStateOf<AppPermissionType?>(null) }
+    var pendingOnlinePickerAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val onlinePickerPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingOnlinePickerAction?.invoke()
+        }
+        pendingOnlinePickerAction = null
+    }
+
+    val runWithOnlinePermissionCheck = { type: AppPermissionType, action: () -> Unit ->
+        val permission = if (type == AppPermissionType.PHOTOS_MEDIA) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Manifest.permission.READ_MEDIA_IMAGES
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingOnlinePickerAction = action
+            showRationaleDialogForOnlinePicker = type
+        } else {
+            action()
+        }
+    }
+
+    // 1. Gallery option: Opens gallery view first, with Browse option to access file manager
+    val openOnlineGalleryWithBrowseOption = {
+        val galleryIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
+            )
+        }
+        val browseDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("image/*", "image/png", "image/jpeg", "image/jpg", "image/webp")
+            )
+        }
+        try {
+            val chooser = Intent.createChooser(
+                galleryIntent,
+                if (languageMode == LanguageMode.BANGLA) "গ্যালারি (ব্রাউজ অপশনসহ)" else "Gallery (with Browse option)"
+            ).apply {
+                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(browseDocIntent))
+            }
+            onlineDirectFileManagerLauncher.launch(chooser)
+        } catch (_: Exception) {
+            try {
+                onlineDirectFileManagerLauncher.launch(galleryIntent)
+            } catch (_: Exception) {
+                onlineGalleryPickerLauncher.launch("image/*")
+            }
+        }
+    }
+
+    // 2. Direct File Manager launcher with Custom option
+    val openOnlineDirectFileManagerWithCustom = {
+        val openDocIntent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf(
+                    "image/*",
+                    "image/png",
+                    "image/jpeg",
+                    "image/jpg",
+                    "image/webp",
+                    "image/svg+xml",
+                    "image/gif",
+                    "image/bmp",
+                    "application/octet-stream"
+                )
+            )
+        }
+        val getContentIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        try {
+            val chooser = Intent.createChooser(
+                openDocIntent,
+                if (languageMode == LanguageMode.BANGLA) "ফাইল ম্যানেজার (কাস্টম)" else "File Manager (Custom)"
+            ).apply {
+                putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(getContentIntent))
+            }
+            onlineDirectFileManagerLauncher.launch(chooser)
+        } catch (_: Exception) {
+            try {
+                onlineDirectFileManagerLauncher.launch(openDocIntent)
+            } catch (_: Exception) {
+                onlineGalleryPickerLauncher.launch("image/*")
+            }
         }
     }
 
@@ -1741,15 +1855,15 @@ fun BackupSyncSettingsScreen(
                                 ) {
                                     Button(
                                         onClick = {
-                                            onlineImagePickerLauncher.launch(
-                                                androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                            )
+                                            runWithOnlinePermissionCheck(AppPermissionType.PHOTOS_MEDIA) {
+                                                openOnlineGalleryWithBrowseOption()
+                                            }
                                         },
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.weight(1f),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                                     ) {
-                                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = if (languageMode == LanguageMode.BANGLA) "গ্যালারি" else "Gallery",
@@ -1760,7 +1874,9 @@ fun BackupSyncSettingsScreen(
 
                                     OutlinedButton(
                                         onClick = {
-                                            onlineFilePickerLauncher.launch("image/*")
+                                            runWithOnlinePermissionCheck(AppPermissionType.STORAGE) {
+                                                openOnlineDirectFileManagerWithCustom()
+                                            }
                                         },
                                         shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.weight(1.2f),
@@ -3273,6 +3389,29 @@ fun BackupSyncSettingsScreen(
                     if (languageMode == LanguageMode.BANGLA) "আইকন সফলভাবে সংরক্ষিত হয়েছে!" else "Saved icon to custom icons!",
                     Toast.LENGTH_SHORT
                 ).show()
+            }
+        )
+    }
+
+    showRationaleDialogForOnlinePicker?.let { permType ->
+        PermissionRationaleDialog(
+            permissionType = permType,
+            languageMode = languageMode,
+            onConfirm = {
+                val permission = if (permType == AppPermissionType.PHOTOS_MEDIA) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        Manifest.permission.READ_MEDIA_IMAGES
+                    } else {
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    }
+                } else {
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                }
+                onlinePickerPermissionLauncher.launch(permission)
+            },
+            onDismiss = {
+                showRationaleDialogForOnlinePicker = null
+                pendingOnlinePickerAction = null
             }
         )
     }

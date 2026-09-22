@@ -56,6 +56,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -93,6 +98,18 @@ fun AppTabHeader(
     val headerScrollState = LocalHeaderScrollState.current
     var isSearchExpanded by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isSearchExpanded) {
+        if (isSearchExpanded) {
+            delay(100)
+            try {
+                focusRequester.requestFocus()
+                keyboardController?.show()
+            } catch (_: Exception) {}
+        }
+    }
 
     val searchSupported = onSearchQueryChange != null
 
@@ -211,6 +228,7 @@ fun AppTabHeader(
                             if (!isSearchExpanded) {
                                 onSearchQueryChange?.invoke("")
                                 focusManager.clearFocus()
+                                keyboardController?.hide()
                             }
                         },
                         modifier = Modifier
@@ -345,6 +363,7 @@ fun AppTabHeader(
                             keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .focusRequester(focusRequester)
                                 .testTag("header_search_input")
                         )
                     }

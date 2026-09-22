@@ -71,13 +71,24 @@ fun SavingsGoalsScreen(
     var goalToAllocate by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var goalToDelete by remember { mutableStateOf<SavingsGoalWithDetails?>(null) }
     var showAddGoalDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
-    val filteredGoals = remember(goalsWithDetails, selectedFilter) {
-        when (selectedFilter) {
+    val filteredGoals = remember(goalsWithDetails, selectedFilter, searchQuery) {
+        val byFilter = when (selectedFilter) {
             GoalFilterType.ALL -> goalsWithDetails
             GoalFilterType.ACTIVE -> goalsWithDetails.filter { !it.goal.isCompleted }
             GoalFilterType.COMPLETED -> goalsWithDetails.filter { it.goal.isCompleted }
             GoalFilterType.DEFICIT -> goalsWithDetails.filter { it.hasDeficit }
+        }
+        val q = searchQuery.trim()
+        if (q.isEmpty()) {
+            byFilter
+        } else {
+            byFilter.filter {
+                it.goal.name.contains(q, ignoreCase = true) ||
+                it.goal.nameBn.contains(q, ignoreCase = true) ||
+                it.goal.notes.contains(q, ignoreCase = true)
+            }
         }
     }
 
@@ -114,18 +125,10 @@ fun SavingsGoalsScreen(
         AppTabHeader(
             title = LanguageHelper.getString("savings_goals", languageMode),
             onOpenDrawer = onOpenDrawer,
-            actions = {
-                IconButton(
-                    onClick = { showAddGoalDialog = true },
-                    modifier = Modifier.testTag("topbar_add_goal_btn")
-                ) {
-                    Icon(
-                        Icons.Default.AddCircleOutline,
-                        contentDescription = "Add Goal",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            showSearchButton = true,
+            searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "সঞ্চয় লক্ষ্য খুঁজুন..." else "Search savings goals..."
         )
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
