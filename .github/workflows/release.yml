@@ -153,10 +153,10 @@ jobs:
           set +e
           set -o pipefail
           if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            ./gradlew assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
+            ./gradlew :app:assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
             GRADLE_EXIT_CODE=$?
           else
-            gradle assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
+            gradle :app:assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build_logs/build_release.log
             GRADLE_EXIT_CODE=$?
           fi
 
