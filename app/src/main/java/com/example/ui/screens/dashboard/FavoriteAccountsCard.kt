@@ -261,21 +261,22 @@ private fun FavoriteAccountRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
+            val isCustomOrDrawable = IconHelper.isDrawableIcon(accItem.account.iconName) || IconHelper.isCustomIcon(accItem.account.iconName)
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(if (isCustomOrDrawable) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 IconHelper.AppIcon(
                     iconName = accItem.account.iconName,
                     contentDescription = null,
                     tint = SolidPrimary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(if (isCustomOrDrawable) 38.dp else 22.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = accItem.account.localizedName(languageMode),
                 fontSize = 13.5.sp,

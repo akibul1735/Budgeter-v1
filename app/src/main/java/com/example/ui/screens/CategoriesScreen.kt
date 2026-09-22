@@ -732,7 +732,7 @@ fun CategoriesScreen(
                                         ) {
                                             Box(
                                                 modifier = Modifier
-                                                    .size(38.dp)
+                                                    .size(44.dp)
                                                     .clip(CircleShape)
                                                     .background(parentColor.copy(alpha = 0.16f))
                                                     .border(1.dp, parentColor.copy(alpha = 0.35f), CircleShape),
@@ -742,11 +742,11 @@ fun CategoriesScreen(
                                                     iconName = parent.iconName,
                                                     contentDescription = null,
                                                     tint = parentColor,
-                                                    modifier = Modifier.size(20.dp)
+                                                    modifier = Modifier.size(24.dp)
                                                 )
                                             }
 
-                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Spacer(modifier = Modifier.width(12.dp))
 
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Row(
@@ -869,7 +869,7 @@ fun CategoriesScreen(
                                                             ) {
                                                                 Box(
                                                                     modifier = Modifier
-                                                                        .size(24.dp)
+                                                                        .size(28.dp)
                                                                         .clip(CircleShape)
                                                                         .background(subColor.copy(alpha = 0.18f)),
                                                                     contentAlignment = Alignment.Center
@@ -878,10 +878,10 @@ fun CategoriesScreen(
                                                                         iconName = subCat.iconName,
                                                                         contentDescription = null,
                                                                         tint = subColor,
-                                                                        modifier = Modifier.size(14.dp)
+                                                                        modifier = Modifier.size(17.dp)
                                                                     )
                                                                 }
-                                                                Spacer(modifier = Modifier.width(8.dp))
+                                                                Spacer(modifier = Modifier.width(10.dp))
                                                                 Text(
                                                                     text = subCat.localizedName(languageMode),
                                                                     fontSize = 12.sp,
@@ -965,9 +965,9 @@ fun CategoriesScreen(
                                                 iconName = parent.iconName,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier.size(22.dp)
+                                                modifier = Modifier.size(26.dp)
                                             )
-                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Spacer(modifier = Modifier.width(12.dp))
                                             Column {
                                                 Text(
                                                     text = parent.localizedName(languageMode),

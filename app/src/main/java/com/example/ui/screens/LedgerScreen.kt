@@ -2151,7 +2151,7 @@ internal fun TransactionRowItem(
             if (isSelected) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(SolidPrimary),
                     contentAlignment = Alignment.Center
@@ -2160,35 +2160,50 @@ internal fun TransactionRowItem(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Selected",
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-            } else if (txConfig.enableCategoryIcons) {
+            } else if (txConfig.enableCategoryIcons || txConfig.enableAccountIcons) {
+                val effectiveAcc = effectiveAccount
+                val accountIconName = effectiveAcc?.iconName?.takeIf { it.isNotBlank() }
+                val fallbackCatIconName = item.category?.iconName?.takeIf { it.isNotBlank() }
+                val iconName = accountIconName ?: fallbackCatIconName ?: when (tx.type) {
+                    TransactionType.EXPENSE -> "Category"
+                    TransactionType.INCOME -> "Payments"
+                    TransactionType.TRANSFER -> "SwapHoriz"
+                }
+                val isImage = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
+                val dynamicBg = if (isImage) {
+                    Color.Transparent
+                } else {
+                    effectiveAcc?.colorHex?.takeIf { it.isNotBlank() }?.let {
+                        IconHelper.parseColorHex(it, iconBg).copy(alpha = 0.20f)
+                    } ?: iconBg
+                }
+                val dynamicTint = effectiveAcc?.colorHex?.takeIf { it.isNotBlank() }?.let {
+                    IconHelper.parseColorHex(it, iconColor)
+                } ?: iconColor
+
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
-                        .background(iconBg),
+                        .background(dynamicBg),
                     contentAlignment = Alignment.Center
                 ) {
-                    val icon = when (tx.type) {
-                        TransactionType.EXPENSE -> IconHelper.getIconByName(item.category?.iconName ?: "Category")
-                        TransactionType.INCOME -> IconHelper.getIconByName(item.category?.iconName ?: "Payments")
-                        TransactionType.TRANSFER -> Icons.Default.SwapHoriz
-                    }
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconColor,
-                        modifier = Modifier.size(18.dp)
+                    IconHelper.AppIcon(
+                        iconName = iconName,
+                        contentDescription = effectiveAcc?.localizedName(languageMode) ?: item.category?.localizedName(languageMode),
+                        tint = dynamicTint,
+                        modifier = Modifier.size(if (isImage) 42.dp else 24.dp)
                     )
                 }
             }
 
-            if (!isSelected && txConfig.enableCategoryIcons) {
-                Spacer(modifier = Modifier.width(10.dp))
+            if (!isSelected && (txConfig.enableCategoryIcons || txConfig.enableAccountIcons)) {
+                Spacer(modifier = Modifier.width(12.dp))
             } else if (isSelected) {
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
             }
 
             // Center: Name (left top), Category/Group (left below), Labels & Notes (below)
@@ -2397,17 +2412,17 @@ internal fun TransactionRowItem(
                 val accountForIcon = effectiveAccount
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (txConfig.enableAccountIcons && accountForIcon != null) {
-                        Icon(
-                            imageVector = IconHelper.getIconByName(accountForIcon.iconName),
+                        IconHelper.AppIcon(
+                            iconName = accountForIcon.iconName,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(11.dp)
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(3.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
                     Text(
                         text = accountLine,
-                        fontSize = 10.5.sp,
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.outline,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -2905,13 +2920,13 @@ private fun BatchSelectCategoryDialog(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            imageVector = IconHelper.getIconByName(parent.iconName),
+                                        IconHelper.AppIcon(
+                                            iconName = parent.iconName,
                                             contentDescription = null,
                                             tint = SolidPrimary,
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(22.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
                                         Text(parent.nameEn, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     }
                                 }
@@ -2932,13 +2947,13 @@ private fun BatchSelectCategoryDialog(
                                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Icon(
-                                                    imageVector = IconHelper.getIconByName(sub.iconName),
+                                                IconHelper.AppIcon(
+                                                    iconName = sub.iconName,
                                                     contentDescription = null,
                                                     tint = MaterialTheme.colorScheme.outline,
-                                                    modifier = Modifier.size(14.dp)
+                                                    modifier = Modifier.size(18.dp)
                                                 )
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Spacer(modifier = Modifier.width(10.dp))
                                                 Text(sub.nameEn, fontSize = 12.sp)
                                             }
                                         }
@@ -3005,13 +3020,13 @@ private fun BatchSelectAccountDialog(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = IconHelper.getIconByName(acc.iconName),
+                                IconHelper.AppIcon(
+                                    iconName = acc.iconName,
                                     contentDescription = null,
                                     tint = SolidPrimary,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(acc.nameEn, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                     Text(acc.type.name, fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)

@@ -1744,8 +1744,8 @@ fun SingleAccountCard(
 
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1753,11 +1753,11 @@ fun SingleAccountCard(
                         iconName = acc.iconName,
                         contentDescription = null,
                         tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     FlowRow(
@@ -1995,8 +1995,8 @@ fun AccountGroupCard(
                     // Group Icon Box
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -2004,11 +2004,11 @@ fun AccountGroupCard(
                             iconName = group.iconName,
                             contentDescription = null,
                             tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
                         FlowRow(
@@ -2250,9 +2250,9 @@ fun AccountGroupCard(
                                                 iconName = sub.iconName,
                                                 contentDescription = null,
                                                 tint = if (sub.isActive && subIncluded) SolidPrimary else MaterialTheme.colorScheme.outline,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(22.dp)
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Spacer(modifier = Modifier.width(10.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,

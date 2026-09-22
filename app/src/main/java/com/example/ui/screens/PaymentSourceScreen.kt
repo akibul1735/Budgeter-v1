@@ -1392,22 +1392,23 @@ private fun OtherAccountAllocationCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .background(accColor.copy(alpha = 0.15f)),
+                            .background(if (isImg) Color.Transparent else accColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = IconHelper.getIconByName(acc.iconName),
+                        IconHelper.AppIcon(
+                            iconName = acc.iconName,
                             contentDescription = null,
                             tint = accColor,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(if (isImg) 40.dp else 22.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1568,22 +1569,23 @@ private fun AccountRequirementCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    val isImg = IconHelper.isDrawableIcon(analysis.account.iconName) || IconHelper.isCustomIcon(analysis.account.iconName)
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
-                            .background(SolidPrimary.copy(alpha = 0.15f)),
+                            .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = IconHelper.getIconByName(analysis.account.iconName),
+                        IconHelper.AppIcon(
+                            iconName = analysis.account.iconName,
                             contentDescription = null,
                             tint = SolidPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(if (isImg) 42.dp else 24.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     Column {
                         Text(
@@ -2200,21 +2202,22 @@ private fun OtherAccountSplitDialog(
                                             }
                                         }
                                     )
+                                    val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
                                     Box(
                                         modifier = Modifier
-                                            .size(24.dp)
+                                            .size(28.dp)
                                             .clip(CircleShape)
-                                            .background(SolidPrimary.copy(alpha = 0.12f)),
+                                            .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = IconHelper.getIconByName(acc.iconName),
+                                        IconHelper.AppIcon(
+                                            iconName = acc.iconName,
                                             contentDescription = null,
                                             tint = SolidPrimary,
-                                            modifier = Modifier.size(13.dp)
+                                            modifier = Modifier.size(if (isImg) 28.dp else 16.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = acc.localizedName(languageMode),
                                         fontSize = 12.sp,
@@ -2577,21 +2580,22 @@ private fun CategoryAccountSplitDialog(
                                             }
                                         }
                                     )
+                                    val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
                                     Box(
                                         modifier = Modifier
-                                            .size(24.dp)
+                                            .size(28.dp)
                                             .clip(CircleShape)
-                                            .background(SolidPrimary.copy(alpha = 0.12f)),
+                                            .background(if (isImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = IconHelper.getIconByName(acc.iconName),
+                                        IconHelper.AppIcon(
+                                            iconName = acc.iconName,
                                             contentDescription = null,
                                             tint = SolidPrimary,
-                                            modifier = Modifier.size(13.dp)
+                                            modifier = Modifier.size(if (isImg) 28.dp else 16.dp)
                                         )
                                     }
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = acc.localizedName(languageMode),
                                         fontSize = 12.sp,

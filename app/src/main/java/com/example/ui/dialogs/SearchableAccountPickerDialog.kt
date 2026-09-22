@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -196,18 +197,18 @@ fun SearchableAccountPickerDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(22.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        modifier = Modifier.size(26.dp)
                                     ) {
-                                        IconHelper.AppIcon(
-                                            iconName = groupItem.groupAccount.iconName,
-                                            modifier = Modifier.size(14.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
+                                        Box(contentAlignment = Alignment.Center) {
+                                            IconHelper.AppIcon(
+                                                iconName = groupItem.groupAccount.iconName,
+                                                modifier = Modifier.size(17.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                     Text(
                                         text = groupItem.groupName,
@@ -247,15 +248,16 @@ fun SearchableAccountPickerDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                 modifier = Modifier.weight(1f)
                                             ) {
+                                                val isCustomOrDrawable = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
                                                 Surface(
                                                     shape = CircleShape,
-                                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                                    modifier = Modifier.size(34.dp)
+                                                    color = if (isCustomOrDrawable) Color.Transparent else MaterialTheme.colorScheme.primaryContainer,
+                                                    modifier = Modifier.size(40.dp)
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         IconHelper.AppIcon(
                                                             iconName = acc.iconName,
-                                                            modifier = Modifier.size(18.dp),
+                                                            modifier = Modifier.size(if (isCustomOrDrawable) 40.dp else 22.dp),
                                                             tint = MaterialTheme.colorScheme.primary
                                                         )
                                                     }
