@@ -103,12 +103,14 @@ import kotlinx.coroutines.withContext
 fun IconPickerModal(
     selectedIconName: String,
     onIconSelected: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialQuery: String = "",
+    initialCategory: String = "Online Search"
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var selectedCategory by remember { mutableStateOf("All") }
-    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf(initialCategory) }
+    var searchQuery by remember { mutableStateOf(initialQuery) }
     val customIcons = remember {
         mutableStateListOf<String>().apply {
             addAll(IconHelper.getAllCustomIcons(context))
@@ -177,7 +179,7 @@ fun IconPickerModal(
                 hasMoreOnline = true
                 searchJob?.cancel()
                 searchJob = coroutineScope.launch {
-                    delay(350)
+                    delay(150)
                     if (onlineSearchSubMode == 0) {
                         val results = OnlineIconSearchService.searchIcons(context, query, page = 1)
                         onlineResults = results
@@ -493,32 +495,6 @@ fun IconPickerModal(
                             ),
                             modifier = Modifier.weight(1f)
                         )
-                    }
-
-                    // Quick topic discovery chips for instant search
-                    val quickTopics = listOf("Technology", "Computer", "Chip / CPU", "AI & Robot", "Code", "Electronics", "Fintech", "Food", "Shopping", "Transport")
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    ) {
-                        items(quickTopics) { topic ->
-                            val isSelectedTopic = searchQuery.equals(topic, ignoreCase = true)
-                            SuggestionChip(
-                                onClick = { searchQuery = topic },
-                                label = { Text(topic, fontSize = 11.5.sp, fontWeight = if (isSelectedTopic) FontWeight.Bold else FontWeight.Normal) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = if (isSelectedTopic) SolidPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                    labelColor = if (isSelectedTopic) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                border = BorderStroke(
-                                    0.5.dp,
-                                    if (isSelectedTopic) SolidPrimary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                )
-                            )
-                        }
                     }
 
                     if (isSearchingOnline) {

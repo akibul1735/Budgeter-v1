@@ -45,8 +45,8 @@ data class IconItem(
 object IconHelper {
 
     val CATEGORIES = listOf(
-        "All",
         "Online Search",
+        "All",
         "BD Banks & MFS",
         "Custom",
         "Finance",

@@ -896,6 +896,7 @@ fun AddEditSavingsGoalDialog(
     if (showIconPickerModal) {
         IconPickerModal(
             selectedIconName = selectedIconName,
+            initialQuery = name.ifBlank { nameBn },
             onIconSelected = { newIcon ->
                 selectedIconName = newIcon
                 showIconPickerModal = false

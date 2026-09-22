@@ -494,6 +494,7 @@ fun AddEditCategoryDialog(
     if (showIconPicker) {
         IconPickerModal(
             selectedIconName = iconName,
+            initialQuery = nameEn.ifBlank { nameBn },
             onIconSelected = { selected ->
                 iconName = selected
                 hasUserChangedIcon = true

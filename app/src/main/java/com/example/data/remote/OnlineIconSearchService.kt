@@ -602,21 +602,10 @@ object OnlineIconSearchService {
             }
         }
 
-        // Concurrently pre-validate all candidate images so dead, broken, or unrenderable URLs are excluded before returning
-        val validatedResults = coroutineScope {
-            results.map { item ->
-                async(Dispatchers.IO) {
-                    val analysis = validateAndAnalyzeColor(context, item)
-                    if (analysis != null) analysis else null
-                }
-            }.awaitAll().filterNotNull()
-        }
-
-        // Sort colorful icons first, followed by monochrome/colorless icons.
-        // Dedicated icon sets (Iconify, SVGL, Flat-Color-Icons, VectorLogoZone, CoinGecko, etc.) are prioritized before corporate brand logos.
-        val sortedResults = validatedResults.sortedWith(
+        // Fast sorting: Colorful icons and high-priority icon sets (Iconify, SVGL, Flat-Color-Icons, CoinGecko) first
+        val sortedResults = results.sortedWith(
             compareByDescending<OnlineIconResult> { it.isColorful && it.sourceName != "Brandfetch" && it.sourceName != "Favicon" && it.sourceName != "DuckDuckGo Favicon" }
-                .thenByDescending { it.sourceName in setOf("SVGL", "VectorLogoZone", "CoinGecko") || (it.sourceName.isNotBlank() && it.sourceName !in setOf("Brandfetch", "Favicon", "DuckDuckGo Favicon", "Wikimedia")) }
+                .thenByDescending { it.sourceName in setOf("SVGL", "VectorLogoZone", "CoinGecko", "Iconify") || (it.sourceName.isNotBlank() && it.sourceName !in setOf("Brandfetch", "Favicon", "DuckDuckGo Favicon", "Wikimedia")) }
                 .thenByDescending { it.isColorful }
                 .thenBy { it.sourceName == "Wikimedia" }
         )

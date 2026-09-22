@@ -515,6 +515,7 @@ fun AddEditAccountGroupOrCategoryDialog(
     if (showIconPicker) {
         IconPickerModal(
             selectedIconName = selectedIcon,
+            initialQuery = nameEn.ifBlank { nameBn },
             onIconSelected = { selectedIcon = it },
             onDismiss = { showIconPicker = false }
         )
