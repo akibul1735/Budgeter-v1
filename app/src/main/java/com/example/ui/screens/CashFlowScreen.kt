@@ -1573,24 +1573,22 @@ fun CashFlowTransactionItem(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                val acc = txWithDetails.debitAccount ?: txWithDetails.creditAccount
-                val iconName = acc?.iconName?.takeIf { it.isNotBlank() } ?: cat?.iconName ?: "Payments"
+                val iconName = cat?.iconName ?: "Payments"
                 val isImage = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
-                val dynamicBg = if (isImage) Color.Transparent else (acc?.colorHex?.let { IconHelper.parseColorHex(it, catColor).copy(alpha = 0.18f) } ?: catColor.copy(alpha = 0.15f))
-                val dynamicTint = acc?.colorHex?.let { IconHelper.parseColorHex(it, catColor) } ?: catColor
+                val dynamicBg = if (isImage) Color.Transparent else catColor.copy(alpha = 0.15f)
 
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
                         .background(dynamicBg),
                     contentAlignment = Alignment.Center
                 ) {
                     IconHelper.AppIcon(
                         iconName = iconName,
-                        contentDescription = acc?.localizedName(languageMode) ?: cat?.localizedName(languageMode),
-                        tint = dynamicTint,
-                        modifier = Modifier.size(if (isImage) 42.dp else 24.dp)
+                        contentDescription = cat?.localizedName(languageMode),
+                        tint = if (isImage) Color.Unspecified else catColor,
+                        modifier = Modifier.size(if (isImage) 32.dp else 17.dp)
                     )
                 }
 

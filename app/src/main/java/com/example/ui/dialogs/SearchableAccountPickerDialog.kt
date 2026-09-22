@@ -252,12 +252,12 @@ fun SearchableAccountPickerDialog(
                                                 Surface(
                                                     shape = CircleShape,
                                                     color = if (isCustomOrDrawable) Color.Transparent else MaterialTheme.colorScheme.primaryContainer,
-                                                    modifier = Modifier.size(40.dp)
+                                                    modifier = Modifier.size(32.dp)
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         IconHelper.AppIcon(
                                                             iconName = acc.iconName,
-                                                            modifier = Modifier.size(if (isCustomOrDrawable) 40.dp else 22.dp),
+                                                            modifier = Modifier.size(if (isCustomOrDrawable) 32.dp else 22.dp),
                                                             tint = MaterialTheme.colorScheme.primary
                                                         )
                                                     }

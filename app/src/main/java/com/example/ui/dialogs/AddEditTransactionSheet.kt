@@ -4628,24 +4628,29 @@ private fun Account3ColumnGrid(
                                 .padding(horizontal = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Box(contentAlignment = Alignment.TopEnd) {
+                            Box(
+                                modifier = Modifier.size(52.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val isCustomOrDrawable = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
                                 Box(
                                     modifier = Modifier
-                                        .size(52.dp)
+                                        .size(40.dp)
                                         .clip(CircleShape)
-                                        .background(parseItemColor(acc.colorHex, Color(0xFF2563EB))),
+                                        .background(if (isCustomOrDrawable) Color.Transparent else parseItemColor(acc.colorHex, Color(0xFF2563EB))),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     IconHelper.AppIcon(
                                         iconName = acc.iconName,
                                         contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(26.dp)
+                                        tint = if (isCustomOrDrawable) Color.Unspecified else Color.White,
+                                        modifier = Modifier.size(if (isCustomOrDrawable) 40.dp else 26.dp)
                                     )
                                 }
                                 if (isSelected) {
                                     Box(
                                         modifier = Modifier
+                                            .align(Alignment.TopEnd)
                                             .size(18.dp)
                                             .clip(CircleShape)
                                             .background(Color(0xFF2E7D32))

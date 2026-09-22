@@ -2151,7 +2151,7 @@ internal fun TransactionRowItem(
             if (isSelected) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
                         .background(SolidPrimary),
                     contentAlignment = Alignment.Center
@@ -2160,50 +2160,43 @@ internal fun TransactionRowItem(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Selected",
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             } else if (txConfig.enableCategoryIcons || txConfig.enableAccountIcons) {
-                val effectiveAcc = effectiveAccount
-                val accountIconName = effectiveAcc?.iconName?.takeIf { it.isNotBlank() }
-                val fallbackCatIconName = item.category?.iconName?.takeIf { it.isNotBlank() }
-                val iconName = accountIconName ?: fallbackCatIconName ?: when (tx.type) {
+                val iconName = item.category?.iconName?.takeIf { it.isNotBlank() } ?: when (tx.type) {
                     TransactionType.EXPENSE -> "Category"
                     TransactionType.INCOME -> "Payments"
                     TransactionType.TRANSFER -> "SwapHoriz"
                 }
                 val isImage = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
-                val dynamicBg = if (isImage) {
-                    Color.Transparent
-                } else {
-                    effectiveAcc?.colorHex?.takeIf { it.isNotBlank() }?.let {
-                        IconHelper.parseColorHex(it, iconBg).copy(alpha = 0.20f)
-                    } ?: iconBg
-                }
-                val dynamicTint = effectiveAcc?.colorHex?.takeIf { it.isNotBlank() }?.let {
+                val catColor = item.category?.colorHex?.takeIf { it.isNotBlank() }?.let {
                     IconHelper.parseColorHex(it, iconColor)
                 } ?: iconColor
+                val catBg = item.category?.colorHex?.takeIf { it.isNotBlank() }?.let {
+                    IconHelper.parseColorHex(it, iconColor).copy(alpha = 0.15f)
+                } ?: iconBg
 
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
-                        .background(dynamicBg),
+                        .background(if (isImage) Color.Transparent else catBg),
                     contentAlignment = Alignment.Center
                 ) {
                     IconHelper.AppIcon(
                         iconName = iconName,
-                        contentDescription = effectiveAcc?.localizedName(languageMode) ?: item.category?.localizedName(languageMode),
-                        tint = dynamicTint,
-                        modifier = Modifier.size(if (isImage) 42.dp else 24.dp)
+                        contentDescription = item.category?.localizedName(languageMode),
+                        tint = if (isImage) Color.Unspecified else catColor,
+                        modifier = Modifier.size(if (isImage) 32.dp else 17.dp)
                     )
                 }
             }
 
             if (!isSelected && (txConfig.enableCategoryIcons || txConfig.enableAccountIcons)) {
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
             } else if (isSelected) {
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
             }
 
             // Center: Name (left top), Category/Group (left below), Labels & Notes (below)
