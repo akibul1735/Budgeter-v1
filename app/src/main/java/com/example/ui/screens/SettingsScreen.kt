@@ -797,7 +797,7 @@ fun SettingsScreen(
                     item {
                         ModernSettingsItemRow(
                             title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ, ড্রপবক্স ও অনলাইন আইকন/ইমেজ সিঙ্ক" else "Google Drive, Dropbox, Online Icons & Images",
+                            subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ, ড্রপবক্স ও লোকাল ব্যাকআপ" else "Google Drive, Dropbox & Local Storage",
                             icon = Icons.Default.CloudSync,
                             iconTint = MaterialTheme.colorScheme.primary,
                             onClick = onNavigateToBackupSync
@@ -809,9 +809,9 @@ fun SettingsScreen(
                         ModernSettingsItemRow(
                             title = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন" else "Items Icon",
                             subtitle = if (languageMode == LanguageMode.BANGLA)
-                                "${cachedItems.size} টি কাস্টম আইকন অ্যাসাইন করা আছে"
+                                "অনলাইন আইকন, ইমেজ সার্চ স্টুডিও ও ক্যাশ"
                             else
-                                "${cachedItems.size} custom item icons mapped",
+                                "Online icons, image studio & custom item icons",
                             icon = Icons.Default.Category,
                             onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE }
                         )
