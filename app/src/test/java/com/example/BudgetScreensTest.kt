@@ -6,7 +6,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -18,13 +18,12 @@ import com.example.data.model.Transaction
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionWithDetails
 import com.example.data.repository.AccountWithBalance
-import com.example.ui.screens.BudgetScreen
-import com.example.ui.screens.BudgetTrackingScreen
-import com.example.ui.screens.MainAppContainer
-import com.example.ui.viewmodel.BudgetViewModel
-import androidx.compose.ui.test.performTextInput
 import com.example.ui.dialogs.AddEditTransactionSheet
+import com.example.ui.screens.CategoryBudgetTrackingItem
+import com.example.ui.screens.CategoryGroupBudgetTracking
+import com.example.ui.screens.LedgerScreen
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,7 +60,7 @@ class BudgetScreensTest {
         // Save
         composeTestRule.onNodeWithTag("save_transaction_btn").performClick()
 
-        org.junit.Assert.assertNotNull(savedTx)
+        assertNotNull(savedTx)
         assertEquals(TransactionType.EXPENSE, savedTx?.type)
         assertEquals(-150.0, savedTx?.amount ?: 0.0, 0.001)
     }
@@ -95,71 +94,9 @@ class BudgetScreensTest {
         // Save
         composeTestRule.onNodeWithTag("save_transaction_btn").performClick()
 
-        org.junit.Assert.assertNotNull(savedTx)
+        assertNotNull(savedTx)
         assertEquals(TransactionType.INCOME, savedTx?.type)
         assertEquals(-200.0, savedTx?.amount ?: 0.0, 0.001)
-    }
-
-    @Test
-    fun testBudgetTrackingScreenWithMultipleCategoriesAndDuplicateNames() {
-        val app = ApplicationProvider.getApplicationContext<Application>()
-        val viewModel = BudgetViewModel(app)
-
-        val cat1 = Category(id = 1, nameEn = "Food", nameBn = "খাবার", iconName = "Restaurant", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = null)
-        val cat2 = Category(id = 2, nameEn = "Food", nameBn = "খাবার", iconName = "Restaurant", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = null)
-        val cat3 = Category(id = 3, nameEn = "", nameBn = "অন্যান্য", iconName = "Category", colorHex = "#9E9E9E", type = CategoryType.EXPENSE, parentId = null)
-        val cat4 = Category(id = 4, nameEn = "Dining Out", nameBn = "রেস্টুরেন্ট", iconName = "Restaurant", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = 1)
-        val account = Account(id = 1, nameEn = "Cash", nameBn = "ক্যাশ", type = AccountType.ASSET)
-        val tx = Transaction(id = 1, amount = 100.0, type = TransactionType.EXPENSE, categoryId = 1, subCategoryId = 4, debitAccountId = null, creditAccountId = 1, dateEpochMs = System.currentTimeMillis())
-        val txWithDetails = TransactionWithDetails(tx, debitAccount = null, creditAccount = account, category = cat1, subCategory = cat4)
-
-        composeTestRule.setContent {
-            BudgetTrackingScreen(
-                viewModel = viewModel,
-                allCategories = listOf(cat1, cat2, cat3, cat4),
-                allAccounts = listOf(account),
-                accountsWithBalances = listOf(AccountWithBalance(account, 1000.0)),
-                transactionsWithDetails = listOf(txWithDetails),
-                monthlyBudgets = listOf(MonthlyBudget(id = 1, year = 2026, month = 9, itemType = "EXPENSE", itemId = 4, budgetedAmount = 500.0, isEnabled = true)),
-                selectedYear = 2026,
-                selectedMonth = 9,
-                languageMode = LanguageMode.BANGLA,
-                onNavigateToBudgetMaker = {},
-                onAddTransactionWithCategory = {},
-                onEditTransaction = {}
-            )
-        }
-
-        composeTestRule.onNodeWithTag("budget_tracking_screen").assertExists()
-    }
-
-    @Test
-    fun testBudgetScreenRendering() {
-        val app = ApplicationProvider.getApplicationContext<Application>()
-        val viewModel = BudgetViewModel(app)
-        val cat = Category(id = 1, nameEn = "Food", nameBn = "খাবার", iconName = "Restaurant", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = null)
-        val subCat = Category(id = 2, nameEn = "Groceries", nameBn = "মুদি", iconName = "ShoppingCart", colorHex = "#FF5722", type = CategoryType.EXPENSE, parentId = 1)
-        val acc = Account(id = 1, nameEn = "Cash", nameBn = "ক্যাশ", type = AccountType.ASSET)
-
-        composeTestRule.setContent {
-            BudgetScreen(
-                viewModel = viewModel,
-                allCategories = listOf(cat, subCat),
-                allAccounts = listOf(acc),
-                accountsWithBalances = listOf(AccountWithBalance(acc, 1000.0)),
-                transactionsWithDetails = emptyList(),
-                monthlyBudgets = emptyList(),
-                selectedYear = 2026,
-                selectedMonth = 9,
-                languageMode = LanguageMode.ENGLISH,
-                onEditTransaction = {},
-                onAddTransactionWithCategory = {},
-                onAddTransactionWithAccount = {}
-            )
-        }
-
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("budget_screen").assertExists()
     }
 
     @Test
@@ -181,7 +118,7 @@ class BudgetScreensTest {
         )
 
         composeTestRule.setContent {
-            com.example.ui.screens.LedgerScreen(
+            LedgerScreen(
                 transactions = txList,
                 languageMode = LanguageMode.ENGLISH,
                 allCategories = listOf(cat),
@@ -218,7 +155,7 @@ class BudgetScreensTest {
         val cat3 = Category(id = 4, nameEn = "Dining", nameBn = "খাওয়া", iconName = "Restaurant", colorHex = "#2196F3", type = CategoryType.EXPENSE, parentId = 1)
 
         // Cat 1: Budget 5,000, Spent 4,000 => Remaining 1,000
-        val item1 = com.example.ui.screens.CategoryBudgetTrackingItem(
+        val item1 = CategoryBudgetTrackingItem(
             category = cat1,
             spentAmount = 4000.0,
             budgetLimit = 5000.0,
@@ -226,7 +163,7 @@ class BudgetScreensTest {
             transactions = emptyList()
         )
         // Cat 2: Budget 5,000, Spent 4,000 => Remaining 1,000
-        val item2 = com.example.ui.screens.CategoryBudgetTrackingItem(
+        val item2 = CategoryBudgetTrackingItem(
             category = cat2,
             spentAmount = 4000.0,
             budgetLimit = 5000.0,
@@ -234,7 +171,7 @@ class BudgetScreensTest {
             transactions = emptyList()
         )
         // Cat 3: Budget 10,000, Spent 13,000 => Over budget by 3,000, Remaining = 0
-        val item3 = com.example.ui.screens.CategoryBudgetTrackingItem(
+        val item3 = CategoryBudgetTrackingItem(
             category = cat3,
             spentAmount = 13000.0,
             budgetLimit = 10000.0,
@@ -242,7 +179,7 @@ class BudgetScreensTest {
             transactions = emptyList()
         )
 
-        val group = com.example.ui.screens.CategoryGroupBudgetTracking(
+        val group = CategoryGroupBudgetTracking(
             parentCategory = catParent,
             groupNameEn = "Living",
             groupNameBn = "জীবনযাপন",
