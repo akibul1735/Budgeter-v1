@@ -193,7 +193,15 @@ object OnlineIconSearchService {
         "pizza" to listOf("fastfood", "food", "restaurant", "slice"),
         "coffee" to listOf("cafe", "cup", "mug", "espresso", "tea", "drink"),
         "tea" to listOf("cup", "mug", "coffee", "drink", "teapot"),
-        "drink" to listOf("beverage", "soda", "water", "juice", "glass", "cup"),
+        "drink" to listOf("beverage", "drinks", "juice", "soda", "coffee", "tea", "water", "glass", "cup", "cocktail"),
+        "drinks" to listOf("beverage", "drink", "juice", "soda", "coffee", "tea", "water", "cocktails", "mocktails"),
+        "beverage" to listOf("drinks", "drink", "juice", "soda", "cold-drink", "coffee", "tea", "water", "cocktail", "mocktail"),
+        "beverages" to listOf("drinks", "beverage", "juice", "soda", "cold-drink", "coffee", "tea", "water", "cocktail", "mocktail"),
+        "juice" to listOf("drink", "beverage", "fruit-juice", "orange-juice", "smoothie", "glass"),
+        "soda" to listOf("drink", "beverage", "coke", "pepsi", "can", "bottle", "soft-drink"),
+        "soft drink" to listOf("soda", "beverage", "coke", "pepsi", "drink", "can"),
+        "cold drink" to listOf("beverage", "soda", "juice", "soft-drink", "can", "bottle"),
+        "cocktail" to listOf("drink", "beverage", "bar", "glass", "mocktail", "wine"),
         "fish" to listOf("seafood", "meat", "grocery", "market"),
         "meat" to listOf("beef", "chicken", "grocery", "food", "steak"),
         "chicken" to listOf("meat", "poultry", "food", "grocery"),
@@ -279,6 +287,23 @@ object OnlineIconSearchService {
         "salon" to listOf("barber", "haircut", "scissors", "beauty", "spa"),
         "barber" to listOf("salon", "haircut", "scissors", "grooming"),
         "gift" to listOf("present", "box", "surprise", "ribbon", "birthday", "heart"),
+
+        // Charity, Donations & Islamic Giving
+        "donate" to listOf("donation", "charity", "give", "gift", "volunteer", "help", "fund"),
+        "donation" to listOf("donate", "charity", "give", "gift", "volunteer", "help", "relief"),
+        "donations" to listOf("donation", "donate", "charity", "give", "gift"),
+        "charity" to listOf("donation", "donate", "give", "volunteer", "help", "zakat", "sadqah"),
+        "zakat" to listOf("charity", "donation", "islam", "poor", "help"),
+        "sadqah" to listOf("charity", "donation", "islam", "give"),
+
+        // Pets & Animals
+        "pet" to listOf("pets", "dog", "cat", "puppy", "kitten", "animal", "pet-food", "veterinary"),
+        "pets" to listOf("pet", "dog", "cat", "puppy", "kitten", "animal", "pet-food", "vet"),
+        "dog" to listOf("pet", "puppy", "canine", "animal", "dog-food"),
+        "cat" to listOf("pet", "kitten", "feline", "animal", "cat-food"),
+        "puppy" to listOf("dog", "pet", "cute"),
+        "kitten" to listOf("cat", "pet", "cute"),
+        "animal" to listOf("pet", "dog", "cat", "zoo"),
 
         // Bangla Translations & Synonyms
         "ডিম" to listOf("egg", "eggs", "food", "breakfast"),
@@ -425,6 +450,19 @@ object OnlineIconSearchService {
             if (m !in splitList && m != exactWord.lowercase() && m.length >= 2) splitList.add(m)
         }
 
+        // Also check singular forms for English plurals (e.g. "beverages" -> "beverage", "groceries" -> "grocery")
+        val singularCandidates = mutableListOf<String>()
+        if (cleanLower.endsWith("ies") && cleanLower.length > 4) {
+            singularCandidates.add(cleanLower.removeSuffix("ies") + "y")
+        } else if (cleanLower.endsWith("s") && !cleanLower.endsWith("ss") && cleanLower.length > 3) {
+            singularCandidates.add(cleanLower.removeSuffix("s"))
+        }
+        for (cand in singularCandidates) {
+            if (cand !in splitList && cand != exactWord.lowercase()) {
+                splitList.add(cand)
+            }
+        }
+
         // Tier 3 Synonyms:
         val synList = mutableListOf<String>()
         SYNONYM_MAP[cleanLower]?.let { synList.addAll(it) }
@@ -435,6 +473,9 @@ object OnlineIconSearchService {
         }
         for (m in modifierTokens) {
             SYNONYM_MAP[m]?.let { synList.addAll(it) }
+        }
+        for (cand in singularCandidates) {
+            SYNONYM_MAP[cand]?.let { synList.addAll(it) }
         }
 
         val excludeSet = (listOf(cleanLower, exactWord.lowercase()) + splitList.map { it.lowercase() }).toSet()
@@ -1243,7 +1284,13 @@ object OnlineIconSearchService {
      */
     private suspend fun fetchBingImages(term: String, page: Int, limit: Int = 20): List<OnlineImageResult> = withContext(Dispatchers.IO) {
         try {
-            val encoded = URLEncoder.encode(term, "UTF-8")
+            val queryTerm = when (term.trim().lowercase()) {
+                "beverages", "beverage" -> "beverages drinks"
+                "donate", "donation", "donations" -> "donation charity"
+                "charity" -> "charity donation"
+                else -> term
+            }
+            val encoded = URLEncoder.encode(queryTerm, "UTF-8")
             val first = ((page - 1) * limit) + 1
             val url = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1"
             val request = Request.Builder()
@@ -1384,20 +1431,14 @@ object OnlineIconSearchService {
         val combined = mutableListOf<OnlineImageResult>()
         val seen = mutableSetOf<String>()
 
-        // 1. First add web search engine results (Bing / DDG index)
-        for (item in bing) {
-            if (seen.add(item.imageUrl)) combined.add(item)
-        }
-        for (item in ddg) {
-            if (seen.add(item.imageUrl)) combined.add(item)
-        }
-
-        // 2. Interleave encyclopedia, wiki, and archive sources for variety
-        val maxLen = maxOf(wiki.size, openverse.size, unsplash.size, wikiPage.size)
+        // Interleave sources for a balanced mix of encyclopedia, wiki, and web results
+        val maxLen = maxOf(bing.size, wiki.size, ddg.size, wikiPage.size, unsplash.size, openverse.size)
         for (i in 0 until maxLen) {
+            if (i < bing.size && seen.add(bing[i].imageUrl)) combined.add(bing[i])
             if (i < wiki.size && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
-            if (i < unsplash.size && seen.add(unsplash[i].imageUrl)) combined.add(unsplash[i])
+            if (i < ddg.size && seen.add(ddg[i].imageUrl)) combined.add(ddg[i])
             if (i < wikiPage.size && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
+            if (i < unsplash.size && seen.add(unsplash[i].imageUrl)) combined.add(unsplash[i])
             if (i < openverse.size && seen.add(openverse[i].imageUrl)) combined.add(openverse[i])
         }
         combined

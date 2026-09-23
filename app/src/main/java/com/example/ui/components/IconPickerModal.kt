@@ -168,20 +168,24 @@ fun IconPickerModal(
     var hasMoreOnline by remember { mutableStateOf(true) }
     var downloadingUrl by remember { mutableStateOf<String?>(null) }
     var onlineIconBgColor by remember { mutableStateOf<Color?>(null) } // null = transparent
-    var searchJob by remember { mutableStateOf<Job?>(null) }
 
     // Trigger online search whenever in "Online Search" tab or user is actively searching
     LaunchedEffect(searchQuery, selectedCategory, onlineSearchSubMode) {
         val query = searchQuery.trim()
         if (selectedCategory == "Online Search") {
             if (query.length >= 2) {
-                isSearchingOnline = true
+                // Clear previous results immediately on query change so old results never linger
+                onlineResults = emptyList()
+                onlineImageResults = emptyList()
                 failedImageUrls.clear()
                 currentOnlinePage = 1
                 hasMoreOnline = true
-                searchJob?.cancel()
-                searchJob = coroutineScope.launch {
-                    delay(150)
+                isSearchingOnline = true
+
+                // Debounce rapid typing to avoid network storms
+                delay(300)
+
+                try {
                     if (onlineSearchSubMode == 0) {
                         val results = OnlineIconSearchService.searchIcons(context, query, page = 1)
                         onlineResults = results
@@ -191,6 +195,16 @@ fun IconPickerModal(
                         onlineImageResults = results
                         hasMoreOnline = results.size >= 4
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    if (onlineSearchSubMode == 0) {
+                        onlineResults = emptyList()
+                    } else {
+                        onlineImageResults = emptyList()
+                    }
+                    hasMoreOnline = false
+                } finally {
                     isSearchingOnline = false
                 }
             } else {
