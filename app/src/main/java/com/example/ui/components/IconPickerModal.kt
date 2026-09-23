@@ -152,7 +152,7 @@ fun IconPickerModal(
     }
 
     // Online search state
-    var onlineSearchSubMode by remember { mutableStateOf(0) } // 0: Icons & Logos, 1: Images & Photos
+    var onlineSearchSubMode by remember { mutableStateOf(0) } // 0: Icons & Logos, 1: Images
     var onlineResults by remember { mutableStateOf<List<OnlineIconResult>>(emptyList()) }
     var onlineImageResults by remember { mutableStateOf<List<OnlineImageResult>>(emptyList()) }
     val failedImageUrls = remember { mutableStateListOf<String>() }
@@ -488,7 +488,7 @@ fun IconPickerModal(
                                     tint = if (onlineSearchSubMode == 1) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },
-                            label = { Text("Images & Photos", fontSize = 12.sp, fontWeight = if (onlineSearchSubMode == 1) FontWeight.Bold else FontWeight.Normal) },
+                            label = { Text("Images", fontSize = 12.sp, fontWeight = if (onlineSearchSubMode == 1) FontWeight.Bold else FontWeight.Normal) },
                             shape = RoundedCornerShape(10.dp),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = SolidPrimary.copy(alpha = 0.15f),
@@ -513,7 +513,7 @@ fun IconPickerModal(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = if (onlineSearchSubMode == 0) "Searching online icons..." else "Searching online images & photos...",
+                                    text = if (onlineSearchSubMode == 0) "Searching online icons..." else "Searching online images...",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -538,7 +538,7 @@ fun IconPickerModal(
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
                                 Text(
-                                    text = if (onlineSearchSubMode == 0) "Search Any Logo or Icon Online" else "Search High-Quality Images & Photos",
+                                    text = if (onlineSearchSubMode == 0) "Search Any Logo or Icon Online" else "Search High-Quality Images",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurface
