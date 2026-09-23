@@ -2153,6 +2153,11 @@ internal fun TransactionRowItem(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
+            val hasCustomItemIcon = remember(item.transaction.payeeOrPayer, item.transaction.note, itemImageCacheMap) {
+                com.example.util.ItemCacheHelper.findCachedIcon(item.transaction.payeeOrPayer, itemImageCacheMap) != null ||
+                (item.transaction.payeeOrPayer.isBlank() && item.transaction.note.isNotBlank() && com.example.util.ItemCacheHelper.findCachedIcon(item.transaction.note, itemImageCacheMap) != null)
+            }
+
             if (isSelected) {
                 Box(
                     modifier = Modifier
@@ -2168,7 +2173,7 @@ internal fun TransactionRowItem(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-            } else if (txConfig.enableCategoryIcons || txConfig.enableAccountIcons) {
+            } else if (txConfig.enableCategoryIcons || txConfig.enableAccountIcons || hasCustomItemIcon) {
                 val iconName = com.example.util.ItemCacheHelper.resolveTransactionIconName(item, itemImageCacheMap)
                 val isImage = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
                 val catColor = item.category?.colorHex?.takeIf { it.isNotBlank() }?.let {
@@ -2187,14 +2192,14 @@ internal fun TransactionRowItem(
                 ) {
                     IconHelper.AppIcon(
                         iconName = iconName,
-                        contentDescription = item.category?.localizedName(languageMode),
+                        contentDescription = primaryTitle,
                         tint = if (isImage) Color.Unspecified else catColor,
                         modifier = Modifier.size(if (isImage) 32.dp else 17.dp)
                     )
                 }
             }
 
-            if (!isSelected && (txConfig.enableCategoryIcons || txConfig.enableAccountIcons)) {
+            if (!isSelected && (txConfig.enableCategoryIcons || txConfig.enableAccountIcons || hasCustomItemIcon)) {
                 Spacer(modifier = Modifier.width(10.dp))
             } else if (isSelected) {
                 Spacer(modifier = Modifier.width(10.dp))

@@ -1464,11 +1464,15 @@ object IconHelper {
     }
 
     /**
-     * Checks if the given icon identifier represents a custom image asset from internal storage.
+     * Checks if the given icon identifier represents a custom image asset from internal storage or URL.
      */
     fun isCustomIcon(iconName: String?): Boolean {
         if (iconName.isNullOrBlank()) return false
-        return iconName.startsWith("custom_icon_") || iconName.startsWith("file://") || iconName.startsWith("content://")
+        return iconName.startsWith("custom_icon_") ||
+                iconName.startsWith("file://") ||
+                iconName.startsWith("content://") ||
+                iconName.startsWith("http://") ||
+                iconName.startsWith("https://")
     }
 
     /**
@@ -2000,7 +2004,9 @@ object IconHelper {
             return
         }
         if (isCustomIcon(iconName)) {
-            val model: Any = if (iconName?.startsWith("content://") == true || iconName?.startsWith("file://") == true) {
+            val model: Any = if (iconName?.startsWith("http://") == true || iconName?.startsWith("https://") == true) {
+                iconName
+            } else if (iconName?.startsWith("content://") == true || iconName?.startsWith("file://") == true) {
                 android.net.Uri.parse(iconName)
             } else {
                 getCustomIconFile(context, iconName ?: "")
@@ -2008,7 +2014,7 @@ object IconHelper {
             AsyncImage(
                 model = model,
                 contentDescription = contentDescription,
-                modifier = modifier,
+                modifier = modifier.clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
             return

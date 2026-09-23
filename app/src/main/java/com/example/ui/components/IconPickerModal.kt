@@ -814,7 +814,8 @@ fun IconPickerModal(
                                 val cardBg = onlineIconBgColor ?: MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                 Box(
                                     modifier = Modifier
-                                        .size(68.dp)
+                                        .fillMaxWidth()
+                                        .height(82.dp)
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(cardBg)
                                         .border(
@@ -848,7 +849,9 @@ fun IconPickerModal(
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.Center,
-                                        modifier = Modifier.padding(4.dp)
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 4.dp, vertical = 4.dp)
                                     ) {
                                         if (isDownloading) {
                                             CircularProgressIndicator(
@@ -866,25 +869,29 @@ fun IconPickerModal(
                                                     }
                                                 },
                                                 modifier = Modifier
-                                                    .size(38.dp)
-                                                    .clip(RoundedCornerShape(8.dp)),
+                                                    .size(34.dp)
+                                                    .clip(RoundedCornerShape(6.dp)),
                                                 contentScale = ContentScale.Fit
                                             )
-                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Spacer(modifier = Modifier.height(3.dp))
                                             Text(
                                                 text = item.title,
                                                 fontSize = 9.sp,
                                                 maxLines = 1,
+                                                softWrap = false,
                                                 overflow = TextOverflow.Ellipsis,
+                                                textAlign = TextAlign.Center,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                             if (item.sourceName.isNotBlank()) {
                                                 Text(
-                                                    text = item.sourceName.take(12),
+                                                    text = item.sourceName.take(14),
                                                     fontSize = 7.5.sp,
                                                     maxLines = 1,
+                                                    softWrap = false,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    color = SolidPrimary.copy(alpha = 0.75f)
+                                                    textAlign = TextAlign.Center,
+                                                    color = SolidPrimary.copy(alpha = 0.85f)
                                                 )
                                             }
                                         }

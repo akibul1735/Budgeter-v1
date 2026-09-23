@@ -29,8 +29,8 @@ object ItemCacheHelper {
     }
 
     /**
-     * Looks up an item in the memory cache map using exact normalized match first,
-     * and intelligent token matching second (e.g. "Bulb", "bulb", "LED Bulb").
+     * Looks up an item in the memory cache map using exact normalized match.
+     * Prevents distinct items (e.g. "egg" vs "duck egg", "oil" vs "mustard oil") from colliding.
      */
     fun findCachedIcon(
         rawName: String?,
@@ -48,7 +48,7 @@ object ItemCacheHelper {
         val rawLower = rawName.trim().lowercase(Locale.ROOT)
         cacheMap[rawLower]?.let { return it }
 
-        // 3. Match across cached items by itemName
+        // 3. Match across cached items by exact normalizedItemName or exact trimmed itemName
         for ((_, entry) in cacheMap) {
             if (entry.normalizedItemName.equals(normalized, ignoreCase = true) ||
                 entry.itemName.trim().equals(rawName.trim(), ignoreCase = true)
@@ -57,19 +57,13 @@ object ItemCacheHelper {
             }
         }
 
-        // 4. Intelligent word/token match (e.g. "LED Bulb" <-> "bulb" or "Philips LED Bulb" <-> "led bulb")
-        val words = normalized.split(" ").filter { it.length >= 3 }
-        if (words.isNotEmpty()) {
-            for (word in words) {
-                cacheMap[word]?.let { return it }
-            }
-            // Check if any cached key is a sub-phrase or contains the search tokens
-            for ((key, entry) in cacheMap) {
-                if (key.length >= 3 && (normalized.contains(key) || key.contains(normalized))) {
-                    return entry
-                }
-            }
+        // 4. Singular / Plural normalization (e.g. "eggs" -> "egg")
+        val singular = if (normalized.endsWith("s") && normalized.length > 3) normalized.removeSuffix("s") else null
+        if (singular != null) {
+            cacheMap[singular]?.let { return it }
         }
+        val plural = normalized + "s"
+        cacheMap[plural]?.let { return it }
 
         return null
     }
@@ -90,7 +84,8 @@ object ItemCacheHelper {
         // Priority 1: Custom cached item image
         val cached = findCachedIcon(transaction.payeeOrPayer, cacheMap)
             ?: (if (transaction.payeeOrPayer.isBlank() && transaction.note.isNotBlank()) {
-                findCachedIcon(transaction.note, cacheMap)
+                val clean = com.example.util.TransactionLinkHelper.getCleanNote(transaction.note)
+                findCachedIcon(clean, cacheMap) ?: findCachedIcon(transaction.note, cacheMap)
             } else null)
 
         if (cached != null && cached.iconKey.isNotBlank()) {

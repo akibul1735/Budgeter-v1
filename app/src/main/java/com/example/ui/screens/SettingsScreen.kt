@@ -319,7 +319,7 @@ fun SettingsScreen(
             },
             title = {
                 Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "আইকন ও ইমেজ স্টোরেজ" else "Icon & Image Cache Storage",
+                    text = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন" else "Items Icon",
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp
                 )
@@ -807,7 +807,7 @@ fun SettingsScreen(
                     item {
                         val cachedItems by viewModel.allItemImageCaches.collectAsStateWithLifecycle()
                         ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "আইকন ও ইমেজ ক্যাশ স্টোরেজ" else "Icon & Image Cache Storage",
+                            title = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন" else "Items Icon",
                             subtitle = if (languageMode == LanguageMode.BANGLA)
                                 "${cachedItems.size} টি কাস্টম আইকন অ্যাসাইন করা আছে"
                             else

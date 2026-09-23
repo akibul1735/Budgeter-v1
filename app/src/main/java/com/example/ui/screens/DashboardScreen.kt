@@ -158,6 +158,7 @@ fun DashboardScreen(
     accountsWithBalances: List<AccountWithBalance>,
     accountCalcConfig: AccountCalcConfig = AccountCalcConfig(),
     recentTransactions: List<TransactionWithDetails>,
+    itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     allCategories: List<Category> = emptyList(),
     monthlyBudgets: List<MonthlyBudget> = emptyList(),
     dashboardConfig: DashboardConfig,
@@ -1937,6 +1938,7 @@ fun DashboardScreen(
                             item(key = "card_recent_transactions") {
                                 RecentTransactionsCard(
                                     recentTransactions = recentTransactions,
+                                    itemImageCacheMap = itemImageCacheMap,
                                     languageMode = languageMode,
                                     onTransactionClick = onTransactionClick,
                                     onViewAllClick = onViewAllTransactionsClick,
@@ -2994,6 +2996,7 @@ private fun QuickActionsRow(
 @Composable
 private fun RecentTransactionsCard(
     recentTransactions: List<TransactionWithDetails>,
+    itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     languageMode: LanguageMode,
     onTransactionClick: (Transaction) -> Unit,
     onViewAllClick: () -> Unit,
@@ -3073,37 +3076,43 @@ private fun RecentTransactionsCard(
                                         TransactionType.INCOME -> SolidIncomeContainer
                                         TransactionType.TRANSFER -> SolidPrimaryContainer
                                     }
+                                    val iconName = com.example.util.ItemCacheHelper.resolveTransactionIconName(item, itemImageCacheMap)
+                                    val isImage = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
+                                    val catColor = item.category?.colorHex?.takeIf { it.isNotBlank() }?.let {
+                                        IconHelper.parseColorHex(it, iconColor)
+                                    } ?: iconColor
+                                    val catBg = item.category?.colorHex?.takeIf { it.isNotBlank() }?.let {
+                                        IconHelper.parseColorHex(it, iconColor).copy(alpha = 0.15f)
+                                    } ?: iconBg
+
                                     Box(
                                         modifier = Modifier
                                             .size(32.dp)
                                             .clip(CircleShape)
-                                            .background(iconBg),
+                                            .background(if (isImage) Color.Transparent else catBg),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        val icon = when (tx.type) {
-                                            TransactionType.EXPENSE -> IconHelper.getIconByName(item.category?.iconName ?: "Category")
-                                            TransactionType.INCOME -> IconHelper.getIconByName(item.category?.iconName ?: "Payments")
-                                            TransactionType.TRANSFER -> Icons.Default.SwapHoriz
-                                        }
-                                        Icon(
-                                            imageVector = icon,
+                                        IconHelper.AppIcon(
+                                            iconName = iconName,
                                             contentDescription = null,
-                                            tint = iconColor,
-                                            modifier = Modifier.size(16.dp)
+                                            tint = if (isImage) Color.Unspecified else catColor,
+                                            modifier = Modifier.size(if (isImage) 32.dp else 16.dp)
                                         )
                                     }
 
                                     Spacer(modifier = Modifier.width(8.dp))
 
                                     Column {
-                                        val title = when (tx.type) {
-                                            TransactionType.EXPENSE -> item.subCategory?.localizedName(languageMode)
-                                                ?: item.category?.localizedName(languageMode)
-                                                ?: "Expense"
-                                            TransactionType.INCOME -> item.subCategory?.localizedName(languageMode)
-                                                ?: item.category?.localizedName(languageMode)
-                                                ?: "Income"
-                                            TransactionType.TRANSFER -> LanguageHelper.getString("transfer", languageMode)
+                                        val title = tx.payeeOrPayer.ifBlank {
+                                            when (tx.type) {
+                                                TransactionType.EXPENSE -> item.subCategory?.localizedName(languageMode)
+                                                    ?: item.category?.localizedName(languageMode)
+                                                    ?: "Expense"
+                                                TransactionType.INCOME -> item.subCategory?.localizedName(languageMode)
+                                                    ?: item.category?.localizedName(languageMode)
+                                                    ?: "Income"
+                                                TransactionType.TRANSFER -> LanguageHelper.getString("transfer", languageMode)
+                                            }
                                         }
                                         Text(
                                             text = title,

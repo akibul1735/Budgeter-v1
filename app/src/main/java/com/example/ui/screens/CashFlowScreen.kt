@@ -115,6 +115,7 @@ fun CashFlowScreen(
     allAccounts: List<Account>,
     accountsWithBalances: List<AccountWithBalance>,
     allCategories: List<Category>,
+    itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     languageMode: LanguageMode,
     onOpenDrawer: () -> Unit,
     onTransactionClick: (Transaction) -> Unit,
@@ -510,6 +511,7 @@ fun CashFlowScreen(
                         items(filteredTxs, key = { it.transaction.id }) { tw ->
                             CashFlowTransactionItem(
                                 txWithDetails = tw,
+                                itemImageCacheMap = itemImageCacheMap,
                                 languageMode = languageMode,
                                 onClick = { onTransactionClick(tw.transaction) }
                             )
@@ -1525,6 +1527,7 @@ fun AccountFlowMiniStat(
 @Composable
 fun CashFlowTransactionItem(
     txWithDetails: TransactionWithDetails,
+    itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     languageMode: LanguageMode,
     onClick: () -> Unit
 ) {
@@ -1573,7 +1576,7 @@ fun CashFlowTransactionItem(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                val iconName = cat?.iconName ?: "Payments"
+                val iconName = com.example.util.ItemCacheHelper.resolveTransactionIconName(txWithDetails, itemImageCacheMap)
                 val isImage = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
                 val dynamicBg = if (isImage) Color.Transparent else catColor.copy(alpha = 0.15f)
 
@@ -1593,8 +1596,11 @@ fun CashFlowTransactionItem(
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    val primaryTitle = tx.payeeOrPayer.ifBlank {
+                        cat?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অনির্ধারিত" else "Uncategorized")
+                    }
                     Text(
-                        text = cat?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "অনির্ধারিত" else "Uncategorized"),
+                        text = primaryTitle,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,

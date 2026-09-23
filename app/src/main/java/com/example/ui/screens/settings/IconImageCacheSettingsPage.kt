@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
@@ -239,8 +240,8 @@ fun IconImageCacheSettingsPage(
         modifier = Modifier.fillMaxSize()
     ) {
         AppTabHeader(
-            title = if (isBangla) "আইকন ও ইমেজ ক্যাশ স্টোরেজ" else "Icon & Image Cache Storage",
-            tabIcon = Icons.Default.Storage,
+            title = if (isBangla) "আইটেম আইকন" else "Items Icon",
+            tabIcon = Icons.Default.Category,
             showCoinIcon = false,
             onBack = onBack,
             autoHideOnScroll = false,

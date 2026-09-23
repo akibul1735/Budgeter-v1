@@ -96,6 +96,45 @@ object OnlineIconSearchService {
         "doctor visit" to listOf("doctor", "medical", "hospital", "clinic", "health", "stethoscope"),
         "school fee" to listOf("school", "education", "tuition", "study", "student", "books"),
         "car fuel" to listOf("fuel", "petrol", "car", "gasoline", "gas-station", "pump"),
+        "tea oil" to listOf("oil", "tea", "bottle", "drop", "cooking-oil"),
+        "cooking oil" to listOf("oil", "bottle", "cooking", "kitchen", "drop", "chef"),
+        "mustard oil" to listOf("oil", "bottle", "cooking", "kitchen", "drop"),
+        "soyabean oil" to listOf("oil", "bottle", "cooking", "kitchen", "drop"),
+        "hair oil" to listOf("oil", "bottle", "beauty", "hair", "salon"),
+        "duck egg" to listOf("egg", "duck", "poultry", "breakfast", "food"),
+        "hen egg" to listOf("egg", "chicken", "poultry", "breakfast", "food"),
+
+        // Oils & Fuel
+        "oil" to listOf("cooking-oil", "fuel", "petrol", "gasoline", "bottle", "drop", "oil-barrel", "diesel"),
+        "oils" to listOf("cooking-oil", "fuel", "petrol", "gasoline", "bottle", "drop"),
+        "tel" to listOf("oil", "cooking-oil", "fuel", "petrol", "bottle"),
+        "fuel" to listOf("petrol", "gasoline", "octane", "diesel", "gas-station", "pump", "oil"),
+        "petrol" to listOf("fuel", "gasoline", "octane", "pump", "car", "gas-station", "oil"),
+        "gasoline" to listOf("fuel", "petrol", "pump", "oil", "car"),
+        "octane" to listOf("fuel", "petrol", "gasoline", "pump", "oil"),
+        "diesel" to listOf("fuel", "petrol", "pump", "truck", "oil"),
+
+        // Mobile, Recharge & Telecom
+        "recharge" to listOf("mobile", "phone", "topup", "battery", "charge", "payment", "sim", "telecom"),
+        "topup" to listOf("recharge", "mobile", "phone", "sim", "telecom", "payment"),
+        "mobile" to listOf("phone", "smartphone", "cell", "sim", "recharge", "topup", "call"),
+        "phone" to listOf("smartphone", "mobile", "call", "cell", "telephone"),
+        "flexiload" to listOf("recharge", "mobile", "phone", "topup"),
+        "sim" to listOf("mobile", "phone", "recharge", "telecom", "chip"),
+
+        // Health, Medicine & Medical
+        "medicine" to listOf("pill", "capsule", "drug", "pharmacy", "medical", "syrup", "health", "hospital"),
+        "medicines" to listOf("pill", "capsule", "pharmacy", "medical", "drug", "health"),
+        "meds" to listOf("medicine", "pill", "capsule", "pharmacy", "medical"),
+        "pill" to listOf("medicine", "capsule", "pharmacy", "medical", "drug"),
+        "capsule" to listOf("medicine", "pill", "pharmacy", "medical"),
+        "pharmacy" to listOf("medicine", "pill", "drugstore", "medical", "cross", "prescription"),
+        "doctor" to listOf("medical", "hospital", "stethoscope", "health", "consultant", "clinic"),
+        "hospital" to listOf("medical", "clinic", "health", "building", "cross", "emergency"),
+        "clinic" to listOf("hospital", "medical", "doctor", "health"),
+        "health" to listOf("medical", "hospital", "doctor", "heart", "fitness", "wellness"),
+        "medical" to listOf("health", "hospital", "doctor", "medicine", "pill", "clinic"),
+        "diagnostic" to listOf("medical", "test", "lab", "hospital", "microscope"),
 
         // Utilities & Bills
         "electricity" to listOf("power", "energy", "electric", "lightning", "bolt", "meter", "volt", "utility", "current"),
@@ -116,10 +155,6 @@ object OnlineIconSearchService {
         "internet" to listOf("wifi", "router", "network", "broadband", "web", "globe", "ethernet", "online"),
         "wifi" to listOf("router", "internet", "signal", "network", "wireless", "broadband"),
         "broadband" to listOf("internet", "router", "wifi", "fiber", "network"),
-        "mobile" to listOf("phone", "smartphone", "cell", "sim", "recharge", "topup", "call"),
-        "phone" to listOf("smartphone", "mobile", "call", "cell", "telephone"),
-        "recharge" to listOf("mobile", "phone", "topup", "battery", "charge", "payment"),
-        "flexiload" to listOf("mobile", "recharge", "phone", "topup"),
         "tv" to listOf("television", "screen", "monitor", "cable", "channel", "display"),
         "television" to listOf("tv", "screen", "monitor", "cable", "broadcast"),
         "cable" to listOf("tv", "television", "wire", "dish", "network"),
@@ -132,8 +167,12 @@ object OnlineIconSearchService {
         "service" to listOf("maintenance", "repair", "support", "customer-service", "settings"),
         "cleaning" to listOf("clean", "broom", "mop", "wash", "sparkle", "soap"),
         "maid" to listOf("cleaning", "service", "helper", "home"),
+        "toilet" to listOf("wc", "restroom", "bath", "bathroom", "hygiene", "washroom"),
+        "washroom" to listOf("toilet", "bathroom", "restroom", "wc"),
 
         // Groceries & Food
+        "egg" to listOf("eggs", "food", "breakfast", "poultry", "grocery", "nest"),
+        "eggs" to listOf("egg", "food", "breakfast", "poultry", "grocery"),
         "grocery" to listOf("supermarket", "shopping", "cart", "basket", "vegetables", "fruit", "food", "market"),
         "groceries" to listOf("supermarket", "shopping", "cart", "basket", "vegetables", "fruit", "food"),
         "bazar" to listOf("grocery", "market", "shopping", "vegetables", "food", "store"),
@@ -166,11 +205,6 @@ object OnlineIconSearchService {
         // Transport & Vehicles
         "transport" to listOf("travel", "vehicle", "car", "bus", "train", "commute", "transit"),
         "travel" to listOf("transport", "flight", "airplane", "trip", "vacation", "luggage", "hotel"),
-        "fuel" to listOf("petrol", "gasoline", "octane", "diesel", "gas-station", "pump", "oil"),
-        "petrol" to listOf("fuel", "gasoline", "octane", "pump", "car", "gas-station"),
-        "gasoline" to listOf("fuel", "petrol", "pump", "oil", "car"),
-        "octane" to listOf("fuel", "petrol", "gasoline", "pump"),
-        "diesel" to listOf("fuel", "petrol", "pump", "truck"),
         "car" to listOf("vehicle", "auto", "drive", "sedan", "transport"),
         "bike" to listOf("motorcycle", "bicycle", "scooter", "ride", "helmet"),
         "motorcycle" to listOf("bike", "scooter", "helmet", "ride"),
@@ -217,21 +251,6 @@ object OnlineIconSearchService {
         "vat" to listOf("tax", "receipt", "percentage", "invoice"),
         "insurance" to listOf("shield", "protection", "health-insurance", "security", "car-insurance"),
 
-        // Health, Fitness & Medical
-        "health" to listOf("medical", "hospital", "doctor", "heart", "fitness", "wellness"),
-        "medical" to listOf("health", "hospital", "doctor", "medicine", "pill", "clinic"),
-        "doctor" to listOf("medical", "hospital", "stethoscope", "health", "consultant"),
-        "hospital" to listOf("medical", "clinic", "health", "building", "cross", "emergency"),
-        "clinic" to listOf("hospital", "medical", "doctor", "health"),
-        "medicine" to listOf("pill", "capsule", "drug", "pharmacy", "medical", "syrup"),
-        "medicines" to listOf("pill", "capsule", "pharmacy", "medical"),
-        "pill" to listOf("medicine", "capsule", "pharmacy", "medical"),
-        "pharmacy" to listOf("medicine", "pill", "drugstore", "medical", "cross"),
-        "diagnostic" to listOf("medical", "test", "lab", "hospital", "microscope"),
-        "gym" to listOf("fitness", "workout", "dumbbell", "exercise", "sport", "muscle"),
-        "fitness" to listOf("gym", "workout", "dumbbell", "exercise", "running", "health"),
-        "yoga" to listOf("meditation", "fitness", "wellness", "lotus"),
-
         // Education, Office & Work
         "education" to listOf("school", "study", "books", "university", "graduation", "pencil"),
         "school" to listOf("education", "study", "books", "pencil", "student", "building"),
@@ -258,35 +277,17 @@ object OnlineIconSearchService {
         "salon" to listOf("barber", "haircut", "scissors", "beauty", "spa"),
         "barber" to listOf("salon", "haircut", "scissors", "grooming"),
         "gift" to listOf("present", "box", "surprise", "ribbon", "birthday", "heart"),
-        "present" to listOf("gift", "box", "ribbon", "surprise"),
-
-        // Entertainment, Gaming & Subscriptions
-        "entertainment" to listOf("movie", "cinema", "game", "music", "party", "ticket"),
-        "movie" to listOf("cinema", "film", "video", "ticket", "popcorn", "theater"),
-        "cinema" to listOf("movie", "film", "ticket", "popcorn", "theater"),
-        "game" to listOf("gamepad", "gaming", "controller", "joystick", "playstation", "xbox"),
-        "gaming" to listOf("game", "gamepad", "controller", "esports"),
-        "music" to listOf("audio", "headphone", "song", "note", "spotify", "sound"),
-        "song" to listOf("music", "audio", "mic", "singer"),
-        "concert" to listOf("music", "ticket", "party", "stage"),
-        "subscription" to listOf("membership", "recurring", "card", "service", "digital"),
-        "netflix" to listOf("movie", "streaming", "tv", "film"),
-        "spotify" to listOf("music", "audio", "song", "playlist"),
-
-        // Religion, Charity & Family
-        "charity" to listOf("donation", "heart", "gift", "give", "help", "volunteer"),
-        "donation" to listOf("charity", "give", "heart", "fund", "money"),
-        "zakat" to listOf("charity", "islam", "mosque", "donation", "crescent", "gold"),
-        "sadakah" to listOf("charity", "donation", "islam", "heart"),
-        "mosque" to listOf("islam", "masjid", "crescent", "prayer", "minaret"),
-        "islam" to listOf("crescent", "mosque", "quran", "star", "prayer"),
-        "church" to listOf("cross", "building", "christian", "prayer"),
-        "temple" to listOf("building", "worship", "prayer"),
-        "family" to listOf("parents", "children", "home", "people", "group"),
-        "baby" to listOf("child", "infant", "stroller", "pacifier", "kid"),
-        "pet" to listOf("dog", "cat", "paw", "animal", "veterinary"),
 
         // Bangla Translations & Synonyms
+        "ডিম" to listOf("egg", "eggs", "food", "breakfast"),
+        "তেল" to listOf("oil", "cooking-oil", "fuel", "petrol", "bottle"),
+        "তেলের" to listOf("oil", "cooking-oil", "fuel", "petrol"),
+        "রিচার্জ" to listOf("recharge", "mobile", "topup", "phone"),
+        "ফ্লেক্সিলোড" to listOf("recharge", "mobile", "topup"),
+        "ঔষধ" to listOf("medicine", "pill", "pharmacy", "capsule"),
+        "ওষুধ" to listOf("medicine", "pill", "pharmacy", "capsule"),
+        "ডাক্তার" to listOf("doctor", "medical", "hospital", "stethoscope"),
+        "হাসপাতাল" to listOf("hospital", "medical", "clinic", "health"),
         "বিদ্যুৎ" to listOf("electricity", "power", "electric", "lightning", "energy", "meter", "bill"),
         "কারেন্ট" to listOf("electricity", "power", "electric", "current", "volt"),
         "বিল" to listOf("bill", "invoice", "receipt", "payment", "utility"),
@@ -295,8 +296,6 @@ object OnlineIconSearchService {
         "ওয়াইফাই" to listOf("wifi", "internet", "router", "network"),
         "ইন্টারনেট" to listOf("internet", "wifi", "router", "network", "web"),
         "মোবাইল" to listOf("mobile", "phone", "smartphone", "sim"),
-        "রিচার্জ" to listOf("recharge", "mobile", "topup", "phone"),
-        "ফ্লেক্সিলোড" to listOf("recharge", "mobile", "topup"),
         "ভাড়া" to listOf("rent", "house", "apartment", "building", "home"),
         "বাড়ি" to listOf("house", "home", "apartment", "building"),
         "বাজার" to listOf("grocery", "market", "shopping", "vegetables", "food"),
@@ -311,12 +310,8 @@ object OnlineIconSearchService {
         "গাড়ি" to listOf("car", "vehicle", "taxi"),
         "বাস" to listOf("bus", "transport", "transit"),
         "রিকশা" to listOf("rickshaw", "transport", "cng"),
-        "তেল" to listOf("fuel", "petrol", "oil", "gasoline"),
-        "তেলের" to listOf("fuel", "petrol", "oil"),
         "বেতন" to listOf("salary", "income", "cash", "money", "wallet"),
         "চিকিৎসা" to listOf("health", "medical", "hospital", "doctor"),
-        "ঔষধ" to listOf("medicine", "pill", "pharmacy", "capsule"),
-        "ডাক্তার" to listOf("doctor", "medical", "hospital", "stethoscope"),
         "শিক্ষা" to listOf("education", "school", "book", "university"),
         "বই" to listOf("book", "books", "reading", "study"),
         "টিউশন" to listOf("tuition", "education", "school", "study"),
@@ -332,13 +327,27 @@ object OnlineIconSearchService {
     )
 
     /**
+     * Common modifier words in transaction descriptions (family members, personal qualifiers, prefixes)
+     * e.g. "Ammu recharge", "Abbu medicine", "purny Medicine", "Bhaiya burger"
+     */
+    private val MODIFIER_WORDS = setOf(
+        "ammu", "abbu", "bhaiya", "apu", "bhai", "bubu", "choto", "boro", "uncle", "aunty",
+        "khalamma", "mama", "mami", "friend", "self", "me", "my", "our", "his", "her",
+        "brother", "sister", "mother", "father", "mom", "dad", "boss", "colleague",
+        "driver", "maid", "bua", "baby", "kid", "kids", "purny", "john", "mr", "mrs", "dr",
+        "daily", "monthly", "weekly", "yearly", "morning", "noon", "evening", "night",
+        "today", "yesterday", "special", "extra", "urgent", "quick", "new", "old", "mini",
+        "maxi", "big", "small", "fresh", "hot", "cold", "home", "office", "personal", "local"
+    )
+
+    /**
      * Sanitizes user search queries by stripping redundant stop-words like 'icon', 'logo', 'symbol',
      * which cause zero-hit failures on strict search APIs like Iconify.
      */
     fun cleanSearchQuery(query: String): String {
         val raw = query.trim()
         if (raw.isBlank()) return ""
-        val stopWordsRegex = Regex("(?i)\\b(icon|icons|logo|logos|symbol|symbols|vector|svg|png|image|images|pic|picture|pictures|clipart|graphic|graphics)\\b")
+        val stopWordsRegex = Regex("(?i)\\b(icon|icons|logo|logos|symbol|symbols|vector|svg|png|image|images|pic|picture|pictures|photo|photos|clipart|graphic|graphics)\\b")
         val stripped = raw.replace(stopWordsRegex, "").trim().replace(Regex("\\s+"), " ")
         return if (stripped.length >= 2) stripped else raw
     }
@@ -347,42 +356,91 @@ object OnlineIconSearchService {
         return word.lowercase() in GENERIC_STOP_WORDS || word.length < 2
     }
 
+    private fun isAnchorKeyword(token: String): Boolean {
+        val lower = token.lowercase()
+        return SYNONYM_MAP.containsKey(lower)
+    }
+
     /**
      * Splits query into 3 sequential search tiers:
-     * 1. Exact full query (the whole word / phrase)
-     * 2. Split individual words (if multi-word)
+     * 1. Exact full query (the whole word / phrase / anchor core)
+     * 2. Split individual words (prioritizing anchor keywords over modifiers)
      * 3. Synonyms & domain keywords
      */
     fun generateSearchKeywordTiers(rawQuery: String): SearchKeywordTiers {
         val clean = cleanSearchQuery(rawQuery).trim()
         if (clean.isBlank()) return SearchKeywordTiers("", emptyList(), emptyList())
 
-        // Tier 1: The exact word/phrase
-        val exactWord = clean
-
-        // Tier 2: Split words (tokenized)
-        val tokens = clean.split(Regex("[\\s,_\\-]+"))
-            .map { it.trim().lowercase() }
-            .filter { it.isNotBlank() && !isGenericStopWord(it) }
-            .distinct()
-
-        val splitWords = if (tokens.size > 1) tokens else emptyList()
-
-        // Tier 3: Synonyms
-        val synList = mutableListOf<String>()
         val cleanLower = clean.lowercase()
+        val allTokens = clean.split(Regex("[\\s,_\\-]+"))
+            .map { it.trim().lowercase() }
+            .filter { it.isNotBlank() }
 
-        SYNONYM_MAP[cleanLower]?.let { synList.addAll(it) }
-        for (t in tokens) {
-            SYNONYM_MAP[t]?.let { synList.addAll(it) }
+        // Detect single-letter prefix (e.g. "T oil", "E bike", "A water")
+        val isSingleLetterPrefix = allTokens.size > 1 && allTokens.first().length == 1
+        val mainTokens = if (isSingleLetterPrefix) allTokens.drop(1) else allTokens
+
+        // Separate tokens into Anchor domain words vs Modifier / Unknown words
+        val anchorTokens = mutableListOf<String>()
+        val modifierTokens = mutableListOf<String>()
+
+        for (t in mainTokens) {
+            if (isAnchorKeyword(t)) {
+                anchorTokens.add(t)
+            } else if (!isGenericStopWord(t) && t !in MODIFIER_WORDS) {
+                modifierTokens.add(t)
+            }
         }
 
-        val excludeSet = (listOf(cleanLower) + splitWords.map { it.lowercase() }).toSet()
+        // Determine primary anchor keyword (e.g. "recharge" from "Ammu recharge", "medicine" from "purny Medicine", "oil" from "T oil")
+        val primaryAnchor = anchorTokens.firstOrNull()
+            ?: mainTokens.firstOrNull { it.length >= 2 && it !in MODIFIER_WORDS }
+            ?: cleanLower
+
+        // Tier 1 Exact Target:
+        // If "T oil" -> exact target is "oil" to prevent false fuzzy match to "toilet"
+        val exactWord = if (isSingleLetterPrefix && allTokens.first() == "t") {
+            primaryAnchor
+        } else if (allTokens.size > 1 && allTokens.first() in MODIFIER_WORDS && anchorTokens.isNotEmpty()) {
+            // For modifier combos like "Ammu recharge" or "purny Medicine", elevate the anchor word to Tier 1
+            primaryAnchor
+        } else {
+            clean
+        }
+
+        // Tier 2 Split words: Anchor tokens first, then other meaningful words
+        val splitList = mutableListOf<String>()
+        if (primaryAnchor.isNotBlank() && primaryAnchor != exactWord.lowercase()) {
+            splitList.add(primaryAnchor)
+        }
+        for (a in anchorTokens) {
+            if (a !in splitList && a != exactWord.lowercase()) splitList.add(a)
+        }
+        if (clean.lowercase() != exactWord.lowercase() && !isSingleLetterPrefix) {
+            splitList.add(clean)
+        }
+        for (m in modifierTokens) {
+            if (m !in splitList && m != exactWord.lowercase() && m.length >= 2) splitList.add(m)
+        }
+
+        // Tier 3 Synonyms:
+        val synList = mutableListOf<String>()
+        SYNONYM_MAP[cleanLower]?.let { synList.addAll(it) }
+        SYNONYM_MAP[exactWord.lowercase()]?.let { synList.addAll(it) }
+        SYNONYM_MAP[primaryAnchor]?.let { synList.addAll(it) }
+        for (a in anchorTokens) {
+            SYNONYM_MAP[a]?.let { synList.addAll(it) }
+        }
+        for (m in modifierTokens) {
+            SYNONYM_MAP[m]?.let { synList.addAll(it) }
+        }
+
+        val excludeSet = (listOf(cleanLower, exactWord.lowercase()) + splitList.map { it.lowercase() }).toSet()
         val finalSynonyms = synList.distinct().filter { it.lowercase() !in excludeSet }
 
         return SearchKeywordTiers(
             exactWord = exactWord,
-            splitWords = splitWords,
+            splitWords = splitList.distinct(),
             synonyms = finalSynonyms
         )
     }
@@ -438,6 +496,7 @@ object OnlineIconSearchService {
 
     /**
      * Searches Iconify vector icon API for a single keyword.
+     * Rejects false fuzzy matches (e.g. "toilet" when searching for "oil").
      */
     private suspend fun fetchIconifyIcons(
         term: String,
@@ -463,12 +522,25 @@ object OnlineIconSearchService {
                 val json = JSONObject(body)
                 val iconsArr = json.optJSONArray("icons") ?: return@withContext emptyList()
                 val results = mutableListOf<OnlineIconResult>()
+                val termLower = term.lowercase()
+
                 for (i in 0 until iconsArr.length()) {
                     val iconStr = iconsArr.optString(i)
                     if (iconStr.isNotBlank() && iconStr.contains(":")) {
                         val parts = iconStr.split(":", limit = 2)
                         val prefix = parts[0].uppercase()
                         val iconName = parts[1]
+
+                        // Anti-fuzzy mismatch filter:
+                        // If searching "oil", do not match "toilet" or "toil"
+                        val iconNameLower = iconName.lowercase()
+                        if (termLower == "oil" && (iconNameLower.contains("toilet") || iconNameLower.contains("spoil"))) {
+                            continue
+                        }
+                        if (termLower == "egg" && iconNameLower.contains("veggie")) {
+                            continue
+                        }
+
                         val svgUrl = "https://api.iconify.design/${parts[0]}/$iconName.svg"
                         val cleanTitle = iconName.replace("-", " ")
                             .replaceFirstChar { it.uppercase() }
@@ -854,8 +926,8 @@ object OnlineIconSearchService {
 
     /**
      * Searches for logos and icons online using keyless free providers with 3-tier priority:
-     * 1. Exact full word / phrase match
-     * 2. Split individual words match
+     * 1. Exact full word / phrase match (or elevated primary anchor word)
+     * 2. Split individual words match (anchor tokens first, then modifiers)
      * 3. Synonyms & domain keywords match
      */
     suspend fun searchIcons(context: Context?, query: String, page: Int = 1): List<OnlineIconResult> = searchIcons(query, context, page)
@@ -868,27 +940,27 @@ object OnlineIconSearchService {
         val seenUrls = mutableSetOf<String>()
 
         coroutineScope {
-            // Tier 1: Search exact word/phrase
+            // Tier 1: Search exact word / primary anchor
             val tier1Job = async {
                 fetchIconsForTerm(tiers.exactWord, page, isExact = true, limit = 28)
             }
 
-            // Tier 2: Search split individual words concurrently (e.g. "electricity", "bill")
+            // Tier 2: Search split individual words concurrently (anchor words prioritized)
             val tier2Jobs = if (tiers.splitWords.isNotEmpty()) {
                 tiers.splitWords.map { splitWord ->
                     async { fetchIconsForTerm(splitWord, page, isExact = false, limit = 16) }
                 }
             } else emptyList()
 
-            // Tier 3: Search synonyms concurrently (up to 6 top synonyms, e.g. "power", "energy", "invoice", "meter")
+            // Tier 3: Search synonyms concurrently (up to 8 top synonyms)
             val tier3Jobs = if (tiers.synonyms.isNotEmpty()) {
-                tiers.synonyms.take(6).map { synWord ->
+                tiers.synonyms.take(8).map { synWord ->
                     async { fetchIconsForTerm(synWord, page, isExact = false, limit = 12) }
                 }
             } else emptyList()
 
             // Await and collect in STRICT 1 -> 2 -> 3 order:
-            // 1. Exact full word results
+            // 1. Exact full word / primary anchor results
             val tier1Results = tier1Job.await()
             for (item in tier1Results) {
                 if (seenUrls.add(item.imageUrl)) {
@@ -1134,7 +1206,7 @@ object OnlineIconSearchService {
 
     /**
      * Searches online images across multiple free, keyless endpoints with 3-tier priority:
-     * 1. Exact full word / phrase match
+     * 1. Exact full word / phrase match (or elevated primary anchor word)
      * 2. Split individual words match
      * 3. Synonyms & domain keywords match
      */
@@ -1148,27 +1220,27 @@ object OnlineIconSearchService {
         val seenUrls = mutableSetOf<String>()
 
         coroutineScope {
-            // Tier 1: Search exact word/phrase
+            // Tier 1: Search exact word / primary anchor
             val tier1Job = async {
                 fetchImagesForTerm(tiers.exactWord, page, limit = 16)
             }
 
-            // Tier 2: Search split individual words (e.g. "electricity", "bill")
+            // Tier 2: Search split individual words (anchor words prioritized)
             val tier2Jobs = if (tiers.splitWords.isNotEmpty()) {
                 tiers.splitWords.map { splitWord ->
                     async { fetchImagesForTerm(splitWord, page, limit = 12) }
                 }
             } else emptyList()
 
-            // Tier 3: Search synonyms (up to 4 synonyms, e.g. "power", "energy", "invoice", "meter")
+            // Tier 3: Search synonyms (up to 6 synonyms)
             val tier3Jobs = if (tiers.synonyms.isNotEmpty()) {
-                tiers.synonyms.take(4).map { synWord ->
+                tiers.synonyms.take(6).map { synWord ->
                     async { fetchImagesForTerm(synWord, page, limit = 8) }
                 }
             } else emptyList()
 
             // Await and collect in STRICT 1 -> 2 -> 3 order:
-            // 1. Exact full word/phrase results
+            // 1. Exact full word / primary anchor results
             val tier1Results = tier1Job.await()
             for (item in tier1Results) {
                 if (seenUrls.add(item.imageUrl)) {

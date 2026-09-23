@@ -3,6 +3,14 @@ package com.example.ui.screens
 import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -53,10 +61,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.zIndex
@@ -121,6 +131,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -621,6 +632,7 @@ fun MainAppContainer(
                                         allAccounts = allAccounts,
                                         allCategories = allCategories,
                                         transactionsWithDetails = transactionsWithDetails,
+                                        itemImageCacheMap = itemImageCacheMap,
                                         recurringBills = recurringBills,
                                         languageMode = languageMode,
                                         backupUiState = backupUiState,
@@ -2075,7 +2087,43 @@ private fun DrawerContent(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 0. Main Dashboard
+        // State of open groups: "remain open until close" - groups persist their opened state
+        // until explicitly toggled closed by user.
+        var openGroups by rememberSaveable {
+            mutableStateOf(
+                listOfNotNull(
+                    if (currentView in listOf(AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE)) "accounts_sources" else null,
+                    if (currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER)) "categories_budget" else null,
+                    if (currentView in listOf(AppView.SAVINGS_GOALS, AppView.WISHLIST)) "goals_wishlist" else null,
+                    if (currentView == AppView.TRASH) "rest" else null
+                )
+            )
+        }
+
+        // Keep active group open if view changes from external navigation
+        LaunchedEffect(currentView) {
+            val activeGroup = when (currentView) {
+                AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE -> "accounts_sources"
+                AppView.CATEGORIES, AppView.BUDGET_MAKER -> "categories_budget"
+                AppView.SAVINGS_GOALS, AppView.WISHLIST -> "goals_wishlist"
+                AppView.TRASH -> "rest"
+                else -> null
+            }
+            if (activeGroup != null && activeGroup !in openGroups) {
+                openGroups = openGroups + activeGroup
+            }
+        }
+
+        val isAccountsOpen = "accounts_sources" in openGroups
+        val isCategoriesOpen = "categories_budget" in openGroups
+        val isGoalsOpen = "goals_wishlist" in openGroups
+        val isRestOpen = "rest" in openGroups
+
+        val toggleGroup: (String) -> Unit = { groupId ->
+            openGroups = if (groupId in openGroups) openGroups - groupId else openGroups + groupId
+        }
+
+        // 1. Main Dashboard
         DrawerItemRow(
             title = if (languageMode == LanguageMode.BANGLA) "মূল ড্যাশবোর্ড" else "Main",
             icon = Icons.Default.Dashboard,
@@ -2084,72 +2132,142 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.DASHBOARD) }
         )
 
-        // 1. Accounts
-        DrawerItemRow(
-            title = LanguageHelper.getString("accounts", languageMode),
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // 2. Accounts, RM Manager, Payment Source (Accounts & Sources)
+        val hasActiveAccounts = currentView in listOf(AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE)
+        DrawerGroupHeader(
+            title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট ও সোর্স" else "Accounts & Sources",
             icon = Icons.Default.AccountBalanceWallet,
             iconTint = MaterialTheme.colorScheme.primary,
+            isOpen = isAccountsOpen,
+            hasActiveChild = hasActiveAccounts,
             badge = "$accountsCount",
-            isSelected = currentView == AppView.ACCOUNTS,
-            onClick = { onSelectView(AppView.ACCOUNTS) }
+            onToggle = { toggleGroup("accounts_sources") },
+            testTag = "drawer_group_accounts"
         )
+        AnimatedVisibility(
+            visible = isAccountsOpen,
+            enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 4.dp, bottom = 2.dp)
+            ) {
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("accounts", languageMode),
+                    icon = Icons.Default.AccountBalanceWallet,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    badge = "$accountsCount",
+                    isSelected = currentView == AppView.ACCOUNTS,
+                    onClick = { onSelectView(AppView.ACCOUNTS) }
+                )
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("rm_manager", languageMode).ifEmpty { "RM Manager" },
+                    icon = Icons.Default.AccountBalance,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    isSelected = currentView == AppView.RM_MANAGER,
+                    onClick = { onSelectView(AppView.RM_MANAGER) }
+                )
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("payment_source", languageMode),
+                    icon = Icons.Default.Payments,
+                    iconTint = SolidTransfer,
+                    isSelected = currentView == AppView.PAYMENT_SOURCE,
+                    onClick = { onSelectView(AppView.PAYMENT_SOURCE) }
+                )
+            }
+        }
 
-        // 1.5. RM Manager
-        DrawerItemRow(
-            title = LanguageHelper.getString("rm_manager", languageMode).ifEmpty { "RM Manager" },
-            icon = Icons.Default.AccountBalance,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.RM_MANAGER,
-            onClick = { onSelectView(AppView.RM_MANAGER) }
-        )
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // 2. Categories
-        DrawerItemRow(
-            title = LanguageHelper.getString("categories", languageMode),
+        // 3. Categories, Budget Maker (Categories & Budget)
+        val hasActiveCategories = currentView in listOf(AppView.CATEGORIES, AppView.BUDGET_MAKER)
+        DrawerGroupHeader(
+            title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ও বাজেট" else "Categories & Budget",
             icon = Icons.Default.Category,
             iconTint = SolidExpense,
+            isOpen = isCategoriesOpen,
+            hasActiveChild = hasActiveCategories,
             badge = "$categoriesCount",
-            isSelected = currentView == AppView.CATEGORIES,
-            onClick = { onSelectView(AppView.CATEGORIES) }
+            onToggle = { toggleGroup("categories_budget") },
+            testTag = "drawer_group_categories"
         )
+        AnimatedVisibility(
+            visible = isCategoriesOpen,
+            enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 4.dp, bottom = 2.dp)
+            ) {
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("categories", languageMode),
+                    icon = Icons.Default.Category,
+                    iconTint = SolidExpense,
+                    badge = "$categoriesCount",
+                    isSelected = currentView == AppView.CATEGORIES,
+                    onClick = { onSelectView(AppView.CATEGORIES) }
+                )
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("budget_maker", languageMode),
+                    icon = Icons.Default.Calculate,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    isSelected = currentView == AppView.BUDGET_MAKER,
+                    onClick = { onSelectView(AppView.BUDGET_MAKER) }
+                )
+            }
+        }
 
-        // 3. Budget Maker
-        DrawerItemRow(
-            title = LanguageHelper.getString("budget_maker", languageMode),
-            icon = Icons.Default.Calculate,
-            iconTint = MaterialTheme.colorScheme.primary,
-            isSelected = currentView == AppView.BUDGET_MAKER,
-            onClick = { onSelectView(AppView.BUDGET_MAKER) }
-        )
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // 3.5. Savings Goals
-        DrawerItemRow(
-            title = LanguageHelper.getString("savings_goals", languageMode).ifEmpty { "Savings Goals" },
+        // 4. Savings Goals and Wishlist (Goals & Wishlist)
+        val hasActiveGoals = currentView in listOf(AppView.SAVINGS_GOALS, AppView.WISHLIST)
+        val goalsTotalCount = savingsSummary.activeGoalsCount + activeWishlistCount
+        DrawerGroupHeader(
+            title = if (languageMode == LanguageMode.BANGLA) "লক্ষ্য ও উইশলিস্ট" else "Goals & Wishlist",
             icon = Icons.Default.Savings,
             iconTint = MaterialTheme.colorScheme.primary,
-            badge = if (savingsSummary.activeGoalsCount > 0) "${savingsSummary.activeGoalsCount}" else null,
-            isSelected = currentView == AppView.SAVINGS_GOALS,
-            onClick = { onSelectView(AppView.SAVINGS_GOALS) }
+            isOpen = isGoalsOpen,
+            hasActiveChild = hasActiveGoals,
+            badge = if (goalsTotalCount > 0) "$goalsTotalCount" else null,
+            onToggle = { toggleGroup("goals_wishlist") },
+            testTag = "drawer_group_goals"
         )
+        AnimatedVisibility(
+            visible = isGoalsOpen,
+            enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 4.dp, bottom = 2.dp)
+            ) {
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("savings_goals", languageMode).ifEmpty { "Savings Goals" },
+                    icon = Icons.Default.Savings,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    badge = if (savingsSummary.activeGoalsCount > 0) "${savingsSummary.activeGoalsCount}" else null,
+                    isSelected = currentView == AppView.SAVINGS_GOALS,
+                    onClick = { onSelectView(AppView.SAVINGS_GOALS) }
+                )
+                DrawerChildItemRow(
+                    title = LanguageHelper.getString("wishlist", languageMode).ifEmpty { "Wishlist" },
+                    icon = Icons.Default.ShoppingBag,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    badge = if (activeWishlistCount > 0) "$activeWishlistCount" else null,
+                    isSelected = currentView == AppView.WISHLIST,
+                    onClick = { onSelectView(AppView.WISHLIST) }
+                )
+            }
+        }
 
-        // 4. Payment Source
-        DrawerItemRow(
-            title = LanguageHelper.getString("payment_source", languageMode),
-            icon = Icons.Default.Payments,
-            iconTint = SolidTransfer,
-            isSelected = currentView == AppView.PAYMENT_SOURCE,
-            onClick = { onSelectView(AppView.PAYMENT_SOURCE) }
-        )
-
-        // 4.5. Wishlist
-        DrawerItemRow(
-            title = LanguageHelper.getString("wishlist", languageMode).ifEmpty { "Wishlist" },
-            icon = Icons.Default.ShoppingBag,
-            iconTint = MaterialTheme.colorScheme.primary,
-            badge = if (activeWishlistCount > 0) "$activeWishlistCount" else null,
-            isSelected = currentView == AppView.WISHLIST,
-            onClick = { onSelectView(AppView.WISHLIST) }
-        )
+        Spacer(modifier = Modifier.height(2.dp))
 
         // 5. Settings
         DrawerItemRow(
@@ -2160,122 +2278,297 @@ private fun DrawerContent(
             onClick = { onSelectView(AppView.SETTINGS) }
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // 6. Quick Sync (with last timestamp)
-        NavigationDrawerItem(
-            label = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "কুইক সিঙ্ক" else "Quick Sync",
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "Last: $lastSyncFormatted",
-                            fontSize = 10.5.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    Icon(
-                        Icons.Default.Sync,
-                        contentDescription = "Sync",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            },
-            icon = { Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            selected = false,
-            onClick = { viewModel.triggerQuickSync() },
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-        )
-
-        // 6.5. Demo (Toggle on/off with separate isolated dataset)
-        NavigationDrawerItem(
-            label = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f, fill = false)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "ডেমো" else "Demo",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            if (isDemoMode) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
-                                ) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "চালু" else "ON",
-                                        fontSize = 9.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                        }
-                        Text(
-                            text = if (isDemoMode) {
-                                if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা • ব্যাকআপ হবে না" else "Sample data • No backup"
-                            } else {
-                                if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা দেখতে চালু করুন" else "Toggle on to explore"
-                            },
-                            fontSize = 10.5.sp,
-                            color = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    Switch(
-                        checked = isDemoMode,
-                        onCheckedChange = { viewModel.setDemoMode(it) },
-                        modifier = Modifier
-                            .scale(0.8f)
-                            .testTag("drawer_demo_switch")
-                    )
-                }
-            },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Science,
-                    contentDescription = "Demo Mode",
-                    tint = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
-                )
-            },
-            selected = isDemoMode,
-            onClick = { viewModel.setDemoMode(!isDemoMode) },
-            shape = RoundedCornerShape(10.dp),
-            colors = NavigationDrawerItemDefaults.colors(
-                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.28f),
-                unselectedContainerColor = Color.Transparent
-            ),
-            modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 2.dp)
-                .testTag("drawer_demo_item")
-        )
-
-        // 7. Trash
-        DrawerItemRow(
-            title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash",
-            icon = Icons.Default.DeleteOutline,
-            iconTint = if (trashedItems.isNotEmpty()) SolidExpense else MaterialTheme.colorScheme.outline,
+        // 6. Rest (Quick Sync, Demo, Trash)
+        val hasActiveRest = currentView == AppView.TRASH || isDemoMode
+        DrawerGroupHeader(
+            title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য ও টুলস" else "Rest & Tools",
+            icon = Icons.Default.Tune,
+            iconTint = MaterialTheme.colorScheme.outline,
+            isOpen = isRestOpen,
+            hasActiveChild = hasActiveRest,
             badge = if (trashedItems.isNotEmpty()) "${trashedItems.size}" else null,
-            isSelected = currentView == AppView.TRASH,
-            onClick = { onSelectView(AppView.TRASH) }
+            onToggle = { toggleGroup("rest") },
+            testTag = "drawer_group_rest"
         )
+        AnimatedVisibility(
+            visible = isRestOpen,
+            enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, end = 4.dp, bottom = 2.dp)
+            ) {
+                // Quick Sync
+                NavigationDrawerItem(
+                    label = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) "কুইক সিঙ্ক" else "Quick Sync",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.5.sp
+                                )
+                                Text(
+                                    text = "Last: $lastSyncFormatted",
+                                    fontSize = 10.5.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            Icon(
+                                Icons.Default.Sync,
+                                contentDescription = "Sync",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    },
+                    icon = { Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
+                    selected = false,
+                    onClick = { viewModel.triggerQuickSync() },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp)
+                )
+
+                // Demo Mode Switch
+                NavigationDrawerItem(
+                    label = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "ডেমো" else "Demo",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.5.sp
+                                    )
+                                    if (isDemoMode) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+                                        ) {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "চালু" else "ON",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.tertiary,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = if (isDemoMode) {
+                                        if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা • ব্যাকআপ হবে না" else "Sample data • No backup"
+                                    } else {
+                                        if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা দেখতে চালু করুন" else "Toggle on to explore"
+                                    },
+                                    fontSize = 10.5.sp,
+                                    color = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            Switch(
+                                checked = isDemoMode,
+                                onCheckedChange = { viewModel.setDemoMode(it) },
+                                modifier = Modifier
+                                    .scale(0.8f)
+                                    .testTag("drawer_demo_switch")
+                            )
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Science,
+                            contentDescription = "Demo Mode",
+                            tint = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    selected = isDemoMode,
+                    onClick = { viewModel.setDemoMode(!isDemoMode) },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.28f),
+                        unselectedContainerColor = Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 1.dp)
+                        .testTag("drawer_demo_item")
+                )
+
+                // Trash
+                DrawerChildItemRow(
+                    title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash",
+                    icon = Icons.Default.DeleteOutline,
+                    iconTint = if (trashedItems.isNotEmpty()) SolidExpense else MaterialTheme.colorScheme.outline,
+                    badge = if (trashedItems.isNotEmpty()) "${trashedItems.size}" else null,
+                    isSelected = currentView == AppView.TRASH,
+                    onClick = { onSelectView(AppView.TRASH) }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+@Composable
+private fun DrawerGroupHeader(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    isOpen: Boolean,
+    hasActiveChild: Boolean = false,
+    badge: String? = null,
+    onToggle: () -> Unit,
+    testTag: String = ""
+) {
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (isOpen) 180f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "arrow_rotation"
+    )
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (hasActiveChild && !isOpen) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+        } else {
+            Color.Transparent
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onToggle)
+            .testTag(testTag)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(
+                            color = if (hasActiveChild) iconTint.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(8.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (hasActiveChild) iconTint else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (hasActiveChild || isOpen) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (hasActiveChild) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (badge != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.padding(end = 6.dp)
+                    ) {
+                        Text(
+                            text = badge,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isOpen) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .rotate(arrowRotation)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerChildItemRow(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    badge: String? = null,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    NavigationDrawerItem(
+        label = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 13.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
+                if (badge != null) {
+                    Text(
+                        text = badge,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+        },
+        icon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else iconTint,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        selected = isSelected,
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        colors = NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            unselectedContainerColor = Color.Transparent
+        ),
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp)
+    )
 }
 
 @Composable
@@ -2296,7 +2589,7 @@ private fun DrawerItemRow(
             ) {
                 Text(
                     text = title,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
                 )
                 if (badge != null) {
                     Text(
@@ -2307,10 +2600,17 @@ private fun DrawerItemRow(
                 }
             }
         },
-        icon = { Icon(icon, contentDescription = null, tint = iconTint) },
+        icon = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else iconTint,
+                modifier = Modifier.size(20.dp)
+            )
+        },
         selected = isSelected,
         onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = NavigationDrawerItemDefaults.colors(
             selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
             selectedTextColor = MaterialTheme.colorScheme.primary
@@ -2368,6 +2668,7 @@ private fun ScreenRouter(
             accountsWithBalances = accountsWithBalances,
             accountCalcConfig = accountCalcConfig,
             recentTransactions = transactionsWithDetails,
+            itemImageCacheMap = itemImageCacheMap,
             allCategories = allCategories,
             monthlyBudgets = monthlyBudgets,
             dashboardConfig = dashboardConfig,
@@ -2422,6 +2723,7 @@ private fun ScreenRouter(
                 allAccounts = allAccounts,
                 accountsWithBalances = accountsWithBalances,
                 allCategories = allCategories,
+                itemImageCacheMap = itemImageCacheMap,
                 languageMode = languageMode,
                 onOpenDrawer = onOpenDrawer,
                 onTransactionClick = onEditTransaction,
