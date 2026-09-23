@@ -77,6 +77,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -166,6 +167,7 @@ fun IconPickerModal(
     var currentOnlinePage by remember { mutableStateOf(1) }
     var hasMoreOnline by remember { mutableStateOf(true) }
     var downloadingUrl by remember { mutableStateOf<String?>(null) }
+    var onlineIconBgColor by remember { mutableStateOf<Color?>(null) } // null = transparent
     var searchJob by remember { mutableStateOf<Job?>(null) }
 
     // Trigger online search whenever in "Online Search" tab or user is actively searching
@@ -354,13 +356,12 @@ fun IconPickerModal(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(IconHelper.CATEGORIES) { cat ->
-                        val isSelected = cat == selectedCategory && searchQuery.isBlank()
+                        val isSelected = cat == selectedCategory
                         val countLabel = if (cat == "Custom") " (${customIcons.size})" else ""
                         FilterChip(
                             selected = isSelected,
                             onClick = {
                                 selectedCategory = cat
-                                searchQuery = ""
                                 if (cat == "Custom") refreshCustomStats()
                             },
                             leadingIcon = if (cat == "Online Search") {
@@ -759,6 +760,45 @@ fun IconPickerModal(
                             }
                         }
                     } else {
+                        // Background color selector for online icons (useful for transparent logos)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Icon Background:",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                val bgPresets = listOf(
+                                    "None" to null,
+                                    "White" to Color.White,
+                                    "Dark" to Color(0xFF1E293B),
+                                    "Theme" to SolidPrimary
+                                )
+                                bgPresets.forEach { (label, color) ->
+                                    val isSelected = onlineIconBgColor == color
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { onlineIconBgColor = color },
+                                        label = { Text(label, fontSize = 10.sp) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = SolidPrimary.copy(alpha = 0.18f),
+                                            selectedLabelColor = SolidPrimary
+                                        ),
+                                        modifier = Modifier.height(26.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         // Icons & Logos Grid (4 columns)
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(4),
@@ -771,11 +811,12 @@ fun IconPickerModal(
                         ) {
                             items(visibleOnlineResults) { item ->
                                 val isDownloading = downloadingUrl == item.imageUrl
+                                val cardBg = onlineIconBgColor ?: MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                 Box(
                                     modifier = Modifier
                                         .size(68.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .background(cardBg)
                                         .border(
                                             width = 1.dp,
                                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
@@ -786,7 +827,8 @@ fun IconPickerModal(
                                             coroutineScope.launch {
                                                 val savedKey = OnlineIconSearchService.downloadAndSaveIcon(
                                                     context = context,
-                                                    imageUrl = item.imageUrl
+                                                    imageUrl = item.imageUrl,
+                                                    backgroundColor = onlineIconBgColor?.toArgb()
                                                 )
                                                 downloadingUrl = null
                                                 if (savedKey != null) {
@@ -1003,9 +1045,16 @@ fun IconPickerModal(
                         }
                     }
 
-                    val showCustomGrid = (selectedCategory == "Custom" || selectedCategory == "All") && searchQuery.isBlank()
+                    val filteredCustomIcons = remember(searchQuery, customIcons) {
+                        if (searchQuery.isBlank()) customIcons
+                        else customIcons.filter { it.contains(searchQuery.trim(), ignoreCase = true) }
+                    }
+                    val showCustomGrid = selectedCategory == "Custom" || (selectedCategory == "All" && searchQuery.isBlank())
+                    val activeCustomIcons = if (selectedCategory == "Custom") filteredCustomIcons else customIcons
 
-                    if (searchQuery.isNotBlank() && filteredBuiltins.isEmpty() && (!showCustomGrid || customIcons.isEmpty())) {
+                    val hasLocalResults = filteredBuiltins.isNotEmpty() || (showCustomGrid && activeCustomIcons.isNotEmpty())
+
+                    if (searchQuery.isNotBlank() && !hasLocalResults) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1067,7 +1116,7 @@ fun IconPickerModal(
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = "Use Gallery (opens gallery first with Browse option) or File Manager (browse folders directly) above to add and crop custom photos or icons.",
+                                            text = "Use Gallery or File Manager above to add and crop custom photos or icons.",
                                             fontSize = 11.5.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -1076,8 +1125,8 @@ fun IconPickerModal(
                                 }
                             }
 
-                            if (showCustomGrid && customIcons.isNotEmpty()) {
-                                items(customIcons) { customIconKey ->
+                            if (showCustomGrid && activeCustomIcons.isNotEmpty()) {
+                                items(activeCustomIcons) { customIconKey ->
                                     val isSelected = customIconKey == selectedIconName
                                     val file = IconHelper.getCustomIconFile(context, customIconKey)
 

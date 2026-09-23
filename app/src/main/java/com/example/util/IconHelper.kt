@@ -1674,6 +1674,90 @@ object IconHelper {
     }
 
     /**
+     * Renders a pixel-perfect WYSIWYG cropped Bitmap matching the interactive screen viewport.
+     * [cropBoxSizePx] is the on-screen size of the crop frame in pixels.
+     * [effectiveScreenScale] is the total scale applied on screen.
+     * [panOffsetScreenX], [panOffsetScreenY] are the screen pixel offsets from the crop frame center.
+     * [rotationDegrees] is the total rotation in degrees.
+     */
+    fun renderWysiwygCroppedBitmap(
+        sourceBitmap: Bitmap,
+        cropBoxSizePx: Float,
+        effectiveScreenScale: Float,
+        panOffsetScreenX: Float,
+        panOffsetScreenY: Float,
+        rotationDegrees: Float,
+        flipHorizontal: Boolean = false,
+        flipVertical: Boolean = false,
+        cropShape: String = "circle", // "circle", "rounded_square", "square"
+        colorMatrixValues: FloatArray? = null,
+        backgroundColor: Int? = null,
+        outputSize: Int = 512
+    ): Bitmap {
+        val output = Bitmap.createBitmap(outputSize, outputSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+
+        // Apply boundary shape masking
+        when (cropShape.lowercase()) {
+            "circle" -> {
+                val path = Path().apply {
+                    addCircle(outputSize / 2f, outputSize / 2f, outputSize / 2f, Path.Direction.CW)
+                }
+                canvas.clipPath(path)
+            }
+            "rounded_square" -> {
+                val cornerRadius = outputSize * 0.20f
+                val rectF = RectF(0f, 0f, outputSize.toFloat(), outputSize.toFloat())
+                val path = Path().apply {
+                    addRoundRect(rectF, cornerRadius, cornerRadius, Path.Direction.CW)
+                }
+                canvas.clipPath(path)
+            }
+            else -> {
+                // Square: keep full rectangular area
+            }
+        }
+
+        // Draw solid background color if specified (e.g. for transparent icons)
+        if (backgroundColor != null) {
+            canvas.drawColor(backgroundColor)
+        }
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            isDither = true
+            isFilterBitmap = true
+            if (colorMatrixValues != null) {
+                colorFilter = android.graphics.ColorMatrixColorFilter(colorMatrixValues)
+            }
+        }
+
+        val srcW = sourceBitmap.width.toFloat()
+        val srcH = sourceBitmap.height.toFloat()
+        val ratio = if (cropBoxSizePx > 0f) outputSize.toFloat() / cropBoxSizePx else 1f
+
+        val matrix = Matrix()
+        // 1. Move bitmap center to origin
+        matrix.postTranslate(-srcW / 2f, -srcH / 2f)
+
+        // 2. Rotate around center
+        matrix.postRotate(rotationDegrees)
+
+        // 3. Flip & Scale to output
+        val outScale = effectiveScreenScale * ratio
+        val outScaleX = if (flipHorizontal) -outScale else outScale
+        val outScaleY = if (flipVertical) -outScale else outScale
+        matrix.postScale(outScaleX, outScaleY)
+
+        // 4. Translate to output center + scaled pan offset
+        val outPanX = panOffsetScreenX * ratio
+        val outPanY = panOffsetScreenY * ratio
+        matrix.postTranslate((outputSize / 2f) + outPanX, (outputSize / 2f) + outPanY)
+
+        canvas.drawBitmap(sourceBitmap, matrix, paint)
+        return output
+    }
+
+    /**
      * Saves a Bitmap directly into the app's internal custom icons directory with optimal compression.
      */
     fun saveCustomIconBitmap(context: Context, bitmap: Bitmap): String? {

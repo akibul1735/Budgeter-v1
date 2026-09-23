@@ -968,9 +968,15 @@ object OnlineIconSearchService {
     /**
      * Downloads an online image by URL (supports vector SVG, PNG, WebP, JPG)
      * and persists it locally into the app's custom icons directory with optimal compression.
+     * Optionally draws a solid [backgroundColor] (e.g. for transparent icons/logos).
      * Returns the persistent custom icon key (e.g. "custom_icon_172...").
      */
-    suspend fun downloadAndSaveIcon(context: Context, imageUrl: String, name: String? = null): String? = withContext(Dispatchers.IO) {
+    suspend fun downloadAndSaveIcon(
+        context: Context,
+        imageUrl: String,
+        name: String? = null,
+        backgroundColor: Int? = null
+    ): String? = withContext(Dispatchers.IO) {
         try {
             val customDir = File(context.filesDir, "custom_icons")
             if (!customDir.exists()) customDir.mkdirs()
@@ -993,6 +999,9 @@ object OnlineIconSearchService {
                     val targetSize = 384
                     val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bitmap)
+                    if (backgroundColor != null) {
+                        canvas.drawColor(backgroundColor)
+                    }
                     drawable.setBounds(0, 0, targetSize, targetSize)
                     drawable.draw(canvas)
 
@@ -1045,6 +1054,18 @@ object OnlineIconSearchService {
                 (originalBitmap.height * scaleFactor).toInt().coerceAtLeast(1),
                 true
             )
+
+            val finalBitmap = if (backgroundColor != null) {
+                val bgBmp = Bitmap.createBitmap(targetDim, targetDim, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bgBmp)
+                canvas.drawColor(backgroundColor)
+                val left = (targetDim - scaledBitmap.width) / 2f
+                val top = (targetDim - scaledBitmap.height) / 2f
+                canvas.drawBitmap(scaledBitmap, left, top, null)
+                bgBmp
+            } else {
+                scaledBitmap
+            }
 
             FileOutputStream(destFile).use { outStream ->
                 val format = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
