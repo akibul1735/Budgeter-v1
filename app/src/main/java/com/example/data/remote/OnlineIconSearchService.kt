@@ -1278,6 +1278,34 @@ object OnlineIconSearchService {
         null
     }
 
+    private val EXCLUDED_NEWS_DOMAINS = setOf(
+        "republicbharat", "timesnownews", "timesnow", "abplive", "abpnews",
+        "indianexpress", "india.com", "ndtv", "aajtak", "zeenews", "hindustantimes",
+        "indiatoday", "wahananews", "theprint", "opindia", "thewire", "firstpost",
+        "news18", "livehindustan", "jagran", "amarujala", "navbharattimes", "dainikbhaskar",
+        "dhakatribune", "samakal", "bd24live"
+    )
+
+    private val EXCLUDED_POLITICAL_KEYWORDS = listOf(
+        "zakir naik", "shehbaz sharif", "breaking news", "latest news",
+        "marry a married man", "press conference", "lok sabha", "rajya sabha",
+        "narendra modi", "sheikh hasina", "scandal", "controversy"
+    )
+
+    private fun isExcludedOrIrrelevantNews(item: OnlineImageResult): Boolean {
+        val titleLower = item.title.lowercase()
+        val sourceLower = item.sourceName.lowercase()
+        val urlLower = item.imageUrl.lowercase()
+
+        if (EXCLUDED_NEWS_DOMAINS.any { domain -> sourceLower.contains(domain) || urlLower.contains(domain) }) {
+            return true
+        }
+        if (EXCLUDED_POLITICAL_KEYWORDS.any { kw -> titleLower.contains(kw) }) {
+            return true
+        }
+        return false
+    }
+
     /**
      * Searches real web image results via Bing Web Index (the exact underlying search index behind DuckDuckGo image search).
      * Retrieves actual commercial product packaging, badges, buttons, brand photos, and item pictures with no API key needed.
@@ -1307,11 +1335,29 @@ object OnlineIconSearchService {
                 if (body.isBlank()) return@withContext emptyList()
 
                 val results = mutableListOf<OnlineImageResult>()
-                val regex = Regex("""m=\"(\{.*?\})\"""")
-                val matches = regex.findAll(body)
-                for (match in matches) {
+
+                // 1. Only extract genuine image result cards with class="iusc" (Image User Search Card)
+                // to ignore sidebar widgets, regional trending news carousels, and promotional units
+                val iuscRegex = Regex("""<a\b[^>]*?\biusc\b[^>]*?>""", RegexOption.DOT_MATCHES_ALL)
+                val mRegex = Regex("""m=[\"'](\{.*?\})[\"']""")
+                val rawMatches = mutableListOf<String>()
+
+                val iuscTags = iuscRegex.findAll(body).toList()
+                if (iuscTags.isNotEmpty()) {
+                    for (tag in iuscTags) {
+                        mRegex.find(tag.value)?.let { rawMatches.add(it.groupValues[1]) }
+                    }
+                } else {
+                    // Fallback to general m attribute if markup structure differs
+                    val generalRegex = Regex("""m=\"(\{.*?\})\"""")
+                    for (m in generalRegex.findAll(body)) {
+                        rawMatches.add(m.groupValues[1])
+                    }
+                }
+
+                for (rawMatch in rawMatches) {
                     if (results.size >= limit) break
-                    val rawJson = match.groupValues[1]
+                    val rawJson = rawMatch
                         .replace("&quot;", "\"")
                         .replace("&amp;", "&")
                         .replace("&lt;", "<")
@@ -1329,17 +1375,17 @@ object OnlineIconSearchService {
                             "Web"
                         }
 
-                        if (murl.isNotBlank() && (murl.startsWith("http://") || murl.startsWith("https://"))) {
-                            results.add(
-                                OnlineImageResult(
-                                    title = title,
-                                    imageUrl = murl,
-                                    thumbUrl = turl,
-                                    sourceName = host,
-                                    width = 0,
-                                    height = 0
-                                )
-                            )
+                        val item = OnlineImageResult(
+                            title = title,
+                            imageUrl = murl,
+                            thumbUrl = turl,
+                            sourceName = host,
+                            width = 0,
+                            height = 0
+                        )
+
+                        if (murl.isNotBlank() && (murl.startsWith("http://") || murl.startsWith("https://")) && !isExcludedOrIrrelevantNews(item)) {
+                            results.add(item)
                         }
                     } catch (_: Exception) {}
                 }
@@ -1391,17 +1437,16 @@ object OnlineIconSearchService {
                     val width = item.optInt("width", 0)
                     val height = item.optInt("height", 0)
 
-                    if (fullImg.isNotBlank() && (fullImg.startsWith("http://") || fullImg.startsWith("https://"))) {
-                        results.add(
-                            OnlineImageResult(
-                                title = title,
-                                imageUrl = fullImg,
-                                thumbUrl = thumb,
-                                sourceName = "DuckDuckGo",
-                                width = width,
-                                height = height
-                            )
-                        )
+                    val itemResult = OnlineImageResult(
+                        title = title,
+                        imageUrl = fullImg,
+                        thumbUrl = thumb,
+                        sourceName = "DuckDuckGo",
+                        width = width,
+                        height = height
+                    )
+                    if (fullImg.isNotBlank() && (fullImg.startsWith("http://") || fullImg.startsWith("https://")) && !isExcludedOrIrrelevantNews(itemResult)) {
+                        results.add(itemResult)
                     }
                 }
                 results
@@ -1434,12 +1479,12 @@ object OnlineIconSearchService {
         // Interleave sources for a balanced mix of encyclopedia, wiki, and web results
         val maxLen = maxOf(bing.size, wiki.size, ddg.size, wikiPage.size, unsplash.size, openverse.size)
         for (i in 0 until maxLen) {
-            if (i < bing.size && seen.add(bing[i].imageUrl)) combined.add(bing[i])
-            if (i < wiki.size && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
-            if (i < ddg.size && seen.add(ddg[i].imageUrl)) combined.add(ddg[i])
-            if (i < wikiPage.size && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
-            if (i < unsplash.size && seen.add(unsplash[i].imageUrl)) combined.add(unsplash[i])
-            if (i < openverse.size && seen.add(openverse[i].imageUrl)) combined.add(openverse[i])
+            if (i < bing.size && !isExcludedOrIrrelevantNews(bing[i]) && seen.add(bing[i].imageUrl)) combined.add(bing[i])
+            if (i < wiki.size && !isExcludedOrIrrelevantNews(wiki[i]) && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
+            if (i < ddg.size && !isExcludedOrIrrelevantNews(ddg[i]) && seen.add(ddg[i].imageUrl)) combined.add(ddg[i])
+            if (i < wikiPage.size && !isExcludedOrIrrelevantNews(wikiPage[i]) && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
+            if (i < unsplash.size && !isExcludedOrIrrelevantNews(unsplash[i]) && seen.add(unsplash[i].imageUrl)) combined.add(unsplash[i])
+            if (i < openverse.size && !isExcludedOrIrrelevantNews(openverse[i]) && seen.add(openverse[i].imageUrl)) combined.add(openverse[i])
         }
         combined
     }
