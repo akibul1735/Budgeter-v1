@@ -80,7 +80,199 @@ object OnlineIconSearchService {
         "images", "pic", "picture", "pictures", "photo", "photos", "clipart", "graphic", "graphics"
     )
 
+    /**
+     * Direct mapping for common typos, phonetic Banglish transliterations, and alternative spellings.
+     */
+    private val TYPO_AND_TRANSLITERATION_MAP: Map<String, String> = mapOf(
+        // Groceries & Food Typos
+        "suger" to "sugar", "shugar" to "sugar", "sugr" to "sugar", "shugr" to "sugar", "sugre" to "sugar",
+        "chini" to "sugar", "cini" to "sugar", "chiny" to "sugar", "gud" to "sugar", "gur" to "sugar",
+        "vegitables" to "vegetables", "vegtables" to "vegetables", "vegtable" to "vegetable",
+        "vege" to "vegetables", "veggies" to "vegetables", "shobji" to "vegetables", "sobji" to "vegetables",
+        "torkari" to "vegetables", "saak" to "spinach", "shak" to "spinach", "palong" to "spinach",
+        "medecine" to "medicine", "medicin" to "medicine", "medecin" to "medicine", "meds" to "medicine",
+        "osudh" to "medicine", "oushod" to "medicine", "oushad" to "medicine", "tablat" to "tablet", "tablt" to "tablet",
+        "resturant" to "restaurant", "restro" to "restaurant", "resturent" to "restaurant", "restraunt" to "restaurant",
+        "restaurent" to "restaurant", "hotal" to "restaurant", "khabar" to "food", "kabar" to "food",
+        "biscut" to "biscuit", "biskit" to "biscuit", "biscit" to "biscuit", "biskut" to "biscuit",
+        "chiken" to "chicken", "chikn" to "chicken", "chickn" to "chicken", "murgi" to "chicken", "murghi" to "chicken",
+        "dim" to "egg", "deem" to "egg", "dime" to "egg", "eggss" to "egg",
+        "tel" to "oil", "tayl" to "oil", "soisha" to "mustard oil", "sorisha" to "mustard oil",
+        "chaal" to "rice", "chal" to "rice", "chowl" to "rice", "bhaat" to "rice", "bhat" to "rice",
+        "daal" to "lentils", "dal" to "lentils", "dall" to "lentils", "mosur" to "lentils", "mug" to "lentils",
+        "lobon" to "salt", "noon" to "salt", "nun" to "salt", "nobon" to "salt", "solt" to "salt",
+        "ata" to "flour", "aata" to "flour", "moyda" to "flour", "maida" to "flour", "flor" to "flour",
+        "ruti" to "bread", "roti" to "bread", "pau" to "bread", "paoruti" to "bread", "bred" to "bread",
+        "mach" to "fish", "maach" to "fish", "fishs" to "fish", "fsh" to "fish", "ilish" to "fish", "rui" to "fish",
+        "goru" to "beef", "gorur" to "beef", "gosh" to "meat", "gosht" to "meat", "bef" to "beef", "beaf" to "beef",
+        "khashi" to "mutton", "khasir" to "mutton", "muton" to "mutton", "chagol" to "mutton",
+        "mangsho" to "meat", "mangso" to "meat", "met" to "meat",
+        "dudh" to "milk", "doodh" to "milk", "dood" to "milk", "milke" to "milk",
+        "pani" to "water", "paani" to "water", "jol" to "water", "watter" to "water", "watr" to "water",
+        "cha" to "tea", "chai" to "tea", "chaye" to "tea", "te" to "tea",
+        "kofi" to "coffee", "cofe" to "coffee", "coffe" to "coffee", "coffie" to "coffee",
+        "aam" to "mango", "am" to "mango", "mengo" to "mango",
+        "kola" to "banana", "kela" to "banana", "banan" to "banana", "bananna" to "banana",
+        "apel" to "apple", "aple" to "apple", "applee" to "apple",
+        "komla" to "orange", "orrange" to "orange", "malta" to "orange",
+        "peyaj" to "onion", "peaj" to "onion", "piyaj" to "onion", "piaj" to "onion", "onoin" to "onion", "oinon" to "onion",
+        "alu" to "potato", "aloo" to "potato", "aalu" to "potato", "poteto" to "potato", "potata" to "potato",
+        "tomato" to "tomato", "tomto" to "tomato", "tomata" to "tomato", "tamatar" to "tomato",
+        "roshun" to "garlic", "rosun" to "garlic", "roson" to "garlic", "garlick" to "garlic", "garlik" to "garlic",
+        "ada" to "ginger", "aada" to "ginger", "gindger" to "ginger", "gingr" to "ginger",
+        "morich" to "chili", "marich" to "chili", "jhal" to "chili", "chilli" to "chili", "chile" to "chili",
+        "begun" to "eggplant", "brinjal" to "eggplant", "brinjol" to "eggplant", "aubergine" to "eggplant",
+        "gajor" to "carrot", "carrt" to "carrot", "carot" to "carrot",
+        "shosa" to "cucumber", "cucumbr" to "cucumber",
+        "mishti" to "sweets", "misti" to "sweets", "sweetes" to "sweets",
+        "choclate" to "chocolate", "choclet" to "chocolate", "chocalate" to "chocolate",
+        "icecream" to "ice-cream", "icecreem" to "ice-cream", "ayeskrim" to "ice-cream",
+
+        // Utilities, Bills & Recharge Typos
+        "electicity" to "electricity", "electrik" to "electricity", "electrisity" to "electricity", "elec" to "electricity",
+        "current" to "electricity", "biddut" to "electricity", "bijli" to "electricity",
+        "rechrg" to "recharge", "recharj" to "recharge", "recarge" to "recharge", "topup" to "recharge",
+        "flexi" to "recharge", "flexiload" to "recharge",
+        "intenet" to "internet", "intrnet" to "internet", "internt" to "internet", "wifii" to "wifi", "net" to "internet",
+
+        // Finance & Work Typos
+        "salery" to "salary", "salry" to "salary", "veton" to "salary", "beton" to "salary",
+        "taka" to "money", "poisa" to "money", "khoroch" to "expense", "kharach" to "expense",
+        "dhar" to "loan", "karz" to "loan", "rin" to "loan", "insurence" to "insurance",
+        "bazar" to "grocery", "bajar" to "grocery", "shodai" to "grocery", "sodai" to "grocery",
+
+        // Transport & Travel Typos
+        "trnsport" to "transport", "transprt" to "transport", "vara" to "rent", "bhara" to "rent",
+        "gari" to "car", "gadi" to "car", "ricksha" to "rickshaw", "rikshaw" to "rickshaw", "riksha" to "rickshaw",
+        "ubr" to "taxi", "pathao" to "ride", "cng" to "auto-rickshaw", "flite" to "flight", "ariplane" to "airplane",
+
+        // Health & Education Typos
+        "hospitl" to "hospital", "hospatal" to "hospital", "haspatal" to "hospital",
+        "docotr" to "doctor", "docter" to "doctor", "daktar" to "doctor", "daktr" to "doctor",
+        "scholl" to "school", "skul" to "school", "tution" to "tuition", "tusion" to "tuition", "porashuna" to "education",
+        "colg" to "college", "collg" to "college", "univercity" to "university", "varsity" to "university",
+
+        // Lifestyle & Personal Care
+        "cloaths" to "clothes", "cloths" to "clothes", "kapad" to "clothes", "kapor" to "clothes", "poshak" to "clothes",
+        "shose" to "shoes", "shooes" to "shoes", "juta" to "shoes", "juto" to "shoes",
+        "cosmatic" to "cosmetics", "jewlry" to "jewelry", "jwelery" to "jewelry", "shampo" to "shampoo", "champoo" to "shampoo",
+        "sope" to "soap", "sop" to "soap", "sabun" to "soap", "shabun" to "soap",
+        "cigarete" to "cigarette", "cigaret" to "cigarette", "biri" to "cigarette", "bidi" to "cigarette", "shikret" to "cigarette",
+        "zakat" to "charity", "jakat" to "charity", "sadqah" to "charity", "sadqa" to "charity", "donat" to "donate",
+
+        // Home & Housing
+        "bari" to "house", "basha" to "home", "rnt" to "rent"
+    )
+
+    /**
+     * Canonical English icon keywords used for Levenshtein distance fuzzy matching.
+     */
+    private val CANONICAL_KEYWORDS: List<String> = listOf(
+        // Food & Groceries
+        "sugar", "salt", "pepper", "flour", "bread", "butter", "cheese", "milk", "yogurt", "egg",
+        "rice", "wheat", "corn", "cereal", "noodles", "pasta", "pizza", "burger", "sandwich", "soup",
+        "salad", "vegetable", "vegetables", "fruit", "fruits", "apple", "banana", "orange", "mango",
+        "grape", "watermelon", "strawberry", "pineapple", "lemon", "lime", "peach", "cherry", "coconut",
+        "avocado", "potato", "tomato", "onion", "garlic", "ginger", "chili", "carrot", "cucumber",
+        "broccoli", "cabbage", "spinach", "mushroom", "eggplant", "pumpkin", "beans", "lentils", "peas",
+        "meat", "beef", "chicken", "pork", "mutton", "steak", "bacon", "sausage", "fish", "seafood",
+        "coffee", "tea", "juice", "water", "soda", "drink", "drinks", "beverage", "beverages", "icecream",
+        "chocolate", "cookie", "biscuit", "cake", "candy", "dessert", "snack", "chips", "honey", "jam",
+        "sauce", "oil", "spice",
+
+        // Health & Medical
+        "medicine", "doctor", "hospital", "clinic", "pharmacy", "dentist", "ambulance", "nurse",
+        "bandage", "pill", "capsule", "health", "fitness", "gym", "yoga", "exercise", "workout",
+
+        // Utilities & Technology
+        "electricity", "electric", "power", "energy", "gas", "internet", "wifi", "broadband", "recharge",
+        "mobile", "phone", "smartphone", "laptop", "computer", "tablet", "keyboard", "mouse", "printer",
+        "headphone", "speaker", "camera", "television", "tv", "battery", "charger", "cable",
+
+        // Transport & Travel
+        "transport", "travel", "ticket", "commute", "vehicle", "car", "bus", "train", "subway", "metro",
+        "flight", "airplane", "boat", "ship", "bicycle", "bike", "motorcycle", "scooter", "taxi", "uber",
+        "rickshaw", "truck", "parking", "fuel", "petrol", "diesel", "gasoline",
+
+        // Finance, Income & Banking
+        "salary", "income", "bonus", "wage", "profit", "investment", "stocks", "gold", "bank", "atm",
+        "card", "credit", "debit", "cash", "money", "wallet", "dollar", "loan", "debt", "tax", "vat",
+        "insurance", "savings", "bill", "bills", "invoice", "receipt", "payment",
+
+        // Shopping & Fashion
+        "shopping", "supermarket", "grocery", "groceries", "store", "mall", "market", "cart", "basket", "bag",
+        "clothes", "clothing", "shirt", "tshirt", "pants", "dress", "shoes", "sneakers", "boots",
+        "watch", "jewelry", "cosmetics", "makeup", "lipstick", "perfume", "shampoo", "soap",
+
+        // Home, Education, Work & Charity
+        "house", "home", "apartment", "building", "rent", "hotel", "furniture", "chair", "table", "bed",
+        "cleaning", "broom", "toilet", "bathroom", "education", "school", "college", "university",
+        "tuition", "course", "book", "books", "charity", "donation", "donate", "gift", "office", "work"
+    )
+
+    private val CANONICAL_KEYWORDS_SET: Set<String> = CANONICAL_KEYWORDS.toSet()
+
+    /**
+     * Computes the Levenshtein edit distance between two strings.
+     */
+    private fun levenshteinDistance(s1: String, s2: String): Int {
+        val dp = IntArray(s2.length + 1) { it }
+        for (i in 1..s1.length) {
+            var prev = dp[0]
+            dp[0] = i
+            for (j in 1..s2.length) {
+                val temp = dp[j]
+                dp[j] = if (s1[i - 1] == s2[j - 1]) {
+                    prev
+                } else {
+                    minOf(prev, dp[j], dp[j - 1]) + 1
+                }
+                prev = temp
+            }
+        }
+        return dp[s2.length]
+    }
+
+    /**
+     * Resolves a query token by checking direct typo/phonetic dictionary first, then applying Levenshtein fuzzy match.
+     */
+    fun fuzzyCorrectToken(token: String): String? {
+        val lower = token.lowercase().trim()
+        if (lower.length < 2) return null
+
+        // 1. Direct typo or Banglish transliteration map check
+        TYPO_AND_TRANSLITERATION_MAP[lower]?.let { return it }
+
+        // 2. Already an exact canonical keyword
+        if (lower in CANONICAL_KEYWORDS_SET) return lower
+
+        // 3. Levenshtein fuzzy distance matching against canonical English icon vocabulary
+        val maxDist = if (lower.length <= 4) 1 else 2
+        var bestMatch: String? = null
+        var bestDist = maxDist + 1
+
+        for (cand in CANONICAL_KEYWORDS) {
+            if (kotlin.math.abs(cand.length - lower.length) > maxDist) continue
+            val dist = levenshteinDistance(lower, cand)
+            if (dist <= maxDist) {
+                if (dist < bestDist || (dist == bestDist && cand.first() == lower.first())) {
+                    bestDist = dist
+                    bestMatch = cand
+                }
+            }
+        }
+        return bestMatch
+    }
+
     private val SYNONYM_MAP: Map<String, List<String>> = mapOf(
+        // Sugar & Sweeteners
+        "sugar" to listOf("sugar", "sweet", "sweetener", "candy", "cane", "cube", "dessert", "bakery", "grocery"),
+        "suger" to listOf("sugar", "sweet", "sweetener", "candy", "cube", "grocery"),
+        "chini" to listOf("sugar", "sweet", "sweetener", "candy", "cube", "grocery"),
+        "sweet" to listOf("sweets", "dessert", "candy", "cake", "sugar", "chocolate", "bakery"),
+        "sweets" to listOf("sweet", "dessert", "candy", "cake", "sugar", "chocolate", "bakery"),
+        "candy" to listOf("sweet", "sugar", "dessert", "lollipop", "chocolate", "caramel"),
+
         // Compound Phrases
         "electricity bill" to listOf("electricity", "bill", "power", "energy", "invoice", "meter", "receipt", "utility"),
         "electric bill" to listOf("electricity", "bill", "power", "energy", "invoice", "meter", "receipt"),
@@ -202,15 +394,34 @@ object OnlineIconSearchService {
         "soft drink" to listOf("soda", "beverage", "coke", "pepsi", "drink", "can"),
         "cold drink" to listOf("beverage", "soda", "juice", "soft-drink", "can", "bottle"),
         "cocktail" to listOf("drink", "beverage", "bar", "glass", "mocktail", "wine"),
+        "rice" to listOf("rice", "grain", "cereal", "bowl", "food", "grocery"),
+        "salt" to listOf("salt", "shaker", "spice", "seasoning", "grocery"),
+        "flour" to listOf("flour", "wheat", "bread", "bakery", "dough", "grain", "grocery"),
+        "bread" to listOf("bread", "bakery", "toast", "loaf", "food", "breakfast"),
+        "biscuit" to listOf("biscuit", "cookie", "cookies", "snack", "bakery", "tea"),
+        "biscuits" to listOf("biscuit", "cookie", "cookies", "snack", "bakery"),
+        "onion" to listOf("onion", "vegetable", "cooking", "grocery", "market"),
+        "potato" to listOf("potato", "vegetable", "fries", "grocery", "food"),
+        "tomato" to listOf("tomato", "vegetable", "salad", "grocery", "sauce"),
+        "garlic" to listOf("garlic", "vegetable", "spice", "cooking", "grocery"),
+        "ginger" to listOf("ginger", "spice", "root", "cooking", "tea", "grocery"),
+        "chili" to listOf("chili", "pepper", "hot", "spice", "spicy", "grocery"),
+        "lentils" to listOf("lentils", "dal", "pulses", "beans", "soup", "grain", "grocery"),
+        "dal" to listOf("lentils", "pulses", "beans", "grain", "soup", "grocery"),
+        "milk" to listOf("milk", "dairy", "bottle", "cow", "drink", "grocery"),
         "fish" to listOf("seafood", "meat", "grocery", "market"),
         "meat" to listOf("beef", "chicken", "grocery", "food", "steak"),
         "chicken" to listOf("meat", "poultry", "food", "grocery"),
+        "beef" to listOf("meat", "steak", "food", "grocery"),
+        "mutton" to listOf("meat", "lamb", "food", "grocery"),
         "vegetable" to listOf("vegetables", "grocery", "carrot", "salad", "food"),
         "vegetables" to listOf("grocery", "carrot", "salad", "food", "market"),
         "fruit" to listOf("fruits", "apple", "banana", "orange", "grocery", "fresh"),
         "fruits" to listOf("apple", "banana", "grocery", "fresh", "food"),
-        "sweet" to listOf("sweets", "dessert", "candy", "cake", "sugar"),
         "cake" to listOf("dessert", "bakery", "sweet", "birthday"),
+        "soap" to listOf("soap", "wash", "clean", "hygiene", "bubble", "cleaning"),
+        "shampoo" to listOf("shampoo", "hair", "bottle", "bath", "shower", "cleaning"),
+        "cigarette" to listOf("cigarette", "smoke", "tobacco", "smoking"),
 
         // Transport & Vehicles
         "transport" to listOf("travel", "vehicle", "car", "bus", "train", "commute", "transit"),
@@ -385,13 +596,13 @@ object OnlineIconSearchService {
 
     private fun isAnchorKeyword(token: String): Boolean {
         val lower = token.lowercase()
-        return SYNONYM_MAP.containsKey(lower)
+        return SYNONYM_MAP.containsKey(lower) || TYPO_AND_TRANSLITERATION_MAP.containsKey(lower) || lower in CANONICAL_KEYWORDS_SET
     }
 
     /**
      * Splits query into 3 sequential search tiers:
-     * 1. Exact full query (the whole word / phrase / anchor core)
-     * 2. Split individual words (prioritizing anchor keywords over modifiers)
+     * 1. Exact full query (the whole word / phrase / normalized anchor core)
+     * 2. Split individual words (prioritizing corrected anchor keywords over modifiers)
      * 3. Synonyms & domain keywords
      */
     fun generateSearchKeywordTiers(rawQuery: String): SearchKeywordTiers {
@@ -399,6 +610,11 @@ object OnlineIconSearchService {
         if (clean.isBlank()) return SearchKeywordTiers("", emptyList(), emptyList())
 
         val cleanLower = clean.lowercase()
+
+        // 1. Check if whole query is in direct typo/transliteration map or fuzzy matches a single canonical word
+        val wholeQueryCorrection = TYPO_AND_TRANSLITERATION_MAP[cleanLower]
+            ?: if (!cleanLower.contains(" ")) fuzzyCorrectToken(cleanLower) else null
+
         val allTokens = clean.split(Regex("[\\s,_\\-]+"))
             .map { it.trim().lowercase() }
             .filter { it.isNotBlank() }
@@ -407,30 +623,44 @@ object OnlineIconSearchService {
         val isSingleLetterPrefix = allTokens.size > 1 && allTokens.first().length == 1
         val mainTokens = if (isSingleLetterPrefix) allTokens.drop(1) else allTokens
 
-        // Separate tokens into Anchor domain words vs Modifier / Unknown words
+        // Separate tokens into Anchor domain words vs Modifier / Unknown words, applying typo correction
         val anchorTokens = mutableListOf<String>()
         val modifierTokens = mutableListOf<String>()
+        val correctedTokens = mutableListOf<String>()
 
         for (t in mainTokens) {
-            if (isAnchorKeyword(t)) {
-                anchorTokens.add(t)
+            val corrected = fuzzyCorrectToken(t) ?: t
+            if (corrected != t) {
+                correctedTokens.add(corrected)
+            }
+
+            if (isAnchorKeyword(corrected)) {
+                anchorTokens.add(corrected)
+                if (corrected != t && isAnchorKeyword(t)) {
+                    anchorTokens.add(t)
+                }
             } else if (!isGenericStopWord(t) && t !in MODIFIER_WORDS) {
                 modifierTokens.add(t)
+                if (corrected != t) modifierTokens.add(corrected)
             }
         }
 
         // Determine primary anchor keyword (e.g. "recharge" from "Ammu recharge", "medicine" from "purny Medicine", "oil" from "T oil")
-        val primaryAnchor = anchorTokens.firstOrNull()
+        val primaryAnchor = wholeQueryCorrection
+            ?: anchorTokens.firstOrNull()
+            ?: correctedTokens.firstOrNull()
             ?: mainTokens.firstOrNull { it.length >= 2 && it !in MODIFIER_WORDS }
             ?: cleanLower
 
         // Tier 1 Exact Target:
-        // If "T oil" -> exact target is "oil" to prevent false fuzzy match to "toilet"
-        val exactWord = if (isSingleLetterPrefix && allTokens.first() == "t") {
+        val exactWord = if (wholeQueryCorrection != null && wholeQueryCorrection != cleanLower) {
+            wholeQueryCorrection
+        } else if (isSingleLetterPrefix && allTokens.first() == "t") {
             primaryAnchor
         } else if (allTokens.size > 1 && allTokens.first() in MODIFIER_WORDS && anchorTokens.isNotEmpty()) {
-            // For modifier combos like "Ammu recharge" or "purny Medicine", elevate the anchor word to Tier 1
             primaryAnchor
+        } else if (correctedTokens.size == 1 && allTokens.size == 1) {
+            correctedTokens.first()
         } else {
             clean
         }
@@ -439,6 +669,9 @@ object OnlineIconSearchService {
         val splitList = mutableListOf<String>()
         if (primaryAnchor.isNotBlank() && primaryAnchor != exactWord.lowercase()) {
             splitList.add(primaryAnchor)
+        }
+        for (c in correctedTokens) {
+            if (c !in splitList && c != exactWord.lowercase()) splitList.add(c)
         }
         for (a in anchorTokens) {
             if (a !in splitList && a != exactWord.lowercase()) splitList.add(a)
@@ -452,10 +685,13 @@ object OnlineIconSearchService {
 
         // Also check singular forms for English plurals (e.g. "beverages" -> "beverage", "groceries" -> "grocery")
         val singularCandidates = mutableListOf<String>()
-        if (cleanLower.endsWith("ies") && cleanLower.length > 4) {
-            singularCandidates.add(cleanLower.removeSuffix("ies") + "y")
-        } else if (cleanLower.endsWith("s") && !cleanLower.endsWith("ss") && cleanLower.length > 3) {
-            singularCandidates.add(cleanLower.removeSuffix("s"))
+        val wordsToCheckForSingular = listOf(cleanLower, exactWord.lowercase()) + splitList.map { it.lowercase() }
+        for (w in wordsToCheckForSingular) {
+            if (w.endsWith("ies") && w.length > 4) {
+                singularCandidates.add(w.removeSuffix("ies") + "y")
+            } else if (w.endsWith("s") && !w.endsWith("ss") && w.length > 3) {
+                singularCandidates.add(w.removeSuffix("s"))
+            }
         }
         for (cand in singularCandidates) {
             if (cand !in splitList && cand != exactWord.lowercase()) {
@@ -465,17 +701,19 @@ object OnlineIconSearchService {
 
         // Tier 3 Synonyms:
         val synList = mutableListOf<String>()
-        SYNONYM_MAP[cleanLower]?.let { synList.addAll(it) }
-        SYNONYM_MAP[exactWord.lowercase()]?.let { synList.addAll(it) }
-        SYNONYM_MAP[primaryAnchor]?.let { synList.addAll(it) }
-        for (a in anchorTokens) {
-            SYNONYM_MAP[a]?.let { synList.addAll(it) }
-        }
-        for (m in modifierTokens) {
-            SYNONYM_MAP[m]?.let { synList.addAll(it) }
-        }
-        for (cand in singularCandidates) {
-            SYNONYM_MAP[cand]?.let { synList.addAll(it) }
+        val synonymLookups = mutableListOf(cleanLower, exactWord.lowercase(), primaryAnchor)
+        wholeQueryCorrection?.let { synonymLookups.add(it) }
+        synonymLookups.addAll(correctedTokens)
+        synonymLookups.addAll(anchorTokens)
+        synonymLookups.addAll(modifierTokens)
+        synonymLookups.addAll(singularCandidates)
+
+        for (key in synonymLookups.distinct()) {
+            SYNONYM_MAP[key]?.let { synList.addAll(it) }
+            val correctedKey = fuzzyCorrectToken(key)
+            if (correctedKey != null && correctedKey != key) {
+                SYNONYM_MAP[correctedKey]?.let { synList.addAll(it) }
+            }
         }
 
         val excludeSet = (listOf(cleanLower, exactWord.lowercase()) + splitList.map { it.lowercase() }).toSet()
@@ -1312,11 +1550,18 @@ object OnlineIconSearchService {
      */
     private suspend fun fetchBingImages(term: String, page: Int, limit: Int = 20): List<OnlineImageResult> = withContext(Dispatchers.IO) {
         try {
-            val queryTerm = when (term.trim().lowercase()) {
+            val cleanLower = term.trim().lowercase()
+            val corrected = fuzzyCorrectToken(cleanLower) ?: cleanLower
+            val queryTerm = when (corrected) {
+                "sugar", "suger" -> "sugar food"
+                "rice" -> "rice grain food"
+                "oil" -> "cooking oil"
+                "salt" -> "salt food"
+                "flour" -> "flour wheat food"
                 "beverages", "beverage" -> "beverages drinks"
                 "donate", "donation", "donations" -> "donation charity"
                 "charity" -> "charity donation"
-                else -> term
+                else -> corrected
             }
             val encoded = URLEncoder.encode(queryTerm, "UTF-8")
             val first = ((page - 1) * limit) + 1
@@ -1402,8 +1647,18 @@ object OnlineIconSearchService {
      */
     private suspend fun fetchDuckDuckGoImages(term: String, page: Int, limit: Int = 16): List<OnlineImageResult> = withContext(Dispatchers.IO) {
         try {
-            val vqd = getDuckDuckGoVqd(term) ?: return@withContext emptyList()
-            val encoded = URLEncoder.encode(term, "UTF-8")
+            val cleanLower = term.trim().lowercase()
+            val corrected = fuzzyCorrectToken(cleanLower) ?: cleanLower
+            val queryTerm = when (corrected) {
+                "sugar", "suger" -> "sugar food"
+                "rice" -> "rice grain food"
+                "oil" -> "cooking oil"
+                "salt" -> "salt food"
+                "flour" -> "flour wheat food"
+                else -> corrected
+            }
+            val vqd = getDuckDuckGoVqd(queryTerm) ?: return@withContext emptyList()
+            val encoded = URLEncoder.encode(queryTerm, "UTF-8")
             val p = if (page <= 1) 1 else page
 
             val url = "https://duckduckgo.com/i.js?l=us-en&o=json&q=$encoded&vqd=$vqd&f=,,,&p=$p"
