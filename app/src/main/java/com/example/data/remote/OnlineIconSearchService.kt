@@ -20,6 +20,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 data class OnlineIconResult(
@@ -61,6 +62,7 @@ object OnlineIconSearchService {
         .build()
 
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+    private const val DDG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
     private val KNOWN_COLORFUL_SOURCES = setOf(
         "SVGL", "Brandfetch", "Favicon", "LOGOS", "FLAT-COLOR-ICONS",
@@ -68,7 +70,7 @@ object OnlineIconSearchService {
         "SKILL-ICONS", "VSCODE-ICONS", "NOTO", "STREAMLINE-COLOR", "STREAMLINE-PLUMP-COLOR",
         "STREAMLINE-ULTIMATE-COLOR", "THESVG-COLOR", "ICON-PARK", "MARKETEQ", "TOKEN-BRANDED",
         "DEVICON", "DEVICON-PLAIN", "BI", "EMOJIONE", "NOTO-V1", "VectorLogoZone",
-        "Wikipedia", "CoinGecko", "DuckDuckGo Favicon", "SIMPLE-ICONS"
+        "Wikipedia", "CoinGecko", "DuckDuckGo Favicon", "SIMPLE-ICONS", "DuckDuckGo", "Bing"
     )
 
     private val GENERIC_STOP_WORDS = setOf(
@@ -1182,20 +1184,137 @@ object OnlineIconSearchService {
     }
 
     /**
+     * Cache for DuckDuckGo vqd session tokens to avoid repeated handshake calls.
+     */
+    private val ddgVqdCache = ConcurrentHashMap<String, Pair<String, Long>>()
+
+    /**
+     * Retrieves the session token (vqd) required by DuckDuckGo's image search endpoint.
+     */
+    private suspend fun getDuckDuckGoVqd(term: String): String? = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val cached = ddgVqdCache[term]
+        if (cached != null && (now - cached.second) < 300_000L) {
+            return@withContext cached.first
+        }
+
+        try {
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val url = "https://duckduckgo.com/?q=$encoded&iax=images&ia=images"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", DDG_USER_AGENT)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                val headerVqd = response.header("x-vqd-4") ?: response.header("vqd")
+                if (!headerVqd.isNullOrBlank()) {
+                    ddgVqdCache[term] = Pair(headerVqd, now)
+                    return@withContext headerVqd
+                }
+
+                val body = response.body?.string().orEmpty()
+                if (body.isNotBlank()) {
+                    val match = Regex("""vqd=([0-9a-zA-Z_-]+)""").find(body)
+                        ?: Regex("""vqd=['"]([0-9a-zA-Z_-]+)['"]""").find(body)
+                        ?: Regex("""vqd:\s*['"]([0-9a-zA-Z_-]+)['"]""").find(body)
+                        ?: Regex("""data-vqd=['"]([0-9a-zA-Z_-]+)['"]""").find(body)
+
+                    if (match != null) {
+                        val token = match.groupValues[1]
+                        if (token.isNotBlank()) {
+                            ddgVqdCache[term] = Pair(token, now)
+                            return@withContext token
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // ignore network failure
+        }
+        null
+    }
+
+    /**
+     * Searches real web image results via DuckDuckGo (powered by Bing Web Index).
+     * Retrieves actual commercial product packaging, brand photos, and item pictures with no API key needed.
+     */
+    private suspend fun fetchDuckDuckGoImages(term: String, page: Int, limit: Int = 16): List<OnlineImageResult> = withContext(Dispatchers.IO) {
+        try {
+            val vqd = getDuckDuckGoVqd(term) ?: return@withContext emptyList()
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val p = if (page <= 1) 1 else page
+
+            val url = "https://duckduckgo.com/i.js?l=us-en&o=json&q=$encoded&vqd=$vqd&f=,,,&p=$p"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", DDG_USER_AGENT)
+                .header("Referer", "https://duckduckgo.com/")
+                .header("Accept", "application/json, text/javascript, */*; q=0.01")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Sec-Fetch-Dest", "empty")
+                .header("Sec-Fetch-Mode", "cors")
+                .header("Sec-Fetch-Site", "same-origin")
+                .header("x-requested-with", "XMLHttpRequest")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext emptyList()
+                val body = response.body?.string().orEmpty()
+                if (body.isBlank()) return@withContext emptyList()
+
+                val json = JSONObject(body)
+                val resultsArr = json.optJSONArray("results") ?: return@withContext emptyList()
+                val results = mutableListOf<OnlineImageResult>()
+
+                val count = minOf(resultsArr.length(), limit)
+                for (i in 0 until count) {
+                    val item = resultsArr.optJSONObject(i) ?: continue
+                    val title = item.optString("title", term)
+                    val fullImg = item.optString("image")
+                    val thumb = item.optString("thumbnail").ifBlank { fullImg }
+                    val width = item.optInt("width", 0)
+                    val height = item.optInt("height", 0)
+
+                    if (fullImg.isNotBlank() && (fullImg.startsWith("http://") || fullImg.startsWith("https://"))) {
+                        results.add(
+                            OnlineImageResult(
+                                title = title,
+                                imageUrl = fullImg,
+                                thumbUrl = thumb,
+                                sourceName = "DuckDuckGo",
+                                width = width,
+                                height = height
+                            )
+                        )
+                    }
+                }
+                results
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
      * Fetches images for a single search term across all media engines concurrently.
      */
     private suspend fun fetchImagesForTerm(term: String, page: Int, limit: Int = 16): List<OnlineImageResult> = coroutineScope {
+        val ddgJob = async { fetchDuckDuckGoImages(term, page, limit) }
         val wikiJob = async { fetchWikimediaImages(term, page, limit) }
         val openverseJob = async { fetchOpenverseImages(term, page, limit) }
         val unsplashJob = async { fetchUnsplashImages(term, page, limit) }
         val wikiPageJob = async { fetchWikipediaImages(term, page, limit = 8) }
 
-        val (wiki, openverse, unsplash, wikiPage) = awaitAll(wikiJob, openverseJob, unsplashJob, wikiPageJob)
+        val (ddg, wiki, openverse, unsplash, wikiPage) = awaitAll(ddgJob, wikiJob, openverseJob, unsplashJob, wikiPageJob)
         val combined = mutableListOf<OnlineImageResult>()
         val seen = mutableSetOf<String>()
 
-        val maxLen = maxOf(wiki.size, openverse.size, unsplash.size, wikiPage.size)
+        val maxLen = maxOf(ddg.size, wiki.size, openverse.size, unsplash.size, wikiPage.size)
         for (i in 0 until maxLen) {
+            if (i < ddg.size && seen.add(ddg[i].imageUrl)) combined.add(ddg[i])
             if (i < wiki.size && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
             if (i < unsplash.size && seen.add(unsplash[i].imageUrl)) combined.add(unsplash[i])
             if (i < wikiPage.size && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
