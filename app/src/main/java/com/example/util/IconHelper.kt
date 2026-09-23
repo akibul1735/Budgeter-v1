@@ -2009,7 +2009,7 @@ object IconHelper {
                 model = model,
                 contentDescription = contentDescription,
                 modifier = modifier,
-                contentScale = ContentScale.Fit
+                contentScale = ContentScale.Crop
             )
             return
         } else {

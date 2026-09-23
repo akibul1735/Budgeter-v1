@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -333,12 +334,17 @@ fun AddEditAccountGroupOrCategoryDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val isCustomOrDrawable = IconHelper.isCustomIcon(selectedIcon) || IconHelper.isDrawableIcon(selectedIcon)
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(SolidPrimary.copy(alpha = 0.12f))
-                                .border(1.dp, SolidPrimary.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isCustomOrDrawable) Color.Transparent else SolidPrimary.copy(alpha = 0.12f))
+                                .border(
+                                    1.dp,
+                                    if (isCustomOrDrawable) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else SolidPrimary.copy(alpha = 0.3f),
+                                    RoundedCornerShape(12.dp)
+                                )
                                 .clickable { showIconPicker = true },
                             contentAlignment = Alignment.Center
                         ) {
@@ -346,7 +352,7 @@ fun AddEditAccountGroupOrCategoryDialog(
                                 iconName = selectedIcon,
                                 contentDescription = "Icon",
                                 tint = SolidPrimary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = if (isCustomOrDrawable) Modifier.fillMaxSize() else Modifier.size(26.dp)
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -177,12 +178,17 @@ fun AddEditCategoryDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            val isCustomOrDrawable = IconHelper.isCustomIcon(iconName) || IconHelper.isDrawableIcon(iconName)
                             Box(
                                 modifier = Modifier
-                                    .size(46.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
-                                    .background(parsedColor.copy(alpha = 0.18f))
-                                    .border(2.dp, parsedColor, CircleShape)
+                                    .background(if (isCustomOrDrawable) Color.Transparent else parsedColor.copy(alpha = 0.18f))
+                                    .border(
+                                        if (isCustomOrDrawable) 1.dp else 2.dp,
+                                        if (isCustomOrDrawable) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else parsedColor,
+                                        CircleShape
+                                    )
                                     .clickable { showIconPicker = true },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -190,7 +196,7 @@ fun AddEditCategoryDialog(
                                     iconName = iconName,
                                     contentDescription = "Category Icon",
                                     tint = parsedColor,
-                                    modifier = Modifier.size(26.dp)
+                                    modifier = if (isCustomOrDrawable) Modifier.fillMaxSize() else Modifier.size(26.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))

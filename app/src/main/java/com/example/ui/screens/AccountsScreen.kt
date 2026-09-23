@@ -1742,18 +1742,19 @@ fun SingleAccountCard(
                     )
                 }
 
+                val isCustomOrDrawable = IconHelper.isCustomIcon(acc.iconName) || IconHelper.isDrawableIcon(acc.iconName)
                 Box(
                     modifier = Modifier
                         .size(42.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
+                        .background(if (isCustomOrDrawable) Color.Transparent else typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     IconHelper.AppIcon(
                         iconName = acc.iconName,
                         contentDescription = null,
                         tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
-                        modifier = Modifier.size(24.dp)
+                        modifier = if (isCustomOrDrawable) Modifier.fillMaxSize() else Modifier.size(24.dp)
                     )
                 }
 
@@ -1993,18 +1994,19 @@ fun AccountGroupCard(
                     }
 
                     // Group Icon Box
+                    val isGroupCustomOrDrawable = IconHelper.isCustomIcon(group.iconName) || IconHelper.isDrawableIcon(group.iconName)
                     Box(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
+                            .background(if (isGroupCustomOrDrawable) Color.Transparent else typeColor.copy(alpha = if (isInactiveSection || !isIncluded) 0.08f else 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         IconHelper.AppIcon(
                             iconName = group.iconName,
                             contentDescription = null,
                             tint = if (isInactiveSection || !isIncluded) MaterialTheme.colorScheme.outline else typeColor,
-                            modifier = Modifier.size(26.dp)
+                            modifier = if (isGroupCustomOrDrawable) Modifier.fillMaxSize() else Modifier.size(26.dp)
                         )
                     }
 

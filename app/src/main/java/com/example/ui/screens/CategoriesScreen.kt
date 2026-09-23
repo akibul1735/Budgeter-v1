@@ -730,19 +730,20 @@ fun CategoriesScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.weight(1f)
                                         ) {
+                                            val isParentCustom = IconHelper.isCustomIcon(parent.iconName) || IconHelper.isDrawableIcon(parent.iconName)
                                             Box(
                                                 modifier = Modifier
                                                     .size(44.dp)
                                                     .clip(CircleShape)
-                                                    .background(parentColor.copy(alpha = 0.16f))
-                                                    .border(1.dp, parentColor.copy(alpha = 0.35f), CircleShape),
+                                                    .background(if (isParentCustom) Color.Transparent else parentColor.copy(alpha = 0.16f))
+                                                    .border(1.dp, if (isParentCustom) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else parentColor.copy(alpha = 0.35f), CircleShape),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 IconHelper.AppIcon(
                                                     iconName = parent.iconName,
                                                     contentDescription = null,
                                                     tint = parentColor,
-                                                    modifier = Modifier.size(24.dp)
+                                                    modifier = if (isParentCustom) Modifier.fillMaxSize() else Modifier.size(24.dp)
                                                 )
                                             }
 
@@ -867,18 +868,19 @@ fun CategoriesScreen(
                                                                 verticalAlignment = Alignment.CenterVertically,
                                                                 modifier = Modifier.weight(1f)
                                                             ) {
+                                                                val isSubCustom = IconHelper.isCustomIcon(subCat.iconName) || IconHelper.isDrawableIcon(subCat.iconName)
                                                                 Box(
                                                                     modifier = Modifier
                                                                         .size(28.dp)
                                                                         .clip(CircleShape)
-                                                                        .background(subColor.copy(alpha = 0.18f)),
+                                                                        .background(if (isSubCustom) Color.Transparent else subColor.copy(alpha = 0.18f)),
                                                                     contentAlignment = Alignment.Center
                                                                 ) {
                                                                     IconHelper.AppIcon(
                                                                         iconName = subCat.iconName,
                                                                         contentDescription = null,
                                                                         tint = subColor,
-                                                                        modifier = Modifier.size(17.dp)
+                                                                        modifier = if (isSubCustom) Modifier.fillMaxSize() else Modifier.size(17.dp)
                                                                     )
                                                                 }
                                                                 Spacer(modifier = Modifier.width(10.dp))

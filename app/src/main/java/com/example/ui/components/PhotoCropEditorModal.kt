@@ -88,6 +88,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -406,18 +407,32 @@ fun PhotoCropEditorModal(
                                 }
                             }
 
-                            // 3. Draw Transformed Image (Screen coordinate math matching export EXACTLY)
-                            withTransform({
-                                translate(centerX + panOffset.x, centerY + panOffset.y)
-                                scale(
-                                    if (flipHorizontal) -effectiveScale else effectiveScale,
-                                    if (flipVertical) -effectiveScale else effectiveScale
-                                )
-                                rotate(totalRotation)
-                                translate(-bmp.width / 2f, -bmp.height / 2f)
-                            }) {
-                                drawImage(composeBitmap, colorFilter = composeColorFilter)
+                            // 3. Draw Transformed Image (100% Identical Native Matrix Math to Export)
+                            val nativePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+                                isFilterBitmap = true
+                                isDither = true
+                                if (activeColorMatrixValues != null) {
+                                    colorFilter = android.graphics.ColorMatrixColorFilter(activeColorMatrixValues)
+                                }
                             }
+
+                            val previewMatrix = android.graphics.Matrix().apply {
+                                // 1. Move center of source bitmap to origin
+                                postTranslate(-bmp.width / 2f, -bmp.height / 2f)
+
+                                // 2. Rotate around origin
+                                postRotate(totalRotation)
+
+                                // 3. Flip & Scale from origin
+                                val sx = if (flipHorizontal) -effectiveScale else effectiveScale
+                                val sy = if (flipVertical) -effectiveScale else effectiveScale
+                                postScale(sx, sy)
+
+                                // 4. Translate origin to screen crop center + pan offset
+                                postTranslate(centerX + panOffset.x, centerY + panOffset.y)
+                            }
+
+                            drawContext.canvas.nativeCanvas.drawBitmap(bmp, previewMatrix, nativePaint)
 
                             // 4. Darken area outside crop frame
                             clipPath(cropPath, clipOp = ClipOp.Difference) {
@@ -796,7 +811,7 @@ fun PhotoCropEditorModal(
                             Slider(
                                 value = userScale,
                                 onValueChange = { userScale = it },
-                                valueRange = 0.4f..4.0f,
+                                valueRange = 0.3f..5.0f,
                                 modifier = Modifier.weight(1f),
                                 colors = SliderDefaults.colors(
                                     thumbColor = SolidPrimary,
@@ -805,7 +820,7 @@ fun PhotoCropEditorModal(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
-                                onClick = { userScale = (userScale + 0.25f).coerceAtMost(4.0f) },
+                                onClick = { userScale = (userScale + 0.25f).coerceAtMost(5.0f) },
                                 modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(Icons.Default.ZoomIn, contentDescription = "Zoom In", modifier = Modifier.size(16.dp))
