@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
@@ -116,6 +117,7 @@ fun SecuritySettingsDialog(
     onSetRequireAuthForMultiSelect: (Boolean) -> Unit = {},
     onSetRequireAuthForTrashClear: (Boolean) -> Unit = {},
     onSetRequireAuthForBackupRestore: (Boolean) -> Unit = {},
+    onSetRequireAuthForCloudDisconnect: (Boolean) -> Unit = {},
     onSetLockTimeoutSeconds: (Int) -> Unit,
     onSetSecurityRecovery: (String, String) -> Unit,
     onVerifySecurityAnswer: (String) -> Boolean = { false }
@@ -290,7 +292,8 @@ fun SecuritySettingsDialog(
                         onSetRequireAuthForGroupDeletion = onSetRequireAuthForGroupDeletion,
                         onSetRequireAuthForMultiSelect = onSetRequireAuthForMultiSelect,
                         onSetRequireAuthForTrashClear = onSetRequireAuthForTrashClear,
-                        onSetRequireAuthForBackupRestore = onSetRequireAuthForBackupRestore
+                        onSetRequireAuthForBackupRestore = onSetRequireAuthForBackupRestore,
+                        onSetRequireAuthForCloudDisconnect = onSetRequireAuthForCloudDisconnect
                     )
                     2 -> RecoveryAndPrivacyTab(
                         securityConfig = securityConfig,
@@ -661,13 +664,15 @@ private fun ProtectionRulesTab(
     onSetRequireAuthForGroupDeletion: (Boolean) -> Unit,
     onSetRequireAuthForMultiSelect: (Boolean) -> Unit,
     onSetRequireAuthForTrashClear: (Boolean) -> Unit,
-    onSetRequireAuthForBackupRestore: (Boolean) -> Unit
+    onSetRequireAuthForBackupRestore: (Boolean) -> Unit,
+    onSetRequireAuthForCloudDisconnect: (Boolean) -> Unit = {}
 ) {
     val activeRulesCount = listOf(
         securityConfig.requireAuthForGroupDeletion,
         securityConfig.requireAuthForMultiSelect,
         securityConfig.requireAuthForTrashClear,
-        securityConfig.requireAuthForBackupRestore
+        securityConfig.requireAuthForBackupRestore,
+        securityConfig.requireAuthForCloudDisconnect
     ).count { it }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -704,7 +709,7 @@ private fun ProtectionRulesTab(
                             fontSize = 14.sp
                         )
                         Text(
-                            text = if (isBangla) "$activeRulesCount / ৪ টি সুরক্ষা নিয়ম সক্রিয়" else "$activeRulesCount of 4 security rules active",
+                            text = if (isBangla) "$activeRulesCount / ৫ টি সুরক্ষা নিয়ম সক্রিয়" else "$activeRulesCount of 5 security rules active",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -714,15 +719,16 @@ private fun ProtectionRulesTab(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     TextButton(
                         onClick = {
-                            val target = activeRulesCount < 4
+                            val target = activeRulesCount < 5
                             onSetRequireAuthForGroupDeletion(target)
                             onSetRequireAuthForMultiSelect(target)
                             onSetRequireAuthForTrashClear(target)
                             onSetRequireAuthForBackupRestore(target)
+                            onSetRequireAuthForCloudDisconnect(target)
                         }
                     ) {
                         Text(
-                            text = if (activeRulesCount == 4) {
+                            text = if (activeRulesCount == 5) {
                                 if (isBangla) "সব বন্ধ" else "Disable All"
                             } else {
                                 if (isBangla) "সব চালু" else "Enable All"
@@ -789,6 +795,18 @@ private fun ProtectionRulesTab(
                     checked = securityConfig.requireAuthForBackupRestore,
                     onCheckedChange = onSetRequireAuthForBackupRestore,
                     testTag = "switch_backup_restore_auth"
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+
+                // Rule 5: Cloud Account Disconnect
+                ActionGuardRow(
+                    icon = Icons.Default.CloudOff,
+                    title = if (isBangla) "ক্লাউড অ্যাকাউন্ট সংযোগ বিচ্ছিন্ন" else "Cloud Account Disconnect",
+                    description = if (isBangla) "ড্রাইভ বা ক্লাউড সিঙ্ক অ্যাকাউন্ট আনলিঙ্ক করতে পাসওয়ার্ড/ফিঙ্গারপ্রিন্ট লাগবে" else "Require authentication before unlinking or disconnecting cloud sync accounts",
+                    checked = securityConfig.requireAuthForCloudDisconnect,
+                    onCheckedChange = onSetRequireAuthForCloudDisconnect,
+                    testTag = "switch_cloud_disconnect_auth"
                 )
             }
         }

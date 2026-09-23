@@ -251,19 +251,17 @@ fun BackupSyncSettingsScreen(
         message: String,
         confirmButtonText: String = if (languageMode == LanguageMode.BANGLA) "নিশ্চিত করুন" else "Confirm",
         isDestructive: Boolean = false,
+        requiresAuth: Boolean = true,
         action: () -> Unit
     ) {
-        if (securityConfig.hasPin || securityConfig.isBiometricEnabled) {
-            pendingSecurityAction = PendingSecurityAction(
-                title = title,
-                message = message,
-                confirmButtonText = confirmButtonText,
-                isDestructive = isDestructive,
-                onExecute = action
-            )
-        } else {
-            action()
-        }
+        pendingSecurityAction = PendingSecurityAction(
+            title = title,
+            message = message,
+            confirmButtonText = confirmButtonText,
+            isDestructive = isDestructive,
+            requiresAuth = requiresAuth,
+            onExecute = action
+        )
     }
     var showFolderPickerDialog by remember { mutableStateOf(false) }
     var showCsvExportDialog by remember { mutableStateOf(false) }
@@ -276,6 +274,9 @@ fun BackupSyncSettingsScreen(
     val pendingCloudRestorePrompt by viewModel.pendingCloudRestorePrompt.collectAsStateWithLifecycle()
     val transactions by viewModel.transactionsWithDetails.collectAsStateWithLifecycle()
     var emptyBackupWarningDriveIndex by remember { mutableStateOf<Int?>(null) }
+    var showBackupConfirmDriveIndex by remember { mutableStateOf<Int?>(null) }
+    var dismissedInlineBannerDrive1 by remember { mutableStateOf(false) }
+    var dismissedInlineBannerDrive2 by remember { mutableStateOf(false) }
     var showScanBackupsDialog by remember { mutableStateOf(false) }
     var selectedBackupForOptionsDialog by remember { mutableStateOf<DetectedBackupInfo?>(null) }
 
@@ -653,7 +654,7 @@ fun BackupSyncSettingsScreen(
                     val displayName = if (isGoogleDrive) (signedInAccount?.displayName ?: primary.displayName.ifEmpty { displayEmail }) else primary.displayName
                     val displayPhotoUrl = primary.photoUrl.ifEmpty { signedInAccount?.photoUrl?.toString() ?: "" }
 
-                    if (transactions.isEmpty() && driveBackups.isNotEmpty()) {
+                    if (transactions.isEmpty() && driveBackups.isNotEmpty() && !dismissedInlineBannerDrive1) {
                         item {
                             val latest = driveBackups.first()
                             Card(
@@ -716,6 +717,20 @@ fun BackupSyncSettingsScreen(
                                             Text(if (languageMode == LanguageMode.BANGLA) "হিসাব রিস্টোর করুন" else "Restore Backup Now")
                                         }
                                     }
+                                    IconButton(
+                                        onClick = {
+                                            dismissedInlineBannerDrive1 = true
+                                            viewModel.dismissFirstLaunchDialog()
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Dismiss",
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -742,11 +757,16 @@ fun BackupSyncSettingsScreen(
                                 }
                             },
                             onDisconnect = {
+                                val targetEmail = displayEmail.ifEmpty { "Drive 1" }
                                 executeWithAuth(
-                                    title = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ আনলিঙ্ক করবেন?" else "Unlink Drive 1 Account?",
-                                    message = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ১ একাউন্ট সংযোগ বিচ্ছিন্ন করতে বায়োমেট্রিক বা পাসকোড যাচাই করুন।" else "Authenticate with Biometric or PIN to unlink Drive 1 account.",
-                                    confirmButtonText = if (languageMode == LanguageMode.BANGLA) "আনলিঙ্ক" else "Unlink",
-                                    isDestructive = true
+                                    title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড অ্যাকাউন্ট ডিসকানেক্ট করবেন?" else "Disconnect Cloud Account?",
+                                    message = if (languageMode == LanguageMode.BANGLA)
+                                        "\"$targetEmail\" অ্যাকাউন্ট সংযোগ বিচ্ছিন্ন করতে ফিঙ্গারপ্রিন্ট বা পাসকোড দিন। স্বয়ংক্রিয় সিঙ্ক বন্ধ হবে।"
+                                    else
+                                        "Authenticate with Fingerprint or PIN to disconnect \"$targetEmail\". Cloud synchronization will stop.",
+                                    confirmButtonText = if (languageMode == LanguageMode.BANGLA) "ডিসকানেক্ট" else "Disconnect",
+                                    isDestructive = true,
+                                    requiresAuth = securityConfig.requireAuthForCloudDisconnect
                                 ) {
                                     if (isGoogleDrive) {
                                         val client = GoogleDriveService.getGoogleSignInClient(context)
@@ -770,11 +790,7 @@ fun BackupSyncSettingsScreen(
                                 }
                             },
                             onBackupNow = {
-                                if (transactions.isEmpty() && driveBackups.isNotEmpty()) {
-                                    emptyBackupWarningDriveIndex = 1
-                                } else {
-                                    viewModel.backupToCloudProvider(1)
-                                }
+                                showBackupConfirmDriveIndex = 1
                             },
                             onRestoreNow = {
                                 if (driveBackups.isNotEmpty()) {
@@ -955,7 +971,7 @@ fun BackupSyncSettingsScreen(
                     val secondaryDisplayName = if (isSecondaryGoogleDrive) (secondarySignedInAccount?.displayName ?: secondary.displayName.ifEmpty { secondaryDisplayEmail }) else secondary.displayName
                     val secondaryDisplayPhotoUrl = secondary.photoUrl.ifEmpty { secondarySignedInAccount?.photoUrl?.toString() ?: "" }
 
-                    if (transactions.isEmpty() && secondaryDriveBackups.isNotEmpty()) {
+                    if (transactions.isEmpty() && secondaryDriveBackups.isNotEmpty() && !dismissedInlineBannerDrive2) {
                         item {
                             val latest = secondaryDriveBackups.first()
                             Card(
@@ -1018,6 +1034,20 @@ fun BackupSyncSettingsScreen(
                                             Text(if (languageMode == LanguageMode.BANGLA) "হিসাব রিস্টোর করুন" else "Restore Backup Now")
                                         }
                                     }
+                                    IconButton(
+                                        onClick = {
+                                            dismissedInlineBannerDrive2 = true
+                                            viewModel.dismissFirstLaunchDialog()
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Dismiss",
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1044,11 +1074,16 @@ fun BackupSyncSettingsScreen(
                                 }
                             },
                             onDisconnect = {
+                                val targetEmail = secondaryDisplayEmail.ifEmpty { "Drive 2" }
                                 executeWithAuth(
-                                    title = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ আনলিঙ্ক করবেন?" else "Unlink Drive 2 Account?",
-                                    message = if (languageMode == LanguageMode.BANGLA) "ড্রাইভ ২ একাউন্ট সংযোগ বিচ্ছিন্ন করতে বায়োমেট্রিক বা পাসকোড যাচাই করুন।" else "Authenticate with Biometric or PIN to unlink Drive 2 account.",
-                                    confirmButtonText = if (languageMode == LanguageMode.BANGLA) "আনলিঙ্ক" else "Unlink",
-                                    isDestructive = true
+                                    title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড অ্যাকাউন্ট ডিসকানেক্ট করবেন?" else "Disconnect Cloud Account?",
+                                    message = if (languageMode == LanguageMode.BANGLA)
+                                        "\"$targetEmail\" অ্যাকাউন্ট সংযোগ বিচ্ছিন্ন করতে ফিঙ্গারপ্রিন্ট বা পাসকোড দিন। স্বয়ংক্রিয় সিঙ্ক বন্ধ হবে।"
+                                    else
+                                        "Authenticate with Fingerprint or PIN to disconnect \"$targetEmail\". Cloud synchronization will stop.",
+                                    confirmButtonText = if (languageMode == LanguageMode.BANGLA) "ডিসকানেক্ট" else "Disconnect",
+                                    isDestructive = true,
+                                    requiresAuth = securityConfig.requireAuthForCloudDisconnect
                                 ) {
                                     if (isSecondaryGoogleDrive) {
                                         val client = GoogleDriveService.getGoogleSignInClient(context)
@@ -1072,11 +1107,7 @@ fun BackupSyncSettingsScreen(
                                 }
                             },
                             onBackupNow = {
-                                if (transactions.isEmpty() && secondaryDriveBackups.isNotEmpty()) {
-                                    emptyBackupWarningDriveIndex = 2
-                                } else {
-                                    viewModel.backupToCloudProvider(2)
-                                }
+                                showBackupConfirmDriveIndex = 2
                             },
                             onRestoreNow = {
                                 if (secondaryDriveBackups.isNotEmpty()) {
@@ -2209,8 +2240,20 @@ fun BackupSyncSettingsScreen(
                                     }
                                     OutlinedButton(
                                         onClick = {
-                                            viewModel.disconnectDropbox(driveIndex)
-                                            showAccountEditDialogForAccount = null
+                                            val name = acc.displayName.ifEmpty { acc.email }
+                                            executeWithAuth(
+                                                title = if (languageMode == LanguageMode.BANGLA) "ক্লাউড অ্যাকাউন্ট ডিসকানেক্ট করবেন?" else "Disconnect Cloud Account?",
+                                                message = if (languageMode == LanguageMode.BANGLA)
+                                                    "\"$name\" অ্যাকাউন্ট সংযোগ বিচ্ছিন্ন করতে ফিঙ্গারপ্রিন্ট বা পাসকোড দিন। স্বয়ংক্রিয় সিঙ্ক বন্ধ হবে।"
+                                                else
+                                                    "Authenticate with Fingerprint or PIN to disconnect \"$name\". Cloud synchronization will stop.",
+                                                confirmButtonText = if (languageMode == LanguageMode.BANGLA) "ডিসকানেক্ট" else "Disconnect",
+                                                isDestructive = true,
+                                                requiresAuth = securityConfig.requireAuthForCloudDisconnect
+                                            ) {
+                                                viewModel.disconnectDropbox(driveIndex)
+                                                showAccountEditDialogForAccount = null
+                                            }
                                         },
                                         shape = RoundedCornerShape(8.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -2559,7 +2602,7 @@ fun BackupSyncSettingsScreen(
             message = pending.message,
             confirmButtonText = pending.confirmButtonText,
             isDestructive = pending.isDestructive,
-            requiresAuth = securityConfig.hasPin || securityConfig.isBiometricEnabled,
+            requiresAuth = pending.requiresAuth,
             securityConfig = securityConfig,
             languageMode = languageMode,
             onVerifyPin = { viewModel.verifySecurityPin(it) },
@@ -2630,6 +2673,61 @@ fun BackupSyncSettingsScreen(
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissCloudRestorePrompt() }) {
                     Text(if (languageMode == LanguageMode.BANGLA) "নতুন শুরু করুন" else "Start Fresh / Later")
+                }
+            }
+        )
+    }
+
+    // Explicit Confirmation Dialog for Manual Cloud Backup to Prevent Accidental Clicks
+    showBackupConfirmDriveIndex?.let { dIndex ->
+        val accountInfo = if (dIndex == 1) config.primaryAccount else config.secondaryAccount
+        val emailText = if (accountInfo.provider.contains("Google", ignoreCase = true)) {
+            if (dIndex == 1) (signedInAccount?.email ?: accountInfo.email) else (secondarySignedInAccount?.email ?: accountInfo.email)
+        } else {
+            accountInfo.email.ifBlank { accountInfo.provider }
+        }
+        AlertDialog(
+            onDismissRequest = { showBackupConfirmDriveIndex = null },
+            icon = {
+                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "ক্লাউড ব্যাকআপ তৈরি করবেন?" else "Create Cloud Backup?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "বর্তমান হিসাব, লেনদেন, একাউন্ট, সেভিংস গোল, উইশলিস্ট এবং সেটিংসের একটি নতুন ব্যাকআপ স্ন্যাপশট $emailText-এ আপলোড করা হবে।"
+                        else
+                            "This will upload a fresh cloud backup snapshot of your current budget, transactions, accounts, savings goals, wishlist, and settings to $emailText."
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showBackupConfirmDriveIndex = null
+                        if (transactions.isEmpty() && (if (dIndex == 1) driveBackups else secondaryDriveBackups).isNotEmpty()) {
+                            emptyBackupWarningDriveIndex = dIndex
+                        } else {
+                            viewModel.backupToCloudProvider(dIndex)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (languageMode == LanguageMode.BANGLA) "ব্যাকআপ আপলোড করুন" else "Backup Now")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBackupConfirmDriveIndex = null }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
                 }
             }
         )
@@ -3509,6 +3607,7 @@ private data class PendingSecurityAction(
     val message: String,
     val confirmButtonText: String = "Confirm",
     val isDestructive: Boolean = false,
+    val requiresAuth: Boolean = true,
     val onExecute: () -> Unit
 )
 

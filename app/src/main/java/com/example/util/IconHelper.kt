@@ -1799,9 +1799,10 @@ object IconHelper {
             val iconKey = "custom_icon_${System.currentTimeMillis()}"
             val destFile = File(customDir, "$iconKey.png")
 
-            // Ensure optimized size (up to 384x384 for maximum sharpness on xxxhdpi screens with tiny storage size)
-            val optimizedBitmap = if (bitmap.width > 384 || bitmap.height > 384) {
-                val scaleFactor = 384f / maxOf(bitmap.width, bitmap.height)
+            // Ensure optimized size (up to 160x160 for crisp icons on high-res screens while keeping file sizes extremely small ~6-10KB)
+            val maxDimension = 160
+            val optimizedBitmap = if (bitmap.width > maxDimension || bitmap.height > maxDimension) {
+                val scaleFactor = maxDimension.toFloat() / maxOf(bitmap.width, bitmap.height)
                 Bitmap.createScaledBitmap(
                     bitmap,
                     (bitmap.width * scaleFactor).toInt().coerceAtLeast(1),
@@ -1813,7 +1814,7 @@ object IconHelper {
             }
 
             FileOutputStream(destFile).use { outStream ->
-                optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
+                optimizedBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
                 outStream.flush()
             }
             iconKey
@@ -1910,8 +1911,8 @@ object IconHelper {
 
             if (originalBitmap == null) return null
 
-            // Scale to max 256x256 while preserving aspect ratio
-            val size = 256
+            // Scale to max 160x160 while preserving aspect ratio and crispness on mobile
+            val size = 160
             val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, size, size, true)
 
             val customDir = File(context.filesDir, "custom_icons")
@@ -1921,7 +1922,7 @@ object IconHelper {
             val destFile = File(customDir, "$iconKey.png")
 
             val outStream = FileOutputStream(destFile)
-            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 95, outStream)
+            scaledBitmap.compress(Bitmap.CompressFormat.PNG, 90, outStream)
             outStream.flush()
             outStream.close()
 

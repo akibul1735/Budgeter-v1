@@ -140,11 +140,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val pendingCloudRestorePrompt: StateFlow<CloudRestorePromptData?> = _pendingCloudRestorePrompt.asStateFlow()
 
     fun dismissCloudRestorePrompt() {
+        backupPrefs.setFirstLaunchCheckDone(true)
         _pendingCloudRestorePrompt.value = null
     }
 
     private suspend fun checkAndPromptCloudRestore(driveIndex: Int, backups: List<GoogleDriveBackupFile>) {
         if (backups.isEmpty()) return
+        if (backupPrefs.isFirstLaunchCheckDone()) return
         val currentLocalTransactions = activeRepo.transactionDao.getAllTransactionsSnapshot()
         if (currentLocalTransactions.isEmpty()) {
             _pendingCloudRestorePrompt.value = CloudRestorePromptData(
@@ -153,6 +155,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 totalBackupsFound = backups.size
             )
         }
+    }
+
+    fun onRestoreOrMergeCompleted(fileId: String? = null) {
+        backupPrefs.setFirstLaunchCheckDone(true)
+        if (!fileId.isNullOrBlank()) {
+            backupPrefs.dismissBackup(fileId)
+        }
+        _showRestoreBanner.value = false
+        _firstLaunchCheckDialogVisible.value = false
+        _pendingCloudRestorePrompt.value = null
+        _detectedBackups.value = emptyList()
     }
 
     private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
@@ -1705,6 +1718,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
+                onRestoreOrMergeCompleted(backupFile.id)
                 _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Google Drive!")
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Restore from Drive failed: ${err.localizedMessage}")
@@ -1732,6 +1746,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
+                onRestoreOrMergeCompleted(backupFile.id)
                 _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Secondary Google Drive!")
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Restore from Secondary Drive failed: ${err.localizedMessage}")
@@ -1937,6 +1952,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             restoreSettings = restoreSettings
                         )
                         result.onSuccess { count ->
+                            onRestoreOrMergeCompleted(backupFile.id)
                             _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Google Drive!")
                         }.onFailure { err ->
                             _backupUiState.value = BackupUiState.Error("Restore failed: ${err.localizedMessage}")
@@ -1967,6 +1983,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             restoreSettings = restoreSettings
                         )
                         importRes.onSuccess { count ->
+                            onRestoreOrMergeCompleted(backupFile.id)
                             _backupUiState.value = BackupUiState.Success("Successfully restored $count records from Dropbox!")
                         }.onFailure { err ->
                             _backupUiState.value = BackupUiState.Error("Failed to parse Dropbox backup: ${err.localizedMessage}")
@@ -2038,6 +2055,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         restoreSettings = restoreSettings
                     )
                     result.onSuccess { count ->
+                        onRestoreOrMergeCompleted(backupFile.id)
                         _backupUiState.value = BackupUiState.Success("Successfully merged $count records from Dropbox!")
                     }.onFailure { err ->
                         _backupUiState.value = BackupUiState.Error("Failed to merge Dropbox backup: ${err.localizedMessage}")
@@ -2066,6 +2084,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
+                onRestoreOrMergeCompleted(backupFile.id)
                 _backupUiState.value = BackupUiState.Success("Successfully merged $count records from Google Drive!")
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Merge from Drive failed: ${err.localizedMessage}")
@@ -2092,6 +2111,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
+                onRestoreOrMergeCompleted(backupFile.id)
                 _backupUiState.value = BackupUiState.Success("Successfully merged $count records from Secondary Google Drive!")
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Merge from Secondary Drive failed: ${err.localizedMessage}")
@@ -2204,8 +2224,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val sorted = list.sortedByDescending { it.timestamp }
             _detectedBackups.value = sorted
             if (sorted.isNotEmpty()) {
-                _showRestoreBanner.value = true
                 if (!bPrefs.isFirstLaunchCheckDone() || forcePrompt) {
+                    _showRestoreBanner.value = true
                     _firstLaunchCheckDialogVisible.value = true
                 }
             }
@@ -2397,10 +2417,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             if (success) {
-                backupPrefs.setFirstLaunchCheckDone(true)
-                backupPrefs.dismissBackup(backupInfo.fileId)
-                _showRestoreBanner.value = false
-                _firstLaunchCheckDialogVisible.value = false
+                onRestoreOrMergeCompleted(backupInfo.fileId)
                 _backupUiState.value = BackupUiState.Success(msg)
                 onComplete(true)
             } else {
@@ -2773,6 +2790,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setRequireAuthForBackupDeletion(enabled: Boolean) {
         securityPrefs.setRequireAuthForBackupDeletion(enabled)
+    }
+
+    fun setRequireAuthForCloudDisconnect(enabled: Boolean) {
+        securityPrefs.setRequireAuthForCloudDisconnect(enabled)
     }
 
     fun setLockTimeoutSeconds(seconds: Int) {

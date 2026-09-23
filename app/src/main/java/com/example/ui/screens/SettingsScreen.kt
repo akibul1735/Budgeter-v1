@@ -560,6 +560,7 @@ fun SettingsScreen(
                 onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
                 onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
                 onSetRequireAuthForBackupDeletion = { viewModel.setRequireAuthForBackupDeletion(it) },
+                onSetRequireAuthForCloudDisconnect = { viewModel.setRequireAuthForCloudDisconnect(it) },
                 onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
                 onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) },
                 onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) },

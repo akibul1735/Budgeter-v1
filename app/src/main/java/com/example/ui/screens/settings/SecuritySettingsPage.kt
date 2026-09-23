@@ -112,6 +112,7 @@ fun SecuritySettingsPage(
     onSetRequireAuthForTrashClear: (Boolean) -> Unit,
     onSetRequireAuthForBackupRestore: (Boolean) -> Unit,
     onSetRequireAuthForBackupDeletion: (Boolean) -> Unit = {},
+    onSetRequireAuthForCloudDisconnect: (Boolean) -> Unit = {},
     onSetLockTimeoutSeconds: (Int) -> Unit,
     onSetSecurityRecovery: (String, String) -> Unit,
     onVerifySecurityAnswer: (String) -> Boolean,
@@ -846,6 +847,31 @@ fun SecuritySettingsPage(
                         Switch(
                             checked = securityConfig.requireAuthForBackupDeletion,
                             onCheckedChange = { onSetRequireAuthForBackupDeletion(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(if (isBangla) "ক্লাউড অ্যাকাউন্ট ডিসকানেক্ট" else "Cloud Account Disconnect", fontSize = 13.sp)
+                            Text(
+                                text = if (isBangla) "ক্লাউড ড্রাইভ আনলিঙ্ক করতে পিন/ফিঙ্গারপ্রিন্ট যাচাই" else "Require PIN/fingerprint to unlink cloud accounts",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        Switch(
+                            checked = securityConfig.requireAuthForCloudDisconnect,
+                            onCheckedChange = { onSetRequireAuthForCloudDisconnect(it) },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = MaterialTheme.colorScheme.primary,
                                 checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
