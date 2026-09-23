@@ -49,6 +49,8 @@ class JsonSyncWorker(
             val recurringBillDao = db.recurringBillDao()
             val monthlyBudgetDao = db.monthlyBudgetDao()
             val budgetAdjustmentDao = db.budgetAdjustmentDao()
+            val savingsGoalDao = db.savingsGoalDao()
+            val wishlistDao = db.wishlistDao()
 
             val accounts = accountDao.getAllAccountsSnapshot()
             val categories = categoryDao.getAllCategoriesSnapshot()
@@ -56,10 +58,13 @@ class JsonSyncWorker(
             val recurringBills = recurringBillDao.getAllBillsSnapshot()
             val monthlyBudgets = monthlyBudgetDao.getAllBudgetsSnapshot()
             val budgetAdjustments = budgetAdjustmentDao.getAllAdjustmentsSnapshot()
+            val savingsGoals = savingsGoalDao.getAllGoalsSnapshot()
+            val goalAllocations = savingsGoalDao.getAllAllocationsSnapshot()
+            val wishlistItems = wishlistDao.getAllWishlistItemsSnapshot()
 
             val latestTxEpoch = transactions.maxOfOrNull { it.dateEpochMs } ?: 0L
             val latestBudgetEpoch = monthlyBudgets.maxOfOrNull { it.updatedAt } ?: 0L
-            val currentSignature = "${accounts.size}|${categories.size}|${transactions.size}|${recurringBills.size}|${monthlyBudgets.size}|${budgetAdjustments.size}|$latestTxEpoch|$latestBudgetEpoch"
+            val currentSignature = "${accounts.size}|${categories.size}|${transactions.size}|${recurringBills.size}|${monthlyBudgets.size}|${budgetAdjustments.size}|${savingsGoals.size}|${goalAllocations.size}|${wishlistItems.size}|$latestTxEpoch|$latestBudgetEpoch"
 
             val backupDir = File(applicationContext.filesDir, "json_sync")
             if (!backupDir.exists()) backupDir.mkdirs()
@@ -94,6 +99,9 @@ class JsonSyncWorker(
                 recurringBills = recurringBills,
                 monthlyBudgets = monthlyBudgets,
                 budgetAdjustments = budgetAdjustments,
+                savingsGoals = savingsGoals,
+                goalAllocations = goalAllocations,
+                wishlistItems = wishlistItems,
                 settings = settingsBackup
             )
 
@@ -118,6 +126,8 @@ class JsonSyncWorker(
                             recurringBillDao = recurringBillDao,
                             monthlyBudgetDao = monthlyBudgetDao,
                             budgetAdjustmentDao = budgetAdjustmentDao,
+                            savingsGoalDao = savingsGoalDao,
+                            wishlistDao = wishlistDao,
                             folderType = config.primaryAccount.driveFolderType,
                             includeSettings = true
                         )
@@ -136,6 +146,8 @@ class JsonSyncWorker(
                                 recurringBillDao = recurringBillDao,
                                 monthlyBudgetDao = monthlyBudgetDao,
                                 budgetAdjustmentDao = budgetAdjustmentDao,
+                                savingsGoalDao = savingsGoalDao,
+                                wishlistDao = wishlistDao,
                                 includeSettings = true
                             )
                             if (res.isSuccess) {
@@ -161,6 +173,8 @@ class JsonSyncWorker(
                             recurringBillDao = recurringBillDao,
                             monthlyBudgetDao = monthlyBudgetDao,
                             budgetAdjustmentDao = budgetAdjustmentDao,
+                            savingsGoalDao = savingsGoalDao,
+                            wishlistDao = wishlistDao,
                             folderType = config.secondaryAccount.driveFolderType,
                             includeSettings = true
                         )
@@ -179,6 +193,8 @@ class JsonSyncWorker(
                                 recurringBillDao = recurringBillDao,
                                 monthlyBudgetDao = monthlyBudgetDao,
                                 budgetAdjustmentDao = budgetAdjustmentDao,
+                                savingsGoalDao = savingsGoalDao,
+                                wishlistDao = wishlistDao,
                                 includeSettings = true
                             )
                             if (res.isSuccess) {

@@ -7,7 +7,9 @@ import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
+import com.example.data.local.SavingsGoalDao
 import com.example.data.local.TransactionDao
+import com.example.data.local.WishlistDao
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
@@ -265,6 +267,8 @@ object DropboxService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         folderPath: String = "/Budgeter",
         includeSettings: Boolean = true
     ): Result<Boolean> = withContext(Dispatchers.IO) {
@@ -279,6 +283,9 @@ object DropboxService {
                 recurringBills = recurringBillDao.getAllBillsSnapshot(),
                 monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList(),
                 budgetAdjustments = budgetAdjustmentDao?.getAllAdjustmentsSnapshot() ?: emptyList(),
+                savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
+                goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
+                wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
                 settings = if (includeSettings) BackupManager.captureSettings(context) else null
             )
             val jsonContent = adapter.indent("  ").toJson(backupData)
@@ -377,6 +384,8 @@ object DropboxService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
@@ -393,6 +402,8 @@ object DropboxService {
                 recurringBillDao = recurringBillDao,
                 monthlyBudgetDao = monthlyBudgetDao,
                 budgetAdjustmentDao = budgetAdjustmentDao,
+                savingsGoalDao = savingsGoalDao,
+                wishlistDao = wishlistDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -415,6 +426,8 @@ object DropboxService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
@@ -430,6 +443,8 @@ object DropboxService {
                 recurringBillDao = recurringBillDao,
                 monthlyBudgetDao = monthlyBudgetDao,
                 budgetAdjustmentDao = budgetAdjustmentDao,
+                savingsGoalDao = savingsGoalDao,
+                wishlistDao = wishlistDao,
                 restoreSettings = restoreSettings
             )
         } catch (e: Exception) {

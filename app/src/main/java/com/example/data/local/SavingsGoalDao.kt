@@ -36,9 +36,15 @@ interface SavingsGoalDao {
     @Query("UPDATE savings_goals SET isCompleted = :isCompleted, updatedAt = :updatedAt WHERE id = :goalId")
     suspend fun setGoalCompleted(goalId: Long, isCompleted: Boolean, updatedAt: Long = System.currentTimeMillis())
 
+    @Query("DELETE FROM savings_goals")
+    suspend fun deleteAllGoals()
+
     // Allocations
     @Query("SELECT * FROM goal_allocations")
     fun getAllAllocations(): Flow<List<GoalAllocation>>
+
+    @Query("SELECT * FROM goal_allocations")
+    suspend fun getAllAllocationsSnapshot(): List<GoalAllocation>
 
     @Query("SELECT * FROM goal_allocations WHERE goalId = :goalId")
     fun getAllocationsForGoal(goalId: Long): Flow<List<GoalAllocation>>
@@ -69,4 +75,7 @@ interface SavingsGoalDao {
 
     @Query("DELETE FROM goal_allocations WHERE id = :id")
     suspend fun deleteAllocationById(id: Long)
+
+    @Query("DELETE FROM goal_allocations")
+    suspend fun deleteAllAllocations()
 }

@@ -95,6 +95,8 @@ class DatabaseBackupWorker(
                     recurringBillDao = db.recurringBillDao(),
                     monthlyBudgetDao = db.monthlyBudgetDao(),
                     budgetAdjustmentDao = db.budgetAdjustmentDao(),
+                    savingsGoalDao = db.savingsGoalDao(),
+                    wishlistDao = db.wishlistDao(),
                     targetDirectory = config.localBackupDirectory,
                     includeSettings = true
                 )

@@ -1404,6 +1404,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     recurringBillDao = activeRepo.recurringBillDao,
                     monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    savingsGoalDao = activeRepo.savingsGoalDao,
+                    wishlistDao = activeRepo.wishlistDao,
                     restoreData = restoreData,
                     restoreSettings = restoreSettings
                 )
@@ -1539,6 +1541,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 folderType = folderType,
                 includeSettings = true
             )
@@ -1565,6 +1569,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 folderType = folderType,
                 includeSettings = true
             )
@@ -1596,6 +1602,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     recurringBillDao = activeRepo.recurringBillDao,
                     monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    savingsGoalDao = activeRepo.savingsGoalDao,
+                    wishlistDao = activeRepo.wishlistDao,
                     folderType = pFolder,
                     includeSettings = true
                 )
@@ -1619,6 +1627,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     recurringBillDao = activeRepo.recurringBillDao,
                     monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                    savingsGoalDao = activeRepo.savingsGoalDao,
+                    wishlistDao = activeRepo.wishlistDao,
                     folderType = sFolder,
                     includeSettings = true
                 )
@@ -1654,6 +1664,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -1678,6 +1690,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -1800,6 +1814,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao,
                             folderType = folderType,
                             includeSettings = true
                         )
@@ -1829,6 +1845,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         recurringBillDao = activeRepo.recurringBillDao,
                         monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                         budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                        savingsGoalDao = activeRepo.savingsGoalDao,
+                        wishlistDao = activeRepo.wishlistDao,
                         folderPath = "/Budgeter",
                         includeSettings = true
                     )
@@ -1872,6 +1890,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao,
                             restoreData = restoreData,
                             restoreSettings = restoreSettings
                         )
@@ -1899,6 +1919,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao,
                             restoreData = restoreData,
                             restoreSettings = restoreSettings
                         )
@@ -1940,6 +1962,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao,
                             restoreSettings = restoreSettings
                         )
                         result.onSuccess { count ->
@@ -1965,6 +1989,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         recurringBillDao = activeRepo.recurringBillDao,
                         monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                         budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                        savingsGoalDao = activeRepo.savingsGoalDao,
+                        wishlistDao = activeRepo.wishlistDao,
                         restoreSettings = restoreSettings
                     )
                     result.onSuccess { count ->
@@ -1990,6 +2016,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
@@ -2013,6 +2041,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 recurringBillDao = activeRepo.recurringBillDao,
                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                savingsGoalDao = activeRepo.savingsGoalDao,
+                wishlistDao = activeRepo.wishlistDao,
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
@@ -2216,7 +2246,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 transactionDao = activeRepo.transactionDao,
                                 recurringBillDao = activeRepo.recurringBillDao,
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                                savingsGoalDao = activeRepo.savingsGoalDao,
+                                wishlistDao = activeRepo.wishlistDao
                             )
                         } else {
                             GoogleDriveService.restoreFromDriveFile(
@@ -2228,7 +2260,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 transactionDao = activeRepo.transactionDao,
                                 recurringBillDao = activeRepo.recurringBillDao,
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                                savingsGoalDao = activeRepo.savingsGoalDao,
+                                wishlistDao = activeRepo.wishlistDao
                             )
                         }
                     } else {
@@ -2242,7 +2276,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 transactionDao = activeRepo.transactionDao,
                                 recurringBillDao = activeRepo.recurringBillDao,
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                                savingsGoalDao = activeRepo.savingsGoalDao,
+                                wishlistDao = activeRepo.wishlistDao
                             )
                         } else {
                             GoogleDriveService.restoreFromDriveFileForEmail(
@@ -2254,7 +2290,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 transactionDao = activeRepo.transactionDao,
                                 recurringBillDao = activeRepo.recurringBillDao,
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                                budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                                savingsGoalDao = activeRepo.savingsGoalDao,
+                                wishlistDao = activeRepo.wishlistDao
                             )
                         }
                     }
@@ -2276,7 +2314,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             transactionDao = activeRepo.transactionDao,
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao
                         )
                     } else {
                         DropboxService.restoreFromDropbox(
@@ -2288,7 +2328,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             transactionDao = activeRepo.transactionDao,
                             recurringBillDao = activeRepo.recurringBillDao,
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
-                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao
+                            budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
+                            savingsGoalDao = activeRepo.savingsGoalDao,
+                            wishlistDao = activeRepo.wishlistDao
                         )
                     }
                     result.onSuccess { count ->

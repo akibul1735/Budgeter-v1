@@ -295,6 +295,7 @@ object BackupManager {
             monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList(),
             budgetAdjustments = budgetAdjustmentDao?.getAllAdjustmentsSnapshot() ?: emptyList(),
             savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
+            goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
             wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
             settings = settingsBackup
         )
@@ -615,6 +616,7 @@ object BackupManager {
                 monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList(),
                 budgetAdjustments = budgetAdjustmentDao?.getAllAdjustmentsSnapshot() ?: emptyList(),
                 savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
+                goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
                 wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
                 settings = settingsBackup
             )
@@ -702,6 +704,8 @@ object BackupManager {
                 monthlyBudgetDao?.deleteAll()
                 budgetAdjustmentDao?.deleteAll()
                 wishlistDao?.deleteAllWishlistItems()
+                savingsGoalDao?.deleteAllAllocations()
+                savingsGoalDao?.deleteAllGoals()
                 categoryDao.deleteAll()
                 accountDao.deleteAll()
 
@@ -734,6 +738,10 @@ object BackupManager {
                         savingsGoalDao.insertGoal(goal)
                     }
                     recordsCount += backupData.savingsGoals.size
+                }
+                if (backupData.goalAllocations.isNotEmpty() && savingsGoalDao != null) {
+                    savingsGoalDao.insertAllocations(backupData.goalAllocations)
+                    recordsCount += backupData.goalAllocations.size
                 }
                 if (backupData.wishlistItems.isNotEmpty() && wishlistDao != null) {
                     wishlistDao.insertWishlistItems(backupData.wishlistItems)
@@ -912,14 +920,39 @@ object BackupManager {
             }
 
             // 6.5. Merge Savings Goals
+            val goalIdMap = mutableMapOf<Long, Long>()
             if (savingsGoalDao != null && backupData.savingsGoals.isNotEmpty()) {
                 val existingGoals = savingsGoalDao.getAllGoalsSnapshot()
-                val existingGoalNames = existingGoals.map { it.name.trim().lowercase() }.toSet()
+                val existingGoalMap = existingGoals.associateBy { it.name.trim().lowercase() }
                 for (goal in backupData.savingsGoals) {
-                    if (!existingGoalNames.contains(goal.name.trim().lowercase())) {
-                        savingsGoalDao.insertGoal(goal.copy(id = 0))
+                    val key = goal.name.trim().lowercase()
+                    val existing = existingGoalMap[key]
+                    if (existing != null) {
+                        goalIdMap[goal.id] = existing.id
+                    } else {
+                        val newId = savingsGoalDao.insertGoal(goal.copy(id = 0))
+                        goalIdMap[goal.id] = newId
                         mergedCount++
                     }
+                }
+            }
+
+            // 6.5.1 Merge Goal Allocations
+            if (savingsGoalDao != null && backupData.goalAllocations.isNotEmpty()) {
+                val existingAllocations = savingsGoalDao.getAllAllocationsSnapshot()
+                val existingAllocSignatures = existingAllocations.map { "${it.goalId}_${it.accountId}_${it.allocatedAmount}" }.toSet()
+                val allocToInsert = mutableListOf<GoalAllocation>()
+                for (alloc in backupData.goalAllocations) {
+                    val mappedGoalId = goalIdMap[alloc.goalId] ?: alloc.goalId
+                    val mappedAccountId = accountIdMap[alloc.accountId] ?: alloc.accountId
+                    val sig = "${mappedGoalId}_${mappedAccountId}_${alloc.allocatedAmount}"
+                    if (!existingAllocSignatures.contains(sig)) {
+                        allocToInsert.add(alloc.copy(id = 0, goalId = mappedGoalId, accountId = mappedAccountId))
+                    }
+                }
+                if (allocToInsert.isNotEmpty()) {
+                    savingsGoalDao.insertAllocations(allocToInsert)
+                    mergedCount += allocToInsert.size
                 }
             }
 
@@ -932,7 +965,8 @@ object BackupManager {
                     if (!existingTitles.contains(item.title.trim().lowercase())) {
                         val mappedCat = item.categoryId?.let { categoryIdMap[it] ?: it }
                         val mappedSubCat = item.subCategoryId?.let { categoryIdMap[it] ?: it }
-                        wishToInsert.add(item.copy(id = 0, categoryId = mappedCat, subCategoryId = mappedSubCat))
+                        val mappedGoal = item.linkedGoalId?.let { goalIdMap[it] ?: it }
+                        wishToInsert.add(item.copy(id = 0, categoryId = mappedCat, subCategoryId = mappedSubCat, linkedGoalId = mappedGoal))
                     }
                 }
                 if (wishToInsert.isNotEmpty()) {

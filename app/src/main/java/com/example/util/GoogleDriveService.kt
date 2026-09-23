@@ -6,7 +6,9 @@ import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
+import com.example.data.local.SavingsGoalDao
 import com.example.data.local.TransactionDao
+import com.example.data.local.WishlistDao
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -202,13 +204,15 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         folderType: String = "Visible 'Budgeter' Folder",
         includeSettings: Boolean = true
     ): Result<DriveBackupResult> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain Google Drive access token. Please re-authenticate."))
-            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, folderType, includeSettings)
+            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, folderType, includeSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -224,13 +228,15 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         folderType: String = "Visible 'Budgeter' Folder",
         includeSettings: Boolean = true
     ): Result<DriveBackupResult> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessTokenForEmail(context, email)
                 ?: return@withContext Result.failure(Exception("Failed to obtain Google Drive access token for $email."))
-            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, folderType, includeSettings)
+            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, folderType, includeSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -246,6 +252,8 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         folderType: String = "Visible 'Budgeter' Folder",
         includeSettings: Boolean = true
     ): Result<DriveBackupResult> {
@@ -259,6 +267,9 @@ object GoogleDriveService {
             recurringBills = recurringBillDao.getAllBillsSnapshot(),
             monthlyBudgets = monthlyBudgetDao?.getAllBudgetsSnapshot() ?: emptyList(),
             budgetAdjustments = budgetAdjustmentDao?.getAllAdjustmentsSnapshot() ?: emptyList(),
+            savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
+            goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
+            wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
             settings = if (includeSettings) BackupManager.captureSettings(context) else null
         )
         val jsonContent = adapter.indent("  ").toJson(backupData)
@@ -597,13 +608,15 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token"))
-            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, restoreData, restoreSettings)
+            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreData, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -620,13 +633,15 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessTokenForEmail(context, email)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token for $email"))
-            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, restoreData, restoreSettings)
+            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreData, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -692,6 +707,8 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> {
@@ -718,6 +735,8 @@ object GoogleDriveService {
             recurringBillDao = recurringBillDao,
             monthlyBudgetDao = monthlyBudgetDao,
             budgetAdjustmentDao = budgetAdjustmentDao,
+            savingsGoalDao = savingsGoalDao,
+            wishlistDao = wishlistDao,
             restoreData = restoreData,
             restoreSettings = restoreSettings
         )
@@ -733,12 +752,14 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token"))
-            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, restoreSettings)
+            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -755,12 +776,14 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessTokenForEmail(context, email)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token for $email"))
-            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, restoreSettings)
+            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -777,6 +800,8 @@ object GoogleDriveService {
         recurringBillDao: RecurringBillDao,
         monthlyBudgetDao: MonthlyBudgetDao? = null,
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
+        savingsGoalDao: SavingsGoalDao? = null,
+        wishlistDao: WishlistDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> {
         val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
@@ -802,6 +827,8 @@ object GoogleDriveService {
             recurringBillDao = recurringBillDao,
             monthlyBudgetDao = monthlyBudgetDao,
             budgetAdjustmentDao = budgetAdjustmentDao,
+            savingsGoalDao = savingsGoalDao,
+            wishlistDao = wishlistDao,
             restoreSettings = restoreSettings
         )
     }
