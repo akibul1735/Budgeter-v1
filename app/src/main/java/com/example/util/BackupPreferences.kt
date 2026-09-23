@@ -418,6 +418,10 @@ class BackupPreferences(context: Context) {
         _config.value = loadConfig()
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_CLOUD_PROVIDER = "cloud_provider"
         private const val KEY_ACCOUNT_LINKED = "account_linked"

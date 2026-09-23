@@ -43,6 +43,10 @@ class RmManagerPreferences private constructor(context: Context) {
         saveConfig("RM", "RM Others")
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_INCLUDE_KEYWORD = "rm_include_keyword"
         private const val KEY_EXCLUDE_KEYWORD = "rm_exclude_keyword"

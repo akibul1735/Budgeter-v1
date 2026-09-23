@@ -171,6 +171,10 @@ class TrashManager private constructor(context: Context) {
         _trashedItems.value = emptyList()
     }
 
+    fun reload() {
+        _trashedItems.value = loadTrash()
+    }
+
     companion object {
         private const val KEY_TRASH_ITEMS = "key_trashed_items_list"
 

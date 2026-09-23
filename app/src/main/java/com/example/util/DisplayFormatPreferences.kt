@@ -153,6 +153,14 @@ class DisplayFormatPreferences private constructor(context: Context) {
         DateUtils.activeTimeZoneId = defaultCfg.timeZoneId
     }
 
+    fun reload() {
+        val loaded = loadConfig()
+        _config.value = loaded
+        DateUtils.activeDateFormat = loaded.effectiveDateFormatPattern
+        DateUtils.activeFirstDayOfWeek = loaded.firstDayOfWeek
+        DateUtils.activeTimeZoneId = loaded.timeZoneId
+    }
+
     companion object {
         private const val KEY_DISPLAY_FORMAT = "key_item_display_format"
         private const val KEY_DATE_FORMAT = "key_date_format_pattern"

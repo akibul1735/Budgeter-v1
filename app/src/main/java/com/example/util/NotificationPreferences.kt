@@ -55,6 +55,10 @@ class NotificationPreferences private constructor(context: Context) {
         _config.value = newConfig
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_DAILY_REMINDER_ENABLED = "daily_reminder_enabled"
         private const val KEY_DAILY_REMINDER_HOUR = "daily_reminder_hour"

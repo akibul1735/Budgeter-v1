@@ -70,6 +70,7 @@ fun RestoreOrMergeOptionsDialog(
     onDismiss: () -> Unit
 ) {
     var selectedMode by remember { mutableStateOf("MERGE") } // "MERGE" or "REPLACE"
+    var showConfirmationPrompt by remember { mutableStateOf(false) }
     val isBangla = languageMode == LanguageMode.BANGLA
 
     val formattedDate = remember(backupInfo) {
@@ -82,6 +83,137 @@ fun RestoreOrMergeOptionsDialog(
         } else {
             backupSubtitle ?: ""
         }
+    }
+
+    if (showConfirmationPrompt) {
+        val isMerge = selectedMode == "MERGE"
+        AlertDialog(
+            onDismissRequest = { showConfirmationPrompt = false },
+            modifier = Modifier.testTag("restore_confirmation_dialog"),
+            shape = RoundedCornerShape(20.dp),
+            icon = {
+                Icon(
+                    imageVector = if (isMerge) Icons.Default.Merge else Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = if (isMerge) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = if (isMerge) {
+                        if (isBangla) "মার্জ নিশ্চিতকরণ" else "Confirm Smart Merge"
+                    } else {
+                        if (isBangla) "সম্পূর্ণ প্রতিস্থাপন নিশ্চিতকরণ" else "Confirm Full Restore"
+                    },
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (isMerge) {
+                        Text(
+                            text = if (isBangla)
+                                "নিম্নলিখিত পরিবর্তনগুলো প্রয়োগ করা হবে:"
+                            else
+                                "Here is what will happen during merge:",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (isBangla) "• আপনার বর্তমান নতুন লেনদেন এবং একাউন্টগুলো বহাল থাকবে।" else "• All transactions & accounts currently on this phone will be kept.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (isBangla) "• ব্যাকআপ ফাইলের পূর্ববর্তী ইতিহাস, ক্যাটাগরি, সেভিংস গোল, উইশলিস্ট ও বিলগুলো ডুপ্লিকেট ছাড়া যুক্ত হবে।" else "• Backed-up past transactions, categories, goals, wishlist, bills, custom icons & caches will be merged without duplicates.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (isBangla) "• কোনো ডাটা হারাবে না।" else "• Zero local data will be lost.",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = if (isBangla)
+                                "সতর্কতা: এটি বর্তমান ডাটাবেস সম্পূর্ণ মুছে ফেলবে!"
+                            else
+                                "Warning: This replaces your current database!",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = if (isBangla) "• বর্তমান সকল লোকাল ডাটা ও সেটিংস মুছে যাবে।" else "• All local data currently on this device will be erased.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (isBangla) "• ব্যাকআপ স্ন্যাপশট অনুযায়ী হিসাব, গোল, লেনদেন ও সেটিংস পুনঃস্থাপন হবে।" else "• All accounts, goals, wishlist, bills, transactions & preferences will be restored exactly as in the backup.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showConfirmationPrompt = false
+                        if (isMerge) onMerge() else onRestoreReplace()
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = if (isMerge) {
+                        ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    } else {
+                        ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    },
+                    modifier = Modifier.testTag("confirm_action_proceed_button")
+                ) {
+                    Text(
+                        text = if (isMerge) {
+                            if (isBangla) "হ্যাঁ, মার্জ করুন" else "Proceed with Merge"
+                        } else {
+                            if (isBangla) "হ্যাঁ, প্রতিস্থাপন করুন" else "Proceed with Replace"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showConfirmationPrompt = false },
+                    modifier = Modifier.testTag("confirm_action_cancel_button")
+                ) {
+                    Text(if (isBangla) "ফিরে যান" else "Cancel")
+                }
+            }
+        )
     }
 
     AlertDialog(
@@ -336,11 +468,7 @@ fun RestoreOrMergeOptionsDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (selectedMode == "MERGE") {
-                        onMerge()
-                    } else {
-                        onRestoreReplace()
-                    }
+                    showConfirmationPrompt = true
                 },
                 shape = RoundedCornerShape(10.dp),
                 colors = if (selectedMode == "MERGE") {

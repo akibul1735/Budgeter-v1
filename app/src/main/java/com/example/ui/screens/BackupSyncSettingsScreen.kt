@@ -273,6 +273,9 @@ fun BackupSyncSettingsScreen(
     var restoreConfirmLocalFile by remember { mutableStateOf<File?>(null) }
     var deleteConfirmLocalFile by remember { mutableStateOf<File?>(null) }
     val detectedBackups by viewModel.detectedBackups.collectAsStateWithLifecycle()
+    val pendingCloudRestorePrompt by viewModel.pendingCloudRestorePrompt.collectAsStateWithLifecycle()
+    val transactions by viewModel.transactionsWithDetails.collectAsStateWithLifecycle()
+    var emptyBackupWarningDriveIndex by remember { mutableStateOf<Int?>(null) }
     var showScanBackupsDialog by remember { mutableStateOf(false) }
     var selectedBackupForOptionsDialog by remember { mutableStateOf<DetectedBackupInfo?>(null) }
 
@@ -650,6 +653,74 @@ fun BackupSyncSettingsScreen(
                     val displayName = if (isGoogleDrive) (signedInAccount?.displayName ?: primary.displayName.ifEmpty { displayEmail }) else primary.displayName
                     val displayPhotoUrl = primary.photoUrl.ifEmpty { signedInAccount?.photoUrl?.toString() ?: "" }
 
+                    if (transactions.isEmpty() && driveBackups.isNotEmpty()) {
+                        item {
+                            val latest = driveBackups.first()
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FileDownload,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ক্লাউড ব্যাকআপ পাওয়া গেছে!" else "Cloud Backup Found!",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA)
+                                                "আপনার ড্রাইভ ১-এ পূর্বের ব্যাকআপ (${latest.name}) রয়েছে। পূর্বের হিসাব ফিরিয়ে আনতে রিস্টোর করুন।"
+                                            else
+                                                "Found existing backup in Drive 1 (${latest.name}). Restore now to retrieve all your past data.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Button(
+                                            onClick = {
+                                                val parsedTime = DateUtils.parseIsoTimestamp(latest.modifiedTime)
+                                                val info = DetectedBackupInfo(
+                                                    fileId = latest.id,
+                                                    fileName = latest.name,
+                                                    sourceProvider = "Google Drive (Drive 1)",
+                                                    timestamp = parsedTime,
+                                                    deviceName = latest.deviceName,
+                                                    installationId = latest.installationId,
+                                                    accountsCount = latest.accountsCount,
+                                                    transactionsCount = latest.transactionsCount,
+                                                    driveIndex = 1,
+                                                    rawBackupFile = latest
+                                                )
+                                                selectedBackupForOptionsDialog = info
+                                            },
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(if (languageMode == LanguageMode.BANGLA) "হিসাব রিস্টোর করুন" else "Restore Backup Now")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     item {
                         DriveAccountConnectionCard(
                             driveIndex = 1,
@@ -698,8 +769,34 @@ fun BackupSyncSettingsScreen(
                                     showAccountEditDialogForAccount = 1
                                 }
                             },
-                            onSyncNow = {
-                                viewModel.backupToCloudProvider(1)
+                            onBackupNow = {
+                                if (transactions.isEmpty() && driveBackups.isNotEmpty()) {
+                                    emptyBackupWarningDriveIndex = 1
+                                } else {
+                                    viewModel.backupToCloudProvider(1)
+                                }
+                            },
+                            onRestoreNow = {
+                                if (driveBackups.isNotEmpty()) {
+                                    val backupFile = driveBackups.first()
+                                    val parsedTime = DateUtils.parseIsoTimestamp(backupFile.modifiedTime)
+                                    val info = DetectedBackupInfo(
+                                        fileId = backupFile.id,
+                                        fileName = backupFile.name,
+                                        sourceProvider = "Google Drive (Drive 1)",
+                                        timestamp = parsedTime,
+                                        deviceName = backupFile.deviceName,
+                                        installationId = backupFile.installationId,
+                                        accountsCount = backupFile.accountsCount,
+                                        transactionsCount = backupFile.transactionsCount,
+                                        driveIndex = 1,
+                                        rawBackupFile = backupFile
+                                    )
+                                    selectedBackupForOptionsDialog = info
+                                } else {
+                                    isDrive1FilesVisible = true
+                                    viewModel.fetchCloudBackups(1)
+                                }
                             },
                             languageMode = languageMode
                         )
@@ -858,6 +955,74 @@ fun BackupSyncSettingsScreen(
                     val secondaryDisplayName = if (isSecondaryGoogleDrive) (secondarySignedInAccount?.displayName ?: secondary.displayName.ifEmpty { secondaryDisplayEmail }) else secondary.displayName
                     val secondaryDisplayPhotoUrl = secondary.photoUrl.ifEmpty { secondarySignedInAccount?.photoUrl?.toString() ?: "" }
 
+                    if (transactions.isEmpty() && secondaryDriveBackups.isNotEmpty()) {
+                        item {
+                            val latest = secondaryDriveBackups.first()
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FileDownload,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "ক্লাউড ব্যাকআপ পাওয়া গেছে!" else "Cloud Backup Found!",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA)
+                                                "আপনার ড্রাইভ ২-এ পূর্বের ব্যাকআপ (${latest.name}) রয়েছে। পূর্বের হিসাব ফিরিয়ে আনতে রিস্টোর করুন।"
+                                            else
+                                                "Found existing backup in Drive 2 (${latest.name}). Restore now to retrieve all your past data.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Button(
+                                            onClick = {
+                                                val parsedTime = DateUtils.parseIsoTimestamp(latest.modifiedTime)
+                                                val info = DetectedBackupInfo(
+                                                    fileId = latest.id,
+                                                    fileName = latest.name,
+                                                    sourceProvider = "Drive 2",
+                                                    timestamp = parsedTime,
+                                                    deviceName = latest.deviceName,
+                                                    installationId = latest.installationId,
+                                                    accountsCount = latest.accountsCount,
+                                                    transactionsCount = latest.transactionsCount,
+                                                    driveIndex = 2,
+                                                    rawBackupFile = latest
+                                                )
+                                                selectedBackupForOptionsDialog = info
+                                            },
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(if (languageMode == LanguageMode.BANGLA) "হিসাব রিস্টোর করুন" else "Restore Backup Now")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     item {
                         DriveAccountConnectionCard(
                             driveIndex = 2,
@@ -906,8 +1071,34 @@ fun BackupSyncSettingsScreen(
                                     showAccountEditDialogForAccount = 2
                                 }
                             },
-                            onSyncNow = {
-                                viewModel.backupToCloudProvider(2)
+                            onBackupNow = {
+                                if (transactions.isEmpty() && secondaryDriveBackups.isNotEmpty()) {
+                                    emptyBackupWarningDriveIndex = 2
+                                } else {
+                                    viewModel.backupToCloudProvider(2)
+                                }
+                            },
+                            onRestoreNow = {
+                                if (secondaryDriveBackups.isNotEmpty()) {
+                                    val backupFile = secondaryDriveBackups.first()
+                                    val parsedTime = DateUtils.parseIsoTimestamp(backupFile.modifiedTime)
+                                    val info = DetectedBackupInfo(
+                                        fileId = backupFile.id,
+                                        fileName = backupFile.name,
+                                        sourceProvider = "Drive 2",
+                                        timestamp = parsedTime,
+                                        deviceName = backupFile.deviceName,
+                                        installationId = backupFile.installationId,
+                                        accountsCount = backupFile.accountsCount,
+                                        transactionsCount = backupFile.transactionsCount,
+                                        driveIndex = 2,
+                                        rawBackupFile = backupFile
+                                    )
+                                    selectedBackupForOptionsDialog = info
+                                } else {
+                                    isDrive2FilesVisible = true
+                                    viewModel.fetchCloudBackups(2)
+                                }
                             },
                             languageMode = languageMode
                         )
@@ -2381,6 +2572,130 @@ fun BackupSyncSettingsScreen(
         )
     }
 
+    // Automatic Prompt When Connecting Account on Fresh / Empty Reinstall
+    pendingCloudRestorePrompt?.let { promptData ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissCloudRestorePrompt() },
+            icon = { Icon(Icons.Default.CloudSync, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "ক্লাউড থেকে হিসাব রিস্টোর করবেন?" else "Restore Cloud Backup?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA)
+                            "আপনার ড্রাইভ একাউন্টে পূর্বের সিঙ্ক ফাইল পাওয়া গেছে (${promptData.backupFile.name})। আপনার বর্তমান ফোনে কোনো লেনদেন নেই। পূর্বের হিসাব ফিরিয়ে আনতে চান?"
+                        else
+                            "We found an existing cloud backup (${promptData.backupFile.name}) in your connected account. Your current app has no transactions. Would you like to restore your past transactions and accounts now?"
+                    )
+                    if (promptData.backupFile.modifiedTime.isNotBlank()) {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "তারিখ: ${DateUtils.formatSyncDateTime(promptData.backupFile.modifiedTime, languageMode)}" else "Date: ${DateUtils.formatSyncDateTime(promptData.backupFile.modifiedTime, languageMode)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val file = promptData.backupFile
+                        val dIndex = promptData.driveIndex
+                        viewModel.dismissCloudRestorePrompt()
+                        val parsedTime = DateUtils.parseIsoTimestamp(file.modifiedTime)
+                        val info = DetectedBackupInfo(
+                            fileId = file.id,
+                            fileName = file.name,
+                            sourceProvider = if (dIndex == 1) "Drive 1" else "Drive 2",
+                            timestamp = parsedTime,
+                            deviceName = file.deviceName,
+                            installationId = file.installationId,
+                            accountsCount = file.accountsCount,
+                            transactionsCount = file.transactionsCount,
+                            driveIndex = dIndex,
+                            rawBackupFile = file
+                        )
+                        viewModel.restoreDetectedBackup(info, merge = false)
+                    }
+                ) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (languageMode == LanguageMode.BANGLA) "রিস্টোর করুন" else "Restore Now")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissCloudRestorePrompt() }) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "নতুন শুরু করুন" else "Start Fresh / Later")
+                }
+            }
+        )
+    }
+
+    // Safety Warning When Manual Backup Is Triggered on an Empty Database with Existing Cloud Backups
+    emptyBackupWarningDriveIndex?.let { dIndex ->
+        val backupsList = if (dIndex == 1) driveBackups else secondaryDriveBackups
+        AlertDialog(
+            onDismissRequest = { emptyBackupWarningDriveIndex = null },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "সতর্কতা: খালি হিসাব ব্যাকআপ করবেন?" else "Warning: Backup Empty Database?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    if (languageMode == LanguageMode.BANGLA)
+                        "আপনার ফোনে বর্তমানে কোনো লেনদেন নেই (০ টি লেনদেন), কিন্তু ক্লাউডে পূর্বের ব্যাকআপ রয়েছে। এখন ব্যাকআপ করলে ক্লাউডের ডাটা খালি ডাটা দিয়ে প্রতিস্থাপিত হতে পারে। আপনি কি পূর্বের ক্লাউড ব্যাকআপ রিস্টোর করতে চান?"
+                    else
+                        "Your current app has 0 transactions, but your cloud account contains existing backups. Backing up now may replace your cloud data with an empty database. Would you like to Restore your previous cloud backup instead?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        emptyBackupWarningDriveIndex = null
+                        if (backupsList.isNotEmpty()) {
+                            val file = backupsList.first()
+                            val parsedTime = DateUtils.parseIsoTimestamp(file.modifiedTime)
+                            val info = DetectedBackupInfo(
+                                fileId = file.id,
+                                fileName = file.name,
+                                sourceProvider = if (dIndex == 1) "Drive 1" else "Drive 2",
+                                timestamp = parsedTime,
+                                deviceName = file.deviceName,
+                                installationId = file.installationId,
+                                accountsCount = file.accountsCount,
+                                transactionsCount = file.transactionsCount,
+                                driveIndex = dIndex,
+                                rawBackupFile = file
+                            )
+                            viewModel.restoreDetectedBackup(info, merge = false)
+                        }
+                    }
+                ) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (languageMode == LanguageMode.BANGLA) "ক্লাউড থেকে রিস্টোর করুন" else "Restore From Cloud")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        emptyBackupWarningDriveIndex = null
+                        viewModel.backupToCloudProvider(dIndex)
+                    }
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "খালি ব্যাকআপ করুন" else "Backup Empty Anyway", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
+    }
+
     // Restore or Merge Selection Dialog
     selectedBackupForOptionsDialog?.let { backupInfo ->
         RestoreOrMergeOptionsDialog(
@@ -2553,7 +2868,8 @@ private fun DriveAccountConnectionCard(
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onEditDetails: () -> Unit,
-    onSyncNow: () -> Unit,
+    onBackupNow: () -> Unit,
+    onRestoreNow: () -> Unit,
     languageMode: LanguageMode
 ) {
     val containerColor = if (driveIndex == 1) {
@@ -2671,20 +2987,36 @@ private fun DriveAccountConnectionCard(
                     )
                 }
 
-                Button(
-                    onClick = onSyncNow,
-                    enabled = !isLoading && isLinked,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = brandColor),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(if (languageMode == LanguageMode.BANGLA) "সিঙ্ক করুন" else "Sync Drive $driveIndex Now", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    OutlinedButton(
+                        onClick = onRestoreNow,
+                        enabled = !isLoading && isLinked,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (languageMode == LanguageMode.BANGLA) "রিস্টোর" else "Restore", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = onBackupNow,
+                        enabled = !isLoading && isLinked,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = brandColor),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (languageMode == LanguageMode.BANGLA) "ব্যাকআপ" else "Backup", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

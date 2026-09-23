@@ -192,6 +192,10 @@ class PaymentSourcePreferences private constructor(context: Context) {
         _config.value = _config.value.copy(accountLinks = list)
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_HAS_CUSTOM = "has_custom_source_selection"
         private const val KEY_SELECTED_ACCOUNT_IDS = "selected_source_account_ids"

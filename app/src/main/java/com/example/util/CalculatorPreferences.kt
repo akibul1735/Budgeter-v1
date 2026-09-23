@@ -45,6 +45,10 @@ class CalculatorPreferences private constructor(context: Context) {
         prefs.edit().putString(KEY_FREQUENT_PCT, updated.joinToString(",")).apply()
     }
 
+    fun reload() {
+        _frequentPercentages.value = loadPercentages()
+    }
+
     companion object {
         private const val KEY_FREQUENT_PCT = "key_frequent_percentages"
 

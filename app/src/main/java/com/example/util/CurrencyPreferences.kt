@@ -114,6 +114,12 @@ class CurrencyPreferences private constructor(context: Context) {
         LanguageHelper.updateCurrencyConfig(def)
     }
 
+    fun reload() {
+        val loaded = loadConfig()
+        _config.value = loaded
+        LanguageHelper.updateCurrencyConfig(loaded)
+    }
+
     companion object {
         private const val KEY_CODE = "currency_code"
         private const val KEY_SYMBOL = "currency_symbol"

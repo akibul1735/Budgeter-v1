@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.data.local.AccountDao
 import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
+import com.example.data.local.ItemImageCacheDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
 import com.example.data.local.SavingsGoalDao
@@ -206,13 +207,14 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         folderType: String = "Visible 'Budgeter' Folder",
         includeSettings: Boolean = true
     ): Result<DriveBackupResult> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain Google Drive access token. Please re-authenticate."))
-            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, folderType, includeSettings)
+            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, itemImageCacheDao, folderType, includeSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -230,13 +232,14 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         folderType: String = "Visible 'Budgeter' Folder",
         includeSettings: Boolean = true
     ): Result<DriveBackupResult> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessTokenForEmail(context, email)
                 ?: return@withContext Result.failure(Exception("Failed to obtain Google Drive access token for $email."))
-            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, folderType, includeSettings)
+            executeUploadBackup(context, accessToken, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, itemImageCacheDao, folderType, includeSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -254,6 +257,7 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         folderType: String = "Visible 'Budgeter' Folder",
         includeSettings: Boolean = true
     ): Result<DriveBackupResult> {
@@ -270,6 +274,8 @@ object GoogleDriveService {
             savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
             goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
             wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
+            itemImageCaches = itemImageCacheDao?.getAllCachedItemsSnapshot() ?: emptyList(),
+            customIcons = BackupManager.captureCustomIcons(context),
             settings = if (includeSettings) BackupManager.captureSettings(context) else null
         )
         val jsonContent = adapter.indent("  ").toJson(backupData)
@@ -371,6 +377,11 @@ object GoogleDriveService {
             } catch (_: Exception) {}
 
             if (existingFileId != null && existingFileId.isNotBlank()) {
+                val parsed = try { adapter.fromJson(jsonContent) } catch (_: Exception) { null }
+                if (parsed != null && parsed.transactions.isEmpty()) {
+                    android.util.Log.w("GoogleDriveService", "Local database has 0 transactions. Refusing to overwrite existing Drive sync file ($existingFileId) with empty data.")
+                    return existingFileId
+                }
                 // Update file content in place (1 sync file updated per device)
                 val updateUrl = "https://www.googleapis.com/upload/drive/v3/files/$existingFileId?uploadType=media"
                 val mediaType = "application/json; charset=UTF-8".toMediaType()
@@ -610,13 +621,14 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token"))
-            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreData, restoreSettings)
+            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, itemImageCacheDao, restoreData, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -635,15 +647,94 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessTokenForEmail(context, email)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token for $email"))
-            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreData, restoreSettings)
+            executeRestoreFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, itemImageCacheDao, restoreData, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Downloads raw backup JSON for a file from Google Drive.
+     * If the current file version has 0 transactions (which can happen if an empty app reinstall
+     * accidentally triggered a sync before the user could restore), it automatically inspects
+     * the file's Google Drive Revision History and retrieves the most recent previous revision
+     * that contains user transactions.
+     */
+    suspend fun downloadDriveJsonWithRevisionFallback(
+        accessToken: String,
+        fileId: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
+            val request = Request.Builder()
+                .url(downloadUrl)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            var json = httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("Failed to download file from Google Drive: HTTP ${response.code}"))
+                }
+                response.body?.string() ?: return@withContext Result.failure(Exception("Empty file content"))
+            }
+
+            val currentData = try { adapter.fromJson(json) } catch (_: Exception) { null }
+            if (currentData != null && currentData.transactions.isEmpty()) {
+                try {
+                    val revUrl = "https://www.googleapis.com/drive/v3/files/$fileId/revisions?fields=revisions(id,modifiedTime,size)&alt=json"
+                    val revReq = Request.Builder()
+                        .url(revUrl)
+                        .addHeader("Authorization", "Bearer $accessToken")
+                        .get()
+                        .build()
+
+                    httpClient.newCall(revReq).execute().use { revResp ->
+                        if (revResp.isSuccessful) {
+                            val revBody = revResp.body?.string() ?: ""
+                            val revObj = JSONObject(revBody)
+                            val revList = revObj.optJSONArray("revisions") ?: JSONArray()
+                            for (i in (revList.length() - 1) downTo 0) {
+                                val item = revList.getJSONObject(i)
+                                val revId = item.optString("id")
+                                if (revId.isNotBlank()) {
+                                    val revDlUrl = "https://www.googleapis.com/drive/v3/files/$fileId/revisions/$revId?alt=media"
+                                    val revDlReq = Request.Builder()
+                                        .url(revDlUrl)
+                                        .addHeader("Authorization", "Bearer $accessToken")
+                                        .get()
+                                        .build()
+
+                                    val revContent = httpClient.newCall(revDlReq).execute().use { cr ->
+                                        if (cr.isSuccessful) cr.body?.string() else null
+                                    }
+                                    if (revContent != null) {
+                                        val cand = try { adapter.fromJson(revContent) } catch (_: Exception) { null }
+                                        if (cand != null && cand.transactions.isNotEmpty()) {
+                                            android.util.Log.i("GoogleDriveService", "Smart Revision Recovery: Found previous revision $revId with ${cand.transactions.size} transactions. Restoring from revision.")
+                                            json = revContent
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("GoogleDriveService", "Revision recovery inspection error: ${e.message}")
+                }
+            }
+
+            Result.success(json)
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }
@@ -656,22 +747,8 @@ object GoogleDriveService {
         account: GoogleSignInAccount,
         fileId: String
     ): String? = withContext(Dispatchers.IO) {
-        try {
-            val accessToken = getAccessToken(context, account) ?: return@withContext null
-            val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
-            val request = Request.Builder()
-                .url(downloadUrl)
-                .addHeader("Authorization", "Bearer $accessToken")
-                .get()
-                .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) response.body?.string() else null
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+        val accessToken = getAccessToken(context, account) ?: return@withContext null
+        downloadDriveJsonWithRevisionFallback(accessToken, fileId).getOrNull()
     }
 
     suspend fun fetchDriveBackupJsonForEmail(
@@ -679,22 +756,8 @@ object GoogleDriveService {
         email: String,
         fileId: String
     ): String? = withContext(Dispatchers.IO) {
-        try {
-            val accessToken = getAccessTokenForEmail(context, email) ?: return@withContext null
-            val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
-            val request = Request.Builder()
-                .url(downloadUrl)
-                .addHeader("Authorization", "Bearer $accessToken")
-                .get()
-                .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) response.body?.string() else null
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
+        val accessToken = getAccessTokenForEmail(context, email) ?: return@withContext null
+        downloadDriveJsonWithRevisionFallback(accessToken, fileId).getOrNull()
     }
 
     private suspend fun executeRestoreFromDriveFile(
@@ -709,22 +772,12 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> {
-        val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
-        val request = Request.Builder()
-            .url(downloadUrl)
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
-
-        val json = httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                return Result.failure(Exception("Failed to download file from Google Drive: HTTP ${response.code}"))
-            }
-            response.body?.string() ?: return Result.failure(Exception("Empty file content"))
-        }
+        val jsonRes = downloadDriveJsonWithRevisionFallback(accessToken, fileId)
+        val json = jsonRes.getOrElse { return Result.failure(it) }
 
         return BackupManager.restoreFromJson(
             context = context,
@@ -737,6 +790,7 @@ object GoogleDriveService {
             budgetAdjustmentDao = budgetAdjustmentDao,
             savingsGoalDao = savingsGoalDao,
             wishlistDao = wishlistDao,
+            itemImageCacheDao = itemImageCacheDao,
             restoreData = restoreData,
             restoreSettings = restoreSettings
         )
@@ -754,12 +808,13 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessToken(context, account)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token"))
-            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreSettings)
+            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, itemImageCacheDao, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -778,12 +833,13 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val accessToken = getAccessTokenForEmail(context, email)
                 ?: return@withContext Result.failure(Exception("Failed to obtain access token for $email"))
-            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, restoreSettings)
+            executeMergeFromDriveFile(context, accessToken, fileId, accountDao, categoryDao, transactionDao, recurringBillDao, monthlyBudgetDao, budgetAdjustmentDao, savingsGoalDao, wishlistDao, itemImageCacheDao, restoreSettings)
         } catch (e: Exception) {
             e.printStackTrace()
             Result.failure(e)
@@ -802,21 +858,11 @@ object GoogleDriveService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> {
-        val downloadUrl = "https://www.googleapis.com/drive/v3/files/$fileId?alt=media"
-        val request = Request.Builder()
-            .url(downloadUrl)
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
-
-        val json = httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                return Result.failure(Exception("Failed to download file from Google Drive: HTTP ${response.code}"))
-            }
-            response.body?.string() ?: return Result.failure(Exception("Empty file content"))
-        }
+        val jsonRes = downloadDriveJsonWithRevisionFallback(accessToken, fileId)
+        val json = jsonRes.getOrElse { return Result.failure(it) }
 
         return BackupManager.mergeFromJson(
             context = context,
@@ -829,6 +875,7 @@ object GoogleDriveService {
             budgetAdjustmentDao = budgetAdjustmentDao,
             savingsGoalDao = savingsGoalDao,
             wishlistDao = wishlistDao,
+            itemImageCacheDao = itemImageCacheDao,
             restoreSettings = restoreSettings
         )
     }

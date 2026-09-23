@@ -175,6 +175,10 @@ class TransactionPreferences private constructor(context: Context) {
         _config.value = newConfig
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_ENABLE_QUICK_DATE_PICKER = "enable_quick_date_picker"
         private const val KEY_AUTO_SELECT_DATE_ON_DAY_CLICK = "auto_select_date_on_day_click"

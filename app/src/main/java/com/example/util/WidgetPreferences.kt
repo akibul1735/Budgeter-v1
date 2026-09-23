@@ -28,6 +28,10 @@ class WidgetPreferences private constructor(context: Context) {
         _isPrivacyEnabled.value = enabled
     }
 
+    fun reload() {
+        _isPrivacyEnabled.value = isPrivacyEnabled()
+    }
+
     companion object {
         private const val PREFS_NAME = "budgeter_widget_prefs"
         private const val KEY_PRIVACY_ENABLED = "widget_privacy_enabled"

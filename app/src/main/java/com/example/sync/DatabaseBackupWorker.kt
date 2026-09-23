@@ -97,6 +97,7 @@ class DatabaseBackupWorker(
                     budgetAdjustmentDao = db.budgetAdjustmentDao(),
                     savingsGoalDao = db.savingsGoalDao(),
                     wishlistDao = db.wishlistDao(),
+                    itemImageCacheDao = db.itemImageCacheDao(),
                     targetDirectory = config.localBackupDirectory,
                     includeSettings = true
                 )

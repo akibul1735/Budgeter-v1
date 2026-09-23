@@ -5,9 +5,11 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Base64
 import com.example.data.local.AccountDao
 import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
+import com.example.data.local.ItemImageCacheDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
 import com.example.data.local.SavingsGoalDao
@@ -17,6 +19,7 @@ import com.example.data.model.Account
 import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
 import com.example.data.model.GoalAllocation
+import com.example.data.model.ItemImageCache
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.SavingsGoal
@@ -28,6 +31,8 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -54,7 +59,8 @@ data class AppSettingsBackup(
     val primaryFolderType: String? = null,
     val secondaryAutoSync: Boolean? = null,
     val secondaryWifiOnly: Boolean? = null,
-    val secondaryFolderType: String? = null
+    val secondaryFolderType: String? = null,
+    val allPreferencesJson: Map<String, String>? = null
 )
 
 data class BudgetBackupData(
@@ -73,6 +79,8 @@ data class BudgetBackupData(
     val savingsGoals: List<SavingsGoal> = emptyList(),
     val goalAllocations: List<GoalAllocation> = emptyList(),
     val wishlistItems: List<WishlistItem> = emptyList(),
+    val itemImageCaches: List<ItemImageCache> = emptyList(),
+    val customIcons: Map<String, String>? = null,
     val settings: AppSettingsBackup? = null
 )
 
@@ -133,6 +141,197 @@ object BackupManager {
         }
     }
 
+    val PREF_FILES_TO_BACKUP = listOf(
+        "budgeter_theme_prefs",
+        "budgeter_currency_prefs",
+        "budgeter_amount_format_prefs",
+        "budgeter_display_format_prefs",
+        "budgeter_autofill_prefs",
+        "budgeter_tab_prefs",
+        "budgeter_dashboard_prefs",
+        "budgeter_transaction_setup_prefs",
+        "budgeter_account_calc_prefs",
+        "budgeter_payment_source_prefs",
+        "budgeter_transfer_fee_prefs",
+        "budgeter_calculator_prefs",
+        "budgeter_rm_manager_prefs",
+        "budgeter_widget_prefs",
+        "budgeter_notification_prefs",
+        "budgeter_security_prefs",
+        "budgeter_backup_settings_prefs",
+        "budgeter_trash_prefs",
+        "budgeter_app_prefs",
+        "budget_filter_presets_storage",
+        "net_earnings_filter_prefs",
+        "bs_filter_presets",
+        "budgeter_permission_prefs"
+    )
+
+    private val EXCLUDED_RESTORE_KEYS_PER_FILE = mapOf(
+        "budgeter_backup_settings_prefs" to setOf(
+            "primary_access_token",
+            "primary_refresh_token",
+            "primary_token_expires_at",
+            "primary_is_linked",
+            "primary_account_email",
+            "primary_account_name",
+            "primary_account_photo_url",
+            "secondary_access_token",
+            "secondary_refresh_token",
+            "secondary_token_expires_at",
+            "secondary_is_linked",
+            "secondary_account_email",
+            "secondary_account_name",
+            "secondary_account_photo_url"
+        )
+    )
+
+    fun captureCustomIcons(context: Context): Map<String, String> {
+        return try {
+            val customDir = File(context.filesDir, "custom_icons")
+            if (!customDir.exists() || !customDir.isDirectory) return emptyMap()
+            val files = customDir.listFiles() ?: return emptyMap()
+            val map = mutableMapOf<String, String>()
+            for (file in files) {
+                if (file.isFile && file.length() > 0 && file.length() < 5 * 1024 * 1024) {
+                    val bytes = file.readBytes()
+                    val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    map[file.name] = base64
+                }
+            }
+            map
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyMap()
+        }
+    }
+
+    fun restoreCustomIcons(context: Context, customIcons: Map<String, String>?) {
+        if (customIcons.isNullOrEmpty()) return
+        try {
+            val customDir = File(context.filesDir, "custom_icons")
+            if (!customDir.exists()) customDir.mkdirs()
+            for ((fileName, base64) in customIcons) {
+                try {
+                    val sanitizedName = File(fileName).name
+                    if (sanitizedName.isNotBlank()) {
+                        val bytes = Base64.decode(base64, Base64.DEFAULT)
+                        File(customDir, sanitizedName).writeBytes(bytes)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun captureAllPreferencesJson(context: Context): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        for (prefName in PREF_FILES_TO_BACKUP) {
+            try {
+                val sp = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
+                val all = sp.all
+                if (all.isNotEmpty()) {
+                    val root = JSONObject()
+                    for ((key, value) in all) {
+                        val entry = JSONObject()
+                        when (value) {
+                            is Boolean -> {
+                                entry.put("t", "b")
+                                entry.put("v", value)
+                            }
+                            is Int -> {
+                                entry.put("t", "i")
+                                entry.put("v", value)
+                            }
+                            is Long -> {
+                                entry.put("t", "l")
+                                entry.put("v", value)
+                            }
+                            is Float -> {
+                                entry.put("t", "f")
+                                entry.put("v", value.toDouble())
+                            }
+                            is String -> {
+                                entry.put("t", "s")
+                                entry.put("v", value)
+                            }
+                            is Set<*> -> {
+                                entry.put("t", "ss")
+                                val arr = JSONArray()
+                                value.forEach { if (it is String) arr.put(it) }
+                                entry.put("v", arr)
+                            }
+                        }
+                        root.put(key, entry)
+                    }
+                    result[prefName] = root.toString()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return result
+    }
+
+    fun restoreAllPreferencesJson(context: Context, map: Map<String, String>?) {
+        if (map.isNullOrEmpty()) return
+        for ((prefName, jsonStr) in map) {
+            try {
+                val root = JSONObject(jsonStr)
+                val sp = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
+                val editor = sp.edit()
+                val excludedKeys = EXCLUDED_RESTORE_KEYS_PER_FILE[prefName] ?: emptySet()
+                val keys = root.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    if (excludedKeys.contains(key)) continue
+                    val entry = root.getJSONObject(key)
+                    when (entry.optString("t")) {
+                        "b" -> editor.putBoolean(key, entry.getBoolean("v"))
+                        "i" -> editor.putInt(key, entry.getInt("v"))
+                        "l" -> editor.putLong(key, entry.getLong("v"))
+                        "f" -> editor.putFloat(key, entry.getDouble("v").toFloat())
+                        "s" -> editor.putString(key, entry.getString("v"))
+                        "ss" -> {
+                            val arr = entry.getJSONArray("v")
+                            val set = mutableSetOf<String>()
+                            for (i in 0 until arr.length()) {
+                                set.add(arr.getString(i))
+                            }
+                            editor.putStringSet(key, set)
+                        }
+                    }
+                }
+                editor.apply()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun reloadAllSingletons(context: Context) {
+        try { ThemePreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { CurrencyPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { AmountFormatPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { DisplayFormatPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { AutofillPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { TabPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { DashboardPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { TransactionPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { AccountCalculationPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { PaymentSourcePreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { CalculatorPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { RmManagerPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { WidgetPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { NotificationPreferences.getInstance(context).reload() } catch (_: Exception) {}
+        try { SecurityPreferences(context).reload() } catch (_: Exception) {}
+        try { TrashManager.getInstance(context).reload() } catch (_: Exception) {}
+        try { BackupPreferences.getInstance(context).reload() } catch (_: Exception) {}
+    }
+
     /**
      * Captures current user settings and preferences across the entire application.
      */
@@ -168,7 +367,8 @@ object BackupManager {
                 primaryFolderType = bConfig.primaryAccount.driveFolderType,
                 secondaryAutoSync = bConfig.secondaryAccount.autoSync,
                 secondaryWifiOnly = bConfig.secondaryAccount.wifiOnly,
-                secondaryFolderType = bConfig.secondaryAccount.driveFolderType
+                secondaryFolderType = bConfig.secondaryAccount.driveFolderType,
+                allPreferencesJson = captureAllPreferencesJson(context)
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -181,6 +381,10 @@ object BackupManager {
      */
     fun applySettings(context: Context, settings: AppSettingsBackup) {
         try {
+            // 1. Restore all underlying preference files
+            restoreAllPreferencesJson(context, settings.allPreferencesJson)
+
+            // 2. Explicitly apply structured objects if present
             settings.theme?.let {
                 ThemePreferences.getInstance(context).updateConfig(it)
             }
@@ -224,6 +428,9 @@ object BackupManager {
             bConfig = bConfig.copy(secondaryAccount = sec)
 
             backupPrefs.updateConfig(bConfig)
+
+            // 3. Notify all singletons to reload their live state
+            reloadAllSingletons(context)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -280,6 +487,7 @@ object BackupManager {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         targetDirectory: String? = null,
         includeSettings: Boolean = true
     ): File = withContext(Dispatchers.IO) {
@@ -297,6 +505,8 @@ object BackupManager {
             savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
             goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
             wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
+            itemImageCaches = itemImageCacheDao?.getAllCachedItemsSnapshot() ?: emptyList(),
+            customIcons = captureCustomIcons(context),
             settings = settingsBackup
         )
         val json = adapter.indent("  ").toJson(backupData)
@@ -601,6 +811,7 @@ object BackupManager {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         includeSettings: Boolean = true
     ): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -618,6 +829,8 @@ object BackupManager {
                 savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
                 goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
                 wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
+                itemImageCaches = itemImageCacheDao?.getAllCachedItemsSnapshot() ?: emptyList(),
+                customIcons = captureCustomIcons(context),
                 settings = settingsBackup
             )
             val json = adapter.indent("  ").toJson(backupData)
@@ -647,6 +860,7 @@ object BackupManager {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
@@ -666,6 +880,7 @@ object BackupManager {
                 budgetAdjustmentDao = budgetAdjustmentDao,
                 savingsGoalDao = savingsGoalDao,
                 wishlistDao = wishlistDao,
+                itemImageCacheDao = itemImageCacheDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -689,6 +904,7 @@ object BackupManager {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
@@ -698,6 +914,11 @@ object BackupManager {
 
             var recordsCount = 0
 
+            // 1. Restore Custom Icons directly to filesystem
+            if (backupData.customIcons != null) {
+                restoreCustomIcons(context, backupData.customIcons)
+            }
+
             if (restoreData) {
                 transactionDao.deleteAll()
                 recurringBillDao.deleteAll()
@@ -706,6 +927,7 @@ object BackupManager {
                 wishlistDao?.deleteAllWishlistItems()
                 savingsGoalDao?.deleteAllAllocations()
                 savingsGoalDao?.deleteAllGoals()
+                itemImageCacheDao?.deleteAll()
                 categoryDao.deleteAll()
                 accountDao.deleteAll()
 
@@ -747,6 +969,10 @@ object BackupManager {
                     wishlistDao.insertWishlistItems(backupData.wishlistItems)
                     recordsCount += backupData.wishlistItems.size
                 }
+                if (backupData.itemImageCaches.isNotEmpty() && itemImageCacheDao != null) {
+                    itemImageCacheDao.insertAll(backupData.itemImageCaches)
+                    recordsCount += backupData.itemImageCaches.size
+                }
             }
 
             if (restoreSettings && backupData.settings != null) {
@@ -776,6 +1002,7 @@ object BackupManager {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
@@ -783,6 +1010,11 @@ object BackupManager {
                 ?: return@withContext Result.failure(Exception("Invalid backup file format"))
 
             var mergedCount = 0
+
+            // 0. Restore custom icons
+            if (backupData.customIcons != null) {
+                restoreCustomIcons(context, backupData.customIcons)
+            }
 
             // 1. Existing Data Snapshot
             val existingAccounts = accountDao.getAllAccountsSnapshot()
@@ -972,6 +1204,16 @@ object BackupManager {
                 if (wishToInsert.isNotEmpty()) {
                     wishlistDao.insertWishlistItems(wishToInsert)
                     mergedCount += wishToInsert.size
+                }
+            }
+
+            // 6.7. Merge Item Image Caches
+            if (itemImageCacheDao != null && backupData.itemImageCaches.isNotEmpty()) {
+                val existingKeys = itemImageCacheDao.getAllCachedItemsSnapshot().map { it.normalizedItemName.lowercase().trim() }.toSet()
+                val toInsert = backupData.itemImageCaches.filter { !existingKeys.contains(it.normalizedItemName.lowercase().trim()) }
+                if (toInsert.isNotEmpty()) {
+                    itemImageCacheDao.insertAll(toInsert.map { it.copy(id = 0) })
+                    mergedCount += toInsert.size
                 }
             }
 

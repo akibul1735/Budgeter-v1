@@ -109,6 +109,10 @@ class AccountCalculationPreferences private constructor(context: Context) {
         _config.value = AccountCalcConfig(settings = map)
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_CALC_SETTINGS = "account_calc_settings_json"
 

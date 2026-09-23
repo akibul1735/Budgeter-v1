@@ -196,6 +196,12 @@ class AmountFormatPreferences private constructor(context: Context) {
         LanguageHelper.updateAmountFormatConfig(def)
     }
 
+    fun reload() {
+        val loaded = loadConfig()
+        _config.value = loaded
+        LanguageHelper.updateAmountFormatConfig(loaded)
+    }
+
     companion object {
         private const val KEY_PRESET = "amount_preset"
         private const val KEY_CUSTOM_GROUPING = "amount_custom_grouping"

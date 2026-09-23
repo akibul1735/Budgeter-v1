@@ -128,7 +128,32 @@ data class DetectedBackupInfo(
     val localFile: java.io.File? = null
 )
 
+data class CloudRestorePromptData(
+    val driveIndex: Int,
+    val backupFile: GoogleDriveBackupFile,
+    val totalBackupsFound: Int
+)
+
 class BudgetViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val _pendingCloudRestorePrompt = MutableStateFlow<CloudRestorePromptData?>(null)
+    val pendingCloudRestorePrompt: StateFlow<CloudRestorePromptData?> = _pendingCloudRestorePrompt.asStateFlow()
+
+    fun dismissCloudRestorePrompt() {
+        _pendingCloudRestorePrompt.value = null
+    }
+
+    private suspend fun checkAndPromptCloudRestore(driveIndex: Int, backups: List<GoogleDriveBackupFile>) {
+        if (backups.isEmpty()) return
+        val currentLocalTransactions = activeRepo.transactionDao.getAllTransactionsSnapshot()
+        if (currentLocalTransactions.isEmpty()) {
+            _pendingCloudRestorePrompt.value = CloudRestorePromptData(
+                driveIndex = driveIndex,
+                backupFile = backups.first(),
+                totalBackupsFound = backups.size
+            )
+        }
+    }
 
     private val themePrefs: ThemePreferences = ThemePreferences.getInstance(application)
     private val appPrefs = application.getSharedPreferences("budgeter_app_prefs", Context.MODE_PRIVATE)
@@ -1295,6 +1320,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                     savingsGoalDao = activeRepo.savingsGoalDao,
                     wishlistDao = activeRepo.wishlistDao,
+                    itemImageCacheDao = activeRepo.itemImageCacheDao,
                     targetDirectory = targetDir,
                     includeSettings = true
                 )
@@ -1320,6 +1346,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 includeSettings = includeSettings
             )
             if (success) {
@@ -1344,6 +1371,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -1511,6 +1539,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val result = GoogleDriveService.listDriveBackups(getApplication(), account)
             result.onSuccess { list ->
                 _driveBackups.value = list
+                checkAndPromptCloudRestore(1, list)
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Could not list Drive backups: ${err.localizedMessage}")
             }
@@ -1522,6 +1551,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val result = GoogleDriveService.listDriveBackups(getApplication(), account)
             result.onSuccess { list ->
                 _secondaryDriveBackups.value = list
+                checkAndPromptCloudRestore(2, list)
             }.onFailure { err ->
                 _backupUiState.value = BackupUiState.Error("Could not list Secondary Drive backups: ${err.localizedMessage}")
             }
@@ -1543,6 +1573,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 folderType = folderType,
                 includeSettings = true
             )
@@ -1571,6 +1602,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 folderType = folderType,
                 includeSettings = true
             )
@@ -1604,6 +1636,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                     savingsGoalDao = activeRepo.savingsGoalDao,
                     wishlistDao = activeRepo.wishlistDao,
+                    itemImageCacheDao = activeRepo.itemImageCacheDao,
                     folderType = pFolder,
                     includeSettings = true
                 )
@@ -1629,6 +1662,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                     savingsGoalDao = activeRepo.savingsGoalDao,
                     wishlistDao = activeRepo.wishlistDao,
+                    itemImageCacheDao = activeRepo.itemImageCacheDao,
                     folderType = sFolder,
                     includeSettings = true
                 )
@@ -1666,6 +1700,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -1692,6 +1727,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -1771,6 +1807,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         val res = GoogleDriveService.listDriveBackupsForEmail(getApplication(), accountInfo.email)
                         res.onSuccess { list ->
                             if (driveIndex == 1) _driveBackups.value = list else _secondaryDriveBackups.value = list
+                            checkAndPromptCloudRestore(driveIndex, list)
                         }.onFailure { err ->
                             _backupUiState.value = BackupUiState.Error("Could not list Drive backups: ${err.localizedMessage}")
                         }
@@ -1782,6 +1819,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         val res = DropboxService.listBackups(validToken)
                         res.onSuccess { list ->
                             if (driveIndex == 1) _driveBackups.value = list else _secondaryDriveBackups.value = list
+                            checkAndPromptCloudRestore(driveIndex, list)
                         }.onFailure { err ->
                             _backupUiState.value = BackupUiState.Error("Dropbox list failed: ${err.localizedMessage}")
                         }
@@ -1816,6 +1854,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
                             wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao,
                             folderType = folderType,
                             includeSettings = true
                         )
@@ -1847,6 +1886,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                         savingsGoalDao = activeRepo.savingsGoalDao,
                         wishlistDao = activeRepo.wishlistDao,
+                        itemImageCacheDao = activeRepo.itemImageCacheDao,
                         folderPath = "/Budgeter",
                         includeSettings = true
                     )
@@ -1892,6 +1932,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
                             wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao,
                             restoreData = restoreData,
                             restoreSettings = restoreSettings
                         )
@@ -1921,6 +1962,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
                             wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao,
                             restoreData = restoreData,
                             restoreSettings = restoreSettings
                         )
@@ -1964,6 +2006,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
                             wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao,
                             restoreSettings = restoreSettings
                         )
                         result.onSuccess { count ->
@@ -1991,6 +2034,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                         budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                         savingsGoalDao = activeRepo.savingsGoalDao,
                         wishlistDao = activeRepo.wishlistDao,
+                        itemImageCacheDao = activeRepo.itemImageCacheDao,
                         restoreSettings = restoreSettings
                     )
                     result.onSuccess { count ->
@@ -2018,6 +2062,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
@@ -2043,6 +2088,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                 savingsGoalDao = activeRepo.savingsGoalDao,
                 wishlistDao = activeRepo.wishlistDao,
+                itemImageCacheDao = activeRepo.itemImageCacheDao,
                 restoreSettings = restoreSettings
             )
             result.onSuccess { count ->
@@ -2206,7 +2252,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
-                            wishlistDao = activeRepo.wishlistDao
+                            wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao
                         )
                     } else {
                         BackupManager.restoreFromJson(
@@ -2219,7 +2266,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
-                            wishlistDao = activeRepo.wishlistDao
+                            wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao
                         )
                     }
                     result.onSuccess { count ->
@@ -2248,7 +2296,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                                 savingsGoalDao = activeRepo.savingsGoalDao,
-                                wishlistDao = activeRepo.wishlistDao
+                                wishlistDao = activeRepo.wishlistDao,
+                                itemImageCacheDao = activeRepo.itemImageCacheDao
                             )
                         } else {
                             GoogleDriveService.restoreFromDriveFile(
@@ -2262,7 +2311,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                                 savingsGoalDao = activeRepo.savingsGoalDao,
-                                wishlistDao = activeRepo.wishlistDao
+                                wishlistDao = activeRepo.wishlistDao,
+                                itemImageCacheDao = activeRepo.itemImageCacheDao
                             )
                         }
                     } else {
@@ -2278,7 +2328,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                                 savingsGoalDao = activeRepo.savingsGoalDao,
-                                wishlistDao = activeRepo.wishlistDao
+                                wishlistDao = activeRepo.wishlistDao,
+                                itemImageCacheDao = activeRepo.itemImageCacheDao
                             )
                         } else {
                             GoogleDriveService.restoreFromDriveFileForEmail(
@@ -2292,7 +2343,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                                 monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                                 budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                                 savingsGoalDao = activeRepo.savingsGoalDao,
-                                wishlistDao = activeRepo.wishlistDao
+                                wishlistDao = activeRepo.wishlistDao,
+                                itemImageCacheDao = activeRepo.itemImageCacheDao
                             )
                         }
                     }
@@ -2316,7 +2368,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
-                            wishlistDao = activeRepo.wishlistDao
+                            wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao
                         )
                     } else {
                         DropboxService.restoreFromDropbox(
@@ -2330,7 +2383,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                             monthlyBudgetDao = activeRepo.monthlyBudgetDao,
                             budgetAdjustmentDao = activeRepo.budgetAdjustmentDao,
                             savingsGoalDao = activeRepo.savingsGoalDao,
-                            wishlistDao = activeRepo.wishlistDao
+                            wishlistDao = activeRepo.wishlistDao,
+                            itemImageCacheDao = activeRepo.itemImageCacheDao
                         )
                     }
                     result.onSuccess { count ->

@@ -179,6 +179,10 @@ class SecurityPreferences(context: Context) {
         _config.value = loadConfig()
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_APP_LOCK_ENABLED = "key_app_lock_enabled"
         private const val KEY_PIN_HASH = "key_pin_hash"

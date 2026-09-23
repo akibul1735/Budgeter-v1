@@ -600,6 +600,10 @@ class DashboardPreferences private constructor(context: Context) {
         saveConfig(defaultConfig)
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_CARD_ORDER = "dashboard_card_order"
         private const val KEY_VISIBLE_CARDS = "dashboard_visible_cards"

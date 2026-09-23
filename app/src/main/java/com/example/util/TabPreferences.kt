@@ -193,6 +193,10 @@ class TabPreferences(context: Context) {
         updateConfig(defaults)
     }
 
+    fun reload() {
+        _config.value = loadConfig()
+    }
+
     companion object {
         private const val KEY_POSITION = "tab_nav_position"
         private const val KEY_TABS_ORDER = "tab_nav_order"

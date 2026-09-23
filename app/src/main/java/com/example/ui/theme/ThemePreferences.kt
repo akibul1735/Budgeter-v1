@@ -458,6 +458,10 @@ class ThemePreferences(context: Context) {
         _themeConfig.value = loadConfig()
     }
 
+    fun reload() {
+        _themeConfig.value = loadConfig()
+    }
+
     private fun serializeCustomThemes(themes: List<CustomTheme>): String {
         val array = org.json.JSONArray()
         themes.forEach { theme ->

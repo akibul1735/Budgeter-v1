@@ -5,6 +5,7 @@ import android.util.Base64
 import com.example.data.local.AccountDao
 import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
+import com.example.data.local.ItemImageCacheDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
 import com.example.data.local.SavingsGoalDao
@@ -269,6 +270,7 @@ object DropboxService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         folderPath: String = "/Budgeter",
         includeSettings: Boolean = true
     ): Result<Boolean> = withContext(Dispatchers.IO) {
@@ -286,9 +288,16 @@ object DropboxService {
                 savingsGoals = savingsGoalDao?.getAllGoalsSnapshot() ?: emptyList(),
                 goalAllocations = savingsGoalDao?.getAllAllocationsSnapshot() ?: emptyList(),
                 wishlistItems = wishlistDao?.getAllWishlistItemsSnapshot() ?: emptyList(),
+                itemImageCaches = itemImageCacheDao?.getAllCachedItemsSnapshot() ?: emptyList(),
+                customIcons = BackupManager.captureCustomIcons(context),
                 settings = if (includeSettings) BackupManager.captureSettings(context) else null
             )
             val jsonContent = adapter.indent("  ").toJson(backupData)
+
+            if (backupData.transactions.isEmpty()) {
+                android.util.Log.w("DropboxService", "Local database has 0 transactions. Refusing to overwrite Dropbox sync file with empty data.")
+                return@withContext Result.success(true)
+            }
 
             val deviceName = bPrefs.getDeviceName().trim()
             val sanitizedDevice = deviceName.replace(Regex("[^a-zA-Z0-9_-]"), "_").ifBlank { "Device" }
@@ -386,6 +395,7 @@ object DropboxService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreData: Boolean = true,
         restoreSettings: Boolean = true
     ): Result<Int> = withContext(Dispatchers.IO) {
@@ -404,6 +414,7 @@ object DropboxService {
                 budgetAdjustmentDao = budgetAdjustmentDao,
                 savingsGoalDao = savingsGoalDao,
                 wishlistDao = wishlistDao,
+                itemImageCacheDao = itemImageCacheDao,
                 restoreData = restoreData,
                 restoreSettings = restoreSettings
             )
@@ -428,6 +439,7 @@ object DropboxService {
         budgetAdjustmentDao: BudgetAdjustmentDao? = null,
         savingsGoalDao: SavingsGoalDao? = null,
         wishlistDao: WishlistDao? = null,
+        itemImageCacheDao: ItemImageCacheDao? = null,
         restoreSettings: Boolean = false
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
@@ -445,6 +457,7 @@ object DropboxService {
                 budgetAdjustmentDao = budgetAdjustmentDao,
                 savingsGoalDao = savingsGoalDao,
                 wishlistDao = wishlistDao,
+                itemImageCacheDao = itemImageCacheDao,
                 restoreSettings = restoreSettings
             )
         } catch (e: Exception) {
