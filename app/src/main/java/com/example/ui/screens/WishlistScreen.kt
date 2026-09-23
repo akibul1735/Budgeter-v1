@@ -29,6 +29,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
@@ -84,6 +87,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -95,6 +99,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -136,8 +141,8 @@ fun WishlistScreen(
     onSaveWishlistItem: (WishlistItem) -> Unit,
     onDeleteWishlistItem: (Long) -> Unit,
     onTogglePurchased: (Long, Boolean) -> Unit,
-    onAddToBudget: (WishlistItem, Int, Int) -> Unit,
-    onConvertToGoal: (WishlistItem, Long) -> Unit,
+    onAddToBudget: (WishlistItem, Int, Int, Double) -> Unit,
+    onConvertToGoal: (WishlistItem, String, Double, Long, String) -> Unit,
     onRecordPurchase: (WishlistItem) -> Unit,
     onOpenDrawer: () -> Unit
 ) {
@@ -153,6 +158,10 @@ fun WishlistScreen(
     var showAddEditDialog by remember { mutableStateOf(false) }
     var itemToEdit by remember { mutableStateOf<WishlistItem?>(null) }
     var itemToDelete by remember { mutableStateOf<WishlistItem?>(null) }
+    var itemToBuy by remember { mutableStateOf<WishlistItemWithCategory?>(null) }
+    var itemToAddToBudget by remember { mutableStateOf<WishlistItemWithCategory?>(null) }
+    var itemToConvertToGoal by remember { mutableStateOf<WishlistItem?>(null) }
+    var itemToToggleStatus by remember { mutableStateOf<Pair<WishlistItem, Boolean>?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
 
     val cal = Calendar.getInstance()
@@ -251,7 +260,7 @@ fun WishlistScreen(
         AlertDialog(
             onDismissRequest = { itemToDelete = null },
             title = { Text(LanguageHelper.getString("delete", languageMode)) },
-            text = { Text("Are you sure you want to delete \"${target.title}\" from your wishlist?") },
+            text = { Text(LanguageHelper.getString("delete_wishlist_confirm", languageMode)) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -271,6 +280,81 @@ fun WishlistScreen(
                     Text(LanguageHelper.getString("cancel", languageMode))
                 }
             }
+        )
+    }
+
+    if (itemToBuy != null) {
+        val targetWithCat = itemToBuy!!
+        WishlistBuyConfirmDialog(
+            item = targetWithCat.item,
+            category = targetWithCat.category,
+            subCategory = targetWithCat.subCategory,
+            languageMode = languageMode,
+            onConfirm = {
+                val item = targetWithCat.item
+                itemToBuy = null
+                onRecordPurchase(item)
+            },
+            onDismiss = { itemToBuy = null }
+        )
+    }
+
+    if (itemToAddToBudget != null) {
+        val targetWithCat = itemToAddToBudget!!
+        AddToBudgetConfirmDialog(
+            item = targetWithCat.item,
+            category = targetWithCat.category,
+            subCategory = targetWithCat.subCategory,
+            languageMode = languageMode,
+            onConfirm = { y, m, amt ->
+                val item = targetWithCat.item
+                itemToAddToBudget = null
+                onAddToBudget(item, y, m, amt)
+                coroutineScope.launch {
+                    val formattedAmt = LanguageHelper.formatCurrency(amt, languageMode)
+                    val catName = LanguageHelper.getLocalizedName(
+                        targetWithCat.category?.nameEn ?: "",
+                        targetWithCat.category?.nameBn ?: "",
+                        languageMode
+                    )
+                    snackbarHostState.showSnackbar("Added $formattedAmt to $catName budget!")
+                }
+            },
+            onDismiss = { itemToAddToBudget = null }
+        )
+    }
+
+    if (itemToConvertToGoal != null) {
+        val targetItem = itemToConvertToGoal!!
+        ConvertToSavingsGoalDialog(
+            item = targetItem,
+            languageMode = languageMode,
+            onConfirm = { goalName, targetAmount, targetDateMs, notes ->
+                itemToConvertToGoal = null
+                onConvertToGoal(targetItem, goalName, targetAmount, targetDateMs, notes)
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar("Created Savings Goal \"$goalName\"!")
+                }
+            },
+            onDismiss = { itemToConvertToGoal = null }
+        )
+    }
+
+    if (itemToToggleStatus != null) {
+        val (targetItem, isChecked) = itemToToggleStatus!!
+        WishlistStatusConfirmDialog(
+            item = targetItem,
+            markPurchased = isChecked,
+            languageMode = languageMode,
+            onConfirm = {
+                itemToToggleStatus = null
+                onTogglePurchased(targetItem.id, isChecked)
+                coroutineScope.launch {
+                    val msg = if (isChecked) "Marked \"${targetItem.title}\" as purchased" else "Moved \"${targetItem.title}\" back to active"
+                    snackbarHostState.showSnackbar(msg)
+                }
+            },
+            onDismiss = { itemToToggleStatus = null }
         )
     }
 
@@ -654,7 +738,7 @@ fun WishlistScreen(
                                         Checkbox(
                                             checked = wishItem.isPurchased,
                                             onCheckedChange = { isChecked ->
-                                                onTogglePurchased(wishItem.id, isChecked)
+                                                itemToToggleStatus = Pair(wishItem, isChecked)
                                             },
                                             colors = CheckboxDefaults.colors(
                                                 checkedColor = MaterialTheme.colorScheme.primary
@@ -872,7 +956,7 @@ fun WishlistScreen(
                                         if (!wishItem.isPurchased) {
                                             // Buy / Record Purchase
                                             Button(
-                                                onClick = { onRecordPurchase(wishItem) },
+                                                onClick = { itemToBuy = itemWithCat },
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                                 shape = RoundedCornerShape(10.dp),
                                                 colors = ButtonDefaults.buttonColors(
@@ -892,16 +976,7 @@ fun WishlistScreen(
                                             // Add to Month Budget button if category is set
                                             if (category != null && !wishItem.isAddedToBudget) {
                                                 OutlinedButton(
-                                                    onClick = {
-                                                        val targetY = wishItem.targetYear ?: nextYear
-                                                        val targetM = wishItem.targetMonth ?: nextMonth
-                                                        onAddToBudget(wishItem, targetY, targetM)
-                                                        coroutineScope.launch {
-                                                            val formattedAmt = LanguageHelper.formatCurrency(wishItem.estimatedAmount, languageMode)
-                                                            val catName = LanguageHelper.getLocalizedName(category.nameEn, category.nameBn, languageMode)
-                                                            snackbarHostState.showSnackbar("Added $formattedAmt to $catName budget!")
-                                                        }
-                                                    },
+                                                    onClick = { itemToAddToBudget = itemWithCat },
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                                     shape = RoundedCornerShape(10.dp),
                                                     modifier = Modifier.height(32.dp)
@@ -919,13 +994,7 @@ fun WishlistScreen(
                                             // Convert to Savings Goal
                                             if (wishItem.linkedGoalId == null && wishItem.targetType != WishlistTargetType.SAVINGS_GOAL) {
                                                 OutlinedButton(
-                                                    onClick = {
-                                                        val targetDeadline = System.currentTimeMillis() + 90L * 24 * 60 * 60 * 1000L // 3 months default
-                                                        onConvertToGoal(wishItem, targetDeadline)
-                                                        coroutineScope.launch {
-                                                            snackbarHostState.showSnackbar("Created Savings Goal for \"${wishItem.title}\"!")
-                                                        }
-                                                    },
+                                                    onClick = { itemToConvertToGoal = wishItem },
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                                     shape = RoundedCornerShape(10.dp),
                                                     modifier = Modifier.height(32.dp)
@@ -933,10 +1002,15 @@ fun WishlistScreen(
                                                     Icon(
                                                         imageVector = Icons.Default.Savings,
                                                         contentDescription = null,
-                                                        modifier = Modifier.size(13.dp)
+                                                        modifier = Modifier.size(13.dp),
+                                                        tint = Color(0xFF10B981)
                                                     )
                                                     Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(LanguageHelper.getString("goal", languageMode), fontSize = 11.sp)
+                                                    Text(
+                                                        text = LanguageHelper.getString("goal", languageMode),
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF059669)
+                                                    )
                                                 }
                                             }
                                         }
@@ -982,4 +1056,397 @@ fun WishlistScreen(
             }
         }
     }
+}
+
+@Composable
+fun WishlistBuyConfirmDialog(
+    item: WishlistItem,
+    category: Category?,
+    subCategory: Category?,
+    languageMode: LanguageMode,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.ShoppingCart,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+        },
+        title = {
+            Text(
+                text = LanguageHelper.getString("confirm_purchase", languageMode),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = item.title,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = LanguageHelper.activeCurrencyConfig.activeSymbol + LanguageHelper.formatNumber(item.estimatedAmount, languageMode),
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (category != null) {
+                                val catName = LanguageHelper.getLocalizedName(category.nameEn, category.nameBn, languageMode)
+                                val subName = subCategory?.let { " > " + LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode) } ?: ""
+                                Text(
+                                    text = "$catName$subName",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = LanguageHelper.getString("buy_confirmation_msg", languageMode),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text(LanguageHelper.getString("proceed_to_buy", languageMode))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(LanguageHelper.getString("cancel", languageMode))
+            }
+        }
+    )
+}
+
+@Composable
+fun WishlistStatusConfirmDialog(
+    item: WishlistItem,
+    markPurchased: Boolean,
+    languageMode: LanguageMode,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val titleText = if (markPurchased) {
+        LanguageHelper.getString("mark_as_purchased_confirm", languageMode)
+    } else {
+        LanguageHelper.getString("mark_as_pending_confirm", languageMode)
+    }
+    val bodyText = if (markPurchased) {
+        "Mark \"${item.title}\" as purchased? It will be moved to the Purchased tab."
+    } else {
+        "Move \"${item.title}\" back to your active wishlist items?"
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = if (markPurchased) Icons.Default.CheckCircle else Icons.Default.ShoppingBag,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+        },
+        title = {
+            Text(
+                text = titleText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                text = bodyText,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(LanguageHelper.getString("confirm", languageMode).ifEmpty { "Confirm" })
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(LanguageHelper.getString("cancel", languageMode))
+            }
+        }
+    )
+}
+
+@Composable
+fun ConvertToSavingsGoalDialog(
+    item: WishlistItem,
+    languageMode: LanguageMode,
+    onConfirm: (goalName: String, targetAmount: Double, targetDateMs: Long, notes: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var goalName by remember { mutableStateOf(item.title) }
+    var targetAmountText by remember {
+        mutableStateOf(if (item.estimatedAmount > 0) {
+            if (item.estimatedAmount % 1.0 == 0.0) item.estimatedAmount.toLong().toString() else item.estimatedAmount.toString()
+        } else "")
+    }
+    var notes by remember { mutableStateOf(if (item.notes.isNotBlank()) item.notes else "From wishlist: ${item.title}") }
+    var selectedMonthsIndex by remember { mutableIntStateOf(1) } // 0: 1 mo, 1: 3 mo, 2: 6 mo, 3: 1 yr
+
+    val monthDurations = listOf(1, 3, 6, 12)
+    val monthLabels = listOf(
+        LanguageHelper.getString("one_month", languageMode),
+        LanguageHelper.getString("three_months", languageMode),
+        LanguageHelper.getString("six_months", languageMode),
+        LanguageHelper.getString("one_year", languageMode)
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Savings,
+                contentDescription = null,
+                tint = Color(0xFF10B981),
+                modifier = Modifier.size(28.dp)
+            )
+        },
+        title = {
+            Text(
+                text = LanguageHelper.getString("savings_goal_popup_title", languageMode),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = goalName,
+                    onValueChange = { goalName = it },
+                    label = { Text(LanguageHelper.getString("savings_goal_name", languageMode), fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                OutlinedTextField(
+                    value = targetAmountText,
+                    onValueChange = { targetAmountText = it },
+                    label = { Text(LanguageHelper.getString("savings_target_amount", languageMode), fontSize = 12.sp) },
+                    prefix = {
+                        Text(
+                            text = LanguageHelper.activeCurrencyConfig.activeSymbol + " ",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                Text(
+                    text = LanguageHelper.getString("savings_target_timeline", languageMode),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    monthDurations.forEachIndexed { index, months ->
+                        FilterChip(
+                            selected = selectedMonthsIndex == index,
+                            onClick = { selectedMonthsIndex = index },
+                            label = { Text(monthLabels[index], fontSize = 11.sp) },
+                            modifier = Modifier.weight(1f).height(32.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text(LanguageHelper.getString("notes", languageMode), fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amt = targetAmountText.toDoubleOrNull() ?: item.estimatedAmount
+                    val months = monthDurations.getOrElse(selectedMonthsIndex) { 3 }
+                    val cal = Calendar.getInstance().apply { add(Calendar.MONTH, months) }
+                    onConfirm(goalName.trim().ifBlank { item.title }, amt, cal.timeInMillis, notes.trim())
+                },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
+            ) {
+                Text(LanguageHelper.getString("create_goal", languageMode).ifEmpty { "Create Goal" })
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(LanguageHelper.getString("cancel", languageMode))
+            }
+        }
+    )
+}
+
+@Composable
+fun AddToBudgetConfirmDialog(
+    item: WishlistItem,
+    category: Category?,
+    subCategory: Category?,
+    languageMode: LanguageMode,
+    onConfirm: (year: Int, month: Int, amount: Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val nextCal = Calendar.getInstance().apply { add(Calendar.MONTH, 1) }
+    var selectedYear by remember { mutableIntStateOf(item.targetYear ?: nextCal.get(Calendar.YEAR)) }
+    var selectedMonth by remember { mutableIntStateOf(item.targetMonth ?: (nextCal.get(Calendar.MONTH) + 1)) }
+    var amountText by remember {
+        mutableStateOf(if (item.estimatedAmount > 0) {
+            if (item.estimatedAmount % 1.0 == 0.0) item.estimatedAmount.toLong().toString() else item.estimatedAmount.toString()
+        } else "")
+    }
+
+    val monthNamesEn = listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+    val monthNamesBn = listOf("জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর")
+    val monthName = if (languageMode == LanguageMode.BANGLA) monthNamesBn.getOrElse(selectedMonth - 1) { "" } else monthNamesEn.getOrElse(selectedMonth - 1) { "" }
+
+    val catName = category?.let { LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode) } ?: "Category"
+    val subName = subCategory?.let { " > " + LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode) } ?: ""
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.CalendarMonth,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+        },
+        title = {
+            Text(
+                text = LanguageHelper.getString("add_budget_confirm_title", languageMode),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(text = item.title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            text = "$catName$subName • $monthName $selectedYear",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text(LanguageHelper.getString("budget_amount", languageMode).ifEmpty { "Budget Amount" }, fontSize = 12.sp) },
+                    prefix = {
+                        Text(
+                            text = LanguageHelper.activeCurrencyConfig.activeSymbol + " ",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                Text(
+                    text = LanguageHelper.getString("add_budget_confirm_msg", languageMode),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amt = amountText.toDoubleOrNull() ?: item.estimatedAmount
+                    onConfirm(selectedYear, selectedMonth, amt)
+                },
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(LanguageHelper.getString("add_to_budget", languageMode))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(LanguageHelper.getString("cancel", languageMode))
+            }
+        }
+    )
 }

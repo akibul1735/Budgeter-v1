@@ -703,6 +703,22 @@ object LanguageHelper {
         "convert_goal_dialog_title" to Trans("Convert to Savings Goal", "সঞ্চয় লক্ষ্যে রূপান্তর"),
         "convert_goal_dialog_msg" to Trans("Create a savings goal from this wishlist item?", "এই আইটেমটি থেকে একটি নতুন সঞ্চয় লক্ষ্য তৈরি করবেন?"),
         "buy" to Trans("Buy", "কিনুন"),
-        "goal" to Trans("Goal", "লক্ষ্য")
+        "goal" to Trans("Goal", "লক্ষ্য"),
+        "confirm_purchase" to Trans("Confirm Purchase", "ক্রয় নিশ্চিতকরণ"),
+        "buy_confirmation_msg" to Trans("Open transaction form to record purchase? The item will only be marked as purchased once the transaction is saved.", "ক্রয় রেকর্ড করতে লেনদেন ফর্ম খুলবেন? লেনদেনটি সংরক্ষিত হলে তবেই আইটেমটি ক্রয় হিসেবে চিহ্নিত হবে।"),
+        "proceed_to_buy" to Trans("Proceed to Buy", "ক্রয় করতে এগিয়ে যান"),
+        "mark_as_purchased_confirm" to Trans("Mark as Purchased?", "ক্রয় সম্পন্ন হিসেবে চিহ্নিত করবেন?"),
+        "mark_as_pending_confirm" to Trans("Move back to active wishlist?", "পুনরায় সক্রিয় তালিকায় ফিরিয়ে আনবেন?"),
+        "add_budget_confirm_title" to Trans("Add to Monthly Budget", "মাসিক বাজেটে যোগ করুন"),
+        "add_budget_confirm_msg" to Trans("Add this amount to your monthly budget limit for the selected category?", "নির্বাচিত ক্যাটাগরির জন্য এই পরিমাণ অর্থ মাসিক বাজেটে যোগ করবেন?"),
+        "savings_goal_popup_title" to Trans("Create Savings Goal", "সঞ্চয় লক্ষ্য তৈরি করুন"),
+        "savings_goal_name" to Trans("Goal Name", "লক্ষ্যের নাম"),
+        "savings_target_amount" to Trans("Target Amount", "লক্ষ্যমাত্রা"),
+        "savings_target_timeline" to Trans("Target Timeline", "অর্জনের সময়কাল"),
+        "delete_wishlist_confirm" to Trans("Are you sure you want to delete this wishlist item?", "আপনি কি নিশ্চিতভাবে এই উইশলিস্ট আইটেমটি মুছে ফেলতে চান?"),
+        "one_month" to Trans("1 Month", "১ মাস"),
+        "three_months" to Trans("3 Months", "৩ মাস"),
+        "six_months" to Trans("6 Months", "৬ মাস"),
+        "one_year" to Trans("1 Year", "১ বছর")
     )
 }

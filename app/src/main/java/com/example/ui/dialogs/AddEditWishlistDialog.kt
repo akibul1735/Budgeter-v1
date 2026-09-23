@@ -1,26 +1,17 @@
 package com.example.ui.dialogs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
@@ -28,44 +19,25 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Notes
-import androidx.compose.material.icons.filled.PriorityHigh
-import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Category
-import com.example.data.model.CategoryType
 import com.example.data.model.LanguageMode
+import com.example.data.model.TransactionType
 import com.example.data.model.WishlistItem
 import com.example.data.model.WishlistPriority
 import com.example.data.model.WishlistTargetType
@@ -81,7 +53,8 @@ fun AddEditWishlistDialog(
     categories: List<Category>,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onSave: (WishlistItem) -> Unit
+    onSave: (WishlistItem) -> Unit,
+    onAddNewCategory: ((Category) -> Unit)? = null
 ) {
     val cal = Calendar.getInstance()
     val currentYear = cal.get(Calendar.YEAR)
@@ -92,7 +65,11 @@ fun AddEditWishlistDialog(
     val nextMonth = nextCal.get(Calendar.MONTH) + 1
 
     var title by remember { mutableStateOf(item?.title ?: "") }
-    var amountText by remember { mutableStateOf(item?.let { if (it.estimatedAmount > 0) it.estimatedAmount.toString() else "" } ?: "") }
+    var amountText by remember {
+        mutableStateOf(item?.let { if (it.estimatedAmount > 0) {
+            if (it.estimatedAmount % 1.0 == 0.0) it.estimatedAmount.toLong().toString() else it.estimatedAmount.toString()
+        } else "" } ?: "")
+    }
     var selectedCategoryId by remember { mutableStateOf(item?.categoryId) }
     var selectedSubCategoryId by remember { mutableStateOf(item?.subCategoryId) }
     
@@ -105,23 +82,12 @@ fun AddEditWishlistDialog(
     var url by remember { mutableStateOf(item?.url ?: "") }
     
     var showCalculator by remember { mutableStateOf(false) }
-    var showCategoryDropdown by remember { mutableStateOf(false) }
+    var showCategoryPickerModal by remember { mutableStateOf(false) }
     var showMonthDropdown by remember { mutableStateOf(false) }
     var showYearDropdown by remember { mutableStateOf(false) }
     
     var titleError by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf(false) }
-
-    val expenseCategories = remember(categories) {
-        categories.filter { it.type == CategoryType.EXPENSE && it.parentId == null }
-    }
-    val allSubCategories = remember(categories) {
-        categories.filter { it.parentId != null }
-    }
-
-    val selectedCat = categories.firstOrNull { it.id == selectedCategoryId }
-    val subCategoriesForSelected = allSubCategories.filter { it.parentId == selectedCategoryId }
-    val selectedSubCat = categories.firstOrNull { it.id == selectedSubCategoryId }
 
     val monthNamesEn = listOf(
         "January", "February", "March", "April", "May", "June",
@@ -131,6 +97,11 @@ fun AddEditWishlistDialog(
         "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
         "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"
     )
+
+    // Resolved category information
+    val parentCat = categories.firstOrNull { it.id == selectedCategoryId }
+    val childCat = categories.firstOrNull { it.id == selectedSubCategoryId } ?: parentCat
+    val activeCat = childCat ?: parentCat
 
     if (showCalculator) {
         PopupCalculatorDialog(
@@ -144,22 +115,54 @@ fun AddEditWishlistDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    if (showCategoryPickerModal) {
+        CategoryPickerModalDialog(
+            categories = categories,
+            txType = TransactionType.EXPENSE,
+            selectedCategoryId = selectedCategoryId,
+            selectedSubCategoryId = selectedSubCategoryId,
+            languageMode = languageMode,
+            onCategorySelected = { parentCatId, subCatId ->
+                selectedCategoryId = parentCatId
+                selectedSubCategoryId = subCatId
+                showCategoryPickerModal = false
+            },
+            onAddNewCategory = { newCat ->
+                onAddNewCategory?.invoke(newCat)
+                if (newCat.parentId != null) {
+                    selectedCategoryId = newCat.parentId
+                    selectedSubCategoryId = newCat.id
+                } else {
+                    selectedCategoryId = newCat.id
+                    selectedSubCategoryId = null
+                }
+                showCategoryPickerModal = false
+            },
+            onDismiss = { showCategoryPickerModal = false }
+        )
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 6.dp,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 440.dp)
+                .wrapContentHeight()
+                .padding(vertical = 12.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
-                // Header
+                // Header Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -167,11 +170,11 @@ fun AddEditWishlistDialog(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(32.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
@@ -180,7 +183,7 @@ fun AddEditWishlistDialog(
                                 imageVector = Icons.Default.ShoppingBag,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         Text(
@@ -189,22 +192,24 @@ fun AddEditWishlistDialog(
                             } else {
                                 LanguageHelper.getString("edit_wishlist_item", languageMode)
                             },
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = LanguageHelper.getString("cancel", languageMode)
+                            contentDescription = LanguageHelper.getString("cancel", languageMode),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Item Name
                 OutlinedTextField(
@@ -213,25 +218,26 @@ fun AddEditWishlistDialog(
                         title = it
                         if (it.isNotBlank()) titleError = false
                     },
-                    label = { Text(LanguageHelper.getString("item_name", languageMode)) },
-                    placeholder = { Text("e.g. Sony WH-1000XM5, Ergonomic Chair") },
+                    label = { Text(LanguageHelper.getString("item_name", languageMode), fontSize = 12.sp) },
+                    placeholder = { Text("e.g. Headphones, Office Chair", fontSize = 12.sp) },
                     isError = titleError,
                     singleLine = true,
+                    textStyle = TextStyle(fontSize = 14.sp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("wishlist_title_input"),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 )
                 if (titleError) {
                     Text(
                         text = "Please enter an item title",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                        modifier = Modifier.padding(start = 6.dp, top = 2.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Estimated Cost & Calculator
                 Row(
@@ -245,206 +251,170 @@ fun AddEditWishlistDialog(
                             amountText = it
                             if (it.isNotBlank()) amountError = false
                         },
-                        label = { Text(LanguageHelper.getString("estimated_cost", languageMode)) },
-                        placeholder = { Text("0.00") },
+                        label = { Text(LanguageHelper.getString("estimated_cost", languageMode), fontSize = 12.sp) },
+                        placeholder = { Text("0.00", fontSize = 12.sp) },
                         prefix = {
                             Text(
-                                text = LanguageHelper.activeCurrencyConfig.activeSymbol,
+                                text = LanguageHelper.activeCurrencyConfig.activeSymbol + " ",
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp
                             )
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         isError = amountError,
                         singleLine = true,
+                        textStyle = TextStyle(fontSize = 14.sp),
                         modifier = Modifier
                             .weight(1f)
                             .testTag("wishlist_amount_input"),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(10.dp)
                     )
 
-                    IconButton(
-                        onClick = { showCalculator = true },
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showCalculator = true }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Calculate,
-                            contentDescription = "Calculator",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Calculate,
+                                contentDescription = "Calculator",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
                 if (amountError) {
                     Text(
-                        text = "Please enter a valid amount",
+                        text = "Please enter a valid estimated amount",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                        modifier = Modifier.padding(start = 6.dp, top = 2.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Category Selection
+                // Category Selection Card (Matches Transaction Form style)
                 Text(
                     text = LanguageHelper.getString("categories", languageMode),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = OutlinedTextFieldDefaults.colors().run {
-                            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showCategoryDropdown = true }
-                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { showCategoryPickerModal = true }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f, fill = false)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                if (selectedCat != null) {
-                                    val catIcon = IconHelper.getIconByName(selectedCat.iconName)
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                runCatching { Color(android.graphics.Color.parseColor(selectedCat.colorHex)) }
-                                                    .getOrDefault(MaterialTheme.colorScheme.primary).copy(alpha = 0.2f)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = catIcon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = runCatching { Color(android.graphics.Color.parseColor(selectedCat.colorHex)) }
-                                                .getOrDefault(MaterialTheme.colorScheme.primary)
-                                        )
-                                    }
-                                    Text(
-                                        text = LanguageHelper.getLocalizedName(selectedCat.nameEn, selectedCat.nameBn, languageMode),
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Category,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = LanguageHelper.getString("select_category", languageMode),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            if (selectedCat != null) {
-                                IconButton(
-                                    onClick = {
-                                        selectedCategoryId = null
-                                        selectedSubCategoryId = null
-                                    },
-                                    modifier = Modifier.size(24.dp)
+                            if (activeCat != null) {
+                                val catIcon = IconHelper.getIconByName(activeCat.iconName)
+                                val parsedColor = runCatching { Color(android.graphics.Color.parseColor(activeCat.colorHex)) }
+                                    .getOrDefault(MaterialTheme.colorScheme.primary)
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(parsedColor.copy(alpha = 0.18f)),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Clear",
-                                        modifier = Modifier.size(16.dp)
+                                        imageVector = catIcon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = parsedColor
                                     )
                                 }
+                                val catTitle = if (parentCat != null && childCat != null && parentCat.id != childCat.id) {
+                                    "${parentCat.localizedName(languageMode)} > ${childCat.localizedName(languageMode)}"
+                                } else {
+                                    activeCat.localizedName(languageMode)
+                                }
+                                Text(
+                                    text = catTitle,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Category,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = LanguageHelper.getString("select_category", languageMode).ifEmpty { "Select Category" },
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp
+                                )
                             }
                         }
-                    }
 
-                    DropdownMenu(
-                        expanded = showCategoryDropdown,
-                        onDismissRequest = { showCategoryDropdown = false }
-                    ) {
-                        expenseCategories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        val cIcon = IconHelper.getIconByName(cat.iconName)
-                                        Icon(
-                                            imageVector = cIcon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp),
-                                            tint = runCatching { Color(android.graphics.Color.parseColor(cat.colorHex)) }
-                                                .getOrDefault(MaterialTheme.colorScheme.primary)
-                                        )
-                                        Text(LanguageHelper.getLocalizedName(cat.nameEn, cat.nameBn, languageMode))
-                                    }
-                                },
+                        if (activeCat != null) {
+                            IconButton(
                                 onClick = {
-                                    selectedCategoryId = cat.id
+                                    selectedCategoryId = null
                                     selectedSubCategoryId = null
-                                    showCategoryDropdown = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Subcategory selection if available
-                if (subCategoriesForSelected.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        subCategoriesForSelected.forEach { subCat ->
-                            val isSubSelected = selectedSubCategoryId == subCat.id
-                            FilterChip(
-                                selected = isSubSelected,
-                                onClick = {
-                                    selectedSubCategoryId = if (isSubSelected) null else subCat.id
                                 },
-                                label = {
-                                    Text(
-                                        text = LanguageHelper.getLocalizedName(subCat.nameEn, subCat.nameBn, languageMode),
-                                        fontSize = 12.sp
-                                    )
-                                }
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(12.dp)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Planning Timeline
+                // Planning Timeline Chips
                 Text(
                     text = LanguageHelper.getString("planned_timeline", languageMode),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     FilterChip(
                         selected = targetType == WishlistTargetType.NEXT_MONTH,
@@ -455,219 +425,238 @@ fun AddEditWishlistDialog(
                         },
                         label = {
                             val nextMName = if (languageMode == LanguageMode.BANGLA) monthNamesBn[nextMonth - 1] else monthNamesEn[nextMonth - 1]
-                            Text("⚡ " + LanguageHelper.getString("next_month", languageMode) + " ($nextMName)")
+                            Text("⚡ " + LanguageHelper.getString("next_month", languageMode) + " ($nextMName)", fontSize = 11.sp)
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        ),
+                        modifier = Modifier.height(30.dp)
                     )
 
                     FilterChip(
                         selected = targetType == WishlistTargetType.SPECIFIC_MONTH,
                         onClick = { targetType = WishlistTargetType.SPECIFIC_MONTH },
-                        label = { Text("📅 " + LanguageHelper.getString("specific_month", languageMode)) },
+                        label = { Text("📅 " + LanguageHelper.getString("specific_month", languageMode), fontSize = 11.sp) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                             selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
+                        ),
+                        modifier = Modifier.height(30.dp)
                     )
 
                     FilterChip(
                         selected = targetType == WishlistTargetType.SAVINGS_GOAL,
                         onClick = { targetType = WishlistTargetType.SAVINGS_GOAL },
-                        label = { Text("🎯 " + LanguageHelper.getString("save_up_goal", languageMode)) }
+                        label = { Text("🎯 " + LanguageHelper.getString("save_up_goal", languageMode), fontSize = 11.sp) },
+                        modifier = Modifier.height(30.dp)
                     )
 
                     FilterChip(
                         selected = targetType == WishlistTargetType.SOMEDAY,
                         onClick = { targetType = WishlistTargetType.SOMEDAY },
-                        label = { Text("💭 " + LanguageHelper.getString("someday_maybe", languageMode)) }
+                        label = { Text("💭 " + LanguageHelper.getString("someday_maybe", languageMode), fontSize = 11.sp) },
+                        modifier = Modifier.height(30.dp)
                     )
                 }
 
                 // Month/Year pickers for Specific Month
                 AnimatedVisibility(visible = targetType == WishlistTargetType.SPECIFIC_MONTH) {
-                    Column(modifier = Modifier.padding(top = 10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Month Dropdown
-                            Box(modifier = Modifier.weight(1.5f)) {
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { showMonthDropdown = true }
-                                        .padding(vertical = 10.dp, horizontal = 12.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Month Dropdown
+                        Box(modifier = Modifier.weight(1.3f)) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showMonthDropdown = true }
+                                    .padding(vertical = 8.dp, horizontal = 10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) monthNamesBn[targetMonth - 1] else monthNamesEn[targetMonth - 1],
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarMonth,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                                DropdownMenu(
-                                    expanded = showMonthDropdown,
-                                    onDismissRequest = { showMonthDropdown = false }
-                                ) {
-                                    for (m in 1..12) {
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(if (languageMode == LanguageMode.BANGLA) monthNamesBn[m - 1] else monthNamesEn[m - 1])
-                                            },
-                                            onClick = {
-                                                targetMonth = m
-                                                showMonthDropdown = false
-                                            }
-                                        )
-                                    }
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) monthNamesBn[targetMonth - 1] else monthNamesEn[targetMonth - 1],
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
                                 }
                             }
-
-                            // Year Dropdown
-                            Box(modifier = Modifier.weight(1f)) {
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { showYearDropdown = true }
-                                        .padding(vertical = 10.dp, horizontal = 12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = targetYear.toString(),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarMonth,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                            DropdownMenu(
+                                expanded = showMonthDropdown,
+                                onDismissRequest = { showMonthDropdown = false }
+                            ) {
+                                for (m in 1..12) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (languageMode == LanguageMode.BANGLA) monthNamesBn[m - 1] else monthNamesEn[m - 1], fontSize = 13.sp)
+                                        },
+                                        onClick = {
+                                            targetMonth = m
+                                            showMonthDropdown = false
+                                        }
+                                    )
                                 }
-                                DropdownMenu(
-                                    expanded = showYearDropdown,
-                                    onDismissRequest = { showYearDropdown = false }
+                            }
+                        }
+
+                        // Year Dropdown
+                        Box(modifier = Modifier.weight(1f)) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showYearDropdown = true }
+                                    .padding(vertical = 8.dp, horizontal = 10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    for (y in currentYear..(currentYear + 5)) {
-                                        DropdownMenuItem(
-                                            text = { Text(y.toString()) },
-                                            onClick = {
-                                                targetYear = y
-                                                showYearDropdown = false
-                                            }
-                                        )
-                                    }
+                                    Text(
+                                        text = targetYear.toString(),
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = showYearDropdown,
+                                onDismissRequest = { showYearDropdown = false }
+                            ) {
+                                for (y in currentYear..(currentYear + 5)) {
+                                    DropdownMenuItem(
+                                        text = { Text(y.toString(), fontSize = 13.sp) },
+                                        onClick = {
+                                            targetYear = y
+                                            showYearDropdown = false
+                                        }
+                                    )
                                 }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Priority
                 Text(
                     text = LanguageHelper.getString("priority", languageMode),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     FilterChip(
                         selected = priority == WishlistPriority.HIGH,
                         onClick = { priority = WishlistPriority.HIGH },
-                        label = { Text("🔥 " + LanguageHelper.getString("priority_high", languageMode)) },
+                        label = { Text("🔥 " + LanguageHelper.getString("priority_high", languageMode), fontSize = 11.sp) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFFEF4444).copy(alpha = 0.2f),
+                            selectedContainerColor = Color(0xFFEF4444).copy(alpha = 0.18f),
                             selectedLabelColor = Color(0xFFDC2626)
-                        )
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(30.dp)
                     )
                     FilterChip(
                         selected = priority == WishlistPriority.MEDIUM,
                         onClick = { priority = WishlistPriority.MEDIUM },
-                        label = { Text("⭐ " + LanguageHelper.getString("priority_medium", languageMode)) }
+                        label = { Text("⭐ " + LanguageHelper.getString("priority_medium", languageMode), fontSize = 11.sp) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(30.dp)
                     )
                     FilterChip(
                         selected = priority == WishlistPriority.LOW,
                         onClick = { priority = WishlistPriority.LOW },
-                        label = { Text("💤 " + LanguageHelper.getString("priority_low", languageMode)) }
+                        label = { Text("💤 " + LanguageHelper.getString("priority_low", languageMode), fontSize = 11.sp) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(30.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Notes
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text(LanguageHelper.getString("notes", languageMode)) },
-                    placeholder = { Text("Why you need it, model number, specifications...") },
+                    label = { Text(LanguageHelper.getString("notes", languageMode), fontSize = 12.sp) },
+                    placeholder = { Text("Optional notes or specifications...", fontSize = 12.sp) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Notes,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    minLines = 2
+                    shape = RoundedCornerShape(10.dp),
+                    textStyle = TextStyle(fontSize = 13.sp),
+                    maxLines = 2
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Product URL
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    label = { Text(LanguageHelper.getString("product_link", languageMode)) },
-                    placeholder = { Text("https://...") },
+                    label = { Text(LanguageHelper.getString("product_link", languageMode), fontSize = 12.sp) },
+                    placeholder = { Text("https://...", fontSize = 12.sp) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Link,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    textStyle = TextStyle(fontSize = 13.sp)
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text(LanguageHelper.getString("cancel", languageMode))
+                        Text(LanguageHelper.getString("cancel", languageMode), fontSize = 13.sp)
                     }
 
                     Button(
@@ -703,9 +692,10 @@ fun AddEditWishlistDialog(
                             }
                         },
                         modifier = Modifier
-                            .weight(1.5f)
+                            .weight(1.4f)
+                            .height(40.dp)
                             .testTag("wishlist_save_button"),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         )
@@ -713,12 +703,13 @@ fun AddEditWishlistDialog(
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = LanguageHelper.getString("save", languageMode),
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
                         )
                     }
                 }

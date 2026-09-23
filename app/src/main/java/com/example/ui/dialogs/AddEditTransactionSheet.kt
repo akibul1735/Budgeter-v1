@@ -227,6 +227,10 @@ fun AddEditTransactionSheet(
     languageMode: LanguageMode,
     existingTransaction: Transaction? = null,
     defaultType: TransactionType = TransactionType.EXPENSE,
+    initialCategoryId: Long? = null,
+    initialSubCategoryId: Long? = null,
+    initialAmount: Double? = null,
+    initialNote: String? = null,
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
     onSaveSplit: ((splitGroupId: String, baseTx: Transaction, items: List<TransactionSplitItem>, existingTxs: List<Transaction>) -> Unit)? = null,
@@ -321,11 +325,11 @@ fun AddEditTransactionSheet(
     }
     var showSplitDialog by remember { mutableStateOf(false) }
 
-    val initialSplitTotal = remember(existingSplitSiblings, existingTransaction) {
+    val initialSplitTotal = remember(existingSplitSiblings, existingTransaction, initialAmount) {
         if (existingSplitSiblings.isNotEmpty()) {
             existingSplitSiblings.sumOf { it.transaction.amount }
         } else {
-            Math.abs(existingTransaction?.amount ?: 0.0)
+            Math.abs(existingTransaction?.amount ?: (initialAmount ?: 0.0))
         }
     }
 
@@ -375,7 +379,7 @@ fun AddEditTransactionSheet(
     }
 
     var note by remember {
-        mutableStateOf(existingTransaction?.note ?: "")
+        mutableStateOf(existingTransaction?.note ?: (initialNote ?: ""))
     }
 
     var labelTag by remember {
@@ -412,8 +416,8 @@ fun AddEditTransactionSheet(
     // Categories
     var selectedCategoryId by remember {
         mutableStateOf(
-            existingTransaction?.categoryId ?: (if (existingTransaction == null) {
-                if ((existingTransaction?.type ?: TransactionType.EXPENSE) == TransactionType.EXPENSE)
+            existingTransaction?.categoryId ?: initialCategoryId ?: (if (existingTransaction == null) {
+                if ((existingTransaction?.type ?: defaultType) == TransactionType.EXPENSE)
                     txConfig.defaultExpenseCategoryId
                 else
                     txConfig.defaultIncomeCategoryId
@@ -422,7 +426,7 @@ fun AddEditTransactionSheet(
     }
 
     var selectedSubCategoryId by remember {
-        mutableStateOf(existingTransaction?.subCategoryId)
+        mutableStateOf(existingTransaction?.subCategoryId ?: initialSubCategoryId)
     }
 
     // Transfer Fee State

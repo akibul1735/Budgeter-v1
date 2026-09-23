@@ -828,14 +828,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun addWishlistToMonthBudget(item: WishlistItem, year: Int, month: Int) {
+    fun addWishlistToMonthBudget(item: WishlistItem, year: Int, month: Int, amount: Double = item.estimatedAmount) {
         viewModelScope.launch {
-            val targetCategory = item.categoryId
+            val targetCategory = item.subCategoryId ?: item.categoryId
             if (targetCategory != null && targetCategory > 0L) {
                 val existingBudgets = activeRepo.getMonthlyBudgets(year, month).firstOrNull() ?: emptyList()
                 val currentCategoryBudget = existingBudgets.firstOrNull { it.itemType == "CATEGORY" && it.itemId == targetCategory }
                 val currentBudgetedAmount = currentCategoryBudget?.budgetedAmount ?: 0.0
-                val newAmount = currentBudgetedAmount + item.estimatedAmount
+                val addAmt = if (amount > 0.0) amount else item.estimatedAmount
+                val newAmount = currentBudgetedAmount + addAmt
                 
                 activeRepo.saveMonthlyBudget(
                     MonthlyBudget(
@@ -853,13 +854,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun convertWishlistToSavingsGoal(item: WishlistItem, targetDateMs: Long) {
+    fun convertWishlistToSavingsGoal(
+        item: WishlistItem,
+        targetDateMs: Long,
+        goalName: String = item.title,
+        targetAmount: Double = item.estimatedAmount,
+        notes: String = item.notes
+    ) {
         viewModelScope.launch {
             val goal = SavingsGoal(
-                name = item.title,
-                targetAmount = item.estimatedAmount,
+                name = goalName.ifBlank { item.title },
+                targetAmount = if (targetAmount > 0.0) targetAmount else item.estimatedAmount,
                 targetDate = targetDateMs,
-                notes = if (item.notes.isNotBlank()) "Wishlist item: ${item.notes}" else "Converted from Wishlist",
+                notes = if (notes.isNotBlank()) notes else if (item.notes.isNotBlank()) "Wishlist item: ${item.notes}" else "Converted from Wishlist",
                 colorHex = "#10B981",
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()

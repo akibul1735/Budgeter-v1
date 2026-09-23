@@ -310,6 +310,30 @@ fun MainAppContainer(
     var showAddTransactionSheet by remember { mutableStateOf(false) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var presetTxType by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var presetCategoryId by remember { mutableStateOf<Long?>(null) }
+    var presetSubCategoryId by remember { mutableStateOf<Long?>(null) }
+    var presetAmount by remember { mutableStateOf<Double?>(null) }
+    var presetNote by remember { mutableStateOf<String?>(null) }
+    var pendingPurchaseWishlistId by remember { mutableStateOf<Long?>(null) }
+
+    fun openTransactionSheet(
+        tx: Transaction? = null,
+        type: TransactionType = TransactionType.EXPENSE,
+        categoryId: Long? = null,
+        subCategoryId: Long? = null,
+        amount: Double? = null,
+        note: String? = null,
+        pendingWishlistId: Long? = null
+    ) {
+        editingTransaction = tx
+        presetTxType = type
+        presetCategoryId = categoryId
+        presetSubCategoryId = subCategoryId
+        presetAmount = amount
+        presetNote = note
+        pendingPurchaseWishlistId = pendingWishlistId
+        showAddTransactionSheet = true
+    }
 
     var showAddAccountDialog by remember { mutableStateOf(false) }
     var editingAccount by remember { mutableStateOf<Account?>(null) }
@@ -626,6 +650,16 @@ fun MainAppContainer(
                                             presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                             showAddTransactionSheet = true
                                         },
+                                        onAddTransactionPrefilled = { type, catId, subCatId, amt, note, wishId ->
+                                            openTransactionSheet(
+                                                type = type,
+                                                categoryId = catId,
+                                                subCategoryId = subCatId,
+                                                amount = amt,
+                                                note = note,
+                                                pendingWishlistId = wishId
+                                            )
+                                        },
                                         onExecuteTransfer = { fromAcc, toAcc, amt ->
                                             presetTxType = TransactionType.TRANSFER
                                             editingTransaction = Transaction(
@@ -754,6 +788,16 @@ fun MainAppContainer(
                                         editingTransaction = null
                                         presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                         showAddTransactionSheet = true
+                                    },
+                                    onAddTransactionPrefilled = { type, catId, subCatId, amt, note, wishId ->
+                                        openTransactionSheet(
+                                            type = type,
+                                            categoryId = catId,
+                                            subCategoryId = subCatId,
+                                            amount = amt,
+                                            note = note,
+                                            pendingWishlistId = wishId
+                                        )
                                     },
                                     onExecuteTransfer = { fromAcc, toAcc, amt ->
                                         presetTxType = TransactionType.TRANSFER
@@ -966,6 +1010,16 @@ fun MainAppContainer(
                                     presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                     showAddTransactionSheet = true
                                 },
+                                onAddTransactionPrefilled = { type, catId, subCatId, amt, note, wishId ->
+                                    openTransactionSheet(
+                                        type = type,
+                                        categoryId = catId,
+                                        subCategoryId = subCatId,
+                                        amount = amt,
+                                        note = note,
+                                        pendingWishlistId = wishId
+                                    )
+                                },
                                 onExecuteRepayTransfer = { acc, label, defaultAmt ->
                                     presetTxType = TransactionType.TRANSFER
                                     val nameTitle = when {
@@ -1108,6 +1162,16 @@ fun MainAppContainer(
                                     presetTxType = if (acc.type == AccountType.LIABILITY) TransactionType.EXPENSE else TransactionType.INCOME
                                     showAddTransactionSheet = true
                                 },
+                                onAddTransactionPrefilled = { type, catId, subCatId, amt, note, wishId ->
+                                    openTransactionSheet(
+                                        type = type,
+                                        categoryId = catId,
+                                        subCategoryId = subCatId,
+                                        amount = amt,
+                                        note = note,
+                                        pendingWishlistId = wishId
+                                    )
+                                },
                                 onExecuteTransfer = { fromAcc, toAcc, amt ->
                                     presetTxType = TransactionType.TRANSFER
                                     editingTransaction = Transaction(
@@ -1226,10 +1290,40 @@ fun MainAppContainer(
             languageMode = languageMode,
             existingTransaction = editingTransaction,
             defaultType = presetTxType,
-            onDismiss = { showAddTransactionSheet = false },
-            onSave = { tx -> viewModel.saveTransaction(tx) },
+            initialCategoryId = presetCategoryId,
+            initialSubCategoryId = presetSubCategoryId,
+            initialAmount = presetAmount,
+            initialNote = presetNote,
+            onDismiss = {
+                showAddTransactionSheet = false
+                editingTransaction = null
+                presetCategoryId = null
+                presetSubCategoryId = null
+                presetAmount = null
+                presetNote = null
+                pendingPurchaseWishlistId = null
+            },
+            onSave = { tx ->
+                viewModel.saveTransaction(tx)
+                pendingPurchaseWishlistId?.let { wishId ->
+                    viewModel.toggleWishlistPurchased(wishId, true)
+                    pendingPurchaseWishlistId = null
+                }
+                presetCategoryId = null
+                presetSubCategoryId = null
+                presetAmount = null
+                presetNote = null
+            },
             onSaveSplit = { splitGroupId, baseTx, items, existingTxs ->
                 viewModel.saveSplitTransaction(splitGroupId, baseTx, items, existingTxs)
+                pendingPurchaseWishlistId?.let { wishId ->
+                    viewModel.toggleWishlistPurchased(wishId, true)
+                    pendingPurchaseWishlistId = null
+                }
+                presetCategoryId = null
+                presetSubCategoryId = null
+                presetAmount = null
+                presetNote = null
             },
             onDelete = { tx -> viewModel.deleteTransaction(tx) },
             onAddNewCategory = { cat -> viewModel.saveCategory(cat) },
@@ -2235,6 +2329,7 @@ private fun ScreenRouter(
     onAddTransactionWithType: (TransactionType) -> Unit,
     onAddTransactionWithCategory: (Category) -> Unit,
     onAddTransactionWithAccount: (Account) -> Unit,
+    onAddTransactionPrefilled: (type: TransactionType, categoryId: Long?, subCategoryId: Long?, amount: Double?, note: String?, pendingWishlistId: Long?) -> Unit = { _, _, _, _, _, _ -> },
     onExecuteTransfer: (Account, Account, Double) -> Unit = { _, _, _ -> },
     onAddTransactionWithAccountAndType: (Account, TransactionType) -> Unit = { _, _ -> },
     onExecuteRepayTransfer: (Account?, String?, Double) -> Unit = { _, _, _ -> },
@@ -2469,16 +2564,19 @@ private fun ScreenRouter(
                 onSaveWishlistItem = { item -> viewModel.saveWishlistItem(item) },
                 onDeleteWishlistItem = { id -> viewModel.deleteWishlistItem(id) },
                 onTogglePurchased = { id, isPurchased -> viewModel.toggleWishlistPurchased(id, isPurchased) },
-                onAddToBudget = { item, year, month -> viewModel.addWishlistToMonthBudget(item, year, month) },
-                onConvertToGoal = { item, targetDate -> viewModel.convertWishlistToSavingsGoal(item, targetDate) },
+                onAddToBudget = { item, year, month, amt -> viewModel.addWishlistToMonthBudget(item, year, month, amt) },
+                onConvertToGoal = { item, goalName, targetAmt, deadline, notes ->
+                    viewModel.convertWishlistToSavingsGoal(item, deadline, goalName, targetAmt, notes)
+                },
                 onRecordPurchase = { item ->
-                    val cat = allCategories.firstOrNull { it.id == item.categoryId }
-                    if (cat != null) {
-                        onAddTransactionWithCategory(cat)
-                    } else {
-                        onAddTransactionWithType(com.example.data.model.TransactionType.EXPENSE)
-                    }
-                    viewModel.toggleWishlistPurchased(item.id, true)
+                    onAddTransactionPrefilled(
+                        TransactionType.EXPENSE,
+                        item.categoryId,
+                        item.subCategoryId,
+                        if (item.estimatedAmount > 0.0) item.estimatedAmount else null,
+                        item.title,
+                        item.id
+                    )
                 },
                 onOpenDrawer = onOpenDrawer
             )
