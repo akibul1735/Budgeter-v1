@@ -221,7 +221,7 @@ fun PhotoCropEditorModal(
                     IconHelper.decodeBitmapFromUri(context, Uri.parse(imageUrl), 1200)
                 }
                 imageUrl != null -> OnlineIconSearchService.downloadBitmap(context, imageUrl, 1200)
-                initialIconKey != null -> IconHelper.decodeBitmapFromCustomKey(context, initialIconKey)
+                initialIconKey != null -> IconHelper.decodeBitmapFromAnyIcon(context, initialIconKey) ?: IconHelper.decodeBitmapFromCustomKey(context, initialIconKey)
                 else -> null
             }
             withContext(Dispatchers.Main) {

@@ -120,6 +120,7 @@ import java.util.Locale
 
 enum class ItemsIconTab(val titleEn: String, val titleBn: String, val icon: ImageVector) {
     ITEMS("Items", "আইটেম তালিকা", Icons.Default.Category),
+    CUSTOM("My Icons", "আমার আইকন", Icons.Default.PhotoLibrary),
     ICONS("Icons", "অনলাইন আইকন", Icons.Default.Public),
     IMAGES("Images", "ছবি ও স্টুডিও", Icons.Default.AddPhotoAlternate)
 }
@@ -193,11 +194,14 @@ fun IconImageCacheSettingsPage(
 
     // Crop editor states
     var cropEditorImageUrl by remember { mutableStateOf<String?>(null) }
+    var cropEditorIconKey by remember { mutableStateOf<String?>(null) }
     var cropEditorInitialName by remember { mutableStateOf<String?>("Custom Image") }
     var showCropEditor by remember { mutableStateOf(false) }
 
-    // Custom icons list
+    // Custom icons list & management states
     var customIconsList by remember { mutableStateOf<List<File>>(emptyList()) }
+    var customIconsSearchQuery by remember { mutableStateOf("") }
+    var iconToDelete by remember { mutableStateOf<String?>(null) }
 
     fun refreshCustomIconsAndStats() {
         customIconsList = IconHelper.getCustomIcons(context)
@@ -420,6 +424,21 @@ fun IconImageCacheSettingsPage(
         result
     }
 
+    val activeCustomIconKeys = remember(cachedItems, categories) {
+        val catIcons = categories.map { it.iconName }
+        val itemIcons = cachedItems.map { it.iconKey }
+        (catIcons + itemIcons).filter { IconHelper.isCustomIcon(it) }.toSet()
+    }
+
+    val filteredCustomIcons = remember(customIconsList, customIconsSearchQuery) {
+        if (customIconsSearchQuery.isBlank()) {
+            customIconsList
+        } else {
+            val q = customIconsSearchQuery.trim().lowercase(Locale.ROOT)
+            customIconsList.filter { it.name.lowercase(Locale.ROOT).contains(q) }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -638,6 +657,12 @@ fun IconImageCacheSettingsPage(
                         entry = entry,
                         isBangla = isBangla,
                         onEditIconClick = { itemToEditIcon = entry },
+                        onCropAndAdjustClick = {
+                            cropEditorIconKey = entry.assignedIcon
+                            cropEditorImageUrl = null
+                            cropEditorInitialName = entry.displayName
+                            showCropEditor = true
+                        },
                         onAutoDiscover = {
                             viewModel.autoDiscoverAndCacheItemIcon(entry.displayName)
                             Toast.makeText(
@@ -654,6 +679,339 @@ fun IconImageCacheSettingsPage(
                 }
             }
         }
+            }
+
+            ItemsIconTab.CUSTOM -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Header card
+                    item {
+                        OutlinedCard(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.PhotoLibrary,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(14.dp))
+                                Column {
+                                    Text(
+                                        text = if (isBangla) "আমার কাস্টম আইকন স্টুডিও" else "My Custom Icons Studio",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = if (isBangla) "আপনার বিদ্যমান আইকনগুলো সরাসরি ক্রপ, ফিল্টার, এডিট বা পরিবর্তন করুন"
+                                        else "View, crop, rotate, filter, edit or manage your existing custom icons",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Action buttons: Gallery & File Manager + Clean
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { openOnlineGallery() },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isBangla) "গ্যালারি থেকে" else "From Gallery", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+
+                            OutlinedButton(
+                                onClick = { openOnlineDirectFileManager() },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isBangla) "ফাইল ম্যানেজার" else "File Manager", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+
+                    // Search field
+                    item {
+                        OutlinedTextField(
+                            value = customIconsSearchQuery,
+                            onValueChange = { customIconsSearchQuery = it },
+                            placeholder = {
+                                Text(
+                                    if (isBangla) "কাস্টম আইকন খুঁজুন..." else "Search custom icons...",
+                                    fontSize = 13.5.sp
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                            },
+                            trailingIcon = {
+                                if (customIconsSearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { customIconsSearchQuery = "" }) {
+                                        Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // Custom icons count and clean stats
+                    item {
+                        val totalKb = (iconCacheStats.totalBytes / 1024).coerceAtLeast(if (iconCacheStats.totalCount > 0) 1 else 0)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isBangla) "মোট সংরক্ষিত আইকন: ${filteredCustomIcons.size} টি (~$totalKb KB)"
+                                else "Saved Custom Icons: ${filteredCustomIcons.size} (~$totalKb KB)",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            if (iconCacheStats.unusedCount > 0) {
+                                TextButton(
+                                    onClick = { showCleanUnusedConfirmDialog = true },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteSweep,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isBangla) "অব্যবহৃত মুছুন (${iconCacheStats.unusedCount})"
+                                        else "Clean Unused (${iconCacheStats.unusedCount})",
+                                        fontSize = 11.5.sp,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Custom Icons List
+                    if (filteredCustomIcons.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.size(56.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.PhotoLibrary,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = if (customIconsSearchQuery.isNotBlank()) {
+                                            if (isBangla) "কোনো কাস্টম আইকন পাওয়া যায়নি" else "No matching custom icons found"
+                                        } else {
+                                            if (isBangla) "এখনো কোনো কাস্টম আইকন সংরক্ষিত নেই" else "No custom icons saved yet"
+                                        },
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.5.sp
+                                    )
+                                    Text(
+                                        text = if (isBangla) "গ্যালারি, ফাইল ম্যানেজার বা অনলাইন সার্চ থেকে ছবি নিয়ে ক্রপ ও কাস্টমাইজ করে এখানে সেভ করতে পারেন।"
+                                        else "Pick images from Gallery, File Manager, or Online Search, crop and customize them into custom icons.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Button(onClick = { openOnlineGallery() }) {
+                                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(if (isBangla) "গ্যালারি থেকে আইকন তৈরি করুন" else "Create from Gallery")
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        items(filteredCustomIcons, key = { it.name }) { file ->
+                            val iconKey = file.nameWithoutExtension
+                            val isActive = activeCustomIconKeys.contains(iconKey) || activeCustomIconKeys.contains(file.name)
+                            val sizeKb = (file.length() / 1024).coerceAtLeast(1)
+                            val dateFormat = remember { SimpleDateFormat("dd MMM, yyyy", Locale.getDefault()) }
+                            val dateStr = remember(file) { dateFormat.format(Date(file.lastModified())) }
+
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // Custom Icon Preview Image
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                cropEditorIconKey = iconKey
+                                                cropEditorImageUrl = null
+                                                cropEditorInitialName = iconKey
+                                                showCropEditor = true
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AsyncImage(
+                                            model = file,
+                                            contentDescription = "Custom Icon",
+                                            modifier = Modifier.size(40.dp),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
+
+                                    // Details
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = file.name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                            ) {
+                                                Text(
+                                                    text = if (isActive) (if (isBangla) "সক্রিয় ব্যবহৃত" else "In Use")
+                                                    else (if (isBangla) "অব্যবহৃত" else "Unused"),
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.outline,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+
+                                            Text(
+                                                text = "$sizeKb KB • $dateStr",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+
+                                    // Action Buttons: Edit / Crop and Delete
+                                    FilledTonalButton(
+                                        onClick = {
+                                            cropEditorIconKey = iconKey
+                                            cropEditorImageUrl = null
+                                            cropEditorInitialName = iconKey
+                                            showCropEditor = true
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Crop,
+                                            contentDescription = "Edit / Crop",
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (isBangla) "এডিট" else "Edit",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { iconToDelete = iconKey },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             ItemsIconTab.ICONS -> {
@@ -1657,25 +2015,71 @@ fun IconImageCacheSettingsPage(
     }
 
     // Modal: Image / Icon Crop & Edit Studio
-    if (showCropEditor && cropEditorImageUrl != null) {
+    if (showCropEditor && (cropEditorImageUrl != null || cropEditorIconKey != null)) {
         IconCropEditorModal(
             imageUrl = cropEditorImageUrl,
-            initialIconKey = cropEditorInitialName,
+            initialIconKey = cropEditorIconKey ?: cropEditorInitialName,
             onDismiss = {
                 showCropEditor = false
                 cropEditorImageUrl = null
                 cropEditorInitialName = null
+                cropEditorIconKey = null
             },
-            onCroppedIconSaved = { savedKey ->
+            onCroppedIconSaved = { savedKey: String ->
                 showCropEditor = false
                 cropEditorImageUrl = null
                 cropEditorInitialName = null
+                cropEditorIconKey = null
                 refreshCustomIconsAndStats()
                 Toast.makeText(
                     context,
-                    if (isBangla) "আইকন সফলভাবে সংরক্ষিত হয়েছে!" else "Saved icon to custom icons!",
+                    if (isBangla) "আইকন সফলভাবে সংরক্ষিত ও আপডেট হয়েছে!" else "Saved icon to custom icons!",
                     Toast.LENGTH_SHORT
                 ).show()
+            }
+        )
+    }
+
+    // Dialog: Delete Single Custom Icon
+    iconToDelete?.let { targetKey ->
+        AlertDialog(
+            onDismissRequest = { iconToDelete = null },
+            title = {
+                Text(
+                    text = if (isBangla) "কাস্টম আইকন মুছবেন?" else "Delete Custom Icon?",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = if (isBangla) "এই কাস্টম আইকনটি স্টোরেজ থেকে চিরতরে মুছে ফেলা হবে।"
+                    else "Are you sure you want to permanently delete this custom icon from storage?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val file = IconHelper.getCustomIconFile(context, targetKey)
+                        if (file.exists()) {
+                            file.delete()
+                        }
+                        iconToDelete = null
+                        refreshCustomIconsAndStats()
+                        Toast.makeText(
+                            context,
+                            if (isBangla) "আইকন মুছে ফেলা হয়েছে" else "Icon deleted",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(if (isBangla) "মুছুন" else "Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { iconToDelete = null }) {
+                    Text(if (isBangla) "বাতিল" else "Cancel")
+                }
             }
         )
     }
@@ -1802,6 +2206,7 @@ private fun UniqueItemIconCard(
     entry: UniqueItemIconEntry,
     isBangla: Boolean,
     onEditIconClick: () -> Unit,
+    onCropAndAdjustClick: () -> Unit,
     onAutoDiscover: () -> Unit,
     onResetClick: () -> Unit
 ) {
@@ -1975,6 +2380,14 @@ private fun UniqueItemIconCard(
                         onClick = {
                             menuExpanded = false
                             onEditIconClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (isBangla) "আইকন এডিট ও ক্রপ করুন" else "Edit / Crop Icon Studio") },
+                        leadingIcon = { Icon(Icons.Default.Crop, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        onClick = {
+                            menuExpanded = false
+                            onCropAndAdjustClick()
                         }
                     )
                     DropdownMenuItem(

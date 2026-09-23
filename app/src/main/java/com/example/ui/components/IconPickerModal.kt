@@ -293,23 +293,40 @@ fun IconPickerModal(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val canEditCurrentIcon = selectedIconName.isNotBlank() && (
+                            IconHelper.isCustomIcon(selectedIconName) || 
+                            IconHelper.isDrawableIcon(selectedIconName)
+                        )
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(40.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(SolidPrimary.copy(alpha = 0.12f)),
+                                .background(SolidPrimary.copy(alpha = 0.12f))
+                                .border(
+                                    1.dp,
+                                    if (canEditCurrentIcon) SolidPrimary.copy(alpha = 0.35f) else Color.Transparent,
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable(enabled = canEditCurrentIcon) {
+                                    cropEditorIconKey = selectedIconName
+                                    cropEditorUri = null
+                                    cropEditorImageUrl = null
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             IconHelper.AppIcon(
                                 iconName = selectedIconName,
                                 contentDescription = null,
-                                modifier = Modifier.size(22.dp),
+                                modifier = Modifier.size(24.dp),
                                 tint = SolidPrimary
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Choose Icon",
                                 style = MaterialTheme.typography.titleMedium,
@@ -318,8 +335,37 @@ fun IconPickerModal(
                             Text(
                                 text = if (IconHelper.isCustomIcon(selectedIconName)) "Custom Icon" else selectedIconName,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                        }
+                        if (canEditCurrentIcon) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    cropEditorIconKey = selectedIconName
+                                    cropEditorUri = null
+                                    cropEditorImageUrl = null
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Crop,
+                                    contentDescription = "Edit Icon",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = SolidPrimary
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Edit Icon",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = SolidPrimary
+                                )
+                            }
                         }
                     }
                     IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
@@ -1153,7 +1199,7 @@ fun IconPickerModal(
 
                                     Box(
                                         modifier = Modifier
-                                            .size(54.dp)
+                                            .size(58.dp)
                                             .clip(RoundedCornerShape(12.dp))
                                             .background(
                                                 if (isSelected) SolidPrimary.copy(alpha = 0.18f)
@@ -1174,7 +1220,7 @@ fun IconPickerModal(
                                             AsyncImage(
                                                 model = file,
                                                 contentDescription = "Custom Icon",
-                                                modifier = Modifier.size(36.dp),
+                                                modifier = Modifier.size(38.dp),
                                                 contentScale = ContentScale.Fit
                                             )
                                         } else {
@@ -1182,7 +1228,7 @@ fun IconPickerModal(
                                                 imageVector = Icons.Default.AddPhotoAlternate,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(22.dp)
+                                                modifier = Modifier.size(24.dp)
                                             )
                                         }
 
@@ -1191,43 +1237,50 @@ fun IconPickerModal(
                                             Row(
                                                 modifier = Modifier
                                                     .align(Alignment.TopEnd)
-                                                    .padding(1.dp)
+                                                    .padding(2.dp)
                                             ) {
-                                                Box(
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                                    tonalElevation = 3.dp,
+                                                    shadowElevation = 1.dp,
                                                     modifier = Modifier
-                                                        .size(16.dp)
-                                                        .clip(CircleShape)
-                                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                                                        .size(20.dp)
                                                         .clickable {
                                                             cropEditorIconKey = customIconKey
                                                             cropEditorUri = null
-                                                        },
-                                                    contentAlignment = Alignment.Center
+                                                            cropEditorImageUrl = null
+                                                        }
                                                 ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Crop,
-                                                        contentDescription = "Crop",
-                                                        modifier = Modifier.size(10.dp),
-                                                        tint = SolidPrimary
-                                                    )
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Crop,
+                                                            contentDescription = "Edit / Crop Icon",
+                                                            modifier = Modifier.size(12.dp),
+                                                            tint = SolidPrimary
+                                                        )
+                                                    }
                                                 }
-                                                Spacer(modifier = Modifier.width(2.dp))
-                                                Box(
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                                    tonalElevation = 3.dp,
+                                                    shadowElevation = 1.dp,
                                                     modifier = Modifier
-                                                        .size(16.dp)
-                                                        .clip(CircleShape)
-                                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                                                        .size(20.dp)
                                                         .clickable {
                                                             iconToDelete = customIconKey
-                                                        },
-                                                    contentAlignment = Alignment.Center
+                                                        }
                                                 ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Close,
-                                                        contentDescription = "Delete",
-                                                        modifier = Modifier.size(10.dp),
-                                                        tint = MaterialTheme.colorScheme.error
-                                                    )
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Close,
+                                                            contentDescription = "Delete",
+                                                            modifier = Modifier.size(12.dp),
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -1288,7 +1341,7 @@ fun IconPickerModal(
             imageUri = cropEditorUri,
             imageUrl = cropEditorImageUrl,
             initialIconKey = cropEditorIconKey,
-            onCroppedIconSaved = { savedKey ->
+            onCroppedIconSaved = { savedKey: String ->
                 if (!customIcons.contains(savedKey)) {
                     customIcons.add(0, savedKey)
                 }

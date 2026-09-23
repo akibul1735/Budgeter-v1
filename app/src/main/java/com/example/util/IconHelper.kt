@@ -1616,6 +1616,33 @@ object IconHelper {
     }
 
     /**
+     * Decodes a Bitmap from any icon representation: custom key, drawable res name, or vector.
+     */
+    fun decodeBitmapFromAnyIcon(context: Context, iconKey: String?, targetSize: Int = 512): Bitmap? {
+        if (iconKey.isNullOrBlank()) return null
+        return try {
+            if (isCustomIcon(iconKey)) {
+                decodeBitmapFromCustomKey(context, iconKey)
+            } else {
+                val drawableRes = getDrawableResId(iconKey)
+                if (drawableRes != null) {
+                    val drawable = androidx.core.content.ContextCompat.getDrawable(context, drawableRes) ?: return null
+                    val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    drawable.setBounds(0, 0, canvas.width, canvas.height)
+                    drawable.draw(canvas)
+                    bitmap
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
      * Renders a transformed (scaled, rotated, translated, flipped, and masked) Bitmap.
      * [panXRatio] and [panYRatio] are normalized pan offsets relative to the crop viewport diameter.
      */
