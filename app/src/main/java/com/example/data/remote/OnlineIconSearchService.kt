@@ -1238,6 +1238,72 @@ object OnlineIconSearchService {
     }
 
     /**
+     * Searches real web image results via Bing Web Index (the exact underlying search index behind DuckDuckGo image search).
+     * Retrieves actual commercial product packaging, badges, buttons, brand photos, and item pictures with no API key needed.
+     */
+    private suspend fun fetchBingImages(term: String, page: Int, limit: Int = 20): List<OnlineImageResult> = withContext(Dispatchers.IO) {
+        try {
+            val encoded = URLEncoder.encode(term, "UTF-8")
+            val first = ((page - 1) * limit) + 1
+            val url = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                .header("Accept", "*/*")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Referer", "https://www.bing.com/")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext emptyList()
+                val body = response.body?.string().orEmpty()
+                if (body.isBlank()) return@withContext emptyList()
+
+                val results = mutableListOf<OnlineImageResult>()
+                val regex = Regex("""m=\"(\{.*?\})\"""")
+                val matches = regex.findAll(body)
+                for (match in matches) {
+                    if (results.size >= limit) break
+                    val rawJson = match.groupValues[1]
+                        .replace("&quot;", "\"")
+                        .replace("&amp;", "&")
+                        .replace("&lt;", "<")
+                        .replace("&gt;", ">")
+                    try {
+                        val obj = JSONObject(rawJson)
+                        val murl = obj.optString("murl")
+                        val turl = obj.optString("turl").ifBlank { murl }
+                        val title = obj.optString("t").ifBlank { obj.optString("desc", term) }
+                        val purl = obj.optString("purl")
+                        val host = try {
+                            val rawHost = java.net.URI(purl).host?.removePrefix("www.")
+                            if (!rawHost.isNullOrBlank()) rawHost.take(14) else "Web"
+                        } catch (_: Exception) {
+                            "Web"
+                        }
+
+                        if (murl.isNotBlank() && (murl.startsWith("http://") || murl.startsWith("https://"))) {
+                            results.add(
+                                OnlineImageResult(
+                                    title = title,
+                                    imageUrl = murl,
+                                    thumbUrl = turl,
+                                    sourceName = host,
+                                    width = 0,
+                                    height = 0
+                                )
+                            )
+                        }
+                    } catch (_: Exception) {}
+                }
+                results
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
      * Searches real web image results via DuckDuckGo (powered by Bing Web Index).
      * Retrieves actual commercial product packaging, brand photos, and item pictures with no API key needed.
      */
@@ -1302,19 +1368,33 @@ object OnlineIconSearchService {
      * Fetches images for a single search term across all media engines concurrently.
      */
     private suspend fun fetchImagesForTerm(term: String, page: Int, limit: Int = 16): List<OnlineImageResult> = coroutineScope {
+        val bingJob = async { fetchBingImages(term, page, limit) }
         val ddgJob = async { fetchDuckDuckGoImages(term, page, limit) }
         val wikiJob = async { fetchWikimediaImages(term, page, limit) }
         val openverseJob = async { fetchOpenverseImages(term, page, limit) }
         val unsplashJob = async { fetchUnsplashImages(term, page, limit) }
         val wikiPageJob = async { fetchWikipediaImages(term, page, limit = 8) }
 
-        val (ddg, wiki, openverse, unsplash, wikiPage) = awaitAll(ddgJob, wikiJob, openverseJob, unsplashJob, wikiPageJob)
+        val bing = bingJob.await()
+        val ddg = ddgJob.await()
+        val wiki = wikiJob.await()
+        val openverse = openverseJob.await()
+        val unsplash = unsplashJob.await()
+        val wikiPage = wikiPageJob.await()
         val combined = mutableListOf<OnlineImageResult>()
         val seen = mutableSetOf<String>()
 
-        val maxLen = maxOf(ddg.size, wiki.size, openverse.size, unsplash.size, wikiPage.size)
+        // 1. First add web search engine results (Bing / DDG index)
+        for (item in bing) {
+            if (seen.add(item.imageUrl)) combined.add(item)
+        }
+        for (item in ddg) {
+            if (seen.add(item.imageUrl)) combined.add(item)
+        }
+
+        // 2. Interleave encyclopedia, wiki, and archive sources for variety
+        val maxLen = maxOf(wiki.size, openverse.size, unsplash.size, wikiPage.size)
         for (i in 0 until maxLen) {
-            if (i < ddg.size && seen.add(ddg[i].imageUrl)) combined.add(ddg[i])
             if (i < wiki.size && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
             if (i < unsplash.size && seen.add(unsplash[i].imageUrl)) combined.add(unsplash[i])
             if (i < wikiPage.size && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
