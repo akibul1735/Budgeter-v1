@@ -3,6 +3,7 @@ package com.example.data.repository
 import com.example.data.local.AccountDao
 import com.example.data.local.BudgetAdjustmentDao
 import com.example.data.local.CategoryDao
+import com.example.data.local.ItemImageCacheDao
 import com.example.data.local.MonthlyBudgetDao
 import com.example.data.local.RecurringBillDao
 import com.example.data.local.SavingsGoalDao
@@ -16,6 +17,7 @@ import com.example.data.model.Category
 import com.example.data.model.CategoryType
 import com.example.data.model.GoalAllocation
 import com.example.data.model.GoalAllocationWithAccount
+import com.example.data.model.ItemImageCache
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.RecurringBillWithDetails
@@ -78,7 +80,8 @@ class BudgetRepository(
     val monthlyBudgetDao: MonthlyBudgetDao,
     val budgetAdjustmentDao: BudgetAdjustmentDao,
     val savingsGoalDao: SavingsGoalDao,
-    val wishlistDao: WishlistDao
+    val wishlistDao: WishlistDao,
+    val itemImageCacheDao: ItemImageCacheDao
 ) {
     val allAccounts: Flow<List<Account>> = accountDao.getAllAccounts()
     val allCategories: Flow<List<Category>> = categoryDao.getAllCategories()
@@ -89,6 +92,7 @@ class BudgetRepository(
     val allGoalAllocations: Flow<List<GoalAllocation>> = savingsGoalDao.getAllAllocations()
     val allWishlistItems: Flow<List<WishlistItem>> = wishlistDao.getAllWishlistItems()
     val activeWishlistItems: Flow<List<WishlistItem>> = wishlistDao.getActiveWishlistItems()
+    val allItemImageCaches: Flow<List<ItemImageCache>> = itemImageCacheDao.getAllCachedItemsFlow()
 
     val wishlistWithDetails: Flow<List<WishlistItemWithCategory>> = combine(
         wishlistDao.getAllWishlistItems(),
@@ -1165,12 +1169,37 @@ class BudgetRepository(
         categoryDao.deleteAll()
     }
 
+    suspend fun saveItemImageCache(item: ItemImageCache): Long {
+        return itemImageCacheDao.insertOrUpdate(item)
+    }
+
+    suspend fun deleteItemImageCache(item: ItemImageCache) {
+        itemImageCacheDao.delete(item)
+    }
+
+    suspend fun deleteItemImageCacheById(id: Long) {
+        itemImageCacheDao.deleteById(id)
+    }
+
+    suspend fun deleteItemImageCacheByNormalizedName(normalizedName: String) {
+        itemImageCacheDao.deleteByNormalizedName(normalizedName)
+    }
+
+    suspend fun clearAllItemImageCache() {
+        itemImageCacheDao.deleteAll()
+    }
+
+    suspend fun getItemImageCacheByNormalizedName(normalizedName: String): ItemImageCache? {
+        return itemImageCacheDao.getByNormalizedName(normalizedName)
+    }
+
     suspend fun getAllActiveIconNames(): Set<String> {
         return try {
             val categoryIcons = categoryDao.getAllCategoriesSnapshot().map { it.iconName }
             val accountIcons = accountDao.getAllAccountsSnapshot().map { it.iconName }
             val goalIcons = savingsGoalDao.getAllGoals().firstOrNull()?.map { it.iconName } ?: emptyList()
-            (categoryIcons + accountIcons + goalIcons).filter { it.isNotBlank() }.toSet()
+            val cachedItemIcons = itemImageCacheDao.getAllCachedItemsSnapshot().map { it.iconKey }
+            (categoryIcons + accountIcons + goalIcons + cachedItemIcons).filter { it.isNotBlank() }.toSet()
         } catch (_: Exception) {
             emptySet()
         }
@@ -1187,6 +1216,7 @@ class BudgetRepository(
     }
 
     suspend fun resetEverything() {
+        itemImageCacheDao.deleteAll()
         wishlistDao.deleteAllWishlistItems()
         transactionDao.deleteAll()
         recurringBillDao.deleteAll()

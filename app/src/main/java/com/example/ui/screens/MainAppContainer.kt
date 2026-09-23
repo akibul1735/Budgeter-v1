@@ -267,6 +267,7 @@ fun MainAppContainer(
     val detectedBackups by viewModel.detectedBackups.collectAsStateWithLifecycle()
     val showRestoreBanner by viewModel.showRestoreBanner.collectAsStateWithLifecycle()
     val firstLaunchCheckDialogVisible by viewModel.firstLaunchCheckDialogVisible.collectAsStateWithLifecycle()
+    val itemImageCacheMap by viewModel.itemImageCacheMap.collectAsStateWithLifecycle()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -759,6 +760,7 @@ fun MainAppContainer(
                                     allAccounts = allAccounts,
                                     allCategories = allCategories,
                                     transactionsWithDetails = transactionsWithDetails,
+                                    itemImageCacheMap = itemImageCacheMap,
                                     recurringBills = recurringBills,
                                     languageMode = languageMode,
                                     backupUiState = backupUiState,
@@ -980,6 +982,7 @@ fun MainAppContainer(
                                 allAccounts = allAccounts,
                                 allCategories = allCategories,
                                 transactionsWithDetails = transactionsWithDetails,
+                                itemImageCacheMap = itemImageCacheMap,
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
@@ -1132,6 +1135,7 @@ fun MainAppContainer(
                                 allAccounts = allAccounts,
                                 allCategories = allCategories,
                                 transactionsWithDetails = transactionsWithDetails,
+                                itemImageCacheMap = itemImageCacheMap,
                                 recurringBills = recurringBills,
                                 languageMode = languageMode,
                                 backupUiState = backupUiState,
@@ -1305,6 +1309,9 @@ fun MainAppContainer(
             },
             onSave = { tx ->
                 viewModel.saveTransaction(tx)
+                if (tx.payeeOrPayer.isNotBlank()) {
+                    viewModel.autoDiscoverAndCacheItemIcon(tx.payeeOrPayer, tx.categoryId, tx.subCategoryId)
+                }
                 pendingPurchaseWishlistId?.let { wishId ->
                     viewModel.toggleWishlistPurchased(wishId, true)
                     pendingPurchaseWishlistId = null
@@ -1316,6 +1323,14 @@ fun MainAppContainer(
             },
             onSaveSplit = { splitGroupId, baseTx, items, existingTxs ->
                 viewModel.saveSplitTransaction(splitGroupId, baseTx, items, existingTxs)
+                if (baseTx.payeeOrPayer.isNotBlank()) {
+                    viewModel.autoDiscoverAndCacheItemIcon(baseTx.payeeOrPayer, baseTx.categoryId, baseTx.subCategoryId)
+                }
+                items.forEach { splitItem ->
+                    if (splitItem.payeeOrPayer.isNotBlank()) {
+                        viewModel.autoDiscoverAndCacheItemIcon(splitItem.payeeOrPayer, splitItem.categoryId, splitItem.subCategoryId)
+                    }
+                }
                 pendingPurchaseWishlistId?.let { wishId ->
                     viewModel.toggleWishlistPurchased(wishId, true)
                     pendingPurchaseWishlistId = null
@@ -2314,6 +2329,7 @@ private fun ScreenRouter(
     allAccounts: List<Account>,
     allCategories: List<Category>,
     transactionsWithDetails: List<com.example.data.model.TransactionWithDetails>,
+    itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     recurringBills: List<com.example.data.model.RecurringBillWithDetails>,
     languageMode: LanguageMode,
     backupUiState: com.example.ui.viewmodel.BackupUiState,
@@ -2389,6 +2405,7 @@ private fun ScreenRouter(
                 allCategories = allCategories,
                 allAccounts = allAccounts,
                 accountsWithBalances = accountsWithBalances,
+                itemImageCacheMap = itemImageCacheMap,
                 securityConfig = securityConfig,
                 onOpenDrawer = onOpenDrawer,
                 onVerifyPin = { viewModel.verifySecurityPin(it) },

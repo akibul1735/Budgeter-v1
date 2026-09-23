@@ -10,6 +10,7 @@ import com.example.data.model.Account
 import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
 import com.example.data.model.GoalAllocation
+import com.example.data.model.ItemImageCache
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
 import com.example.data.model.SavingsGoal
@@ -29,9 +30,10 @@ import kotlinx.coroutines.launch
         BudgetAdjustment::class,
         SavingsGoal::class,
         GoalAllocation::class,
-        WishlistItem::class
+        WishlistItem::class,
+        ItemImageCache::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,6 +46,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun budgetAdjustmentDao(): BudgetAdjustmentDao
     abstract fun savingsGoalDao(): SavingsGoalDao
     abstract fun wishlistDao(): WishlistDao
+    abstract fun itemImageCacheDao(): ItemImageCacheDao
 
     companion object {
         @Volatile
@@ -177,6 +180,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `item_image_cache` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `itemName` TEXT NOT NULL,
+                        `normalizedItemName` TEXT NOT NULL,
+                        `iconKey` TEXT NOT NULL,
+                        `source` TEXT NOT NULL DEFAULT 'AUTO_SELECTED',
+                        `sourceTitle` TEXT NOT NULL DEFAULT '',
+                        `originalQuery` TEXT NOT NULL DEFAULT '',
+                        `lastUpdated` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_item_image_cache_normalizedItemName` ON `item_image_cache` (`normalizedItemName`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_item_image_cache_itemName` ON `item_image_cache` (`itemName`)")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope = CoroutineScope(Dispatchers.IO), isDemoMode: Boolean = false): AppDatabase {
             return if (isDemoMode) {
                 getDemoDatabase(context, scope)
@@ -192,7 +216,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_double_entry_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -221,7 +245,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budgeter_demo_db"
                 )
-                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)

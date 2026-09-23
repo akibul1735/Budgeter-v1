@@ -12,6 +12,8 @@ import com.example.data.model.AccountType
 import com.example.data.model.BudgetAdjustment
 import com.example.data.model.Category
 import com.example.data.model.CategoryType
+import com.example.data.model.ImageCacheSource
+import com.example.data.model.ItemImageCache
 import com.example.data.model.LanguageMode
 import com.example.data.model.MonthlyBudget
 import com.example.data.model.RecurringBill
@@ -381,7 +383,8 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             monthlyBudgetDao = db.monthlyBudgetDao(),
             budgetAdjustmentDao = db.budgetAdjustmentDao(),
             savingsGoalDao = db.savingsGoalDao(),
-            wishlistDao = db.wishlistDao()
+            wishlistDao = db.wishlistDao(),
+            itemImageCacheDao = db.itemImageCacheDao()
         )
     }
 
@@ -808,6 +811,30 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 0
+        )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val allItemImageCaches: StateFlow<List<ItemImageCache>> = _activeRepository
+        .flatMapLatest { it.allItemImageCaches }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val itemImageCacheMap: StateFlow<Map<String, ItemImageCache>> = allItemImageCaches
+        .map { list ->
+            val map = HashMap<String, ItemImageCache>()
+            for (item in list) {
+                map[item.normalizedItemName] = item
+                map[item.itemName.lowercase(java.util.Locale.ROOT)] = item
+            }
+            map
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
         )
 
     fun saveWishlistItem(item: WishlistItem) {
@@ -2790,6 +2817,76 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     suspend fun clearUnusedIconCache(): Pair<Int, Long> = withContext(Dispatchers.IO) {
         activeRepo.clearUnusedIconCache(getApplication())
+    }
+
+    fun saveItemImageCache(
+        itemName: String,
+        iconKey: String,
+        source: ImageCacheSource = ImageCacheSource.USER_SELECTED,
+        sourceTitle: String = "User Selected",
+        originalQuery: String = ""
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val normalized = com.example.util.ItemCacheHelper.normalizeItemName(itemName)
+            if (normalized.isBlank() || iconKey.isBlank()) return@launch
+            val entry = ItemImageCache(
+                itemName = itemName.trim(),
+                normalizedItemName = normalized,
+                iconKey = iconKey,
+                source = source,
+                sourceTitle = sourceTitle,
+                originalQuery = originalQuery.ifBlank { itemName.trim() },
+                lastUpdated = System.currentTimeMillis()
+            )
+            activeRepo.saveItemImageCache(entry)
+        }
+    }
+
+    fun deleteItemImageCache(item: ItemImageCache) {
+        viewModelScope.launch(Dispatchers.IO) {
+            activeRepo.deleteItemImageCache(item)
+        }
+    }
+
+    fun deleteItemImageCacheById(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            activeRepo.deleteItemImageCacheById(id)
+        }
+    }
+
+    fun clearAllItemImageCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            activeRepo.clearAllItemImageCache()
+        }
+    }
+
+    fun autoDiscoverAndCacheItemIcon(itemName: String, categoryId: Long? = null, subCategoryId: Long? = null) {
+        if (itemName.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val normalized = com.example.util.ItemCacheHelper.normalizeItemName(itemName)
+            if (normalized.isBlank()) return@launch
+            val existing = activeRepo.getItemImageCacheByNormalizedName(normalized)
+            if (existing == null) {
+                com.example.util.ItemCacheHelper.discoverAndCacheItemIcon(
+                    context = getApplication(),
+                    itemName = itemName,
+                    dao = activeRepo.itemImageCacheDao
+                )
+            }
+        }
+    }
+
+    fun researchAndReplaceItemImage(
+        itemName: String,
+        newIconKey: String,
+        sourceTitle: String = "User Selected"
+    ) {
+        saveItemImageCache(
+            itemName = itemName,
+            iconKey = newIconKey,
+            source = ImageCacheSource.USER_SELECTED,
+            sourceTitle = sourceTitle
+        )
     }
 
     // 7. Reset Everything from App (Factory Clean State)

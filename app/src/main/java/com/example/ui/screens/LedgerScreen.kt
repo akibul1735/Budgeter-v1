@@ -197,6 +197,7 @@ fun LedgerScreen(
     allCategories: List<Category> = emptyList(),
     allAccounts: List<Account> = emptyList(),
     accountsWithBalances: List<AccountWithBalance> = emptyList(),
+    itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     securityConfig: SecurityConfig = SecurityConfig(),
     onVerifyPin: (String) -> Boolean = { true },
     onOpenDrawer: () -> Unit = {},
@@ -1172,6 +1173,7 @@ fun LedgerScreen(
                                         TransactionRowItem(
                                             item = item,
                                             languageMode = languageMode,
+                                            itemImageCacheMap = itemImageCacheMap,
                                             rowStyle = rowStyle,
                                             isSelected = isSelected,
                                             isSelectionMode = isSelectionMode,
@@ -1213,6 +1215,7 @@ fun LedgerScreen(
                                         TransactionRowItem(
                                             item = item,
                                             languageMode = languageMode,
+                                            itemImageCacheMap = itemImageCacheMap,
                                             rowStyle = rowStyle,
                                             isSelected = isSelected,
                                             isSelectionMode = isSelectionMode,
@@ -1255,6 +1258,7 @@ fun LedgerScreen(
                                     TransactionRowItem(
                                         item = item,
                                         languageMode = languageMode,
+                                        itemImageCacheMap = itemImageCacheMap,
                                         rowStyle = rowStyle,
                                         isSelected = isSelected,
                                         isSelectionMode = isSelectionMode,
@@ -1999,6 +2003,7 @@ private fun FilterSelectorRow(
 internal fun TransactionRowItem(
     item: TransactionWithDetails,
     languageMode: LanguageMode,
+    itemImageCacheMap: Map<String, com.example.data.model.ItemImageCache> = emptyMap(),
     rowStyle: LedgerRowStyle = LedgerRowStyle.STANDARD,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
@@ -2164,11 +2169,7 @@ internal fun TransactionRowItem(
                     )
                 }
             } else if (txConfig.enableCategoryIcons || txConfig.enableAccountIcons) {
-                val iconName = item.category?.iconName?.takeIf { it.isNotBlank() } ?: when (tx.type) {
-                    TransactionType.EXPENSE -> "Category"
-                    TransactionType.INCOME -> "Payments"
-                    TransactionType.TRANSFER -> "SwapHoriz"
-                }
+                val iconName = com.example.util.ItemCacheHelper.resolveTransactionIconName(item, itemImageCacheMap)
                 val isImage = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
                 val catColor = item.category?.colorHex?.takeIf { it.isNotBlank() }?.let {
                     IconHelper.parseColorHex(it, iconColor)
