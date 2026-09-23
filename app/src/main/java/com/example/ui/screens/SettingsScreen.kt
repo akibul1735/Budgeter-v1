@@ -805,140 +805,16 @@ fun SettingsScreen(
                     }
 
                     item {
-                        var isIconCacheExpanded by remember { mutableStateOf(false) }
                         val cachedItems by viewModel.allItemImageCaches.collectAsStateWithLifecycle()
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp)
-                        ) {
-                            OutlinedCard(
-                                shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.outlinedCardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { isIconCacheExpanded = !isIconCacheExpanded },
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Category,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.secondary,
-                                                modifier = Modifier.size(24.dp)
-                                            )
-                                            Column {
-                                                Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA) "আইকন ও ইমেজ ক্যাশ স্টোরেজ" else "Icon & Image Cache Storage",
-                                                    fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = if (languageMode == LanguageMode.BANGLA)
-                                                        "${cachedItems.size} টি আইটেম ক্যাশ করা আছে"
-                                                    else
-                                                        "${cachedItems.size} items mapped & cached",
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.outline
-                                                )
-                                            }
-                                        }
-
-                                        IconButton(
-                                            onClick = { isIconCacheExpanded = !isIconCacheExpanded },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = if (isIconCacheExpanded) Icons.Default.UnfoldLess else Icons.Default.UnfoldMore,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-
-                                    AnimatedVisibility(visible = isIconCacheExpanded) {
-                                        Column(
-                                            modifier = Modifier.padding(top = 10.dp),
-                                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-                                            Text(
-                                                text = if (languageMode == LanguageMode.BANGLA)
-                                                    "লেনদেনে ব্যবহৃত আইটেমের ছবি/আইকন ব্যবস্থাপনা, পরিবর্তন বা নতুন আইটেম যুক্ত করুন।"
-                                                else
-                                                    "Manage, review, replace, or add custom persistent icon mappings for transaction items.",
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-
-                                            if (cachedItems.isNotEmpty()) {
-                                                LazyRow(
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    items(cachedItems.take(6)) { cachedItem ->
-                                                        Surface(
-                                                            shape = RoundedCornerShape(8.dp),
-                                                            color = MaterialTheme.colorScheme.surface,
-                                                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                                            modifier = Modifier.clickable {
-                                                                currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE
-                                                            }
-                                                        ) {
-                                                            Row(
-                                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                            ) {
-                                                                Box(modifier = Modifier.size(20.dp)) {
-                                                                    IconHelper.AppIcon(
-                                                                        iconName = cachedItem.iconKey,
-                                                                        contentDescription = null,
-                                                                        modifier = Modifier.fillMaxSize()
-                                                                    )
-                                                                }
-                                                                Text(
-                                                                    text = cachedItem.itemName,
-                                                                    fontSize = 12.sp,
-                                                                    fontWeight = FontWeight.Medium,
-                                                                    maxLines = 1
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            Button(
-                                                onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(10.dp)
-                                            ) {
-                                                Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    if (languageMode == LanguageMode.BANGLA) "ক্যাশ পরিচালনা ও যোগ করুন" else "Manage & Add Item",
-                                                    fontSize = 13.sp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "আইকন ও ইমেজ ক্যাশ স্টোরেজ" else "Icon & Image Cache Storage",
+                            subtitle = if (languageMode == LanguageMode.BANGLA)
+                                "${cachedItems.size} টি কাস্টম আইকন অ্যাসাইন করা আছে"
+                            else
+                                "${cachedItems.size} custom item icons mapped",
+                            icon = Icons.Default.Category,
+                            onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE }
+                        )
                     }
 
                     item {

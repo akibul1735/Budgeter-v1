@@ -2,10 +2,8 @@ package com.example.ui.screens.settings
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,18 +25,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
@@ -52,6 +49,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,12 +58,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -85,6 +81,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ImageCacheSource
 import com.example.data.model.ItemImageCache
 import com.example.data.model.LanguageMode
+import com.example.data.model.TransactionWithDetails
+import com.example.ui.components.AppTabHeader
 import com.example.ui.components.IconPickerModal
 import com.example.ui.viewmodel.BudgetViewModel
 import com.example.util.IconHelper
@@ -93,6 +91,25 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+/**
+ * Represents a unique transaction item name across the system with its assigned icon
+ */
+data class UniqueItemIconEntry(
+    val displayName: String,
+    val normalizedName: String,
+    val cachedItem: ItemImageCache?,
+    val assignedIcon: String,
+    val usageCount: Int,
+    val isCustom: Boolean,
+    val categoryName: String? = null
+)
+
+private enum class ItemIconFilter {
+    ALL,
+    CUSTOMIZED,
+    DEFAULT
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,12 +124,16 @@ fun IconImageCacheSettingsPage(
 
     val cachedItems by viewModel.allItemImageCaches.collectAsStateWithLifecycle()
     val transactions by viewModel.transactionsWithDetails.collectAsStateWithLifecycle()
+    val categories by viewModel.allCategories.collectAsStateWithLifecycle()
 
     var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf(ItemIconFilter.ALL) }
     var showAddDialog by remember { mutableStateOf(false) }
-    var itemToResearch by remember { mutableStateOf<ItemImageCache?>(null) }
+
+    // Dialog & Picker states
+    var itemToEditIcon by remember { mutableStateOf<UniqueItemIconEntry?>(null) }
     var itemToEditName by remember { mutableStateOf<ItemImageCache?>(null) }
-    var itemToDelete by remember { mutableStateOf<ItemImageCache?>(null) }
+    var itemToResetConfirm by remember { mutableStateOf<UniqueItemIconEntry?>(null) }
     var showClearAllConfirmDialog by remember { mutableStateOf(false) }
     var showCleanUnusedConfirmDialog by remember { mutableStateOf(false) }
 
@@ -123,57 +144,115 @@ fun IconImageCacheSettingsPage(
         iconCacheStats = viewModel.getIconCacheStats()
     }
 
-    // Filtered cached items
-    val filteredItems = remember(cachedItems, searchQuery) {
-        if (searchQuery.isBlank()) {
-            cachedItems
-        } else {
-            val q = searchQuery.trim().lowercase(Locale.ROOT)
-            cachedItems.filter {
-                it.itemName.lowercase(Locale.ROOT).contains(q) ||
-                        it.normalizedItemName.contains(q) ||
-                        it.sourceTitle.lowercase(Locale.ROOT).contains(q)
+    // Build the complete list of all unique item names across transactions and custom cache entries
+    val allUniqueItemEntries = remember(transactions, cachedItems, categories) {
+        val cacheMap = cachedItems.associateBy { it.normalizedItemName }
+
+        val nameToTxList = mutableMapOf<String, MutableList<TransactionWithDetails>>()
+        val nameToDisplayName = mutableMapOf<String, String>()
+
+        // 1. Collect all distinct names from transactions
+        transactions.forEach { item ->
+            val rawName = item.transaction.payeeOrPayer.trim().ifBlank { item.transaction.note.trim() }
+            if (rawName.isNotBlank()) {
+                val norm = ItemCacheHelper.normalizeItemName(rawName)
+                if (norm.isNotBlank()) {
+                    nameToTxList.getOrPut(norm) { mutableListOf() }.add(item)
+                    if (!nameToDisplayName.containsKey(norm)) {
+                        nameToDisplayName[norm] = rawName
+                    }
+                }
             }
         }
-    }
 
-    // Distinct transaction item names that are NOT yet cached
-    val uncachedTransactionNames = remember(transactions, cachedItems) {
-        val cachedNormalized = cachedItems.map { it.normalizedItemName }.toSet()
-        transactions.mapNotNull { it.transaction.payeeOrPayer.trim().takeIf { p -> p.isNotBlank() } }
-            .distinct()
-            .filter { name ->
-                val norm = ItemCacheHelper.normalizeItemName(name)
-                norm.isNotBlank() && norm !in cachedNormalized
+        // 2. Include all cached items (even if they don't have matching transactions)
+        cachedItems.forEach { cached ->
+            val norm = cached.normalizedItemName
+            if (!nameToDisplayName.containsKey(norm)) {
+                nameToDisplayName[norm] = cached.itemName
             }
+        }
+
+        // 3. Assemble UniqueItemIconEntry for each distinct item name
+        val list = nameToDisplayName.map { (norm, display) ->
+            val cached = cacheMap[norm] ?: ItemCacheHelper.findCachedIcon(display, cacheMap)
+            val txs = nameToTxList[norm] ?: emptyList()
+            val sampleTx = txs.firstOrNull()
+            val categoryName = sampleTx?.subCategory?.nameEn ?: sampleTx?.category?.nameEn
+
+            val assignedIcon = if (cached != null && cached.iconKey.isNotBlank()) {
+                cached.iconKey
+            } else if (sampleTx != null) {
+                ItemCacheHelper.resolveTransactionIconName(sampleTx, cacheMap)
+            } else {
+                "Category"
+            }
+
+            UniqueItemIconEntry(
+                displayName = display,
+                normalizedName = norm,
+                cachedItem = cached,
+                assignedIcon = assignedIcon,
+                usageCount = txs.size,
+                isCustom = cached != null && cached.iconKey.isNotBlank(),
+                categoryName = categoryName
+            )
+        }
+
+        // Sort: customized first, then most used, then alphabetical
+        list.sortedWith(
+            compareByDescending<UniqueItemIconEntry> { it.isCustom }
+                .thenByDescending { it.usageCount }
+                .thenBy { it.displayName.lowercase(Locale.ROOT) }
+        )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (isBangla) "আইকন ও ইমেজ ক্যাশ স্টোরেজ" else "Icon & Image Cache Storage",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+    val customCount = remember(allUniqueItemEntries) { allUniqueItemEntries.count { it.isCustom } }
+    val defaultCount = remember(allUniqueItemEntries) { allUniqueItemEntries.count { !it.isCustom } }
+
+    // Filtered entries based on Search & Tabs
+    val filteredEntries = remember(allUniqueItemEntries, searchQuery, selectedFilter) {
+        var result = allUniqueItemEntries
+
+        // Filter by tab
+        result = when (selectedFilter) {
+            ItemIconFilter.ALL -> result
+            ItemIconFilter.CUSTOMIZED -> result.filter { it.isCustom }
+            ItemIconFilter.DEFAULT -> result.filter { !it.isCustom }
+        }
+
+        // Filter by search query
+        if (searchQuery.isNotBlank()) {
+            val q = searchQuery.trim().lowercase(Locale.ROOT)
+            result = result.filter { entry ->
+                entry.displayName.lowercase(Locale.ROOT).contains(q) ||
+                        entry.normalizedName.contains(q) ||
+                        (entry.categoryName?.lowercase(Locale.ROOT)?.contains(q) == true) ||
+                        (entry.cachedItem?.sourceTitle?.lowercase(Locale.ROOT)?.contains(q) == true)
+            }
+        }
+
+        result
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        AppTabHeader(
+            title = if (isBangla) "আইকন ও ইমেজ ক্যাশ স্টোরেজ" else "Icon & Image Cache Storage",
+            tabIcon = Icons.Default.Storage,
+            showCoinIcon = false,
+            onBack = onBack,
+            autoHideOnScroll = false,
+            actions = {
+                IconButton(onClick = { showAddDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = if (isBangla) "নতুন আইটেম যোগ করুন" else "Add Item"
                     )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = if (isBangla) "পেছনে" else "Back"
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = if (isBangla) "নতুন আইটেম যোগ করুন" else "Add Item to Cache"
-                        )
-                    }
-                    var menuExpanded by remember { mutableStateOf(false) }
+                }
+                var menuExpanded by remember { mutableStateOf(false) }
+                Box {
                     IconButton(onClick = { menuExpanded = true }) {
                         Icon(imageVector = Icons.Default.MoreVert, contentDescription = null)
                     }
@@ -192,7 +271,7 @@ fun IconImageCacheSettingsPage(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    if (isBangla) "সমস্ত ক্যাশ মুছুন" else "Clear All Cache",
+                                    if (isBangla) "সমস্ত কাস্টম ক্যাশ রিসেট করুন" else "Reset All Custom Icons",
                                     color = MaterialTheme.colorScheme.error
                                 )
                             },
@@ -209,25 +288,23 @@ fun IconImageCacheSettingsPage(
                             }
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        }
-    ) { innerPadding ->
+                }
+            }
+        )
+
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
+                .fillMaxWidth()
+                .weight(1f),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. Storage Stats Card
+            // 1. Storage & Usage Stats Card
             item {
                 StorageStatsCard(
                     stats = iconCacheStats,
-                    cachedCount = cachedItems.size,
+                    uniqueCount = allUniqueItemEntries.size,
+                    customCount = customCount,
                     isBangla = isBangla,
                     isCleaning = isCleaningCache,
                     onCleanUnused = {
@@ -239,8 +316,8 @@ fun IconImageCacheSettingsPage(
                             val freedKb = (freedBytes / 1024).coerceAtLeast(1)
                             Toast.makeText(
                                 context,
-                                if (isBangla) "$cleanedCount টি অব্যবহৃত আইকন মুছে $freedKb KB মেমোরি খালি করা হয়েছে!"
-                                else "Cleaned $cleanedCount unused icons! Freed $freedKb KB",
+                                if (isBangla) "$cleanedCount টি অব্যবহৃত ফাইল মুছে $freedKb KB খালি করা হয়েছে!"
+                                else "Cleaned $cleanedCount unused files! Freed $freedKb KB",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -248,134 +325,15 @@ fun IconImageCacheSettingsPage(
                 )
             }
 
-            // 2. Add New Item Action Banner
+            // 2. Search Field
             item {
-                OutlinedCard(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.outlinedCardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                                Column {
-                                    Text(
-                                        text = if (isBangla) "আইটেম আইকন অ্যাসাইন করুন" else "Assign Item Image / Icon",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.5.sp
-                                    )
-                                    Text(
-                                        text = if (isBangla) "লেনদেনের নামের সাথে ছবি যুক্ত করুন" else "Map transaction item names to icons",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            Button(
-                                onClick = { showAddDialog = true },
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (isBangla) "যুক্ত করুন" else "Add Item", fontSize = 13.sp)
-                            }
-                        }
-
-                        // Uncached transaction suggestions chip row
-                        if (uncachedTransactionNames.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = if (isBangla) "লেনদেন থেকে প্রস্তাবিত নামসমূহ:" else "Recent transaction item names to cache:",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                items(uncachedTransactionNames.take(8)) { name ->
-                                    AssistChip(
-                                        onClick = {
-                                            // Trigger research dialog immediately for this item
-                                            itemToResearch = ItemImageCache(
-                                                itemName = name,
-                                                normalizedItemName = ItemCacheHelper.normalizeItemName(name),
-                                                iconKey = ""
-                                            )
-                                        },
-                                        label = {
-                                            Text(
-                                                text = name,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                fontSize = 12.sp
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = Icons.Default.Add,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        },
-                                        colors = AssistChipDefaults.assistChipColors(
-                                            containerColor = MaterialTheme.colorScheme.surface
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Search Field & Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isBangla) "সংরক্ষিত আইটেম তালিকা (${cachedItems.size})" else "Cached Items (${cachedItems.size})",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = {
                         Text(
-                            if (isBangla) "আইটেমের নাম দিয়ে খুঁজুন..." else "Search cached items...",
-                            fontSize = 13.sp
+                            if (isBangla) "আইটেমের নাম বা ক্যাটাগরি দিয়ে খুঁজুন..." else "Search item names or categories...",
+                            fontSize = 13.5.sp
                         )
                     },
                     leadingIcon = {
@@ -394,41 +352,94 @@ fun IconImageCacheSettingsPage(
                 )
             }
 
-            // 4. Cached Items List
-            if (filteredItems.isEmpty()) {
+            // 3. Filter Chips Row
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = selectedFilter == ItemIconFilter.ALL,
+                        onClick = { selectedFilter = ItemIconFilter.ALL },
+                        label = {
+                            Text(
+                                if (isBangla) "সকল আইটেম (${allUniqueItemEntries.size})" else "All Items (${allUniqueItemEntries.size})",
+                                fontSize = 12.sp
+                            )
+                        }
+                    )
+                    FilterChip(
+                        selected = selectedFilter == ItemIconFilter.CUSTOMIZED,
+                        onClick = { selectedFilter = ItemIconFilter.CUSTOMIZED },
+                        label = {
+                            Text(
+                                if (isBangla) "কাস্টমাইজড ($customCount)" else "Customized ($customCount)",
+                                fontSize = 12.sp
+                            )
+                        }
+                    )
+                    FilterChip(
+                        selected = selectedFilter == ItemIconFilter.DEFAULT,
+                        onClick = { selectedFilter = ItemIconFilter.DEFAULT },
+                        label = {
+                            Text(
+                                if (isBangla) "ডিফল্ট ($defaultCount)" else "Default ($defaultCount)",
+                                fontSize = 12.sp
+                            )
+                        }
+                    )
+                }
+            }
+
+            // 4. Unique Items List
+            if (filteredEntries.isEmpty()) {
                 item {
                     EmptyCachePlaceholder(
-                        hasSearch = searchQuery.isNotEmpty(),
+                        hasSearch = searchQuery.isNotEmpty() || selectedFilter != ItemIconFilter.ALL,
                         isBangla = isBangla,
                         onAddClick = { showAddDialog = true }
                     )
                 }
             } else {
-                items(filteredItems, key = { it.id }) { item ->
-                    CachedItemCard(
-                        item = item,
+                items(filteredEntries, key = { it.normalizedName }) { entry ->
+                    UniqueItemIconCard(
+                        entry = entry,
                         isBangla = isBangla,
-                        onResearchClick = { itemToResearch = item },
-                        onEditNameClick = { itemToEditName = item },
-                        onDeleteClick = { itemToDelete = item }
+                        onEditIconClick = { itemToEditIcon = entry },
+                        onAutoDiscover = {
+                            viewModel.autoDiscoverAndCacheItemIcon(entry.displayName)
+                            Toast.makeText(
+                                context,
+                                if (isBangla) "\"${entry.displayName}\" এর জন্য অনলাইনে ছবি খোঁজা হচ্ছে..."
+                                else "Searching online icon for \"${entry.displayName}\"...",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        onResetClick = {
+                            itemToResetConfirm = entry
+                        }
                     )
                 }
             }
         }
     }
 
-    // Dialog: Add Item to Cache
+    // Dialog: Add New Item Name to Cache
     if (showAddDialog) {
         AddItemToCacheDialog(
-            suggestedNames = uncachedTransactionNames,
+            existingNames = allUniqueItemEntries.map { it.displayName },
             isBangla = isBangla,
             onDismiss = { showAddDialog = false },
             onAddAndPickIcon = { name ->
                 showAddDialog = false
-                itemToResearch = ItemImageCache(
-                    itemName = name,
-                    normalizedItemName = ItemCacheHelper.normalizeItemName(name),
-                    iconKey = ""
+                itemToEditIcon = UniqueItemIconEntry(
+                    displayName = name,
+                    normalizedName = ItemCacheHelper.normalizeItemName(name),
+                    cachedItem = null,
+                    assignedIcon = "",
+                    usageCount = 0,
+                    isCustom = false
                 )
             },
             onAddAndAutoDiscover = { name ->
@@ -443,125 +454,66 @@ fun IconImageCacheSettingsPage(
         )
     }
 
-    // Dialog: Research / Change Image (uses full IconPickerModal)
-    itemToResearch?.let { targetItem ->
+    // Modal: Edit / Pick Icon for Item (uses comprehensive IconPickerModal)
+    itemToEditIcon?.let { targetEntry ->
         IconPickerModal(
-            selectedIconName = targetItem.iconKey,
-            initialQuery = targetItem.itemName,
-            initialCategory = "Online Search",
+            selectedIconName = targetEntry.assignedIcon,
+            initialQuery = targetEntry.displayName,
+            initialCategory = if (targetEntry.isCustom) "Online Search" else "Categories",
             onIconSelected = { selectedKey ->
                 viewModel.researchAndReplaceItemImage(
-                    itemName = targetItem.itemName,
+                    itemName = targetEntry.displayName,
                     newIconKey = selectedKey,
                     sourceTitle = if (selectedKey.startsWith("custom_icon_")) "Custom Image" else "Selected Icon"
                 )
-                itemToResearch = null
+                itemToEditIcon = null
                 Toast.makeText(
                     context,
-                    if (isBangla) "\"${targetItem.itemName}\" এর আইকন সফলভাবে পরিবর্তন করা হয়েছে!"
-                    else "Icon updated for \"${targetItem.itemName}\"!",
+                    if (isBangla) "\"${targetEntry.displayName}\" এর আইকন সফলভাবে পরিবর্তিত হয়েছে!"
+                    else "Icon updated for \"${targetEntry.displayName}\"!",
                     Toast.LENGTH_SHORT
                 ).show()
             },
-            onDismiss = { itemToResearch = null }
+            onDismiss = { itemToEditIcon = null }
         )
     }
 
-    // Dialog: Edit Item Name
-    itemToEditName?.let { targetItem ->
-        var editedName by remember { mutableStateOf(targetItem.itemName) }
+    // Dialog: Reset Custom Icon to Default
+    itemToResetConfirm?.let { targetEntry ->
         AlertDialog(
-            onDismissRequest = { itemToEditName = null },
+            onDismissRequest = { itemToResetConfirm = null },
             title = {
                 Text(
-                    text = if (isBangla) "আইটেমের নাম পরিবর্তন" else "Edit Item Name",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = if (isBangla) "এই আইকনটি যে লেনদেনের নামের সাথে প্রযোজ্য হবে তা লিখুন:"
-                        else "Enter the transaction item name associated with this icon:",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    OutlinedTextField(
-                        value = editedName,
-                        onValueChange = { editedName = it },
-                        singleLine = true,
-                        label = { Text(if (isBangla) "আইটেমের নাম" else "Item Name") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val trimmed = editedName.trim()
-                        if (trimmed.isNotBlank()) {
-                            viewModel.saveItemImageCache(
-                                itemName = trimmed,
-                                iconKey = targetItem.iconKey,
-                                source = targetItem.source,
-                                sourceTitle = targetItem.sourceTitle,
-                                originalQuery = targetItem.originalQuery
-                            )
-                            if (trimmed != targetItem.itemName) {
-                                viewModel.deleteItemImageCacheById(targetItem.id)
-                            }
-                            itemToEditName = null
-                        }
-                    },
-                    enabled = editedName.isNotBlank()
-                ) {
-                    Text(if (isBangla) "সংরক্ষণ করুন" else "Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { itemToEditName = null }) {
-                    Text(if (isBangla) "বাতিল" else "Cancel")
-                }
-            }
-        )
-    }
-
-    // Dialog: Delete Single Item Confirm
-    itemToDelete?.let { targetItem ->
-        AlertDialog(
-            onDismissRequest = { itemToDelete = null },
-            title = {
-                Text(
-                    text = if (isBangla) "ক্যাশ থেকে মুছবেন?" else "Remove from Cache?",
+                    text = if (isBangla) "ডিফল্ট আইকনে রিসেট করবেন?" else "Reset to Default Icon?",
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
                     text = if (isBangla)
-                        "\"${targetItem.itemName}\" এর ক্যাশ করা আইকনটি মুছে ফেলতে চান? লেনদেনে আবার ডিফল্ট ক্যাটাগরি আইকন দেখানো হবে।"
+                        "\"${targetEntry.displayName}\" এর জন্য নির্ধারিত কাস্টম আইকন মুছে ফেলতে চান? লেনদেনে আবার ক্যাটাগরির স্বাভাবিক আইকন দেখানো হবে।"
                     else
-                        "Remove cached image for \"${targetItem.itemName}\"? Transactions with this name will fall back to their category icon."
+                        "Revert \"${targetEntry.displayName}\" to its default category icon? The custom assigned icon will be removed."
                 )
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteItemImageCache(targetItem)
-                        itemToDelete = null
+                        targetEntry.cachedItem?.let { viewModel.deleteItemImageCache(it) }
+                        itemToResetConfirm = null
                         Toast.makeText(
                             context,
-                            if (isBangla) "আইটেম ক্যাশ থেকে মুছে ফেলা হয়েছে" else "Item removed from cache",
+                            if (isBangla) "আইকন রিসেট করা হয়েছে" else "Reset to default icon",
                             Toast.LENGTH_SHORT
                         ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text(if (isBangla) "মুছুন" else "Delete")
+                    Text(if (isBangla) "রিসেট করুন" else "Reset")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { itemToDelete = null }) {
+                TextButton(onClick = { itemToResetConfirm = null }) {
                     Text(if (isBangla) "বাতিল" else "Cancel")
                 }
             }
@@ -581,9 +533,9 @@ fun IconImageCacheSettingsPage(
             text = {
                 Text(
                     text = if (isBangla)
-                        "বর্তমানে কোনো লেনদেন, ক্যাটাগরি বা অ্যাকাউন্টে ব্যবহার হচ্ছে না এমন পুরানো ক্যাশ করা ইমেজ ফাইলগুলো নিরাপদে মুছে ফেলা হবে।"
+                        "বর্তমানে কোনো লেনদেন বা ক্যাটাগরিতে ব্যবহার হচ্ছে না এমন পুরানো ক্যাশ করা ইমেজ ফাইলগুলো নিরাপদে মুছে ফেলা হবে।"
                     else
-                        "Safely delete orphan icon cache files that are no longer assigned to any transactions, categories, accounts, or goals."
+                        "Safely delete orphan icon cache files that are no longer assigned to any transactions or categories."
                 )
             },
             confirmButton = {
@@ -616,13 +568,13 @@ fun IconImageCacheSettingsPage(
         )
     }
 
-    // Dialog: Clear All Cache Confirm
+    // Dialog: Clear All Custom Cache Confirm
     if (showClearAllConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showClearAllConfirmDialog = false },
             title = {
                 Text(
-                    text = if (isBangla) "সমস্ত ক্যাশ মুছে ফেলবেন?" else "Clear All Item Cache?",
+                    text = if (isBangla) "সমস্ত কাস্টম ক্যাশ মুছবেন?" else "Reset All Custom Icons?",
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -632,7 +584,7 @@ fun IconImageCacheSettingsPage(
                     text = if (isBangla)
                         "সমস্ত আইটেমের কাস্টম আইকন অ্যাসাইনমেন্ট মুছে যাবে। লেনদেনের আইটেমগুলো পুনরায় ডিফল্ট ক্যাটাগরি আইকন ব্যবহার করবে।"
                     else
-                        "This will remove all item-to-image mappings. All transactions will revert to their category icons."
+                        "This will remove all custom item-to-image mappings. All transactions will revert to their default category icons."
                 )
             },
             confirmButton = {
@@ -642,13 +594,13 @@ fun IconImageCacheSettingsPage(
                         viewModel.clearAllItemImageCache()
                         Toast.makeText(
                             context,
-                            if (isBangla) "সমস্ত আইটেম ক্যাশ মুছে ফেলা হয়েছে" else "All item cache cleared",
+                            if (isBangla) "সমস্ত কাস্টম আইকন রিসেট করা হয়েছে" else "All custom icons reset",
                             Toast.LENGTH_SHORT
                         ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text(if (isBangla) "সব মুছুন" else "Clear All")
+                    Text(if (isBangla) "সব মুছুন" else "Reset All")
                 }
             },
             dismissButton = {
@@ -663,13 +615,13 @@ fun IconImageCacheSettingsPage(
 @Composable
 private fun StorageStatsCard(
     stats: IconHelper.IconCacheStats,
-    cachedCount: Int,
+    uniqueCount: Int,
+    customCount: Int,
     isBangla: Boolean,
     isCleaning: Boolean,
     onCleanUnused: () -> Unit
 ) {
     val totalKb = (stats.totalBytes / 1024).coerceAtLeast(if (stats.totalCount > 0) 1 else 0)
-    val activeKb = (stats.activeBytes / 1024).coerceAtLeast(if (stats.activeCount > 0) 1 else 0)
     val unusedKb = (stats.unusedBytes / 1024).coerceAtLeast(if (stats.unusedCount > 0) 1 else 0)
 
     OutlinedCard(
@@ -696,7 +648,7 @@ private fun StorageStatsCard(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = if (isBangla) "স্টোরেজ ও মেমোরি বিবরণ" else "Storage & Memory Usage",
+                        text = if (isBangla) "আইটেম ও মেমোরি বিবরণ" else "Items & Storage Summary",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
@@ -729,12 +681,12 @@ private fun StorageStatsCard(
             ) {
                 Column {
                     Text(
-                        text = if (isBangla) "সংরক্ষিত আইটেম" else "Mapped Items",
+                        text = if (isBangla) "মোট ইউনিক আইটেম" else "Total Unique Items",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "$cachedCount items",
+                        text = "$uniqueCount items",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.primary
@@ -743,7 +695,21 @@ private fun StorageStatsCard(
 
                 Column {
                     Text(
-                        text = if (isBangla) "মোট ডিস্ক মেমোরি" else "Total Disk Space",
+                        text = if (isBangla) "কাস্টমাইজড আইকন" else "Customized",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "$customCount items",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = if (isBangla) "ডিস্ক ক্যাশ" else "Disk Cache",
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -754,42 +720,23 @@ private fun StorageStatsCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-
-                Column {
-                    Text(
-                        text = if (isBangla) "অব্যবহৃত ক্যাশ" else "Unused Cache",
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "${stats.unusedCount} (~$unusedKb KB)",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = if (stats.unusedCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
-                    )
-                }
             }
         }
     }
 }
 
+/**
+ * Card displaying a unique item name, its assigned icon, and an edit icon option
+ */
 @Composable
-private fun CachedItemCard(
-    item: ItemImageCache,
+private fun UniqueItemIconCard(
+    entry: UniqueItemIconEntry,
     isBangla: Boolean,
-    onResearchClick: () -> Unit,
-    onEditNameClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onEditIconClick: () -> Unit,
+    onAutoDiscover: () -> Unit,
+    onResetClick: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    val formattedDate = remember(item.lastUpdated) {
-        try {
-            val sdf = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-            sdf.format(Date(item.lastUpdated))
-        } catch (_: Exception) {
-            ""
-        }
-    }
 
     Card(
         shape = RoundedCornerShape(14.dp),
@@ -797,7 +744,9 @@ private fun CachedItemCard(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onEditIconClick() }
     ) {
         Row(
             modifier = Modifier
@@ -806,86 +755,131 @@ private fun CachedItemCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Icon Avatar Thumbnail with border
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+            // Assigned Icon Avatar Thumbnail with Edit badge overlay
+            Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .clickable { onResearchClick() }
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize().padding(4.dp)) {
-                    IconHelper.AppIcon(
-                        iconName = item.iconKey,
-                        contentDescription = item.itemName,
-                        modifier = Modifier.fillMaxSize(),
-                        tint = MaterialTheme.colorScheme.primary
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (entry.isCustom) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     )
+                    .border(
+                        1.dp,
+                        if (entry.isCustom) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                        RoundedCornerShape(12.dp)
+                    )
+                    .clickable { onEditIconClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(6.dp)
+                ) {
+                    IconHelper.AppIcon(
+                        iconName = entry.assignedIcon,
+                        contentDescription = entry.displayName,
+                        modifier = Modifier.fillMaxSize(),
+                        tint = if (entry.isCustom) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Small pencil icon badge at bottom-right corner
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .align(Alignment.BottomEnd)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
-            // Name & Source Details
+            // Name & Status Details
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = item.itemName,
+                    text = entry.displayName,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.5.sp,
+                    fontSize = 15.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Status Badge
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = when (item.source) {
-                            ImageCacheSource.AUTO_SELECTED -> MaterialTheme.colorScheme.secondaryContainer
-                            ImageCacheSource.USER_SELECTED -> MaterialTheme.colorScheme.primaryContainer
-                            ImageCacheSource.CUSTOM -> MaterialTheme.colorScheme.tertiaryContainer
-                        }
+                        color = if (entry.isCustom) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
-                            text = item.sourceTitle.ifBlank {
-                                when (item.source) {
-                                    ImageCacheSource.AUTO_SELECTED -> if (isBangla) "অটো সংগৃহীত" else "Auto Found"
-                                    ImageCacheSource.USER_SELECTED -> if (isBangla) "ব্যবহারকারী নির্বাচিত" else "User Selected"
-                                    ImageCacheSource.CUSTOM -> if (isBangla) "কাস্টম আপলোড" else "Custom Photo"
-                                }
+                            text = if (entry.isCustom) {
+                                entry.cachedItem?.sourceTitle?.ifBlank {
+                                    if (isBangla) "কাস্টম আইকন" else "Custom Icon"
+                                } ?: (if (isBangla) "কাস্টম আইকন" else "Custom Icon")
+                            } else {
+                                if (isBangla) "ডিফল্ট ক্যাটাগরি" else "Default Icon"
                             },
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = when (item.source) {
-                                ImageCacheSource.AUTO_SELECTED -> MaterialTheme.colorScheme.onSecondaryContainer
-                                ImageCacheSource.USER_SELECTED -> MaterialTheme.colorScheme.onPrimaryContainer
-                                ImageCacheSource.CUSTOM -> MaterialTheme.colorScheme.onTertiaryContainer
-                            }
+                            color = if (entry.isCustom) MaterialTheme.colorScheme.onPrimaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
-                    if (formattedDate.isNotBlank()) {
+                    // Usage count
+                    if (entry.usageCount > 0) {
                         Text(
-                            text = formattedDate,
-                            fontSize = 10.5.sp,
+                            text = if (isBangla) "${entry.usageCount} টি লেনদেন" else "${entry.usageCount} txns",
+                            fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
+                        )
+                    } else if (!entry.categoryName.isNullOrBlank()) {
+                        Text(
+                            text = entry.categoryName,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             }
 
-            // Quick Actions: Research / Change Image button
-            IconButton(
-                onClick = onResearchClick,
-                modifier = Modifier.size(36.dp)
+            // Edit Icon Quick Action Button
+            OutlinedButton(
+                onClick = onEditIconClick,
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                modifier = Modifier.height(34.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.ImageSearch,
-                    contentDescription = if (isBangla) "ছবি পরিবর্তন করুন" else "Research / Change Image",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (isBangla) "আইকন পরিবর্তন" else "Edit Icon",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
@@ -893,12 +887,12 @@ private fun CachedItemCard(
             Box {
                 IconButton(
                     onClick = { menuExpanded = true },
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
@@ -907,40 +901,42 @@ private fun CachedItemCard(
                     onDismissRequest = { menuExpanded = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text(if (isBangla) "ছবি পরিবর্তন / অনুসন্ধান" else "Research / Change Image") },
-                        leadingIcon = { Icon(Icons.Default.ImageSearch, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            onResearchClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(if (isBangla) "নাম সম্পাদনা করুন" else "Edit Name") },
+                        text = { Text(if (isBangla) "আইকন পরিবর্তন করুন" else "Change / Pick Icon") },
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                         onClick = {
                             menuExpanded = false
-                            onEditNameClick()
+                            onEditIconClick()
                         }
                     )
                     DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (isBangla) "ক্যাশ থেকে মুছুন" else "Remove from Cache",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        },
+                        text = { Text(if (isBangla) "অনলাইনে স্বয়ংক্রিয় খুঁজুন" else "Auto Discover Online") },
+                        leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
                         onClick = {
                             menuExpanded = false
-                            onDeleteClick()
+                            onAutoDiscover()
                         }
                     )
+                    if (entry.isCustom) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (isBangla) "ডিফল্ট আইকনে রিসেট করুন" else "Reset to Default Icon",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.RestartAlt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onResetClick()
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -949,22 +945,20 @@ private fun CachedItemCard(
 
 @Composable
 private fun AddItemToCacheDialog(
-    suggestedNames: List<String>,
+    existingNames: List<String>,
     isBangla: Boolean,
     onDismiss: () -> Unit,
     onAddAndPickIcon: (String) -> Unit,
     onAddAndAutoDiscover: (String) -> Unit
 ) {
     var customName by remember { mutableStateOf("") }
-    var selectedSuggestion by remember { mutableStateOf<String?>(null) }
-
-    val activeName = selectedSuggestion ?: customName.trim()
+    val trimmedName = customName.trim()
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = if (isBangla) "আইটেম ক্যাশে যোগ করুন" else "Add Item to Icon Cache",
+                text = if (isBangla) "নতুন আইটেমে আইকন দিন" else "Assign Icon to New Item",
                 fontWeight = FontWeight.Bold
             )
         },
@@ -972,77 +966,45 @@ private fun AddItemToCacheDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = if (isBangla)
-                        "যে আইটেম বা প্রতিষ্ঠানের জন্য আইকন নির্ধারণ করতে চান তার নাম লিখুন বা লেনদেন থেকে বেছে নিন:"
+                        "যে আইটেম বা প্রতিষ্ঠানের জন্য আইকন নির্ধারণ করতে চান তার নাম লিখুন:"
                     else
-                        "Enter the item or payee name to assign a persistent icon to, or pick from recent transactions:",
+                        "Enter the item or payee name you want to assign a custom icon to:",
                     fontSize = 12.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 OutlinedTextField(
                     value = customName,
-                    onValueChange = {
-                        customName = it
-                        selectedSuggestion = null
-                    },
+                    onValueChange = { customName = it },
                     label = { Text(if (isBangla) "আইটেম / পেয়ীর নাম" else "Item / Payee Name") },
                     placeholder = { Text("e.g. LED Bulb, Netflix, Uber, Groceries") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                if (suggestedNames.isNotEmpty()) {
-                    Text(
-                        text = if (isBangla) "লেনদেন থেকে প্রস্তাবিত:" else "Suggestions from transactions:",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(suggestedNames.take(10)) { suggestion ->
-                            val isSelected = selectedSuggestion == suggestion
-                            AssistChip(
-                                onClick = {
-                                    selectedSuggestion = suggestion
-                                    customName = suggestion
-                                },
-                                label = { Text(suggestion, fontSize = 12.sp) },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                } else null,
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                                )
-                            )
-                        }
-                    }
-                }
             }
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
-                        if (activeName.isNotBlank()) {
-                            onAddAndAutoDiscover(activeName)
+                        if (trimmedName.isNotBlank()) {
+                            onAddAndAutoDiscover(trimmedName)
                         }
                     },
-                    enabled = activeName.isNotBlank()
+                    enabled = trimmedName.isNotBlank()
                 ) {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isBangla) "স্বয়ংক্রিয় খুঁজুন" else "Auto Discover")
+                    Text(if (isBangla) "অনলাইন খুঁজুন" else "Auto Search")
                 }
 
                 Button(
                     onClick = {
-                        if (activeName.isNotBlank()) {
-                            onAddAndPickIcon(activeName)
+                        if (trimmedName.isNotBlank()) {
+                            onAddAndPickIcon(trimmedName)
                         }
                     },
-                    enabled = activeName.isNotBlank()
+                    enabled = trimmedName.isNotBlank()
                 ) {
                     Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -1093,9 +1055,9 @@ private fun EmptyCachePlaceholder(
 
             Text(
                 text = if (hasSearch) {
-                    if (isBangla) "কোনো ফলাফল পাওয়া যায়নি" else "No matching cached items"
+                    if (isBangla) "কোনো ফলাফল পাওয়া যায়নি" else "No matching items found"
                 } else {
-                    if (isBangla) "এখনো কোনো আইটেম ক্যাশ করা হয়নি" else "No item icons cached yet"
+                    if (isBangla) "এখনো কোনো আইটেমের লেনদেন তৈরি করা হয়নি" else "No transaction items found"
                 },
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp
@@ -1106,22 +1068,20 @@ private fun EmptyCachePlaceholder(
                     if (isBangla) "অন্য কোনো নাম বা শব্দ দিয়ে অনুসন্ধান করুন।" else "Try searching with another item name or query."
                 } else {
                     if (isBangla)
-                        "লেনদেনে নতুন আইটেমের নাম লিখলে অ্যাপ স্বয়ংক্রিয়ভাবে অনলাইন থেকে প্রাসঙ্গিক আইকন ক্যাশ করবে, অথবা আপনি নিজেও যোগ করতে পারেন।"
+                        "লেনদেনে আইটেমের নাম লিখলে এখানে সব ইউনিক আইটেম তালিকাভুক্ত হবে এবং প্রতিটি আইটেমের আইকন সহজেই পরিবর্তন করতে পারবেন।"
                     else
-                        "When you enter transaction item names, the app automatically finds and caches matching icons, or you can add items manually."
+                        "When you create transactions with item names, they will appear here, allowing you to easily view and customize their assigned icons."
                 },
                 fontSize = 12.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
-            if (!hasSearch) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Button(onClick = onAddClick) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isBangla) "নতুন আইটেম যোগ করুন" else "Add First Item")
-                }
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(onClick = onAddClick) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(if (isBangla) "নতুন আইটেমে আইকন দিন" else "Add Item Name")
             }
         }
     }
