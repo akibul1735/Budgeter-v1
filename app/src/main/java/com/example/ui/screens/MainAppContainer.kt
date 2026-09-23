@@ -2106,7 +2106,6 @@ private fun DrawerContent(
                 AppView.ACCOUNTS, AppView.RM_MANAGER, AppView.PAYMENT_SOURCE -> "accounts_sources"
                 AppView.CATEGORIES, AppView.BUDGET_MAKER -> "categories_budget"
                 AppView.SAVINGS_GOALS, AppView.WISHLIST -> "goals_wishlist"
-                AppView.TRASH -> "rest"
                 else -> null
             }
             if (activeGroup != null && activeGroup !in openGroups) {
@@ -2117,7 +2116,6 @@ private fun DrawerContent(
         val isAccountsOpen = "accounts_sources" in openGroups
         val isCategoriesOpen = "categories_budget" in openGroups
         val isGoalsOpen = "goals_wishlist" in openGroups
-        val isRestOpen = "rest" in openGroups
 
         val toggleGroup: (String) -> Unit = { groupId ->
             openGroups = if (groupId in openGroups) openGroups - groupId else openGroups + groupId
@@ -2280,144 +2278,134 @@ private fun DrawerContent(
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // 6. Rest (Quick Sync, Demo, Trash)
-        val hasActiveRest = currentView == AppView.TRASH || isDemoMode
-        DrawerGroupHeader(
-            title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য ও টুলস" else "Rest & Tools",
-            icon = Icons.Default.Tune,
-            iconTint = MaterialTheme.colorScheme.outline,
-            isOpen = isRestOpen,
-            hasActiveChild = hasActiveRest,
-            badge = if (trashedItems.isNotEmpty()) "${trashedItems.size}" else null,
-            onToggle = { toggleGroup("rest") },
-            testTag = "drawer_group_rest"
-        )
-        AnimatedVisibility(
-            visible = isRestOpen,
-            enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
-            exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 18.dp, end = 4.dp, bottom = 2.dp)
-            ) {
-                // Quick Sync
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = if (languageMode == LanguageMode.BANGLA) "কুইক সিঙ্ক" else "Quick Sync",
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 13.5.sp
-                                )
-                                Text(
-                                    text = "Last: $lastSyncFormatted",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            Icon(
-                                Icons.Default.Sync,
-                                contentDescription = "Sync",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Sync, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
-                    selected = false,
-                    onClick = { viewModel.triggerQuickSync() },
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp)
-                )
-
-                // Demo Mode Switch
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "ডেমো" else "Demo",
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.5.sp
-                                    )
-                                    if (isDemoMode) {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
-                                        ) {
-                                            Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) "চালু" else "ON",
-                                                fontSize = 9.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.tertiary,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                Text(
-                                    text = if (isDemoMode) {
-                                        if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা • ব্যাকআপ হবে না" else "Sample data • No backup"
-                                    } else {
-                                        if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা দেখতে চালু করুন" else "Toggle on to explore"
-                                    },
-                                    fontSize = 10.5.sp,
-                                    color = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
-                                )
-                            }
-                            Switch(
-                                checked = isDemoMode,
-                                onCheckedChange = { viewModel.setDemoMode(it) },
-                                modifier = Modifier
-                                    .scale(0.8f)
-                                    .testTag("drawer_demo_switch")
-                            )
-                        }
-                    },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Science,
-                            contentDescription = "Demo Mode",
-                            tint = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(18.dp)
+        // 6. Ungrouped Tools & Utilities: Quick Sync
+        NavigationDrawerItem(
+            label = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "কুইক সিঙ্ক" else "Quick Sync",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
                         )
-                    },
-                    selected = isDemoMode,
-                    onClick = { viewModel.setDemoMode(!isDemoMode) },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.28f),
-                        unselectedContainerColor = Color.Transparent
-                    ),
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 1.dp)
-                        .testTag("drawer_demo_item")
+                        Text(
+                            text = "Last: $lastSyncFormatted",
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Icon(
+                        Icons.Default.Sync,
+                        contentDescription = "Sync",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            },
+            icon = {
+                Icon(
+                    Icons.Default.Sync,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
                 )
+            },
+            selected = false,
+            onClick = { viewModel.triggerQuickSync() },
+            shape = RoundedCornerShape(12.dp),
+            colors = NavigationDrawerItemDefaults.colors(
+                unselectedContainerColor = Color.Transparent
+            ),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+        )
 
-                // Trash
-                DrawerChildItemRow(
-                    title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash",
-                    icon = Icons.Default.DeleteOutline,
-                    iconTint = if (trashedItems.isNotEmpty()) SolidExpense else MaterialTheme.colorScheme.outline,
-                    badge = if (trashedItems.isNotEmpty()) "${trashedItems.size}" else null,
-                    isSelected = currentView == AppView.TRASH,
-                    onClick = { onSelectView(AppView.TRASH) }
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // 7. Ungrouped Tools & Utilities: Demo Mode Switch
+        NavigationDrawerItem(
+            label = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "ডেমো মোড" else "Demo Mode",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            if (isDemoMode) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "চালু" else "ON",
+                                        fontSize = 9.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.tertiary,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (isDemoMode) {
+                                if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা • ব্যাকআপ হবে না" else "Sample data • No backup"
+                            } else {
+                                if (languageMode == LanguageMode.BANGLA) "নমুনা ডাটা দেখতে চালু করুন" else "Toggle on to explore"
+                            },
+                            fontSize = 10.5.sp,
+                            color = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Switch(
+                        checked = isDemoMode,
+                        onCheckedChange = { viewModel.setDemoMode(it) },
+                        modifier = Modifier
+                            .scale(0.8f)
+                            .testTag("drawer_demo_switch")
+                    )
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Science,
+                    contentDescription = "Demo Mode",
+                    tint = if (isDemoMode) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(20.dp)
                 )
-            }
-        }
+            },
+            selected = isDemoMode,
+            onClick = { viewModel.setDemoMode(!isDemoMode) },
+            shape = RoundedCornerShape(12.dp),
+            colors = NavigationDrawerItemDefaults.colors(
+                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.28f),
+                unselectedContainerColor = Color.Transparent
+            ),
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+                .testTag("drawer_demo_item")
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // 8. Ungrouped Tools & Utilities: Trash
+        DrawerItemRow(
+            title = if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash",
+            icon = Icons.Default.DeleteOutline,
+            iconTint = if (trashedItems.isNotEmpty()) SolidExpense else MaterialTheme.colorScheme.outline,
+            badge = if (trashedItems.isNotEmpty()) "${trashedItems.size}" else null,
+            isSelected = currentView == AppView.TRASH,
+            onClick = { onSelectView(AppView.TRASH) }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -2493,7 +2481,7 @@ private fun DrawerGroupHeader(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (badge != null) {
+                if (isOpen && badge != null) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant,
