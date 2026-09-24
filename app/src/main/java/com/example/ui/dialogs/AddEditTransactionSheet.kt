@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.BorderStroke
@@ -1212,26 +1213,51 @@ fun AddEditTransactionSheet(
             val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
                 ?: (view.context as? android.app.Dialog)?.window
                 ?: (view.context as? android.app.Activity)?.window
+
+            // SOFT_INPUT_ADJUST_RESIZE allows the window manager and compose insets to natively size and push content above keyboard
             window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
-            val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
-                val rect = Rect()
-                view.getWindowVisibleDisplayFrame(rect)
-                val screenHeight = view.rootView.height
-                val keypadHeight = (screenHeight - rect.bottom).coerceAtLeast(0)
+            fun updateKeyboardState() {
                 val insets = ViewCompat.getRootWindowInsets(view)
                 val imeBottom = insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
+                val navBottom = insets?.getInsets(WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
                 val imeVisible = insets?.isVisible(WindowInsetsCompat.Type.ime()) == true
 
-                val height = when {
-                    imeBottom > 0 -> imeBottom
-                    keypadHeight > screenHeight * 0.15 -> keypadHeight
-                    else -> 0
+                val rect = Rect()
+                view.getWindowVisibleDisplayFrame(rect)
+                val loc = IntArray(2)
+                view.getLocationOnScreen(loc)
+                val viewBottomOnScreen = loc[1] + view.height
+                val keypadFromFrame = (viewBottomOnScreen - rect.bottom).coerceAtLeast(0)
+
+                val effectiveHeight = maxOf(imeBottom, keypadFromFrame)
+                val threshold = maxOf(navBottom + with(density) { 30.dp.roundToPx() }, with(density) { 80.dp.roundToPx() })
+                val visible = effectiveHeight > threshold || imeVisible
+
+                if (visible) {
+                    keyboardHeightPx = effectiveHeight
+                    isKeyboardPhysicallyVisible = true
+                } else {
+                    keyboardHeightPx = 0
+                    isKeyboardPhysicallyVisible = false
                 }
-                keyboardHeightPx = height
-                isKeyboardPhysicallyVisible = height > 0 || imeVisible
+            }
+
+            val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+                updateKeyboardState()
             }
             view.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+
+            val insetsListener = androidx.core.view.OnApplyWindowInsetsListener { _, insets ->
+                val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+                if (imeVisible || imeBottom > 0) {
+                    keyboardHeightPx = imeBottom
+                    isKeyboardPhysicallyVisible = true
+                }
+                insets
+            }
+            ViewCompat.setOnApplyWindowInsetsListener(view, insetsListener)
 
             val animationCallback = object : androidx.core.view.WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
                 override fun onProgress(
@@ -1251,13 +1277,7 @@ fun AddEditTransactionSheet(
 
                 override fun onEnd(animation: androidx.core.view.WindowInsetsAnimationCompat) {
                     super.onEnd(animation)
-                    val insets = ViewCompat.getRootWindowInsets(view)
-                    val imeHeight = insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: 0
-                    val imeVisible = insets?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
-                    if (!imeVisible && imeHeight == 0) {
-                        keyboardHeightPx = 0
-                        isKeyboardPhysicallyVisible = false
-                    }
+                    updateKeyboardState()
                 }
             }
             ViewCompat.setWindowInsetsAnimationCallback(view, animationCallback)
@@ -1265,24 +1285,26 @@ fun AddEditTransactionSheet(
             onDispose {
                 view.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
                 ViewCompat.setWindowInsetsAnimationCallback(view, null)
+                ViewCompat.setOnApplyWindowInsetsListener(view, null)
             }
         }
 
         val imeBottomFromCompose = WindowInsets.ime.getBottom(density)
+        val navBottomFromCompose = WindowInsets.navigationBars.getBottom(density)
         val effectiveKeyboardHeightPx = maxOf(imeBottomFromCompose, keyboardHeightPx)
-        val isKeyboardOnScreen = effectiveKeyboardHeightPx > with(density) { 50.dp.roundToPx() } || isKeyboardPhysicallyVisible
+        val isKeyboardOnScreen = effectiveKeyboardHeightPx > with(density) { 60.dp.roundToPx() } || isKeyboardPhysicallyVisible
 
         val targetKeyboardOffsetDp = if (isKeyboardOnScreen) {
-            with(density) { effectiveKeyboardHeightPx.toDp() }
+            with(density) { maxOf(effectiveKeyboardHeightPx, imeBottomFromCompose).toDp() }
         } else {
-            0.dp
+            with(density) { navBottomFromCompose.toDp() }
         }
 
         val animatedKeyboardOffset by animateDpAsState(
             targetValue = targetKeyboardOffsetDp,
             animationSpec = spring(
                 dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMediumLow
+                stiffness = Spring.StiffnessMedium
             ),
             label = "animatedKeyboardOffset"
         )
@@ -1297,7 +1319,7 @@ fun AddEditTransactionSheet(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .padding(bottom = animatedKeyboardOffset)
+                    .padding(bottom = animatedKeyboardOffset.coerceAtLeast(with(density) { (if (isKeyboardOnScreen) effectiveKeyboardHeightPx else navBottomFromCompose).toDp() }))
             ) {
                 // Top App Bar
                 Surface(
@@ -2863,7 +2885,32 @@ fun AddEditTransactionSheet(
                     Spacer(modifier = Modifier.height(16.dp)) // Compact padding for bottom bar
                 }
 
-                // Bottom Action Bar: Type Selector Pills or Short Buttons Toolbar (Smoothly moves above Keyboard)
+                // Bottom Action Bar: Type Selector Pills or Compact Floating Toolbar (Smoothly moves above Keyboard)
+                val expenseActionColor = Color(0xFFEA580C) // Expense (orange)
+                val incomeActionColor = SolidIncome        // Income (green)
+                val transferActionColor = SolidTransfer    // Transfer (blue)
+                val saveActionColor = SolidIncome          // Save (green)
+
+                val switchActionType: (TransactionType) -> Unit = { newType ->
+                    txType = newType
+                    selectedSign = when (newType) {
+                        TransactionType.EXPENSE -> "−"
+                        TransactionType.INCOME -> "+"
+                        TransactionType.TRANSFER -> "⇄"
+                    }
+                    if (newType != TransactionType.TRANSFER) {
+                        val targetType = if (newType == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
+                        val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
+                        val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
+                        selectedCategoryId = defaultGroup?.id
+                        val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
+                        selectedSubCategoryId = subs.firstOrNull()?.id
+                    } else {
+                        selectedCategoryId = null
+                        selectedSubCategoryId = null
+                    }
+                }
+
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 6.dp,
@@ -2878,241 +2925,202 @@ fun AddEditTransactionSheet(
                             )
                         )
                 ) {
-                    AnimatedContent(
-                        targetState = isKeyboardOnScreen,
-                        transitionSpec = {
-                            if (targetState) {
-                                // Keyboard open: transition to short buttons mode on right just above keyboard
-                                (fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) +
-                                 scaleIn(initialScale = 0.90f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                 slideInHorizontally(animationSpec = tween(180, easing = FastOutSlowInEasing)) { it / 4 })
-                                    .togetherWith(
-                                        fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
-                                        scaleOut(targetScale = 0.92f, animationSpec = tween(100))
-                                    )
-                            } else {
-                                // Keyboard closed: smooth transition back down to standard bottom mode
-                                (fadeIn(animationSpec = tween(200, delayMillis = 20, easing = LinearOutSlowInEasing)) +
-                                 scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 4 })
-                                    .togetherWith(
-                                        fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
-                                        scaleOut(targetScale = 0.92f, animationSpec = tween(100))
-                                    )
-                            }.using(SizeTransform(clip = false))
-                        },
-                        label = "BottomBarModeTransition"
-                    ) { keyboardActive ->
-                        if (keyboardActive) {
-                            // When keyboard is on screen: just above right side show buttons for Expense, Income, Transfer, Save with clear active highlight
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                val miniTypes = listOf(
-                                    Triple(TransactionType.EXPENSE, if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Exp", Icons.Default.ArrowDownward to SolidExpense),
-                                    Triple(TransactionType.INCOME, if (languageMode == LanguageMode.BANGLA) "আয়" else "Inc", Icons.Default.ArrowUpward to SolidIncome),
-                                    Triple(TransactionType.TRANSFER, if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার" else "Trf", Icons.Default.SwapHoriz to SolidTransfer)
-                                )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                            thickness = 0.8.dp
+                        )
 
+                        AnimatedContent(
+                            targetState = isKeyboardOnScreen,
+                            transitionSpec = {
+                                if (targetState) {
+                                    // Keyboard open: transition to compact floating toolbar mode just above keyboard
+                                    (fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) +
+                                     scaleIn(initialScale = 0.90f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                     slideInHorizontally(animationSpec = tween(180, easing = FastOutSlowInEasing)) { it / 4 })
+                                        .togetherWith(
+                                            fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
+                                            scaleOut(targetScale = 0.92f, animationSpec = tween(100))
+                                        )
+                                } else {
+                                    // Keyboard closed: smooth transition back down to full-width bottom bar
+                                    (fadeIn(animationSpec = tween(200, delayMillis = 20, easing = LinearOutSlowInEasing)) +
+                                     scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                     slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 4 })
+                                        .togetherWith(
+                                            fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
+                                            scaleOut(targetScale = 0.92f, animationSpec = tween(100))
+                                        )
+                                }.using(SizeTransform(clip = false))
+                            },
+                            label = "BottomBarModeTransition"
+                        ) { keyboardActive ->
+                            if (keyboardActive) {
+                                // Keyboard open: compact floating toolbar with short buttons on right just left of save button, no unnecessary left pad
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.End
                                 ) {
-                                    miniTypes.forEach { (type, label, iconAndColor) ->
-                                        val (icon, color) = iconAndColor
-                                        val isSelected = txType == type
-                                        Surface(
-                                            shape = RoundedCornerShape(10.dp),
-                                            color = if (isSelected) color else color.copy(alpha = 0.12f),
-                                            shadowElevation = if (isSelected) 4.dp else 0.dp,
-                                            border = if (isSelected) {
-                                                BorderStroke(1.5.dp, Color.White.copy(alpha = 0.6f))
-                                            } else {
-                                                BorderStroke(1.dp, color.copy(alpha = 0.35f))
-                                            },
-                                            modifier = Modifier
-                                                .height(36.dp)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .clickable {
-                                                    txType = type
-                                                    selectedSign = when (type) {
-                                                        TransactionType.EXPENSE -> "−"
-                                                        TransactionType.INCOME -> "+"
-                                                        TransactionType.TRANSFER -> "⇄"
-                                                    }
-                                                    if (type != TransactionType.TRANSFER) {
-                                                        val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                                                        val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
-                                                        val defaultGroup = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                                        selectedCategoryId = defaultGroup?.id
-                                                        val subs = if (defaultGroup != null) categories.filter { it.parentId == defaultGroup.id && it.isActive } else emptyList()
-                                                        selectedSubCategoryId = subs.firstOrNull()?.id
-                                                    } else {
-                                                        selectedCategoryId = null
-                                                        selectedSubCategoryId = null
-                                                    }
-                                                }
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.Center,
-                                                modifier = Modifier.padding(horizontal = 9.dp)
+                                    // Compact Icon Buttons for Expense (orange), Income (green), Transfer (blue) on right
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val iconTypeOptions = listOf(
+                                            Triple(TransactionType.EXPENSE, Icons.Default.ArrowDownward, expenseActionColor),
+                                            Triple(TransactionType.INCOME, Icons.Default.ArrowUpward, incomeActionColor),
+                                            Triple(TransactionType.TRANSFER, Icons.Default.SwapHoriz, transferActionColor)
+                                        )
+
+                                        iconTypeOptions.forEach { (type, icon, color) ->
+                                            val isSelected = txType == type
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (isSelected) color else color.copy(alpha = 0.12f),
+                                                shadowElevation = if (isSelected) 3.dp else 0.dp,
+                                                border = if (isSelected) {
+                                                    BorderStroke(1.5.dp, Color.White.copy(alpha = 0.8f))
+                                                } else {
+                                                    BorderStroke(1.dp, color.copy(alpha = 0.35f))
+                                                },
+                                                modifier = Modifier
+                                                    .width(46.dp)
+                                                    .height(36.dp)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .clickable { switchActionType(type) }
                                             ) {
-                                                Icon(
-                                                    imageVector = icon,
-                                                    contentDescription = label,
-                                                    tint = if (isSelected) Color.White else color,
-                                                    modifier = Modifier.size(15.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = label,
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
-                                                    color = if (isSelected) Color.White else color,
-                                                    textAlign = TextAlign.Center,
-                                                    maxLines = 1
-                                                )
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.fillMaxSize()
+                                                ) {
+                                                    Icon(
+                                                        imageVector = icon,
+                                                        contentDescription = type.name,
+                                                        tint = if (isSelected) Color.White else color,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
 
-                                // Save button (Highlight button with icon and label)
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = typePrimaryColor,
-                                    shadowElevation = 4.dp,
-                                    border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.5f)),
-                                    modifier = Modifier
-                                        .height(36.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable { executeSave() }
-                                        .testTag("save_transaction_btn")
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center,
-                                        modifier = Modifier.padding(horizontal = 11.dp)
+                                    // Save button with increased length on the far right
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = saveActionColor,
+                                        shadowElevation = 4.dp,
+                                        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.75f)),
+                                        modifier = Modifier
+                                            .height(36.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { executeSave() }
+                                            .testTag("save_transaction_btn")
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Save,
-                                            contentDescription = "Save",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            // Standard Bottom Action Bar: Type Selector Pills + Save Button
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                // Segmented Type Pills: EXPENSE, INCOME, TRANSFER (Text-only)
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    val types = listOf(
-                                        Triple(TransactionType.EXPENSE, (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
-                                        Triple(TransactionType.INCOME, (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
-                                        Triple(TransactionType.TRANSFER, (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
-                                    )
-
-                                    types.forEach { (type, label, color) ->
-                                        val isSelected = txType == type
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = if (isSelected) color else color.copy(alpha = 0.12f),
-                                            border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.25f)),
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .clickable {
-                                                    txType = type
-                                                    selectedSign = when (type) {
-                                                        TransactionType.EXPENSE -> "−"
-                                                        TransactionType.INCOME -> "+"
-                                                        TransactionType.TRANSFER -> "⇄"
-                                                    }
-                                                    if (type != TransactionType.TRANSFER) {
-                                                        val targetType = if (type == TransactionType.EXPENSE) CategoryType.EXPENSE else CategoryType.INCOME
-                                                        val relevant = categories.filter { it.type == targetType && it.parentId == null && it.isActive }
-                                                        val othersCat = relevant.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) } ?: relevant.firstOrNull()
-                                                        selectedCategoryId = othersCat?.id
-                                                        val subs = if (othersCat != null) categories.filter { it.parentId == othersCat.id && it.isActive } else emptyList()
-                                                        selectedSubCategoryId = subs.firstOrNull { it.nameEn.equals("Others", ignoreCase = true) }?.id ?: subs.firstOrNull()?.id
-                                                    } else {
-                                                        selectedCategoryId = null
-                                                        selectedSubCategoryId = null
-                                                    }
-                                                }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
+                                            modifier = Modifier.padding(horizontal = 16.dp)
                                         ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Save",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = label,
-                                                fontSize = 11.sp,
+                                                text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save",
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) Color.White else color,
-                                                textAlign = TextAlign.Center,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 7.dp)
+                                                color = Color.White
                                             )
                                         }
                                     }
                                 }
-
-                                Spacer(modifier = Modifier.width(10.dp))
-
-                                // Save Button (Wide, prominent, without increasing height)
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = typePrimaryColor,
-                                    shadowElevation = 3.dp,
+                            } else {
+                                // Keyboard hidden: Full-width bottom bar with Expense (orange), Income (green), Transfer (blue), and Save (green icon button fixed at bottom-right)
+                                Row(
                                     modifier = Modifier
-                                        .height(42.dp)
-                                        .width(76.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .clickable { executeSave() }
-                                        .testTag("save_transaction_btn")
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
+                                    // Segmented Type Buttons: EXPENSE (Orange), INCOME (Green), TRANSFER (Blue)
                                     Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Save,
-                                            contentDescription = "Save",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(20.dp)
+                                        val types = listOf(
+                                            Triple(TransactionType.EXPENSE, LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }, expenseActionColor),
+                                            Triple(TransactionType.INCOME, LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }, incomeActionColor),
+                                            Triple(TransactionType.TRANSFER, LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }, transferActionColor)
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
+
+                                        types.forEach { (type, label, color) ->
+                                            val isSelected = txType == type
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = if (isSelected) color else color.copy(alpha = 0.10f),
+                                                border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.30f)),
+                                                shadowElevation = if (isSelected) 3.dp else 0.dp,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(42.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable { switchActionType(type) }
+                                            ) {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .padding(horizontal = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = label,
+                                                        fontSize = 12.5.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                                        color = if (isSelected) Color.White else color,
+                                                        textAlign = TextAlign.Center,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    // Save Button: Fixed green icon button at bottom-right
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = saveActionColor,
+                                        shadowElevation = 3.dp,
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { executeSave() }
+                                            .testTag("save_transaction_btn")
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Save,
+                                                contentDescription = "Save",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(22.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -3121,7 +3129,6 @@ fun AddEditTransactionSheet(
                 }
             }
         }
-    }
 
     // Modal Pickers & Dialogs
     if (showCalculator) {
@@ -3569,6 +3576,7 @@ fun AddEditTransactionSheet(
                 pendingAttachmentAction = null
             }
         )
+    }
     }
 }
 
