@@ -70,7 +70,9 @@ object OnlineIconSearchService {
         "SKILL-ICONS", "VSCODE-ICONS", "NOTO", "STREAMLINE-COLOR", "STREAMLINE-PLUMP-COLOR",
         "STREAMLINE-ULTIMATE-COLOR", "THESVG-COLOR", "ICON-PARK", "MARKETEQ", "TOKEN-BRANDED",
         "DEVICON", "DEVICON-PLAIN", "BI", "EMOJIONE", "NOTO-V1", "VectorLogoZone",
-        "Wikipedia", "CoinGecko", "DuckDuckGo Favicon", "SIMPLE-ICONS", "DuckDuckGo", "Bing"
+        "Wikipedia", "CoinGecko", "DuckDuckGo Favicon", "SIMPLE-ICONS", "DuckDuckGo", "Bing",
+        "Iconfinder", "Flaticon", "Freepik", "Vecteezy", "Pngtree", "Web Icon", "FreeIconsPNG",
+        "CleanPNG", "PNGWing", "ClipartMax"
     )
 
     private val GENERIC_STOP_WORDS = setOf(
@@ -207,7 +209,8 @@ object OnlineIconSearchService {
         // Home, Education, Work & Charity
         "house", "home", "apartment", "building", "rent", "hotel", "furniture", "chair", "table", "bed",
         "cleaning", "broom", "toilet", "bathroom", "education", "school", "college", "university",
-        "tuition", "course", "book", "books", "charity", "donation", "donate", "gift", "office", "work"
+        "tuition", "course", "book", "books", "charity", "donation", "donate", "gift", "office", "work",
+        "napkin", "napkins", "tissue", "tissues", "serviette", "towel", "towels", "wipe", "wipes", "paper"
     )
 
     private val CANONICAL_KEYWORDS_SET: Set<String> = CANONICAL_KEYWORDS.toSet()
@@ -421,6 +424,14 @@ object OnlineIconSearchService {
         "cake" to listOf("dessert", "bakery", "sweet", "birthday"),
         "soap" to listOf("soap", "wash", "clean", "hygiene", "bubble", "cleaning"),
         "shampoo" to listOf("shampoo", "hair", "bottle", "bath", "shower", "cleaning"),
+        "napkin" to listOf("tissue", "paper", "wipe", "serviette", "hygiene", "cleaning"),
+        "napkins" to listOf("napkin", "tissue", "wipe", "paper"),
+        "tissue" to listOf("napkin", "paper", "wipe", "facial-tissue", "box-tissue", "hygiene"),
+        "tissues" to listOf("tissue", "napkin", "wipe", "paper"),
+        "serviette" to listOf("napkin", "tissue", "paper", "table"),
+        "towel" to listOf("napkin", "cloth", "bath", "wash", "hygiene"),
+        "wipe" to listOf("tissue", "napkin", "cleaning", "hygiene"),
+        "wipes" to listOf("wipe", "tissue", "napkin", "cleaning"),
         "cigarette" to listOf("cigarette", "smoke", "tobacco", "smoking"),
 
         // Transport & Vehicles
@@ -1170,6 +1181,7 @@ object OnlineIconSearchService {
         val isFinance = term.lowercase() in setOf("crypto", "bitcoin", "ethereum", "token", "coin", "finance", "bank", "money")
 
         val svglJob = async { fetchSvglLogos(term, page, limit = if (isExact) 8 else 4) }
+        val webIconsJob = async { fetchWebIcons(term, page, limit = if (isExact) 14 else 8) }
         val iconifyJob = async { fetchIconifyIcons(term, page, limit = limit) }
         val curatedIconifyJob = async {
             if (page == 1) {
@@ -1185,7 +1197,8 @@ object OnlineIconSearchService {
         val cgJob = async { if (isFinance) fetchCoinGeckoIcons(term, page) else emptyList() }
         val faviconJob = async { if (page == 1 && isExact) fetchFavicons(term) else emptyList() }
 
-        val all = svglJob.await() +
+        val all = webIconsJob.await() +
+                svglJob.await() +
                 curatedIconifyJob.await() +
                 iconifyJob.await() +
                 brandfetchJob.await() +
@@ -1196,10 +1209,14 @@ object OnlineIconSearchService {
                 cgJob.await() +
                 faviconJob.await()
 
-        // Sort colorful and high-priority sources first
+        val webIconSources = setOf("Iconfinder", "Flaticon", "Freepik", "Vecteezy", "Pngtree", "Web Icon", "FreeIconsPNG", "CleanPNG", "PNGWing", "ClipartMax")
+        val curatedSources = setOf("SVGL", "VectorLogoZone", "CoinGecko", "FLAT-COLOR-ICONS", "FLUENT-EMOJI-FLAT")
+
+        // Sort web vector/PNG icons & curated developer icons first, demoting Brandfetch/Favicons for common everyday items
         all.sortedWith(
-            compareByDescending<OnlineIconResult> { it.isColorful && it.sourceName != "Brandfetch" && it.sourceName != "Favicon" && it.sourceName != "DuckDuckGo Favicon" }
-                .thenByDescending { it.sourceName in setOf("SVGL", "VectorLogoZone", "CoinGecko", "FLAT-COLOR-ICONS", "FLUENT-EMOJI-FLAT") }
+            compareByDescending<OnlineIconResult> { it.sourceName in webIconSources || it.sourceName in curatedSources }
+                .thenByDescending { it.isColorful && it.sourceName != "Brandfetch" && it.sourceName != "Favicon" && it.sourceName != "DuckDuckGo Favicon" }
+                .thenByDescending { it.sourceName !in setOf("Brandfetch", "Favicon", "DuckDuckGo Favicon") }
                 .thenByDescending { it.isColorful }
                 .thenBy { it.sourceName == "Wikimedia" }
         )
@@ -1516,32 +1533,173 @@ object OnlineIconSearchService {
         null
     }
 
-    private val EXCLUDED_NEWS_DOMAINS = setOf(
+    private val EXCLUDED_UNRELATED_DOMAINS = setOf(
+        // Video and social platforms
+        "youtube", "youtu.be", "ytimg", "facebook", "fbcdn", "instagram", "tiktok",
+        "twitter", "x.com", "threads.net", "pinterest", "dailymotion", "vimeo",
+        "imaneralo", "tumblr", "reddit",
+        // Regional sensational gossip & political news domains
         "republicbharat", "timesnownews", "timesnow", "abplive", "abpnews",
         "indianexpress", "india.com", "ndtv", "aajtak", "zeenews", "hindustantimes",
         "indiatoday", "wahananews", "theprint", "opindia", "thewire", "firstpost",
         "news18", "livehindustan", "jagran", "amarujala", "navbharattimes", "dainikbhaskar",
-        "dhakatribune", "samakal", "bd24live"
+        "dhakatribune", "samakal", "bd24live", "prothomalo", "kalerkantho", "jugantor"
     )
 
-    private val EXCLUDED_POLITICAL_KEYWORDS = listOf(
+    private val EXCLUDED_UNRELATED_KEYWORDS = listOf(
         "zakir naik", "shehbaz sharif", "breaking news", "latest news",
         "marry a married man", "press conference", "lok sabha", "rajya sabha",
-        "narendra modi", "sheikh hasina", "scandal", "controversy"
+        "narendra modi", "sheikh hasina", "scandal", "controversy",
+        "full episode", "drama", "waz", "mahfil", "bangla song", "status video",
+        "whatsapp status", "reels", "shorts", "teaser", "trailer"
     )
 
-    private fun isExcludedOrIrrelevantNews(item: OnlineImageResult): Boolean {
+    private fun isExcludedOrIrrelevantContent(item: OnlineImageResult): Boolean {
         val titleLower = item.title.lowercase()
         val sourceLower = item.sourceName.lowercase()
         val urlLower = item.imageUrl.lowercase()
 
-        if (EXCLUDED_NEWS_DOMAINS.any { domain -> sourceLower.contains(domain) || urlLower.contains(domain) }) {
+        if (EXCLUDED_UNRELATED_DOMAINS.any { domain -> sourceLower.contains(domain) || urlLower.contains(domain) }) {
             return true
         }
-        if (EXCLUDED_POLITICAL_KEYWORDS.any { kw -> titleLower.contains(kw) }) {
+        if (EXCLUDED_UNRELATED_KEYWORDS.any { kw -> titleLower.contains(kw) }) {
             return true
         }
         return false
+    }
+
+    private fun formatHostName(rawHost: String?): String {
+        if (rawHost.isNullOrBlank()) return "Web"
+        val lower = rawHost.lowercase()
+        return when {
+            lower.contains("iconfinder") -> "Iconfinder"
+            lower.contains("flaticon") -> "Flaticon"
+            lower.contains("freepik") -> "Freepik"
+            lower.contains("vecteezy") -> "Vecteezy"
+            lower.contains("pngtree") -> "Pngtree"
+            lower.contains("freeiconspng") -> "FreeIconsPNG"
+            lower.contains("cleanpng") -> "CleanPNG"
+            lower.contains("pngwing") -> "PNGWing"
+            lower.contains("clipartmax") -> "ClipartMax"
+            lower.contains("amazon") -> "Amazon"
+            lower.contains("indiamart") -> "IndiaMART"
+            lower.contains("walmart") -> "Walmart"
+            else -> rawHost.take(14).replaceFirstChar { it.uppercase() }
+        }
+    }
+
+    /**
+     * Executes an async Bing Image search request and extracts real commercial/editorial product images.
+     */
+    private fun executeBingImageQuery(request: Request, limit: Int, defaultTerm: String): List<OnlineImageResult> {
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return emptyList()
+                val body = response.body?.string().orEmpty()
+                if (body.isBlank()) return emptyList()
+
+                val results = mutableListOf<OnlineImageResult>()
+
+                val iuscRegex = Regex("""<a\b[^>]*?\biusc\b[^>]*?>""", RegexOption.DOT_MATCHES_ALL)
+                val mRegex = Regex("""m=[\"'](\{.*?\})[\"']""")
+                val rawMatches = mutableListOf<String>()
+
+                val iuscTags = iuscRegex.findAll(body).toList()
+                if (iuscTags.isNotEmpty()) {
+                    for (tag in iuscTags) {
+                        mRegex.find(tag.value)?.let { rawMatches.add(it.groupValues[1]) }
+                    }
+                } else {
+                    val generalRegex = Regex("""m=\"(\{.*?\})\"""")
+                    for (m in generalRegex.findAll(body)) {
+                        rawMatches.add(m.groupValues[1])
+                    }
+                }
+
+                for (rawMatch in rawMatches) {
+                    if (results.size >= limit) break
+                    val rawJson = rawMatch
+                        .replace("&quot;", "\"")
+                        .replace("&amp;", "&")
+                        .replace("&lt;", "<")
+                        .replace("&gt;", ">")
+                    try {
+                        val obj = JSONObject(rawJson)
+                        val murl = obj.optString("murl")
+                        val turl = obj.optString("turl").ifBlank { murl }
+                        val title = obj.optString("t").ifBlank { obj.optString("desc", defaultTerm) }
+                        val purl = obj.optString("purl")
+                        val host = try {
+                            val rawHost = java.net.URI(purl).host?.removePrefix("www.")
+                            formatHostName(rawHost)
+                        } catch (_: Exception) {
+                            "Web"
+                        }
+
+                        val item = OnlineImageResult(
+                            title = title,
+                            imageUrl = murl,
+                            thumbUrl = turl,
+                            sourceName = host,
+                            width = 0,
+                            height = 0
+                        )
+
+                        if (murl.isNotBlank() && (murl.startsWith("http://") || murl.startsWith("https://")) && !isExcludedOrIrrelevantContent(item)) {
+                            results.add(item)
+                        }
+                    } catch (_: Exception) {}
+                }
+                results
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Searches real web vector, clipart, and transparent PNG icons via Bing Web Index
+     * (the exact same underlying engine powering DuckDuckGo's browser image search).
+     * Retrieves actual vector art and PNG icons from Vecteezy, Iconfinder, Flaticon, Pngtree, etc.
+     */
+    private suspend fun fetchWebIcons(term: String, page: Int, limit: Int = 16): List<OnlineIconResult> = withContext(Dispatchers.IO) {
+        try {
+            val cleanLower = term.trim().lowercase()
+            val corrected = fuzzyCorrectToken(cleanLower) ?: cleanLower
+            val searchQuery = "$corrected icon png"
+            val encoded = URLEncoder.encode(searchQuery, "UTF-8")
+            val first = ((page - 1) * limit) + 1
+            // Use transparent photo filter first for clean isolated icons
+            val url = "https://www.bing.com/images/async?q=$encoded&qft=+filterui:photo-transparent&first=$first&count=$limit&mmasync=1"
+
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+                .header("Accept", "*/*")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Referer", "https://www.bing.com/")
+                .build()
+
+            var matches = executeBingImageQuery(request, limit, term)
+            // Fallback without transparent filter if transparent returned too few results
+            if (matches.size < 4) {
+                val fallbackUrl = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1"
+                val fallbackReq = request.newBuilder().url(fallbackUrl).build()
+                val fallbackMatches = executeBingImageQuery(fallbackReq, limit, term)
+                matches = (matches + fallbackMatches).distinctBy { it.imageUrl }
+            }
+
+            matches.map { img ->
+                OnlineIconResult(
+                    title = img.title,
+                    imageUrl = img.imageUrl,
+                    sourceName = img.sourceName,
+                    isColorful = true
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     /**
@@ -1568,74 +1726,13 @@ object OnlineIconSearchService {
             val url = "https://www.bing.com/images/async?q=$encoded&first=$first&count=$limit&mmasync=1"
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
                 .header("Accept", "*/*")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .header("Referer", "https://www.bing.com/")
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext emptyList()
-                val body = response.body?.string().orEmpty()
-                if (body.isBlank()) return@withContext emptyList()
-
-                val results = mutableListOf<OnlineImageResult>()
-
-                // 1. Only extract genuine image result cards with class="iusc" (Image User Search Card)
-                // to ignore sidebar widgets, regional trending news carousels, and promotional units
-                val iuscRegex = Regex("""<a\b[^>]*?\biusc\b[^>]*?>""", RegexOption.DOT_MATCHES_ALL)
-                val mRegex = Regex("""m=[\"'](\{.*?\})[\"']""")
-                val rawMatches = mutableListOf<String>()
-
-                val iuscTags = iuscRegex.findAll(body).toList()
-                if (iuscTags.isNotEmpty()) {
-                    for (tag in iuscTags) {
-                        mRegex.find(tag.value)?.let { rawMatches.add(it.groupValues[1]) }
-                    }
-                } else {
-                    // Fallback to general m attribute if markup structure differs
-                    val generalRegex = Regex("""m=\"(\{.*?\})\"""")
-                    for (m in generalRegex.findAll(body)) {
-                        rawMatches.add(m.groupValues[1])
-                    }
-                }
-
-                for (rawMatch in rawMatches) {
-                    if (results.size >= limit) break
-                    val rawJson = rawMatch
-                        .replace("&quot;", "\"")
-                        .replace("&amp;", "&")
-                        .replace("&lt;", "<")
-                        .replace("&gt;", ">")
-                    try {
-                        val obj = JSONObject(rawJson)
-                        val murl = obj.optString("murl")
-                        val turl = obj.optString("turl").ifBlank { murl }
-                        val title = obj.optString("t").ifBlank { obj.optString("desc", term) }
-                        val purl = obj.optString("purl")
-                        val host = try {
-                            val rawHost = java.net.URI(purl).host?.removePrefix("www.")
-                            if (!rawHost.isNullOrBlank()) rawHost.take(14) else "Web"
-                        } catch (_: Exception) {
-                            "Web"
-                        }
-
-                        val item = OnlineImageResult(
-                            title = title,
-                            imageUrl = murl,
-                            thumbUrl = turl,
-                            sourceName = host,
-                            width = 0,
-                            height = 0
-                        )
-
-                        if (murl.isNotBlank() && (murl.startsWith("http://") || murl.startsWith("https://")) && !isExcludedOrIrrelevantNews(item)) {
-                            results.add(item)
-                        }
-                    } catch (_: Exception) {}
-                }
-                results
-            }
+            executeBingImageQuery(request, limit, term)
         } catch (_: Exception) {
             emptyList()
         }
@@ -1700,7 +1797,7 @@ object OnlineIconSearchService {
                         width = width,
                         height = height
                     )
-                    if (fullImg.isNotBlank() && (fullImg.startsWith("http://") || fullImg.startsWith("https://")) && !isExcludedOrIrrelevantNews(itemResult)) {
+                    if (fullImg.isNotBlank() && (fullImg.startsWith("http://") || fullImg.startsWith("https://")) && !isExcludedOrIrrelevantContent(itemResult)) {
                         results.add(itemResult)
                     }
                 }
@@ -1713,34 +1810,62 @@ object OnlineIconSearchService {
 
     /**
      * Fetches images for a single search term across all media engines concurrently.
+     * Prioritizes Bing commercial/product images (the core engine behind DuckDuckGo image search),
+     * followed by Unsplash photography, Wikipedia encyclopedia references, and Openverse as fallback.
      */
     private suspend fun fetchImagesForTerm(term: String, page: Int, limit: Int = 16): List<OnlineImageResult> = coroutineScope {
-        val bingJob = async { fetchBingImages(term, page, limit) }
+        val bingJob = async { fetchBingImages(term, page, limit = 20) }
         val ddgJob = async { fetchDuckDuckGoImages(term, page, limit) }
-        val wikiJob = async { fetchWikimediaImages(term, page, limit) }
-        val openverseJob = async { fetchOpenverseImages(term, page, limit) }
-        val unsplashJob = async { fetchUnsplashImages(term, page, limit) }
-        val wikiPageJob = async { fetchWikipediaImages(term, page, limit = 8) }
+        val unsplashJob = async { fetchUnsplashImages(term, page, limit = 10) }
+        val wikiJob = async { fetchWikimediaImages(term, page, limit = 8) }
+        val wikiPageJob = async { fetchWikipediaImages(term, page, limit = 6) }
+        val openverseJob = async { fetchOpenverseImages(term, page, limit = 6) }
 
         val bing = bingJob.await()
         val ddg = ddgJob.await()
-        val wiki = wikiJob.await()
-        val openverse = openverseJob.await()
         val unsplash = unsplashJob.await()
+        val wiki = wikiJob.await()
         val wikiPage = wikiPageJob.await()
+        val openverse = openverseJob.await()
+
         val combined = mutableListOf<OnlineImageResult>()
         val seen = mutableSetOf<String>()
 
-        // Interleave sources for a balanced mix of encyclopedia, wiki, and web results
-        val maxLen = maxOf(bing.size, wiki.size, ddg.size, wikiPage.size, unsplash.size, openverse.size)
-        for (i in 0 until maxLen) {
-            if (i < bing.size && !isExcludedOrIrrelevantNews(bing[i]) && seen.add(bing[i].imageUrl)) combined.add(bing[i])
-            if (i < wiki.size && !isExcludedOrIrrelevantNews(wiki[i]) && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
-            if (i < ddg.size && !isExcludedOrIrrelevantNews(ddg[i]) && seen.add(ddg[i].imageUrl)) combined.add(ddg[i])
-            if (i < wikiPage.size && !isExcludedOrIrrelevantNews(wikiPage[i]) && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
-            if (i < unsplash.size && !isExcludedOrIrrelevantNews(unsplash[i]) && seen.add(unsplash[i].imageUrl)) combined.add(unsplash[i])
-            if (i < openverse.size && !isExcludedOrIrrelevantNews(openverse[i]) && seen.add(openverse[i].imageUrl)) combined.add(openverse[i])
+        // 1. Give top priority to Bing web images (the core commercial product/photo index behind DuckDuckGo)
+        for (item in bing) {
+            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
+                combined.add(item)
+            }
         }
+
+        // 2. DuckDuckGo if available
+        for (item in ddg) {
+            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
+                combined.add(item)
+            }
+        }
+
+        // 3. Unsplash high-quality photography
+        for (item in unsplash) {
+            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
+                combined.add(item)
+            }
+        }
+
+        // 4. Encyclopedic references (Wikipedia / Wikimedia)
+        val maxWiki = maxOf(wiki.size, wikiPage.size)
+        for (i in 0 until maxWiki) {
+            if (i < wiki.size && !isExcludedOrIrrelevantContent(wiki[i]) && seen.add(wiki[i].imageUrl)) combined.add(wiki[i])
+            if (i < wikiPage.size && !isExcludedOrIrrelevantContent(wikiPage[i]) && seen.add(wikiPage[i].imageUrl)) combined.add(wikiPage[i])
+        }
+
+        // 5. Openverse creative commons as last fallback
+        for (item in openverse) {
+            if (!isExcludedOrIrrelevantContent(item) && seen.add(item.imageUrl)) {
+                combined.add(item)
+            }
+        }
+
         combined
     }
 
