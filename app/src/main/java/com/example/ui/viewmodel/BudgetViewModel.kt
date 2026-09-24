@@ -251,6 +251,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
     private var lastBackgroundEpochMs: Long = 0L
 
+    // Scroll state preservation for SettingsScreen
+    var settingsScrollIndex: Int = 0
+    var settingsScrollOffset: Int = 0
+
     fun setItemDisplayFormat(format: ItemDisplayFormat) {
         displayFormatPrefs.setItemDisplayFormat(format)
     }

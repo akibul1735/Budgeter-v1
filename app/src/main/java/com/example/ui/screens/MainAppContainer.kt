@@ -521,14 +521,17 @@ fun MainAppContainer(
         handleBackPress()
     }
 
-    val isSubView = currentView in listOf(
+    val isSubView = currentView.toAppTab() == null || currentView in listOf(
         AppView.EXPENSES,
         AppView.INCOME,
         AppView.BACKUP_SYNC,
         AppView.BUDGET_MAKER,
         AppView.SETTINGS,
         AppView.RM_MANAGER,
-        AppView.ACCOUNTS
+        AppView.ACCOUNTS,
+        AppView.ARCHIVE_PRUNE,
+        AppView.RESET,
+        AppView.TRASH
     )
 
     // Window Width Adaptive Layout Container

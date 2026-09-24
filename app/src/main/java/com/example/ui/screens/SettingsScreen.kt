@@ -88,11 +88,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -176,7 +178,18 @@ fun SettingsScreen(
     var iconCacheStats by remember { mutableStateOf(IconHelper.IconCacheStats()) }
     var isCleaningIconCache by remember { mutableStateOf(false) }
     var feedbackText by remember { mutableStateOf("") }
-    val rootListState = rememberLazyListState()
+    val rootListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = viewModel.settingsScrollIndex,
+        initialFirstVisibleItemScrollOffset = viewModel.settingsScrollOffset
+    )
+
+    LaunchedEffect(rootListState) {
+        snapshotFlow { rootListState.firstVisibleItemIndex to rootListState.firstVisibleItemScrollOffset }
+            .collect { (idx, offset) ->
+                viewModel.settingsScrollIndex = idx
+                viewModel.settingsScrollOffset = offset
+            }
+    }
 
     val themeConfig by viewModel.themeConfig.collectAsStateWithLifecycle()
     val currencyConfig by viewModel.currencyConfig.collectAsStateWithLifecycle()
@@ -498,430 +511,441 @@ fun SettingsScreen(
         )
     }
 
-    when (currentSubPage) {
-        SettingsSubPage.LANGUAGE -> {
-            LanguageSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Main ROOT Settings List - ALWAYS kept in composition so LazyListState and scroll position are never destroyed
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("settings_screen")
+        ) {
+            // Top App Header
+            AppTabHeader(
+                title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
+                tabIcon = Icons.Default.Settings,
+                showCoinIcon = false,
+                onOpenDrawer = onOpenDrawer,
+                onBack = null,
+                actions = {
+                    IconButton(
+                        onClick = { currentSubPage = SettingsSubPage.FAQ },
+                        modifier = Modifier.testTag("settings_faq_button")
+                    ) {
+                        Icon(
+                            Icons.Default.HelpOutline,
+                            contentDescription = "Help",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             )
-        }
-        SettingsSubPage.CURRENCY -> {
-            CurrencySettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.AMOUNT_FORMAT -> {
-            com.example.ui.screens.settings.AmountFormatSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.DATE_TIME -> {
-            DateSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.THEMES -> {
-            AppearanceSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.NAVIGATION_TABS -> {
-            NavigationTabsSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.TRANSACTION_SETUP -> {
-            TransactionSetupSettingsPage(
-                viewModel = viewModel,
-                accounts = accounts,
-                categories = categories,
-                languageMode = languageMode,
-                onNavigateToAutofill = { currentSubPage = SettingsSubPage.SMART_AUTOFILL },
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.SMART_AUTOFILL -> {
-            SmartAutofillSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
-            )
-        }
-        SettingsSubPage.CALENDAR -> {
-            CalendarSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.NOTIFICATIONS -> {
-            NotificationSettingsPage(
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.PERMISSIONS -> {
-            AppPermissionsSettingsPage(
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.SECURITY -> {
-            SecuritySettingsPage(
-                securityConfig = securityConfig,
-                languageMode = languageMode,
-                onSetAppLockEnabled = { viewModel.setAppLockEnabled(it) },
-                onSetPin = { viewModel.setSecurityPin(it) },
-                onVerifyPin = { viewModel.verifySecurityPin(it) },
-                onSetBiometricEnabled = { viewModel.setBiometricEnabled(it) },
-                onSetRequireAuthForGroupDeletion = { viewModel.setRequireAuthForGroupDeletion(it) },
-                onSetRequireAuthForMultiSelect = { viewModel.setRequireAuthForMultiSelect(it) },
-                onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
-                onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
-                onSetRequireAuthForBackupDeletion = { viewModel.setRequireAuthForBackupDeletion(it) },
-                onSetRequireAuthForCloudDisconnect = { viewModel.setRequireAuthForCloudDisconnect(it) },
-                onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
-                onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) },
-                onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) },
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.WIDGETS -> {
-            com.example.ui.screens.settings.WidgetsSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.ICON_IMAGE_CACHE -> {
-            com.example.ui.screens.settings.IconImageCacheSettingsPage(
-                viewModel = viewModel,
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.ABOUT -> {
-            AboutSettingsPage(
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.FAQ -> {
-            FaqSettingsPage(
-                languageMode = languageMode,
-                onBack = { currentSubPage = SettingsSubPage.ROOT }
-            )
-        }
-        SettingsSubPage.ROOT -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .testTag("settings_screen")
+
+            // Clean flat settings list categorized by sections
+            LazyColumn(
+                state = rootListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 32.dp)
             ) {
-                // Top App Header
-                AppTabHeader(
-                    title = LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" },
-                    tabIcon = Icons.Default.Settings,
-                    showCoinIcon = false,
-                    onOpenDrawer = onOpenDrawer,
-                    onBack = null,
-                    actions = {
-                        IconButton(
-                            onClick = { currentSubPage = SettingsSubPage.FAQ },
-                            modifier = Modifier.testTag("settings_faq_button")
-                        ) {
-                            Icon(
-                                Icons.Default.HelpOutline,
-                                contentDescription = "Help",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                )
+                // =========================================================================
+                // 1. SECTION: LOCALIZATION
+                // =========================================================================
+                item(key = "section_localization") {
+                    SettingsSectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন" else "LOCALIZATION"
+                    )
+                }
 
-                // Clean flat settings list categorized by sections
-                LazyColumn(
-                    state = rootListState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 32.dp)
-                ) {
-                    // =========================================================================
-                    // 1. SECTION: LOCALIZATION
-                    // =========================================================================
-                    item {
-                        SettingsSectionHeader(
-                            title = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন" else "LOCALIZATION"
+                item(key = "item_language") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference",
+                        subtitle = when (languageMode) {
+                            LanguageMode.ENGLISH -> "English"
+                            LanguageMode.BANGLA -> "বাংলা"
+                        },
+                        icon = Icons.Default.Language,
+                        onClick = { currentSubPage = SettingsSubPage.LANGUAGE }
+                    )
+                }
+
+                item(key = "item_currency") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup",
+                        subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
+                        icon = Icons.Default.CurrencyExchange,
+                        onClick = { currentSubPage = SettingsSubPage.CURRENCY }
+                    )
+                }
+
+                item(key = "item_date_settings") {
+                    val currentFormatOption = DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
+                    val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
+                    val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
+                        java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
+                        java.util.Calendar.SUNDAY -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
+                        java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
+                        java.util.Calendar.TUESDAY -> if (languageMode == LanguageMode.BANGLA) "মঙ্গলবার" else "Tuesday"
+                        java.util.Calendar.WEDNESDAY -> if (languageMode == LanguageMode.BANGLA) "বুধবার" else "Wednesday"
+                        java.util.Calendar.THURSDAY -> if (languageMode == LanguageMode.BANGLA) "বৃহস্পতিবার" else "Thursday"
+                        java.util.Calendar.FRIDAY -> if (languageMode == LanguageMode.BANGLA) "শুক্রবার" else "Friday"
+                        else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
+                    }
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date Settings",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "$formatDisplay • প্রথম দিন $firstDayName" else "$formatDisplay • First day $firstDayName",
+                        icon = Icons.Default.CalendarToday,
+                        onClick = { currentSubPage = SettingsSubPage.DATE_TIME }
+                    )
+                }
+
+                item(key = "item_amount_format") {
+                    val presetTitle = if (languageMode == LanguageMode.BANGLA) amountFormatConfig.preset.titleBn else amountFormatConfig.preset.titleEn
+                    val sampleText = LanguageHelper.formatCurrency(1234567.89, languageMode)
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format",
+                        subtitle = "$presetTitle • $sampleText",
+                        icon = Icons.Default.Numbers,
+                        onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
+                    )
+                }
+
+                item(key = "divider_1") {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+
+                // =========================================================================
+                // 2. SECTION: GENERAL
+                // =========================================================================
+                item(key = "section_general") {
+                    SettingsSectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "সাধারণ" else "GENERAL"
+                    )
+                }
+
+                item(key = "item_themes") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা" else "Customize Appearance",
+                        subtitle = "${themeConfig.activeThemeDisplayName} • ${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        icon = Icons.Default.Palette,
+                        onClick = { currentSubPage = SettingsSubPage.THEMES }
+                    )
+                }
+
+                item(key = "item_navigation_tabs") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব" else "Navigation Tabs",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
+                        icon = Icons.Default.ViewCarousel,
+                        onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                    )
+                }
+
+                item(key = "item_transaction_setup") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম, দ্রুত লেনদেন ও প্রদর্শন" else "Default accounts, layout & autofill",
+                        icon = Icons.Default.AddCircleOutline,
+                        onClick = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
+                    )
+                }
+
+                item(key = "item_calendar") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার" else "Calendar",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের ইনডিকেটর প্রদর্শন" else "Visual indicators & fiscal calendar",
+                        icon = Icons.Default.CalendarMonth,
+                        onClick = { currentSubPage = SettingsSubPage.CALENDAR }
+                    )
+                }
+
+                item(key = "item_phone_notifications") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডার ও বিল অ্যালার্ট" else "Daily expense alarms & reminders",
+                        icon = Icons.Default.NotificationsNone,
+                        onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
+                    )
+                }
+
+                item(key = "item_app_permissions") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাপের অনুমতিসমূহ" else "App Permissions",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যামেরা, নোটিফিকেশন ও সিস্টেম অনুমতি নিয়ন্ত্রণ" else "Manage camera, notifications & system access",
+                        icon = Icons.Default.Security,
+                        onClick = { currentSubPage = SettingsSubPage.PERMISSIONS }
+                    )
+                }
+
+                item(key = "item_security") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও ফিঙ্গারপ্রিন্ট" else "Password and Fingerprint",
+                        subtitle = if (securityConfig.isAppLockEnabled)
+                            (if (languageMode == LanguageMode.BANGLA) "অ্যাপ লক সক্রিয় রয়েছে" else "App lock enabled")
+                        else
+                            (if (languageMode == LanguageMode.BANGLA) "বায়োমেট্রিক ও পিন সুরক্ষা" else "Biometric authentication & PIN lock"),
+                        icon = Icons.Default.Fingerprint,
+                        onClick = { handleSecurityAccess() }
+                    )
+                }
+
+                item(key = "item_widgets") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "হোম স্ক্রিন উইজেট" else "Home Screen Widgets",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "প্রিমিয়াম কুইক অ্যাকশন ও বাজেট উইজেট পিন করুন" else "Quick actions, live budget meter & live feeds",
+                        icon = Icons.Default.Widgets,
+                        onClick = { currentSubPage = SettingsSubPage.WIDGETS }
+                    )
+                }
+
+                item(key = "divider_2") {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+
+                // =========================================================================
+                // 3. SECTION: DATA & RESET
+                // =========================================================================
+                item(key = "section_data_reset") {
+                    SettingsSectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "ডাটা ও রিসেট" else "DATA & RESET"
+                    )
+                }
+
+                item(key = "item_backup_sync") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ, ড্রপবক্স ও লোকাল ব্যাকআপ" else "Google Drive, Dropbox & Local Storage",
+                        icon = Icons.Default.CloudSync,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        onClick = onNavigateToBackupSync
+                    )
+                }
+
+                item(key = "item_archive_prune") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও ডাটা প্রুনিং" else "Archive & Prune",
+                        subtitle = if (languageMode == LanguageMode.BANGLA)
+                            "ব্যালেন্স অপরিবর্তিত রেখে পুরাতন ডাটা এনক্রিপ্ট ও প্রুন করুন"
+                        else
+                            "Smart fiscal year roll-forward, shrink DB & 100% balance match",
+                        icon = Icons.Default.Archive,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        onClick = { handleArchivePruneAccess() }
+                    )
+                }
+
+                item(key = "item_items_icon") {
+                    val cachedItems by viewModel.allItemImageCaches.collectAsStateWithLifecycle()
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন" else "Items Icon",
+                        subtitle = if (languageMode == LanguageMode.BANGLA)
+                            "অনলাইন আইকন, ইমেজ সার্চ স্টুডিও ও ক্যাশ"
+                        else
+                            "Online icons, image studio & custom item icons",
+                        icon = Icons.Default.Category,
+                        onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE }
+                    )
+                }
+
+                item(key = "item_reset_wipe") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন ডিলিট, সেটিংস রিসেট বা ফ্যাক্টরি ক্লিন স্টেট" else "Clear transactions or factory reset app",
+                        icon = Icons.Default.DeleteSweep,
+                        iconTint = MaterialTheme.colorScheme.error,
+                        onClick = onNavigateToReset
+                    )
+                }
+
+                item(key = "divider_3") {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+
+                // =========================================================================
+                // 4. SECTION: ABOUT
+                // =========================================================================
+                item(key = "section_about") {
+                    SettingsSectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "সম্পর্কে" else "ABOUT"
+                    )
+                }
+
+                item(key = "item_faq") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও প্রশ্নোত্তর" else "Support & FAQ",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "ইউজার গাইড ও প্রশ্নোত্তর" else "User guide & frequently asked questions",
+                        icon = Icons.Default.HelpOutline,
+                        onClick = { currentSubPage = SettingsSubPage.FAQ }
+                    )
+                }
+
+                item(key = "item_feedback") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "মতামত ও পরামর্শ" else "Feedback & Bug Report",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "ডেভেলপারদের পরামর্শ ও মতামত জানান" else "Send suggestions to developers",
+                        icon = Icons.Default.Feedback,
+                        onClick = { showFeedbackDialog = true }
+                    )
+                }
+
+                item(key = "item_privacy") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "গোপনীয়তা নীতি" else "Privacy Policy",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "১০০% অফলাইন, আপনার ডাটা ফোনেই নিরাপদ" else "100% offline-first, your data stays on device",
+                        icon = Icons.Default.Security,
+                        onClick = { showPrivacyDialog = true }
+                    )
+                }
+
+                item(key = "item_app_version") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সংস্করণ" else "App Version",
+                        subtitle = "v1.0.0 (Budgeter Release)",
+                        icon = Icons.Default.Info,
+                        onClick = { currentSubPage = SettingsSubPage.ABOUT }
+                    )
+                }
+            }
+        }
+
+        // Sub-pages rendered on top in a full-screen Surface
+        if (currentSubPage != SettingsSubPage.ROOT) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                when (currentSubPage) {
+                    SettingsSubPage.LANGUAGE -> {
+                        LanguageSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "ভাষা পছন্দ" else "Language Preference",
-                            subtitle = when (languageMode) {
-                                LanguageMode.ENGLISH -> "English"
-                                LanguageMode.BANGLA -> "বাংলা"
-                            },
-                            icon = Icons.Default.Language,
-                            onClick = { currentSubPage = SettingsSubPage.LANGUAGE }
+                    SettingsSubPage.CURRENCY -> {
+                        CurrencySettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "মুদ্রা কনফিগারেশন" else "Currency Setup",
-                            subtitle = "${currencyConfig.activeCode} (${currencyConfig.activeSymbol})",
-                            icon = Icons.Default.CurrencyExchange,
-                            onClick = { currentSubPage = SettingsSubPage.CURRENCY }
+                    SettingsSubPage.AMOUNT_FORMAT -> {
+                        com.example.ui.screens.settings.AmountFormatSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        val currentFormatOption = DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
-                        val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
-                        val firstDayName = when (displayFormatConfig.firstDayOfWeek) {
-                            java.util.Calendar.SATURDAY -> if (languageMode == LanguageMode.BANGLA) "শনিবার" else "Saturday"
-                            java.util.Calendar.SUNDAY -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
-                            java.util.Calendar.MONDAY -> if (languageMode == LanguageMode.BANGLA) "সোমবার" else "Monday"
-                            java.util.Calendar.TUESDAY -> if (languageMode == LanguageMode.BANGLA) "মঙ্গলবার" else "Tuesday"
-                            java.util.Calendar.WEDNESDAY -> if (languageMode == LanguageMode.BANGLA) "বুধবার" else "Wednesday"
-                            java.util.Calendar.THURSDAY -> if (languageMode == LanguageMode.BANGLA) "বৃহস্পতিবার" else "Thursday"
-                            java.util.Calendar.FRIDAY -> if (languageMode == LanguageMode.BANGLA) "শুক্রবার" else "Friday"
-                            else -> if (languageMode == LanguageMode.BANGLA) "রবিবার" else "Sunday"
-                        }
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "তারিখ ও সময় সেটিংস" else "Date Settings",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "$formatDisplay • প্রথম দিন $firstDayName" else "$formatDisplay • First day $firstDayName",
-                            icon = Icons.Default.CalendarToday,
-                            onClick = { currentSubPage = SettingsSubPage.DATE_TIME }
+                    SettingsSubPage.DATE_TIME -> {
+                        DateSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        val presetTitle = if (languageMode == LanguageMode.BANGLA) amountFormatConfig.preset.titleBn else amountFormatConfig.preset.titleEn
-                        val sampleText = LanguageHelper.formatCurrency(1234567.89, languageMode)
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format",
-                            subtitle = "$presetTitle • $sampleText",
-                            icon = Icons.Default.Numbers,
-                            onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
+                    SettingsSubPage.THEMES -> {
+                        AppearanceSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    SettingsSubPage.NAVIGATION_TABS -> {
+                        NavigationTabsSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    // =========================================================================
-                    // 2. SECTION: GENERAL
-                    // =========================================================================
-                    item {
-                        SettingsSectionHeader(
-                            title = if (languageMode == LanguageMode.BANGLA) "সাধারণ" else "GENERAL"
+                    SettingsSubPage.TRANSACTION_SETUP -> {
+                        TransactionSetupSettingsPage(
+                            viewModel = viewModel,
+                            accounts = accounts,
+                            categories = categories,
+                            languageMode = languageMode,
+                            onNavigateToAutofill = { currentSubPage = SettingsSubPage.SMART_AUTOFILL },
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা" else "Customize Appearance",
-                            subtitle = "${themeConfig.activeThemeDisplayName} • ${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                            icon = Icons.Default.Palette,
-                            onClick = { currentSubPage = SettingsSubPage.THEMES }
+                    SettingsSubPage.SMART_AUTOFILL -> {
+                        SmartAutofillSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব" else "Navigation Tabs",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
-                            icon = Icons.Default.ViewCarousel,
-                            onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                    SettingsSubPage.CALENDAR -> {
+                        CalendarSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "লেনদেন সেটআপ" else "Transaction Setup",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট মাধ্যম, দ্রুত লেনদেন ও প্রদর্শন" else "Default accounts, layout & autofill",
-                            icon = Icons.Default.AddCircleOutline,
-                            onClick = { currentSubPage = SettingsSubPage.TRANSACTION_SETUP }
+                    SettingsSubPage.NOTIFICATIONS -> {
+                        NotificationSettingsPage(
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার" else "Calendar",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের ইনডিকেটর প্রদর্শন" else "Visual indicators & fiscal calendar",
-                            icon = Icons.Default.CalendarMonth,
-                            onClick = { currentSubPage = SettingsSubPage.CALENDAR }
+                    SettingsSubPage.PERMISSIONS -> {
+                        AppPermissionsSettingsPage(
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "দৈনিক রিমাইন্ডার ও বিল অ্যালার্ট" else "Daily expense alarms & reminders",
-                            icon = Icons.Default.NotificationsNone,
-                            onClick = { currentSubPage = SettingsSubPage.NOTIFICATIONS }
+                    SettingsSubPage.SECURITY -> {
+                        SecuritySettingsPage(
+                            securityConfig = securityConfig,
+                            languageMode = languageMode,
+                            onSetAppLockEnabled = { viewModel.setAppLockEnabled(it) },
+                            onSetPin = { viewModel.setSecurityPin(it) },
+                            onVerifyPin = { viewModel.verifySecurityPin(it) },
+                            onSetBiometricEnabled = { viewModel.setBiometricEnabled(it) },
+                            onSetRequireAuthForGroupDeletion = { viewModel.setRequireAuthForGroupDeletion(it) },
+                            onSetRequireAuthForMultiSelect = { viewModel.setRequireAuthForMultiSelect(it) },
+                            onSetRequireAuthForTrashClear = { viewModel.setRequireAuthForTrashClear(it) },
+                            onSetRequireAuthForBackupRestore = { viewModel.setRequireAuthForBackupRestore(it) },
+                            onSetRequireAuthForBackupDeletion = { viewModel.setRequireAuthForBackupDeletion(it) },
+                            onSetRequireAuthForCloudDisconnect = { viewModel.setRequireAuthForCloudDisconnect(it) },
+                            onSetLockTimeoutSeconds = { viewModel.setLockTimeoutSeconds(it) },
+                            onSetSecurityRecovery = { q, a -> viewModel.setSecurityRecovery(q, a) },
+                            onVerifySecurityAnswer = { viewModel.verifySecurityAnswer(it) },
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "অ্যাপের অনুমতিসমূহ" else "App Permissions",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যামেরা, নোটিফিকেশন ও সিস্টেম অনুমতি নিয়ন্ত্রণ" else "Manage camera, notifications & system access",
-                            icon = Icons.Default.Security,
-                            onClick = { currentSubPage = SettingsSubPage.PERMISSIONS }
+                    SettingsSubPage.WIDGETS -> {
+                        com.example.ui.screens.settings.WidgetsSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "পাসওয়ার্ড ও ফিঙ্গারপ্রিন্ট" else "Password and Fingerprint",
-                            subtitle = if (securityConfig.isAppLockEnabled)
-                                (if (languageMode == LanguageMode.BANGLA) "অ্যাপ লক সক্রিয় রয়েছে" else "App lock enabled")
-                            else
-                                (if (languageMode == LanguageMode.BANGLA) "বায়োমেট্রিক ও পিন সুরক্ষা" else "Biometric authentication & PIN lock"),
-                            icon = Icons.Default.Fingerprint,
-                            onClick = { handleSecurityAccess() }
+                    SettingsSubPage.ICON_IMAGE_CACHE -> {
+                        com.example.ui.screens.settings.IconImageCacheSettingsPage(
+                            viewModel = viewModel,
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "হোম স্ক্রিন উইজেট" else "Home Screen Widgets",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "প্রিমিয়াম কুইক অ্যাকশন ও বাজেট উইজেট পিন করুন" else "Quick actions, live budget meter & live feeds",
-                            icon = Icons.Default.Widgets,
-                            onClick = { currentSubPage = SettingsSubPage.WIDGETS }
+                    SettingsSubPage.ABOUT -> {
+                        AboutSettingsPage(
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    item {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    SettingsSubPage.FAQ -> {
+                        FaqSettingsPage(
+                            languageMode = languageMode,
+                            onBack = { currentSubPage = SettingsSubPage.ROOT }
                         )
                     }
-
-                    // =========================================================================
-                    // 3. SECTION: DATA & RESET
-                    // =========================================================================
-                    item {
-                        SettingsSectionHeader(
-                            title = if (languageMode == LanguageMode.BANGLA) "ডাটা ও রিসেট" else "DATA & RESET"
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "অনলাইন সিঙ্ক ও ব্যাকআপ" else "Backup & Cloud Sync",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "গুগল ড্রাইভ, ড্রপবক্স ও লোকাল ব্যাকআপ" else "Google Drive, Dropbox & Local Storage",
-                            icon = Icons.Default.CloudSync,
-                            iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = onNavigateToBackupSync
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও ডাটা প্রুনিং" else "Archive & Prune",
-                            subtitle = if (languageMode == LanguageMode.BANGLA)
-                                "ব্যালেন্স অপরিবর্তিত রেখে পুরাতন ডাটা এনক্রিপ্ট ও প্রুন করুন"
-                            else
-                                "Smart fiscal year roll-forward, shrink DB & 100% balance match",
-                            icon = Icons.Default.Archive,
-                            iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = { handleArchivePruneAccess() }
-                        )
-                    }
-
-                    item {
-                        val cachedItems by viewModel.allItemImageCaches.collectAsStateWithLifecycle()
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন" else "Items Icon",
-                            subtitle = if (languageMode == LanguageMode.BANGLA)
-                                "অনলাইন আইকন, ইমেজ সার্চ স্টুডিও ও ক্যাশ"
-                            else
-                                "Online icons, image studio & custom item icons",
-                            icon = Icons.Default.Category,
-                            onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE }
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "লেনদেন ডিলিট, সেটিংস রিসেট বা ফ্যাক্টরি ক্লিন স্টেট" else "Clear transactions or factory reset app",
-                            icon = Icons.Default.DeleteSweep,
-                            iconTint = MaterialTheme.colorScheme.error,
-                            onClick = onNavigateToReset
-                        )
-                    }
-
-                    item {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                        )
-                    }
-
-                    // =========================================================================
-                    // 4. SECTION: ABOUT
-                    // =========================================================================
-                    item {
-                        SettingsSectionHeader(
-                            title = if (languageMode == LanguageMode.BANGLA) "সম্পর্কে" else "ABOUT"
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও প্রশ্নোত্তর" else "Support & FAQ",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "ইউজার গাইড ও প্রশ্নোত্তর" else "User guide & frequently asked questions",
-                            icon = Icons.Default.HelpOutline,
-                            onClick = { currentSubPage = SettingsSubPage.FAQ }
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "মতামত ও পরামর্শ" else "Feedback & Bug Report",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "ডেভেলপারদের পরামর্শ ও মতামত জানান" else "Send suggestions to developers",
-                            icon = Icons.Default.Feedback,
-                            onClick = { showFeedbackDialog = true }
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "গোপনীয়তা নীতি" else "Privacy Policy",
-                            subtitle = if (languageMode == LanguageMode.BANGLA) "১০০% অফলাইন, আপনার ডাটা ফোনেই নিরাপদ" else "100% offline-first, your data stays on device",
-                            icon = Icons.Default.Security,
-                            onClick = { showPrivacyDialog = true }
-                        )
-                    }
-
-                    item {
-                        ModernSettingsItemRow(
-                            title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ সংস্করণ" else "App Version",
-                            subtitle = "v1.0.0 (Budgeter Release)",
-                            icon = Icons.Default.Info,
-                            onClick = { currentSubPage = SettingsSubPage.ABOUT }
-                        )
-                    }
+                    SettingsSubPage.ROOT -> {}
                 }
             }
         }
