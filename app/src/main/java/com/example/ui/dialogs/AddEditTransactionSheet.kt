@@ -1232,7 +1232,6 @@ fun AddEditTransactionSheet(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .imePadding()
             ) {
                 // Top App Bar
                 Surface(
@@ -2820,7 +2819,7 @@ fun AddEditTransactionSheet(
                     shadowElevation = 8.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .navigationBarsPadding()
+                        .then(if (!isKeyboardOpen) Modifier.navigationBarsPadding() else Modifier)
                         .animateContentSize(
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioLowBouncy,
