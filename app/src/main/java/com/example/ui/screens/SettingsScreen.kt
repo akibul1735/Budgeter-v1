@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.AddCircleOutline
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
@@ -158,6 +159,7 @@ fun SettingsScreen(
     onOpenDrawer: () -> Unit = {},
     onBack: () -> Unit = {},
     onNavigateToBackupSync: () -> Unit,
+    onNavigateToArchivePrune: () -> Unit = {},
     onNavigateToReset: () -> Unit = {},
     onOpenTabCustomizer: () -> Unit = {},
     onOpenThemeFontSettings: () -> Unit = {},
@@ -167,6 +169,7 @@ fun SettingsScreen(
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     var currentSubPage by remember { mutableStateOf(SettingsSubPage.ROOT) }
     var showSecurityAuthDialog by remember { mutableStateOf(false) }
+    var showArchiveAuthDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showIconStorageDialog by remember { mutableStateOf(false) }
@@ -197,6 +200,33 @@ fun SettingsScreen(
         } else {
             currentSubPage = SettingsSubPage.SECURITY
         }
+    }
+
+    fun handleArchivePruneAccess() {
+        if (securityConfig.isAppLockEnabled || securityConfig.hasPin || securityConfig.isBiometricEnabled) {
+            showArchiveAuthDialog = true
+        } else {
+            onNavigateToArchivePrune()
+        }
+    }
+
+    if (showArchiveAuthDialog) {
+        SecurityAuthDialog(
+            title = if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও প্রুনিং নিরাপত্তা" else "Archive & Prune Authentication",
+            message = if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও প্রুনিং বিভাগে প্রবেশ করতে আপনার পিন বা ফিঙ্গারপ্রিন্ট দিন।" else "Please authenticate with your PIN or biometric to access Archive & Prune.",
+            confirmButtonText = if (languageMode == LanguageMode.BANGLA) "প্রবেশ করুন" else "Authenticate",
+            requiresAuth = true,
+            securityConfig = securityConfig,
+            languageMode = languageMode,
+            onVerifyPin = { pin -> viewModel.verifySecurityPin(pin) },
+            onConfirm = {
+                showArchiveAuthDialog = false
+                onNavigateToArchivePrune()
+            },
+            onDismiss = {
+                showArchiveAuthDialog = false
+            }
+        )
     }
 
     if (showSecurityAuthDialog) {
@@ -802,6 +832,19 @@ fun SettingsScreen(
                             icon = Icons.Default.CloudSync,
                             iconTint = MaterialTheme.colorScheme.primary,
                             onClick = onNavigateToBackupSync
+                        )
+                    }
+
+                    item {
+                        ModernSettingsItemRow(
+                            title = if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও ডাটা প্রুনিং" else "Archive & Prune",
+                            subtitle = if (languageMode == LanguageMode.BANGLA)
+                                "ব্যালেন্স অপরিবর্তিত রেখে পুরাতন ডাটা এনক্রিপ্ট ও প্রুন করুন"
+                            else
+                                "Smart fiscal year roll-forward, shrink DB & 100% balance match",
+                            icon = Icons.Default.Archive,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            onClick = { handleArchivePruneAccess() }
                         )
                     }
 

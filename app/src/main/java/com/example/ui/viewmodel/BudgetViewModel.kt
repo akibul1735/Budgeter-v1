@@ -3006,6 +3006,138 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    // 8. Fiscal Year Archiving & Pruning
+    private val _archiveUiState = MutableStateFlow<ArchiveUiState>(ArchiveUiState.Idle)
+    val archiveUiState: StateFlow<ArchiveUiState> = _archiveUiState.asStateFlow()
+
+    private val _archiveImpactSummary = MutableStateFlow<com.example.util.ArchiveImpactSummary?>(null)
+    val archiveImpactSummary: StateFlow<com.example.util.ArchiveImpactSummary?> = _archiveImpactSummary.asStateFlow()
+
+    private val _localArchives = MutableStateFlow<List<java.io.File>>(emptyList())
+    val localArchives: StateFlow<List<java.io.File>> = _localArchives.asStateFlow()
+
+    private val _importArchivePreview = MutableStateFlow<com.example.util.ImportArchivePreview?>(null)
+    val importArchivePreview: StateFlow<com.example.util.ImportArchivePreview?> = _importArchivePreview.asStateFlow()
+
+    fun resetArchiveState() {
+        _archiveUiState.value = ArchiveUiState.Idle
+    }
+
+    fun loadLocalArchives() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = activeRepo.listLocalArchives(getApplication())
+            _localArchives.value = list
+        }
+    }
+
+    fun analyzeArchiveImpact(
+        startDateEpochMs: Long,
+        endDateEpochMs: Long,
+        dateRangeLabel: String
+    ) {
+        viewModelScope.launch {
+            _archiveUiState.value = ArchiveUiState.Loading("Analyzing financial impact & calculating opening balances...")
+            try {
+                val summary = activeRepo.calculateArchiveImpact(startDateEpochMs, endDateEpochMs, dateRangeLabel)
+                _archiveImpactSummary.value = summary
+                _archiveUiState.value = ArchiveUiState.Idle
+            } catch (e: Exception) {
+                _archiveUiState.value = ArchiveUiState.Error("Failed to calculate impact: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun clearArchiveImpact() {
+        _archiveImpactSummary.value = null
+    }
+
+    fun executeArchiveAndPrune(
+        impactSummary: com.example.util.ArchiveImpactSummary,
+        userPassword: String?,
+        targetDirectory: String? = null,
+        saveToDrive: Boolean = false,
+        saveToDropbox: Boolean = false,
+        onComplete: (com.example.util.ArchiveVerificationResult) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _archiveUiState.value = ArchiveUiState.Loading("Creating and encrypting fiscal archive...")
+            val archiveResult = activeRepo.createAndVerifyArchive(
+                context = getApplication(),
+                impactSummary = impactSummary,
+                userPassword = userPassword,
+                targetDirectory = targetDirectory,
+                saveToDrive = saveToDrive,
+                saveToDropbox = saveToDropbox
+            )
+
+            archiveResult.fold(
+                onSuccess = { verifyResult ->
+                    _archiveUiState.value = ArchiveUiState.Loading("Archive verified 100%. Adjusting opening balances and pruning database...")
+                    val pruneResult = activeRepo.executePrune(impactSummary)
+                    pruneResult.fold(
+                        onSuccess = { deletedCount ->
+                            _archiveImpactSummary.value = null
+                            loadLocalArchives()
+                            _archiveUiState.value = ArchiveUiState.Success(
+                                message = "Successfully archived and pruned $deletedCount transactions. Balances match 100%!",
+                                verificationResult = verifyResult
+                            )
+                            onComplete(verifyResult)
+                        },
+                        onFailure = { pruneErr ->
+                            _archiveUiState.value = ArchiveUiState.Error("Pruning failed: ${pruneErr.localizedMessage}. No transactions were deleted.")
+                        }
+                    )
+                },
+                onFailure = { archiveErr ->
+                    _archiveUiState.value = ArchiveUiState.Error("Archive creation/verification failed: ${archiveErr.localizedMessage}. Aborted pruning.")
+                }
+            )
+        }
+    }
+
+    fun previewImportArchiveFile(uri: Uri, password: String? = null) {
+        viewModelScope.launch {
+            _archiveUiState.value = ArchiveUiState.Loading("Reading and validating archive file...")
+            val result = activeRepo.previewImportArchive(getApplication(), uri, password)
+            result.fold(
+                onSuccess = { preview ->
+                    _importArchivePreview.value = preview
+                    _archiveUiState.value = ArchiveUiState.Idle
+                },
+                onFailure = { err ->
+                    _archiveUiState.value = ArchiveUiState.Error("Failed to open archive: ${err.localizedMessage}")
+                }
+            )
+        }
+    }
+
+    fun clearImportPreview() {
+        _importArchivePreview.value = null
+    }
+
+    fun executeImportArchiveFile(
+        uri: Uri,
+        password: String? = null,
+        onSuccess: (Int) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _archiveUiState.value = ArchiveUiState.Loading("Restoring archived transactions and reverting opening balances...")
+            val result = activeRepo.executeImportArchive(getApplication(), uri, password)
+            result.fold(
+                onSuccess = { restoredCount ->
+                    _importArchivePreview.value = null
+                    loadLocalArchives()
+                    _archiveUiState.value = ArchiveUiState.Success("Successfully restored $restoredCount archived transactions!")
+                    onSuccess(restoredCount)
+                },
+                onFailure = { err ->
+                    _archiveUiState.value = ArchiveUiState.Error("Failed to restore archive: ${err.localizedMessage}")
+                }
+            )
+        }
+    }
+
     // 7. Reset Everything from App (Factory Clean State)
     fun resetEverything(onComplete: () -> Unit = {}) {
         viewModelScope.launch {
@@ -3025,4 +3157,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             onComplete()
         }
     }
+}
+
+sealed interface ArchiveUiState {
+    data object Idle : ArchiveUiState
+    data class Loading(val message: String) : ArchiveUiState
+    data class Success(
+        val message: String,
+        val verificationResult: com.example.util.ArchiveVerificationResult? = null
+    ) : ArchiveUiState
+    data class Error(val message: String) : ArchiveUiState
 }

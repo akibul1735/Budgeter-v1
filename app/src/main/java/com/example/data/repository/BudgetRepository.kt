@@ -1215,6 +1215,86 @@ class BudgetRepository(
         return com.example.util.IconHelper.clearUnusedCustomIcons(context, activeIcons)
     }
 
+    suspend fun calculateArchiveImpact(
+        startDateEpochMs: Long,
+        endDateEpochMs: Long,
+        dateRangeLabel: String
+    ): com.example.util.ArchiveImpactSummary {
+        return com.example.util.ArchiveManager.calculateImpact(
+            startDateEpochMs = startDateEpochMs,
+            endDateEpochMs = endDateEpochMs,
+            dateRangeLabel = dateRangeLabel,
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao
+        )
+    }
+
+    suspend fun createAndVerifyArchive(
+        context: android.content.Context,
+        impactSummary: com.example.util.ArchiveImpactSummary,
+        userPassword: String?,
+        targetDirectory: String? = null,
+        saveToDrive: Boolean = false,
+        saveToDropbox: Boolean = false
+    ): Result<com.example.util.ArchiveVerificationResult> {
+        return com.example.util.ArchiveManager.createAndVerifyArchive(
+            context = context,
+            impactSummary = impactSummary,
+            userPassword = userPassword,
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao,
+            targetDirectory = targetDirectory,
+            saveToDrive = saveToDrive,
+            saveToDropbox = saveToDropbox
+        )
+    }
+
+    suspend fun executePrune(
+        impactSummary: com.example.util.ArchiveImpactSummary
+    ): Result<Int> {
+        return com.example.util.ArchiveManager.executePrune(
+            impactSummary = impactSummary,
+            accountDao = accountDao,
+            transactionDao = transactionDao
+        )
+    }
+
+    fun listLocalArchives(context: android.content.Context): List<java.io.File> {
+        return com.example.util.ArchiveManager.listLocalArchives(context)
+    }
+
+    suspend fun previewImportArchive(
+        context: android.content.Context,
+        uri: android.net.Uri,
+        password: String? = null
+    ): Result<com.example.util.ImportArchivePreview> {
+        return com.example.util.ArchiveManager.previewImport(
+            context = context,
+            uri = uri,
+            password = password,
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao
+        )
+    }
+
+    suspend fun executeImportArchive(
+        context: android.content.Context,
+        uri: android.net.Uri,
+        password: String? = null
+    ): Result<Int> {
+        return com.example.util.ArchiveManager.executeImport(
+            context = context,
+            uri = uri,
+            password = password,
+            accountDao = accountDao,
+            categoryDao = categoryDao,
+            transactionDao = transactionDao
+        )
+    }
+
     suspend fun resetEverything() {
         itemImageCacheDao.deleteAll()
         wishlistDao.deleteAllWishlistItems()

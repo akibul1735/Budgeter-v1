@@ -205,6 +205,7 @@ enum class AppView {
     ITEMS_SUMMARY,
     RECURRING_BILLS,
     BACKUP_SYNC,
+    ARCHIVE_PRUNE,
     SETTINGS,
     TRASH,
     RESET
@@ -3057,12 +3058,18 @@ private fun ScreenRouter(
             onNavigateToReset = { onNavigate(AppView.RESET) },
             onBack = onBack
         )
+        AppView.ARCHIVE_PRUNE -> ArchivePruneScreen(
+            viewModel = viewModel,
+            languageMode = languageMode,
+            onBack = onBack
+        )
         AppView.SETTINGS -> SettingsScreen(
             viewModel = viewModel,
             languageMode = languageMode,
             onOpenDrawer = onOpenDrawer,
             onBack = onBack,
             onNavigateToBackupSync = { onNavigate(AppView.BACKUP_SYNC) },
+            onNavigateToArchivePrune = { onNavigate(AppView.ARCHIVE_PRUNE) },
             onNavigateToReset = { onNavigate(AppView.RESET) },
             onOpenTabCustomizer = onOpenTabCustomizer,
             onOpenThemeFontSettings = onOpenThemeFontSettings,
@@ -3103,6 +3110,7 @@ private fun getViewTitle(view: AppView, languageMode: LanguageMode): String {
         AppView.EXPENSES -> LanguageHelper.getString("expenses", languageMode)
         AppView.INCOME -> LanguageHelper.getString("incomes", languageMode)
         AppView.BACKUP_SYNC -> "Backup, Restore & Sync"
+        AppView.ARCHIVE_PRUNE -> if (languageMode == LanguageMode.BANGLA) "আর্কাইভ ও প্রুনিং" else "Archive & Prune"
         AppView.SETTINGS -> LanguageHelper.getString("settings", languageMode).ifEmpty { "Settings" }
         AppView.TRASH -> if (languageMode == LanguageMode.BANGLA) "ট্র্যাশ ও রিসাইকেল বিন" else "Trash & Recycle Bin"
         AppView.RESET -> if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe"
