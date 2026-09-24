@@ -87,6 +87,11 @@ fun FolderPickerDialog(
     val internalBackupDir = remember {
         File(context.filesDir, "backups").apply { if (!exists()) mkdirs() }
     }
+    val internalStorageBudgeterDir = remember {
+        File(Environment.getExternalStorageDirectory(), "Budgeter").apply {
+            try { if (!exists()) mkdirs() } catch (_: Exception) {}
+        }
+    }
     val documentsDir = remember {
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "Budgeter").apply {
             try { if (!exists()) mkdirs() } catch (_: Exception) {}
@@ -196,55 +201,87 @@ fun FolderPickerDialog(
             )
             Spacer(modifier = Modifier.height(6.dp))
 
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Internal App Storage
-                PresetFolderChip(
-                    title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ ইন্টারনাল" else "Internal",
-                    subtitle = "files/backups",
-                    icon = Icons.Default.PhoneAndroid,
-                    isSelected = activeBrowserDir.absolutePath == internalBackupDir.absolutePath,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        activeBrowserDir = internalBackupDir
-                    }
-                )
-
-                // Documents
-                PresetFolderChip(
-                    title = if (languageMode == LanguageMode.BANGLA) "ডকুমেন্টস" else "Documents",
-                    subtitle = "Documents/Budgeter",
-                    icon = Icons.Default.FolderSpecial,
-                    isSelected = activeBrowserDir.absolutePath == documentsDir.absolutePath,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        try {
-                            if (!documentsDir.exists()) documentsDir.mkdirs()
-                            activeBrowserDir = documentsDir
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Documents folder not accessible directly", Toast.LENGTH_SHORT).show()
+                // Row 1: Internal Storage/Budgeter & Documents/Budgeter
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Internal Phone Storage / Budgeter
+                    PresetFolderChip(
+                        title = if (languageMode == LanguageMode.BANGLA) "ইন্টারনাল স্টোরেজ" else "Internal Storage",
+                        subtitle = "Storage/Budgeter",
+                        icon = Icons.Default.PhoneAndroid,
+                        isSelected = activeBrowserDir.absolutePath == internalStorageBudgeterDir.absolutePath,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            try {
+                                if (!internalStorageBudgeterDir.exists()) {
+                                    internalStorageBudgeterDir.mkdirs()
+                                }
+                                activeBrowserDir = internalStorageBudgeterDir
+                            } catch (e: Exception) {
+                                activeBrowserDir = internalStorageBudgeterDir
+                            }
                         }
-                    }
-                )
+                    )
 
-                // Downloads
-                PresetFolderChip(
-                    title = if (languageMode == LanguageMode.BANGLA) "ডাউনলোড" else "Downloads",
-                    subtitle = "Download/Budgeter",
-                    icon = Icons.Default.SdStorage,
-                    isSelected = activeBrowserDir.absolutePath == downloadsDir.absolutePath,
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        try {
-                            if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                            activeBrowserDir = downloadsDir
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Downloads folder not accessible directly", Toast.LENGTH_SHORT).show()
+                    // Documents/Budgeter
+                    PresetFolderChip(
+                        title = if (languageMode == LanguageMode.BANGLA) "ডকুমেন্টস" else "Documents",
+                        subtitle = "Documents/Budgeter",
+                        icon = Icons.Default.FolderSpecial,
+                        isSelected = activeBrowserDir.absolutePath == documentsDir.absolutePath,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            try {
+                                if (!documentsDir.exists()) documentsDir.mkdirs()
+                                activeBrowserDir = documentsDir
+                            } catch (e: Exception) {
+                                activeBrowserDir = documentsDir
+                            }
                         }
-                    }
-                )
+                    )
+                }
+
+                // Row 2: Downloads/Budgeter & App Internal Private Storage
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Downloads/Budgeter
+                    PresetFolderChip(
+                        title = if (languageMode == LanguageMode.BANGLA) "ডাউনলোড" else "Downloads",
+                        subtitle = "Download/Budgeter",
+                        icon = Icons.Default.SdStorage,
+                        isSelected = activeBrowserDir.absolutePath == downloadsDir.absolutePath,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            try {
+                                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                                activeBrowserDir = downloadsDir
+                            } catch (e: Exception) {
+                                activeBrowserDir = downloadsDir
+                            }
+                        }
+                    )
+
+                    // App Internal Private Sandbox
+                    PresetFolderChip(
+                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাপ প্রাইভেট" else "App Internal",
+                        subtitle = "files/backups",
+                        icon = Icons.Default.Folder,
+                        isSelected = activeBrowserDir.absolutePath == internalBackupDir.absolutePath,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            if (!internalBackupDir.exists()) internalBackupDir.mkdirs()
+                            activeBrowserDir = internalBackupDir
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))

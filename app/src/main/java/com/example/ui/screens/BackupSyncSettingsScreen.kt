@@ -304,21 +304,6 @@ fun BackupSyncSettingsScreen(
         refreshLocalBackups()
     }
 
-    val dirPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri: Uri? ->
-        uri?.let { treeUri ->
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    treeUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: Exception) {}
-            viewModel.setLocalBackupDirectory(treeUri.toString())
-            refreshLocalBackups()
-        }
-    }
-
     LaunchedEffect(config.localBackupDirectory, config.primaryAccount.provider, config.primaryAccount.accessToken, config.secondaryAccount.provider, config.secondaryAccount.accessToken) {
         refreshLocalBackups()
         if (config.primaryAccount.provider.contains("Google", ignoreCase = true) && config.primaryAccount.isLinked && signedInAccount == null) {
@@ -1704,21 +1689,18 @@ fun BackupSyncSettingsScreen(
                                             maxLines = 1
                                         )
                                     }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        OutlinedButton(
-                                            onClick = { dirPickerLauncher.launch(null) },
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Text("SAF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                        Button(
-                                            onClick = { showFolderPickerDialog = true },
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(if (languageMode == LanguageMode.BANGLA) "নির্বাচন" else "Select", fontSize = 11.sp)
-                                        }
+                                    Button(
+                                        onClick = { showFolderPickerDialog = true },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) "পরিবর্তন" else "Change",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                     }
                                 }
 

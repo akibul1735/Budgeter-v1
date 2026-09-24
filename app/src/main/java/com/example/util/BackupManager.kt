@@ -1365,6 +1365,8 @@ object BackupManager {
     fun formatDirectoryDisplayName(path: String?): String {
         if (path.isNullOrBlank()) return "Documents/Budgeter"
         if (path.equals("internal", ignoreCase = true) || path.contains("files/backups")) return "App Internal (files/backups)"
+        if (path.endsWith("/Budgeter") && (path.startsWith("/storage/emulated/0") || path.contains("emulated/0"))) return "Internal Storage/Budgeter"
+        if (path.startsWith("/storage/emulated/0/")) return "Internal Storage > " + path.removePrefix("/storage/emulated/0/")
         if (path.startsWith("content://")) {
             return try {
                 val decoded = Uri.decode(path)
