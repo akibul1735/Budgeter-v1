@@ -24,6 +24,7 @@ import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -55,6 +56,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
@@ -144,6 +146,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -1201,27 +1204,88 @@ fun AddEditTransactionSheet(
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         val view = LocalView.current
+        val density = LocalDensity.current
+        var keyboardHeightPx by remember { mutableIntStateOf(0) }
         var isKeyboardPhysicallyVisible by remember { mutableStateOf(false) }
 
         DisposableEffect(view) {
-            val listener = ViewTreeObserver.OnGlobalLayoutListener {
+            val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+                ?: (view.context as? android.app.Dialog)?.window
+                ?: (view.context as? android.app.Activity)?.window
+            window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+
+            val layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
                 val rect = Rect()
                 view.getWindowVisibleDisplayFrame(rect)
                 val screenHeight = view.rootView.height
-                val keypadHeight = screenHeight - rect.bottom
+                val keypadHeight = (screenHeight - rect.bottom).coerceAtLeast(0)
                 val insets = ViewCompat.getRootWindowInsets(view)
-                val imeVisibleFromInsets = insets?.isVisible(WindowInsetsCompat.Type.ime()) == true
-                val imeBottomFromInsets = insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
-                val isNowVisible = (keypadHeight > screenHeight * 0.15) || imeVisibleFromInsets || (imeBottomFromInsets > 80)
-                if (isKeyboardPhysicallyVisible != isNowVisible) {
-                    isKeyboardPhysicallyVisible = isNowVisible
+                val imeBottom = insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
+                val imeVisible = insets?.isVisible(WindowInsetsCompat.Type.ime()) == true
+
+                val height = when {
+                    imeBottom > 0 -> imeBottom
+                    keypadHeight > screenHeight * 0.15 -> keypadHeight
+                    else -> 0
+                }
+                keyboardHeightPx = height
+                isKeyboardPhysicallyVisible = height > 0 || imeVisible
+            }
+            view.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+
+            val animationCallback = object : androidx.core.view.WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP) {
+                override fun onProgress(
+                    insets: androidx.core.view.WindowInsetsCompat,
+                    runningAnimations: MutableList<androidx.core.view.WindowInsetsAnimationCompat>
+                ): androidx.core.view.WindowInsetsCompat {
+                    val imeHeight = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime()).bottom
+                    val isImeAnimationRunning = runningAnimations.any {
+                        (it.typeMask and androidx.core.view.WindowInsetsCompat.Type.ime()) != 0
+                    }
+                    if (isImeAnimationRunning || imeHeight > 0) {
+                        keyboardHeightPx = imeHeight
+                        isKeyboardPhysicallyVisible = imeHeight > 0
+                    }
+                    return insets
+                }
+
+                override fun onEnd(animation: androidx.core.view.WindowInsetsAnimationCompat) {
+                    super.onEnd(animation)
+                    val insets = ViewCompat.getRootWindowInsets(view)
+                    val imeHeight = insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: 0
+                    val imeVisible = insets?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+                    if (!imeVisible && imeHeight == 0) {
+                        keyboardHeightPx = 0
+                        isKeyboardPhysicallyVisible = false
+                    }
                 }
             }
-            view.viewTreeObserver.addOnGlobalLayoutListener(listener)
+            ViewCompat.setWindowInsetsAnimationCallback(view, animationCallback)
+
             onDispose {
-                view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+                view.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+                ViewCompat.setWindowInsetsAnimationCallback(view, null)
             }
         }
+
+        val imeBottomFromCompose = WindowInsets.ime.getBottom(density)
+        val effectiveKeyboardHeightPx = maxOf(imeBottomFromCompose, keyboardHeightPx)
+        val isKeyboardOnScreen = effectiveKeyboardHeightPx > with(density) { 50.dp.roundToPx() } || isKeyboardPhysicallyVisible
+
+        val targetKeyboardOffsetDp = if (isKeyboardOnScreen) {
+            with(density) { effectiveKeyboardHeightPx.toDp() }
+        } else {
+            0.dp
+        }
+
+        val animatedKeyboardOffset by animateDpAsState(
+            targetValue = targetKeyboardOffsetDp,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            ),
+            label = "animatedKeyboardOffset"
+        )
 
         Surface(
             modifier = Modifier
@@ -1232,6 +1296,8 @@ fun AddEditTransactionSheet(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(bottom = animatedKeyboardOffset)
             ) {
                 // Top App Bar
                 Surface(
@@ -2797,87 +2863,79 @@ fun AddEditTransactionSheet(
                     Spacer(modifier = Modifier.height(16.dp)) // Compact padding for bottom bar
                 }
 
-                // Bottom Action Bar: Type Selector Pills or Keyboard Accessory Toolbar (Pinned above Keyboard)
-                val density = LocalDensity.current
-                val imeBottom = WindowInsets.ime.getBottom(density)
-                val isImeVisible = WindowInsets.isImeVisible || imeBottom > 0
-                val isKeyboardShowing = isKeyboardPhysicallyVisible || isImeVisible
-
-                // Compact mode is active whenever the software keyboard is visible on screen
-                val isKeyboardOpen = isKeyboardShowing
-
-                // When keyboard is dismissed, clear focus so fields don't hold dangling focus
-                LaunchedEffect(isKeyboardShowing) {
-                    if (!isKeyboardShowing) {
-                        focusManager.clearFocus(force = true)
-                    }
-                }
-
+                // Bottom Action Bar: Type Selector Pills or Short Buttons Toolbar (Smoothly moves above Keyboard)
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 6.dp,
                     shadowElevation = 8.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (!isKeyboardOpen) Modifier.navigationBarsPadding() else Modifier)
+                        .then(if (!isKeyboardOnScreen) Modifier.navigationBarsPadding() else Modifier)
                         .animateContentSize(
                             animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                dampingRatio = Spring.DampingRatioNoBouncy,
                                 stiffness = Spring.StiffnessMediumLow
                             )
                         )
                 ) {
                     AnimatedContent(
-                        targetState = isKeyboardOpen,
+                        targetState = isKeyboardOnScreen,
                         transitionSpec = {
                             if (targetState) {
-                                // Keyboard open / input focused: transition to mini buttons mode on right above keyboard
-                                (fadeIn(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
-                                 scaleIn(initialScale = 0.88f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                 slideInHorizontally(animationSpec = tween(220, easing = FastOutSlowInEasing)) { it / 3 })
+                                // Keyboard open: transition to short buttons mode on right just above keyboard
+                                (fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) +
+                                 scaleIn(initialScale = 0.90f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                 slideInHorizontally(animationSpec = tween(180, easing = FastOutSlowInEasing)) { it / 4 })
                                     .togetherWith(
-                                        fadeOut(animationSpec = tween(140, easing = FastOutLinearInEasing)) +
-                                        scaleOut(targetScale = 0.90f, animationSpec = tween(140))
+                                        fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
+                                        scaleOut(targetScale = 0.92f, animationSpec = tween(100))
                                     )
                             } else {
-                                // Keyboard closed: smooth, appealing transition back to normal bottom mode
-                                (fadeIn(animationSpec = tween(280, delayMillis = 40, easing = LinearOutSlowInEasing)) +
-                                 scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 3 })
+                                // Keyboard closed: smooth transition back down to standard bottom mode
+                                (fadeIn(animationSpec = tween(200, delayMillis = 20, easing = LinearOutSlowInEasing)) +
+                                 scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                 slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 4 })
                                     .togetherWith(
-                                        fadeOut(animationSpec = tween(140, easing = FastOutLinearInEasing)) +
-                                        scaleOut(targetScale = 0.90f, animationSpec = tween(140))
+                                        fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
+                                        scaleOut(targetScale = 0.92f, animationSpec = tween(100))
                                     )
                             }.using(SizeTransform(clip = false))
                         },
                         label = "BottomBarModeTransition"
                     ) { keyboardActive ->
                         if (keyboardActive) {
-                            // When keyboard is focused: show three text-only buttons just above keyboard: Expense, Income, Transfer, Save button
+                            // When keyboard is on screen: just above right side show buttons for Expense, Income, Transfer, Save with clear active highlight
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.End
                             ) {
                                 val miniTypes = listOf(
-                                    Triple(TransactionType.EXPENSE, (LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }).uppercase(), SolidExpense),
-                                    Triple(TransactionType.INCOME, (LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }).uppercase(), SolidIncome),
-                                    Triple(TransactionType.TRANSFER, (LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }).uppercase(), SolidTransfer)
+                                    Triple(TransactionType.EXPENSE, if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Exp", Icons.Default.ArrowDownward to SolidExpense),
+                                    Triple(TransactionType.INCOME, if (languageMode == LanguageMode.BANGLA) "আয়" else "Inc", Icons.Default.ArrowUpward to SolidIncome),
+                                    Triple(TransactionType.TRANSFER, if (languageMode == LanguageMode.BANGLA) "ট্রান্সফার" else "Trf", Icons.Default.SwapHoriz to SolidTransfer)
                                 )
 
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    miniTypes.forEach { (type, label, color) ->
+                                    miniTypes.forEach { (type, label, iconAndColor) ->
+                                        val (icon, color) = iconAndColor
                                         val isSelected = txType == type
                                         Surface(
                                             shape = RoundedCornerShape(10.dp),
                                             color = if (isSelected) color else color.copy(alpha = 0.12f),
-                                            border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.35f)),
+                                            shadowElevation = if (isSelected) 4.dp else 0.dp,
+                                            border = if (isSelected) {
+                                                BorderStroke(1.5.dp, Color.White.copy(alpha = 0.6f))
+                                            } else {
+                                                BorderStroke(1.dp, color.copy(alpha = 0.35f))
+                                            },
                                             modifier = Modifier
+                                                .height(36.dp)
                                                 .clip(RoundedCornerShape(10.dp))
                                                 .clickable {
                                                     txType = type
@@ -2899,49 +2957,61 @@ fun AddEditTransactionSheet(
                                                     }
                                                 }
                                         ) {
-                                            Text(
-                                                text = label,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSelected) Color.White else color,
-                                                textAlign = TextAlign.Center,
-                                                maxLines = 1,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier.padding(horizontal = 9.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = icon,
+                                                    contentDescription = label,
+                                                    tint = if (isSelected) Color.White else color,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = label,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                                                    color = if (isSelected) Color.White else color,
+                                                    textAlign = TextAlign.Center,
+                                                    maxLines = 1
+                                                )
+                                            }
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
 
-                                // Save button (Wide, sleek, comfortable touch target)
+                                // Save button (Highlight button with icon and label)
                                 Surface(
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = RoundedCornerShape(10.dp),
                                     color = typePrimaryColor,
-                                    shadowElevation = 2.dp,
+                                    shadowElevation = 4.dp,
+                                    border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.5f)),
                                     modifier = Modifier
-                                        .height(38.dp)
-                                        .width(68.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .height(36.dp)
+                                        .clip(RoundedCornerShape(10.dp))
                                         .clickable { executeSave() }
                                         .testTag("save_transaction_btn")
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.Center,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.padding(horizontal = 11.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Save,
                                             contentDescription = "Save",
                                             tint = Color.White,
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(16.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save",
                                             fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold,
+                                            fontWeight = FontWeight.ExtraBold,
                                             color = Color.White
                                         )
                                     }
