@@ -63,6 +63,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,6 +75,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -1304,7 +1307,7 @@ fun AddEditTransactionSheet(
             targetValue = targetKeyboardOffsetDp,
             animationSpec = spring(
                 dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMedium
+                stiffness = Spring.StiffnessMediumLow
             ),
             label = "animatedKeyboardOffset"
         )
@@ -1319,7 +1322,7 @@ fun AddEditTransactionSheet(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .padding(bottom = animatedKeyboardOffset.coerceAtLeast(with(density) { (if (isKeyboardOnScreen) effectiveKeyboardHeightPx else navBottomFromCompose).toDp() }))
+                    .padding(bottom = animatedKeyboardOffset)
             ) {
                 // Top App Bar
                 Surface(
@@ -1528,19 +1531,25 @@ fun AddEditTransactionSheet(
                     }
                 }
 
-                // Main Form Content Scrollable
-                Column(
+                // Main Body: Scrollable content layered beneath the floating action bar
+                Box(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            focusManager.clearFocus()
-                        }
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
+                    // Main Form Content Scrollable (extends through the entire available height)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                focusManager.clearFocus()
+                            }
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                    ) {
                     // 1. Title / Payee Name Field with Dropdown Suggestions & Partial Matching
                     Column(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
@@ -2882,7 +2891,7 @@ fun AddEditTransactionSheet(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp)) // Compact padding for bottom bar
+                    Spacer(modifier = Modifier.height(64.dp))
                 }
 
                 // Bottom Action Bar: Type Selector Pills or Compact Floating Toolbar (Smoothly moves above Keyboard)
@@ -2911,65 +2920,75 @@ fun AddEditTransactionSheet(
                     }
                 }
 
-                Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 6.dp,
-                    shadowElevation = 8.dp,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
                         .then(if (!isKeyboardOnScreen) Modifier.navigationBarsPadding() else Modifier)
-                        .animateContentSize(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
-                        )
                 ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
-                            thickness = 0.8.dp
-                        )
-
-                        AnimatedContent(
-                            targetState = isKeyboardOnScreen,
-                            transitionSpec = {
-                                if (targetState) {
-                                    // Keyboard open: transition to compact floating toolbar mode just above keyboard
-                                    (fadeIn(animationSpec = tween(180, easing = FastOutSlowInEasing)) +
-                                     scaleIn(initialScale = 0.90f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                     slideInHorizontally(animationSpec = tween(180, easing = FastOutSlowInEasing)) { it / 4 })
-                                        .togetherWith(
-                                            fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
-                                            scaleOut(targetScale = 0.92f, animationSpec = tween(100))
+                    AnimatedContent(
+                        targetState = isKeyboardOnScreen,
+                        transitionSpec = {
+                            if (targetState) {
+                                // Keyboard open: smooth emergence of floating button island from bottom-right
+                                (fadeIn(animationSpec = tween(180, easing = LinearOutSlowInEasing)) +
+                                 scaleIn(
+                                     initialScale = 0.86f,
+                                     transformOrigin = TransformOrigin(1f, 1f),
+                                     animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                                 ) +
+                                 slideInVertically(
+                                     animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                                 ) { it / 4 })
+                                    .togetherWith(
+                                        fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
+                                        scaleOut(targetScale = 0.96f, animationSpec = tween(100))
+                                    )
+                            } else {
+                                // Keyboard closed: smooth transition of floating buttons morphing back into full-width bottom bar
+                                (fadeIn(animationSpec = tween(200, delayMillis = 20, easing = LinearOutSlowInEasing)) +
+                                 scaleIn(
+                                     initialScale = 0.94f,
+                                     transformOrigin = TransformOrigin(0.5f, 1f),
+                                     animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                                 ) +
+                                 slideInVertically(
+                                     animationSpec = spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow)
+                                 ) { it / 5 })
+                                    .togetherWith(
+                                        fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
+                                        scaleOut(
+                                            targetScale = 0.86f,
+                                            transformOrigin = TransformOrigin(1f, 1f),
+                                            animationSpec = tween(100)
                                         )
-                                } else {
-                                    // Keyboard closed: smooth transition back down to full-width bottom bar
-                                    (fadeIn(animationSpec = tween(200, delayMillis = 20, easing = LinearOutSlowInEasing)) +
-                                     scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                     slideInVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) { it / 4 })
-                                        .togetherWith(
-                                            fadeOut(animationSpec = tween(100, easing = FastOutLinearInEasing)) +
-                                            scaleOut(targetScale = 0.92f, animationSpec = tween(100))
-                                        )
-                                }.using(SizeTransform(clip = false))
-                            },
-                            label = "BottomBarModeTransition"
-                        ) { keyboardActive ->
-                            if (keyboardActive) {
-                                // Keyboard open: compact floating toolbar with short buttons on right just left of save button, no unnecessary left pad
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 6.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.End
+                                    )
+                            }.using(SizeTransform(clip = false))
+                        },
+                        label = "BottomBarModeTransition"
+                    ) { keyboardActive ->
+                        if (keyboardActive) {
+                            // Keyboard open: Tightly wrapped floating button island at bottom-right, NO full-width background, rest of row completely transparent
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 8.dp, bottom = 6.dp),
+                                contentAlignment = Alignment.CenterEnd
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                                    tonalElevation = 6.dp,
+                                    shadowElevation = 8.dp,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+                                    modifier = Modifier.wrapContentSize()
                                 ) {
-                                    // Compact Icon Buttons for Expense (orange), Income (green), Transfer (blue) on right
                                     Row(
+                                        modifier = Modifier.padding(4.dp),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        // Redesigned Expense, Income, Transfer buttons (Expense on the left end)
                                         val iconTypeOptions = listOf(
                                             Triple(TransactionType.EXPENSE, Icons.Default.ArrowDownward, expenseActionColor),
                                             Triple(TransactionType.INCOME, Icons.Default.ArrowUpward, incomeActionColor),
@@ -2979,18 +2998,17 @@ fun AddEditTransactionSheet(
                                         iconTypeOptions.forEach { (type, icon, color) ->
                                             val isSelected = txType == type
                                             Surface(
-                                                shape = RoundedCornerShape(10.dp),
+                                                shape = RoundedCornerShape(12.dp),
                                                 color = if (isSelected) color else color.copy(alpha = 0.12f),
                                                 shadowElevation = if (isSelected) 3.dp else 0.dp,
                                                 border = if (isSelected) {
-                                                    BorderStroke(1.5.dp, Color.White.copy(alpha = 0.8f))
+                                                    BorderStroke(1.5.dp, Color.White.copy(alpha = 0.85f))
                                                 } else {
                                                     BorderStroke(1.dp, color.copy(alpha = 0.35f))
                                                 },
                                                 modifier = Modifier
-                                                    .width(46.dp)
-                                                    .height(36.dp)
-                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .size(42.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
                                                     .clickable { switchActionType(type) }
                                             ) {
                                                 Box(
@@ -3001,125 +3019,128 @@ fun AddEditTransactionSheet(
                                                         imageVector = icon,
                                                         contentDescription = type.name,
                                                         tint = if (isSelected) Color.White else color,
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(22.dp)
                                                     )
                                                 }
                                             }
                                         }
-                                    }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Save button with increased length on the far right
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = saveActionColor,
-                                        shadowElevation = 4.dp,
-                                        border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.75f)),
-                                        modifier = Modifier
-                                            .height(36.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .clickable { executeSave() }
-                                            .testTag("save_transaction_btn")
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.Center,
-                                            modifier = Modifier.padding(horizontal = 16.dp)
+                                        // Replaced floating Save button with the transaction form's bottom Save button
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = saveActionColor,
+                                            shadowElevation = 3.dp,
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { executeSave() }
+                                                .testTag("save_transaction_btn")
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Save",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = if (languageMode == LanguageMode.BANGLA) "সংরক্ষণ" else "Save",
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.fillMaxSize()
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Save,
+                                                    contentDescription = "Save",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
-                            } else {
-                                // Keyboard hidden: Full-width bottom bar with Expense (orange), Income (green), Transfer (blue), and Save (green icon button fixed at bottom-right)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    // Segmented Type Buttons: EXPENSE (Orange), INCOME (Green), TRANSFER (Blue)
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        val types = listOf(
-                                            Triple(TransactionType.EXPENSE, LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }, expenseActionColor),
-                                            Triple(TransactionType.INCOME, LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }, incomeActionColor),
-                                            Triple(TransactionType.TRANSFER, LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }, transferActionColor)
-                                        )
+                            }
+                        } else {
+                            // Keyboard hidden: Full-width bottom bar with Expense (orange), Income (green), Transfer (blue), and Save (green icon button fixed at bottom-right)
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 6.dp,
+                                shadowElevation = 8.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    HorizontalDivider(
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                                        thickness = 0.8.dp
+                                    )
 
-                                        types.forEach { (type, label, color) ->
-                                            val isSelected = txType == type
-                                            Surface(
-                                                shape = RoundedCornerShape(12.dp),
-                                                color = if (isSelected) color else color.copy(alpha = 0.10f),
-                                                border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.30f)),
-                                                shadowElevation = if (isSelected) 3.dp else 0.dp,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .height(42.dp)
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .clickable { switchActionType(type) }
-                                            ) {
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        // Segmented Type Buttons: EXPENSE (Orange), INCOME (Green), TRANSFER (Blue)
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            val types = listOf(
+                                                Triple(TransactionType.EXPENSE, LanguageHelper.getString("expense", languageMode).ifEmpty { "Expense" }, expenseActionColor),
+                                                Triple(TransactionType.INCOME, LanguageHelper.getString("income", languageMode).ifEmpty { "Income" }, incomeActionColor),
+                                                Triple(TransactionType.TRANSFER, LanguageHelper.getString("transfer", languageMode).ifEmpty { "Transfer" }, transferActionColor)
+                                            )
+
+                                            types.forEach { (type, label, color) ->
+                                                val isSelected = txType == type
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = if (isSelected) color else color.copy(alpha = 0.10f),
+                                                    border = if (isSelected) null else BorderStroke(1.dp, color.copy(alpha = 0.30f)),
+                                                    shadowElevation = if (isSelected) 3.dp else 0.dp,
                                                     modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .padding(horizontal = 4.dp)
+                                                        .weight(1f)
+                                                        .height(42.dp)
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .clickable { switchActionType(type) }
                                                 ) {
-                                                    Text(
-                                                        text = label,
-                                                        fontSize = 12.5.sp,
-                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                                        color = if (isSelected) Color.White else color,
-                                                        textAlign = TextAlign.Center,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
+                                                    Box(
+                                                        contentAlignment = Alignment.Center,
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .padding(horizontal = 4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = label,
+                                                            fontSize = 12.5.sp,
+                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                                            color = if (isSelected) Color.White else color,
+                                                            textAlign = TextAlign.Center,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    Spacer(modifier = Modifier.width(10.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
 
-                                    // Save Button: Fixed green icon button at bottom-right
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = saveActionColor,
-                                        shadowElevation = 3.dp,
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { executeSave() }
-                                            .testTag("save_transaction_btn")
-                                    ) {
-                                        Box(
-                                            contentAlignment = Alignment.Center,
-                                            modifier = Modifier.fillMaxSize()
+                                        // Save Button: Fixed green icon button at bottom-right
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = saveActionColor,
+                                            shadowElevation = 3.dp,
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .clickable { executeSave() }
+                                                .testTag("save_transaction_btn")
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Save,
-                                                contentDescription = "Save",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(22.dp)
-                                            )
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.fillMaxSize()
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Save,
+                                                    contentDescription = "Save",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -3127,6 +3148,7 @@ fun AddEditTransactionSheet(
                         }
                     }
                 }
+            }
             }
         }
 
