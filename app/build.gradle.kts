@@ -101,6 +101,14 @@ android {
     unitTests {
       isIncludeAndroidResources = true
       isReturnDefaultValues = true
+      all {
+        it.jvmArgs(
+          "-Xmx2048m",
+          "-Djava.awt.headless=true",
+          "--add-opens=java.base/java.lang=ALL-UNNAMED",
+          "--add-opens=java.base/java.util=ALL-UNNAMED"
+        )
+      }
     }
   }
   dependenciesInfo {

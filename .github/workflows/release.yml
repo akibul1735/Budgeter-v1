@@ -119,16 +119,16 @@ jobs:
       - name: Run Unit & Robolectric Tests
         id: unit-tests
         env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:+UseParallelGC -XX:MaxMetaspaceSize=1024m -Dkotlin.daemon.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:+UseParallelGC -XX:MaxMetaspaceSize=1024m -Dkotlin.daemon.jvmargs=-Xmx3072m -Dfile.encoding=UTF-8 -Djava.awt.headless=true"
         run: |
           mkdir -p build_logs
           set +e
           set -o pipefail
           if [ -f "./gradlew" ] && [ -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            ./gradlew testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
+            ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
             TEST_EXIT_CODE=$?
           else
-            gradle testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
+            gradle :app:testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build_logs/test_unit.log
             TEST_EXIT_CODE=$?
           fi
 
