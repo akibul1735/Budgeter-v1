@@ -97,6 +97,7 @@ data class AccountRequirementAnalysis(
     val itemizedExpenses: List<AccountRequirementItem> = emptyList(),
     val itemizedIncomes: List<AccountRequirementItem> = emptyList()
 ) {
+    val projectedBalance: Double get() = currentBalance - requiredExpenseAmount + expectedIncomeAmount
     val isShortfall: Boolean get() = shortfall > 0.001
     val isSurplus: Boolean get() = surplus > 0.001
     val isBalanced: Boolean get() = !isShortfall && !isSurplus

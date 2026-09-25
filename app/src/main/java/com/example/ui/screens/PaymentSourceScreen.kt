@@ -157,6 +157,7 @@ fun PaymentSourceScreen(
     selectedMonth: Int,
     languageMode: LanguageMode,
     paymentSourceConfig: PaymentSourceConfig = PaymentSourceConfig(),
+    accountCalcConfig: com.example.util.AccountCalcConfig = com.example.util.AccountCalcConfig(),
     onOpenDrawer: () -> Unit = {},
     onPrevMonth: () -> Unit = {},
     onNextMonth: () -> Unit = {},
@@ -233,7 +234,8 @@ fun PaymentSourceScreen(
         allTransactions,
         recurringBills,
         selectedSourceAccountIds,
-        paymentSourceConfig.accountObligations
+        paymentSourceConfig.accountObligations,
+        accountCalcConfig
     ) {
         PaymentSourceCalculator.calculateAnalysis(
             year = selectedYear,
@@ -246,7 +248,8 @@ fun PaymentSourceScreen(
             allTransactions = allTransactions,
             recurringBills = recurringBills,
             selectedPaymentSourceIds = selectedSourceAccountIds,
-            accountObligations = paymentSourceConfig.accountObligations
+            accountObligations = paymentSourceConfig.accountObligations,
+            accountCalcConfig = accountCalcConfig
         )
     }
 
@@ -386,6 +389,8 @@ fun PaymentSourceScreen(
                         overview = analysisOverview,
                         languageMode = languageMode,
                         searchQuery = searchQuery,
+                        calculationBasis = calculationBasis,
+                        onCalculationBasisChange = { calculationBasis = it },
                         accountStatusFilter = accountStatusFilter,
                         onStatusFilterChange = { accountStatusFilter = it },
                         sortOption = paymentSourceSortOption,

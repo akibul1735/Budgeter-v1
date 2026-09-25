@@ -2794,6 +2794,7 @@ private fun ScreenRouter(
                 selectedMonth = selectedBudgetMonth,
                 languageMode = languageMode,
                 paymentSourceConfig = paymentSourceConfig,
+                accountCalcConfig = accountCalcConfig,
                 onOpenDrawer = onOpenDrawer,
                 onPrevMonth = { viewModel.prevBudgetMonth() },
                 onNextMonth = { viewModel.nextBudgetMonth() },

@@ -61,7 +61,14 @@ internal fun PaymentSourceSelectorDialog(
     var searchQuery by remember { mutableStateOf("") }
 
     val balanceMap = remember(accountsWithBalances) {
-        accountsWithBalances.associate { it.account.id to it.currentBalance }
+        val map = mutableMapOf<Long, Double>()
+        accountsWithBalances.forEach { parent ->
+            map[parent.account.id] = parent.currentBalance
+            parent.subAccounts.forEach { sub ->
+                map[sub.account.id] = sub.currentBalance
+            }
+        }
+        map
     }
 
     // 1. Group structure

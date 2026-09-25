@@ -43,6 +43,8 @@ internal fun AccountsPaymentSourceTabContent(
     overview: PaymentSourceAnalysisOverview,
     languageMode: LanguageMode,
     searchQuery: String = "",
+    calculationBasis: RequirementCalculationBasis = RequirementCalculationBasis.BUDGET_AMOUNT,
+    onCalculationBasisChange: (RequirementCalculationBasis) -> Unit = {},
     accountStatusFilter: AccountStatusFilter,
     onStatusFilterChange: (AccountStatusFilter) -> Unit,
     sortOption: PaymentSourceSortOption,
@@ -87,6 +89,83 @@ internal fun AccountsPaymentSourceTabContent(
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        // Switch button for Budget and Remaining (above the card)
+        item {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("basis_switch_container"),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val isBudget = calculationBasis == RequirementCalculationBasis.BUDGET_AMOUNT
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onCalculationBasisChange(RequirementCalculationBasis.BUDGET_AMOUNT) }
+                            .testTag("switch_budget_button"),
+                        color = if (isBudget) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        contentColor = if (isBudget) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PieChart,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "বাজেট ভিত্তিক" else "Budget",
+                                fontSize = 12.sp,
+                                fontWeight = if (isBudget) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    val isRemaining = calculationBasis == RequirementCalculationBasis.REMAINING_AMOUNT
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onCalculationBasisChange(RequirementCalculationBasis.REMAINING_AMOUNT) }
+                            .testTag("switch_remaining_button"),
+                        color = if (isRemaining) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        contentColor = if (isRemaining) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HourglassBottom,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) "অবশিষ্ট ভিত্তিক" else "Remaining",
+                                fontSize = 12.sp,
+                                fontWeight = if (isRemaining) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Top Overview Summary Card
         item {
             Card(

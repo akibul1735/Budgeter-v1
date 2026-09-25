@@ -457,7 +457,7 @@ internal fun AccountRequirementCard(
                         color = MaterialTheme.colorScheme.outline
                     )
                     Text(
-                        text = LanguageHelper.formatCurrency(analysis.requiredExpenseAmount, languageMode),
+                        text = "${if (analysis.requiredExpenseAmount > 0) "-" else ""}${LanguageHelper.formatCurrency(analysis.requiredExpenseAmount, languageMode)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = SolidExpense
@@ -482,15 +482,15 @@ internal fun AccountRequirementCard(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "কার্যকর মজুদ" else "Available Funds",
+                        text = if (languageMode == LanguageMode.BANGLA) "প্রাক্কলিত ব্যালেন্স" else "Projected Balance",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
                     Text(
-                        text = LanguageHelper.formatCurrency(analysis.availableAmount, languageMode),
+                        text = "${if (analysis.projectedBalance > 0) "+" else ""}${LanguageHelper.formatCurrency(analysis.projectedBalance, languageMode)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (analysis.availableAmount >= analysis.requiredExpenseAmount) SolidIncome else SolidExpense
+                        color = if (analysis.projectedBalance >= 0) SolidIncome else SolidExpense
                     )
                 }
             }

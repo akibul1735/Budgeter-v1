@@ -31,10 +31,56 @@ object PaymentSourceCalculator {
         allTransactions: List<TransactionWithDetails>,
         recurringBills: List<RecurringBill> = emptyList(),
         selectedPaymentSourceIds: Set<Long>? = null,
-        accountObligations: List<AccountObligation> = emptyList()
+        accountObligations: List<AccountObligation> = emptyList(),
+        accountCalcConfig: AccountCalcConfig? = null
     ): PaymentSourceAnalysisOverview {
-        // Balance map for quick lookup
-        val balanceMap = accountsWithBalances.associate { it.account.id to it.currentBalance }
+        // 1. Flatten accountsWithBalances to include both parents and sub-accounts
+        val flatAwbMap = mutableMapOf<Long, Double>()
+        accountsWithBalances.forEach { parent ->
+            flatAwbMap[parent.account.id] = parent.currentBalance
+            parent.subAccounts.forEach { sub ->
+                flatAwbMap[sub.account.id] = sub.currentBalance
+            }
+        }
+
+        // 2. Calculate actual balances directly from balance sheet rules (debits, credits, initial balance, adjustments)
+        val validTxs = allTransactions.map { it.transaction }
+        val debits = mutableMapOf<Long, Double>()
+        val credits = mutableMapOf<Long, Double>()
+        for (tx in validTxs) {
+            tx.debitAccountId?.let { id -> debits[id] = (debits[id] ?: 0.0) + tx.amount }
+            tx.creditAccountId?.let { id -> credits[id] = (credits[id] ?: 0.0) + tx.amount }
+        }
+
+        fun getDirectBalance(acc: Account): Double {
+            val dr = debits[acc.id] ?: 0.0
+            val cr = credits[acc.id] ?: 0.0
+            val raw = when (acc.type) {
+                AccountType.ASSET, AccountType.EXPENSE -> acc.initialBalance + (dr - cr)
+                AccountType.LIABILITY -> -(acc.initialBalance + (cr - dr))
+                AccountType.EQUITY, AccountType.INCOME -> acc.initialBalance + (cr - dr)
+            }
+            val adj = accountCalcConfig?.getAdjustment(acc.id) ?: 0.0
+            return raw + adj
+        }
+
+        val directBalances = allAccounts.associate { it.id to getDirectBalance(it) }
+        val subAccountsByParent = allAccounts.filter { it.parentId != null }.groupBy { it.parentId!! }
+
+        val balanceMap = allAccounts.associate { acc ->
+            val subs = subAccountsByParent[acc.id] ?: emptyList()
+            val bal = if (subs.isNotEmpty()) {
+                (directBalances[acc.id] ?: 0.0) + subs.sumOf { directBalances[it.id] ?: 0.0 }
+            } else {
+                directBalances[acc.id] ?: 0.0
+            }
+            val finalBal = if (Math.abs(bal) < 0.0001 && flatAwbMap.containsKey(acc.id)) {
+                flatAwbMap[acc.id] ?: bal
+            } else {
+                bal
+            }
+            acc.id to finalBal
+        }
 
         // Filter valid accounts: if user has explicit selectedPaymentSourceIds, strictly use them; otherwise use active leaf accounts
         val validAccounts = if (selectedPaymentSourceIds != null && selectedPaymentSourceIds.isNotEmpty()) {
