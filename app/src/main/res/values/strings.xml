@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">Budgeter</string>
+    <string name="widget_budget_meter_desc">Monitor monthly budget progress and daily safe-to-spend allowance.</string>
+    <string name="widget_quick_action_desc">Quick balance overview and one-tap access to add expenses, income, or transfers.</string>
+    <string name="widget_recent_transactions_desc">View your latest recorded transactions and quickly add new entries.</string>
+    <string name="widget_savings_goal_desc">Track progress towards your primary active savings goal.</string>
+    <string name="widget_recent_transactions_name">Recent Transactions</string>
+    <string name="widget_budget_meter_name">Budget Meter</string>
+    <string name="widget_quick_action_name">Quick Actions</string>
+    <string name="widget_savings_goal_name">Savings Goal</string>
 </resources>

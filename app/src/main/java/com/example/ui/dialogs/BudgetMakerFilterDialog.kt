@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,8 +38,8 @@ import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
@@ -49,6 +48,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -56,9 +57,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -66,7 +65,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -92,6 +90,7 @@ import com.example.ui.components.UnifiedFilterDialogContainer
 import com.example.ui.components.UnifiedFilterFooter
 import com.example.ui.components.UnifiedFilterHeader
 import com.example.ui.components.UnifiedFilterSection
+import com.example.ui.screens.BudgetSortOption
 import com.example.ui.theme.SolidExpense
 import com.example.ui.theme.SolidIncome
 import com.example.ui.theme.SolidPrimary
@@ -102,7 +101,7 @@ private val AmberGold = Color(0xFFD97706)
 
 /**
  * Filter state specifically crafted for Budget Maker tabs.
- * Independent and context-aware for Expenses, Incomes, Assets, and Liabilities.
+ * Supports multi-field selection with multiple values per field.
  */
 data class BudgetMakerTabFilter(
     val selectedItemIds: Set<Long> = emptySet(),
@@ -110,18 +109,23 @@ data class BudgetMakerTabFilter(
     val minAmount: Double? = null,
     val maxAmount: Double? = null,
 
-    // Expense & Income Conditions
+    // Budget & Target Status (Multiple values can be selected)
     val onlyWithBudgetOrTarget: Boolean = false,
     val onlyWithoutBudgetOrTarget: Boolean = false,
-    val onlyWithActualActivity: Boolean = false,
-    val onlyZeroActivity: Boolean = false,
     val onlyOverBudget: Boolean = false,
     val onlyUnderBudgetRemaining: Boolean = false,
     val onlyTargetAchieved: Boolean = false,
     val onlyTargetPending: Boolean = false,
+
+    // Activity & Performance (Multiple values can be selected)
+    val onlyWithActualActivity: Boolean = false,
+    val onlyZeroActivity: Boolean = false,
+    val onlyActive3Months: Boolean = false,
+    val onlyFrequentlyActive: Boolean = false,
+    val onlyFrequentlyBudgeted: Boolean = false,
     val onlyWithSuggestions: Boolean = false,
 
-    // Asset & Liability Conditions
+    // Asset & Liability Specific Conditions
     val onlyPositiveBalance: Boolean = false,
     val onlyZeroBalance: Boolean = false,
     val onlyNegativeBalance: Boolean = false,
@@ -130,7 +134,8 @@ data class BudgetMakerTabFilter(
 
     // Display & Cleanliness Toggles
     val excludeZeroAmounts: Boolean = false,
-    val hideEmptyGroups: Boolean = false
+    val hideEmptyGroups: Boolean = false,
+    val amountFocus: Boolean = false
 ) {
     val isActive: Boolean
         get() = selectedItemIds.isNotEmpty() ||
@@ -139,12 +144,15 @@ data class BudgetMakerTabFilter(
                 (maxAmount != null && maxAmount > 0) ||
                 onlyWithBudgetOrTarget ||
                 onlyWithoutBudgetOrTarget ||
-                onlyWithActualActivity ||
-                onlyZeroActivity ||
                 onlyOverBudget ||
                 onlyUnderBudgetRemaining ||
                 onlyTargetAchieved ||
                 onlyTargetPending ||
+                onlyWithActualActivity ||
+                onlyZeroActivity ||
+                onlyActive3Months ||
+                onlyFrequentlyActive ||
+                onlyFrequentlyBudgeted ||
                 onlyWithSuggestions ||
                 onlyPositiveBalance ||
                 onlyZeroBalance ||
@@ -152,22 +160,36 @@ data class BudgetMakerTabFilter(
                 onlyOutstandingDebt ||
                 onlyClearedDebt ||
                 excludeZeroAmounts ||
-                hideEmptyGroups
+                hideEmptyGroups ||
+                amountFocus
 
     val activeCount: Int
         get() {
             var count = 0
-            if (selectedItemIds.isNotEmpty() || selectedGroupNames.isNotEmpty()) count += (selectedItemIds.size + selectedGroupNames.size)
+            if (selectedItemIds.isNotEmpty() || selectedGroupNames.isNotEmpty()) {
+                count += (selectedItemIds.size + selectedGroupNames.size)
+            }
             if ((minAmount != null && minAmount > 0) || (maxAmount != null && maxAmount > 0)) count++
-            if (onlyWithBudgetOrTarget || onlyWithoutBudgetOrTarget) count++
-            if (onlyWithActualActivity || onlyZeroActivity) count++
-            if (onlyOverBudget || onlyUnderBudgetRemaining) count++
-            if (onlyTargetAchieved || onlyTargetPending) count++
+            if (onlyWithBudgetOrTarget) count++
+            if (onlyWithoutBudgetOrTarget) count++
+            if (onlyOverBudget) count++
+            if (onlyUnderBudgetRemaining) count++
+            if (onlyTargetAchieved) count++
+            if (onlyTargetPending) count++
+            if (onlyWithActualActivity) count++
+            if (onlyZeroActivity) count++
+            if (onlyActive3Months) count++
+            if (onlyFrequentlyActive) count++
+            if (onlyFrequentlyBudgeted) count++
             if (onlyWithSuggestions) count++
-            if (onlyPositiveBalance || onlyZeroBalance || onlyNegativeBalance) count++
-            if (onlyOutstandingDebt || onlyClearedDebt) count++
+            if (onlyPositiveBalance) count++
+            if (onlyZeroBalance) count++
+            if (onlyNegativeBalance) count++
+            if (onlyOutstandingDebt) count++
+            if (onlyClearedDebt) count++
             if (excludeZeroAmounts) count++
             if (hideEmptyGroups) count++
+            if (amountFocus) count++
             return count
         }
 }
@@ -195,7 +217,9 @@ data class BudgetMakerDashboardFilter(
 }
 
 /**
- * Modern, tab-specific popup filter dialog for Budget Maker designed uniformly with Transaction Filter.
+ * Modern, tab-specific popup filter dialog for Budget Maker.
+ * Supports multi-field selection with multiple values per field,
+ * quick preview chips with direct (x) removal, calculator popup, and integrated sort options.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -208,6 +232,8 @@ fun BudgetMakerFilterDialog(
     selectedYear: Int,
     selectedMonth: Int,
     languageMode: LanguageMode,
+    currentSort: BudgetSortOption = BudgetSortOption.DEFAULT,
+    onSortChange: ((BudgetSortOption) -> Unit)? = null,
     onDismiss: () -> Unit,
     onApplyTabFilter: (BudgetMakerTabFilter) -> Unit,
     onApplyDashboardFilter: (BudgetMakerDashboardFilter) -> Unit
@@ -218,43 +244,57 @@ fun BudgetMakerFilterDialog(
 
     var tempTabFilter by remember { mutableStateOf(currentTabFilter) }
     var tempDashboardFilter by remember { mutableStateOf(dashboardFilter) }
+    var tempSort by remember { mutableStateOf(currentSort) }
 
-    var minAmountText by remember { mutableStateOf(if (currentTabFilter.minAmount != null && currentTabFilter.minAmount > 0) currentTabFilter.minAmount.toInt().toString() else "") }
-    var maxAmountText by remember { mutableStateOf(if (currentTabFilter.maxAmount != null && currentTabFilter.maxAmount > 0) currentTabFilter.maxAmount.toInt().toString() else "") }
+    var minAmountText by remember {
+        mutableStateOf(
+            if (currentTabFilter.minAmount != null && currentTabFilter.minAmount > 0)
+                currentTabFilter.minAmount.toInt().toString()
+            else ""
+        )
+    }
+    var maxAmountText by remember {
+        mutableStateOf(
+            if (currentTabFilter.maxAmount != null && currentTabFilter.maxAmount > 0)
+                currentTabFilter.maxAmount.toInt().toString()
+            else ""
+        )
+    }
 
     var showCalculatorForMin by remember { mutableStateOf(false) }
     var showCalculatorForMax by remember { mutableStateOf(false) }
     var showItemPickerModal by remember { mutableStateOf(false) }
+    var showSortDropdown by remember { mutableStateOf(false) }
 
     // Tab attributes
     val (tabTitle, tabSubtitle, tabIcon, tabColor) = when (tabIndex) {
         0 -> Quadruple(
             if (isBangla) "ড্যাশবোর্ড ফিল্টার" else "Dashboard Filter",
-            if (isBangla) "$monthNameStr • ওভারভিউ সেটিংস" else "$monthNameStr • Overview scope",
+            if (isBangla) "$monthNameStr • ওভারভিউ পরিধি" else "$monthNameStr • Overview scope",
             Icons.Default.Dashboard,
             MaterialTheme.colorScheme.primary
         )
         1 -> Quadruple(
             if (isBangla) "ব্যয় বাজেট ফিল্টার" else "Expense Budget Filter",
-            if (isBangla) "$monthNameStr • ব্যয় ক্যাটাগরি ও সীমা ফিল্টার" else "$monthNameStr • Filter expense categories & limits",
+            if (isBangla) "$monthNameStr • ব্যয় ক্যাটাগরি, সীমা ও পারফরম্যান্স" else "$monthNameStr • Filter expense categories, limits & activity",
             Icons.Default.TrendingDown,
             SolidExpense
         )
         2 -> Quadruple(
             if (isBangla) "আয় লক্ষ্য ফিল্টার" else "Income Target Filter",
-            if (isBangla) "$monthNameStr • আয় ক্যাটাগরি ও লক্ষ্য ফিল্টার" else "$monthNameStr • Filter income categories & targets",
+            if (isBangla) "$monthNameStr • আয় ক্যাটাগরি, লক্ষ্য ও অগ্রগতি" else "$monthNameStr • Filter income categories, targets & progress",
             Icons.Default.TrendingUp,
             SolidIncome
         )
         3 -> Quadruple(
-            if (isBangla) "সম্পদ একাউন্ট ফিল্টার" else "Asset Accounts Filter",
-            if (isBangla) "$monthNameStr • সম্পদ ও ব্যালেন্স ফিল্টার" else "$monthNameStr • Filter asset accounts & balances",
+            if (isBangla) "সম্পদ অ্যাকাউন্ট ফিল্টার" else "Asset Accounts Filter",
+            if (isBangla) "$monthNameStr • সম্পদ অ্যাকাউন্ট, ব্যালেন্স ও স্থিতি" else "$monthNameStr • Filter asset accounts & balances",
             Icons.Default.AccountBalanceWallet,
             SolidPrimary
         )
         4 -> Quadruple(
-            if (isBangla) "দায় ও দেনা ফিল্টার" else "Liabilities & Debt Filter",
-            if (isBangla) "$monthNameStr • ঋণ ও দেনা ফিল্টার" else "$monthNameStr • Filter debt & liability accounts",
+            if (isBangla) "দায় ও ঋণ ফিল্টার" else "Liabilities & Debt Filter",
+            if (isBangla) "$monthNameStr • ঋণ ও দেনা অ্যাকাউন্ট ফিল্টার" else "$monthNameStr • Filter debt & liability accounts",
             Icons.Default.CreditCard,
             AmberGold
         )
@@ -262,6 +302,14 @@ fun BudgetMakerFilterDialog(
     }
 
     val activeCount = if (tabIndex == 0) tempDashboardFilter.activeCount else tempTabFilter.activeCount
+
+    val sectionItemType = when (tabIndex) {
+        1 -> "EXPENSE"
+        2 -> "INCOME"
+        3 -> "ASSET"
+        4 -> "LIABILITY"
+        else -> "EXPENSE"
+    }
 
     UnifiedFilterDialogContainer(
         onDismissRequest = onDismiss,
@@ -280,6 +328,7 @@ fun BudgetMakerFilterDialog(
                         tempTabFilter = BudgetMakerTabFilter()
                         minAmountText = ""
                         maxAmountText = ""
+                        tempSort = BudgetSortOption.DEFAULT
                     }
                     Toast.makeText(
                         context,
@@ -299,7 +348,7 @@ fun BudgetMakerFilterDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 if (tabIndex == 0) {
-                    // BM DASHBOARD FILTER
+                    // BM DASHBOARD FILTER (Tab 0)
                     UnifiedFilterSection(
                         title = if (isBangla) "অন্তর্ভুক্ত বিভাগসমূহ" else "Included Sections",
                         icon = Icons.Default.Tune
@@ -347,9 +396,9 @@ fun BudgetMakerFilterDialog(
                         }
                     }
                 } else {
-                    // TAB-SPECIFIC FILTER (1: Expense, 2: Income, 3: Asset, 4: Liability)
+                    // TAB-SPECIFIC MULTI-FIELD, MULTI-VALUE FILTERS (Tabs 1..4)
 
-                    // 1. Specific Items / Categories Multi-Select Dropdown Row
+                    // ── 1. Field 1: Specific Categories / Accounts / Groups (Multi-Select) ──
                     val itemTypeLabel = when (tabIndex) {
                         1, 2 -> if (isBangla) "ক্যাটাগরি" else "Category"
                         else -> if (isBangla) "অ্যাকাউন্ট" else "Account"
@@ -372,24 +421,68 @@ fun BudgetMakerFilterDialog(
                         else -> if (isBangla) "$selectedCount টি $itemTypeLabel নির্বাচিত" else "$selectedCount ${itemTypeLabel}s Selected"
                     }
 
-                    BudgetFilterDropdownRow(
-                        title = itemTypeLabel,
-                        selectedValue = itemSummaryText,
-                        icon = if (tabIndex in 1..2) Icons.Default.Category else Icons.Default.AccountBalance,
-                        iconTint = tabColor,
-                        isFiltered = selectedCount > 0,
-                        onClear = {
-                            tempTabFilter = tempTabFilter.copy(
-                                selectedItemIds = emptySet(),
-                                selectedGroupNames = emptySet()
-                            )
-                        },
-                        onClick = { showItemPickerModal = true }
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        BudgetFilterDropdownRow(
+                            title = if (tabIndex in 1..2) (if (isBangla) "ক্যাটাগরি বা গ্রুপ নির্বাচন" else "Categories & Groups") else (if (isBangla) "অ্যাকাউন্ট বা গ্রুপ নির্বাচন" else "Accounts & Groups"),
+                            selectedValue = itemSummaryText,
+                            icon = if (tabIndex in 1..2) Icons.Default.Category else Icons.Default.AccountBalance,
+                            iconTint = tabColor,
+                            isFiltered = selectedCount > 0,
+                            onClear = {
+                                tempTabFilter = tempTabFilter.copy(
+                                    selectedItemIds = emptySet(),
+                                    selectedGroupNames = emptySet()
+                                )
+                            },
+                            onClick = { showItemPickerModal = true }
+                        )
 
-                    // 2. Amount Range (Min / Max with Calculator)
+                        // Removable selected chips flow row
+                        if (selectedCount > 0) {
+                            FlowRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                // Groups chips
+                                tempTabFilter.selectedGroupNames.forEach { groupName ->
+                                    RemovableItemChip(
+                                        label = "📁 $groupName",
+                                        accentColor = tabColor,
+                                        onRemove = {
+                                            tempTabFilter = tempTabFilter.copy(
+                                                selectedGroupNames = tempTabFilter.selectedGroupNames - groupName
+                                            )
+                                        }
+                                    )
+                                }
+
+                                // Individual item chips
+                                tempTabFilter.selectedItemIds.forEach { id ->
+                                    val name = if (tabIndex in 1..2) {
+                                        categories.firstOrNull { it.id == id }?.localizedName(languageMode) ?: "#$id"
+                                    } else {
+                                        accounts.firstOrNull { it.id == id }?.localizedName(languageMode) ?: "#$id"
+                                    }
+                                    RemovableItemChip(
+                                        label = name,
+                                        accentColor = tabColor,
+                                        onRemove = {
+                                            tempTabFilter = tempTabFilter.copy(
+                                                selectedItemIds = tempTabFilter.selectedItemIds - id
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // ── 2. Field 2: Amount Range (৳) with Calculator & Quick Presets ──
                     UnifiedFilterSection(
-                        title = if (isBangla) "পরিমাণ রেঞ্জ (৳)" else "Amount Range (৳)",
+                        title = if (isBangla) "পরিমাণ সীমা (৳)" else "Amount Range (৳)",
                         icon = Icons.Default.Tune
                     ) {
                         Card(
@@ -477,13 +570,50 @@ fun BudgetMakerFilterDialog(
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
+
+                                // Quick Amount Presets
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    val presets = listOf(
+                                        "> 0" to 0.01,
+                                        "> 1K" to 1000.0,
+                                        "> 5K" to 5000.0,
+                                        "> 10K" to 10000.0,
+                                        "> 50K" to 50000.0
+                                    )
+                                    presets.forEach { (label, minVal) ->
+                                        val isSelected = tempTabFilter.minAmount == minVal
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                if (isSelected) {
+                                                    minAmountText = ""
+                                                    tempTabFilter = tempTabFilter.copy(minAmount = null)
+                                                } else {
+                                                    minAmountText = minVal.toInt().toString()
+                                                    tempTabFilter = tempTabFilter.copy(minAmount = minVal)
+                                                }
+                                            },
+                                            label = { Text(label, fontSize = 10.5.sp) },
+                                            shape = RoundedCornerShape(6.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = tabColor.copy(alpha = 0.18f),
+                                                selectedLabelColor = tabColor
+                                            ),
+                                            modifier = Modifier.height(28.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
 
-                    // 3. Budget / Target Status Conditions
+                    // ── 3. Field 3: Budget & Target Status (Multi-Select Supported) ──
                     UnifiedFilterSection(
-                        title = if (isBangla) "বাজেট ও লক্ষ্য অবস্থা" else "Budget & Target Status",
+                        title = if (isBangla) "বাজেট ও লক্ষ্য স্থিতি (একাধিক নির্বাচনযোগ্য)" else "Budget & Target Status (Multi-Select)",
                         icon = Icons.Default.FilterList
                     ) {
                         FlowRow(
@@ -491,46 +621,50 @@ fun BudgetMakerFilterDialog(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            val isAllBudget = !tempTabFilter.onlyWithBudgetOrTarget && !tempTabFilter.onlyWithoutBudgetOrTarget
+                            val hasAnyStatus = tempTabFilter.onlyWithBudgetOrTarget ||
+                                    tempTabFilter.onlyWithoutBudgetOrTarget ||
+                                    tempTabFilter.onlyOverBudget ||
+                                    tempTabFilter.onlyUnderBudgetRemaining ||
+                                    tempTabFilter.onlyTargetAchieved ||
+                                    tempTabFilter.onlyTargetPending
+
                             FilterChip(
-                                selected = isAllBudget,
+                                selected = !hasAnyStatus,
                                 onClick = {
                                     tempTabFilter = tempTabFilter.copy(
                                         onlyWithBudgetOrTarget = false,
-                                        onlyWithoutBudgetOrTarget = false
+                                        onlyWithoutBudgetOrTarget = false,
+                                        onlyOverBudget = false,
+                                        onlyUnderBudgetRemaining = false,
+                                        onlyTargetAchieved = false,
+                                        onlyTargetPending = false
                                     )
                                 },
-                                label = { Text(if (isBangla) "সকল" else "All", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                label = { Text(if (isBangla) "সকল স্থিতি" else "All Status", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = tabColor,
                                     selectedLabelColor = Color.White
                                 )
                             )
+
                             FilterChip(
                                 selected = tempTabFilter.onlyWithBudgetOrTarget,
                                 onClick = {
-                                    val now = !tempTabFilter.onlyWithBudgetOrTarget
-                                    tempTabFilter = tempTabFilter.copy(
-                                        onlyWithBudgetOrTarget = now,
-                                        onlyWithoutBudgetOrTarget = if (now) false else tempTabFilter.onlyWithoutBudgetOrTarget
-                                    )
+                                    tempTabFilter = tempTabFilter.copy(onlyWithBudgetOrTarget = !tempTabFilter.onlyWithBudgetOrTarget)
                                 },
-                                label = { Text(if (isBangla) "বাজেট/লক্ষ্য সেট করা" else "Budgeted / Target Set", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                label = { Text(if (isBangla) "বাজেট/লক্ষ্য সেট করা" else "Budget / Target Set", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = tabColor,
                                     selectedLabelColor = Color.White
                                 )
                             )
+
                             FilterChip(
                                 selected = tempTabFilter.onlyWithoutBudgetOrTarget,
                                 onClick = {
-                                    val now = !tempTabFilter.onlyWithoutBudgetOrTarget
-                                    tempTabFilter = tempTabFilter.copy(
-                                        onlyWithoutBudgetOrTarget = now,
-                                        onlyWithBudgetOrTarget = if (now) false else tempTabFilter.onlyWithBudgetOrTarget
-                                    )
+                                    tempTabFilter = tempTabFilter.copy(onlyWithoutBudgetOrTarget = !tempTabFilter.onlyWithoutBudgetOrTarget)
                                 },
                                 label = { Text(if (isBangla) "বাজেট নেই (০)" else "Unbudgeted (0)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(8.dp),
@@ -539,12 +673,66 @@ fun BudgetMakerFilterDialog(
                                     selectedLabelColor = Color.White
                                 )
                             )
+
+                            if (tabIndex == 1 || tabIndex == 2) {
+                                FilterChip(
+                                    selected = tempTabFilter.onlyOverBudget,
+                                    onClick = {
+                                        tempTabFilter = tempTabFilter.copy(onlyOverBudget = !tempTabFilter.onlyOverBudget)
+                                    },
+                                    label = { Text(if (isBangla) "বাজেট অতিক্রান্ত (Over)" else "Over Budget / Exceeded", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidExpense,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+
+                                FilterChip(
+                                    selected = tempTabFilter.onlyUnderBudgetRemaining,
+                                    onClick = {
+                                        tempTabFilter = tempTabFilter.copy(onlyUnderBudgetRemaining = !tempTabFilter.onlyUnderBudgetRemaining)
+                                    },
+                                    label = { Text(if (isBangla) "অবশিষ্ট ব্যালেন্স আছে" else "Under Budget / Remaining", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidIncome,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+
+                                FilterChip(
+                                    selected = tempTabFilter.onlyTargetAchieved,
+                                    onClick = {
+                                        tempTabFilter = tempTabFilter.copy(onlyTargetAchieved = !tempTabFilter.onlyTargetAchieved)
+                                    },
+                                    label = { Text(if (isBangla) "লক্ষ্য অর্জিত (Met)" else "Target Achieved", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SolidIncome,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+
+                                FilterChip(
+                                    selected = tempTabFilter.onlyTargetPending,
+                                    onClick = {
+                                        tempTabFilter = tempTabFilter.copy(onlyTargetPending = !tempTabFilter.onlyTargetPending)
+                                    },
+                                    label = { Text(if (isBangla) "লক্ষ্য বাকি (Pending)" else "Target Pending", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = AmberGold,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
                         }
                     }
 
-                    // 4. Activity & Performance Conditions
+                    // ── 4. Field 4: Activity & History Conditions (Multi-Select Supported) ──
                     UnifiedFilterSection(
-                        title = if (isBangla) "লেনদেন ও পারফরম্যান্স" else "Activity & Performance",
+                        title = if (isBangla) "লেনদেন ও পারফরম্যান্স (একাধিক নির্বাচনযোগ্য)" else "Activity & Performance (Multi-Select)",
                         icon = Icons.Default.Tune
                     ) {
                         FlowRow(
@@ -552,30 +740,60 @@ fun BudgetMakerFilterDialog(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            val hasAnyActivity = tempTabFilter.onlyWithActualActivity ||
+                                    tempTabFilter.onlyZeroActivity ||
+                                    tempTabFilter.onlyActive3Months ||
+                                    tempTabFilter.onlyFrequentlyActive ||
+                                    tempTabFilter.onlyFrequentlyBudgeted ||
+                                    tempTabFilter.onlyWithSuggestions ||
+                                    tempTabFilter.onlyPositiveBalance ||
+                                    tempTabFilter.onlyZeroBalance ||
+                                    tempTabFilter.onlyNegativeBalance ||
+                                    tempTabFilter.onlyOutstandingDebt ||
+                                    tempTabFilter.onlyClearedDebt
+
+                            FilterChip(
+                                selected = !hasAnyActivity,
+                                onClick = {
+                                    tempTabFilter = tempTabFilter.copy(
+                                        onlyWithActualActivity = false,
+                                        onlyZeroActivity = false,
+                                        onlyActive3Months = false,
+                                        onlyFrequentlyActive = false,
+                                        onlyFrequentlyBudgeted = false,
+                                        onlyWithSuggestions = false,
+                                        onlyPositiveBalance = false,
+                                        onlyZeroBalance = false,
+                                        onlyNegativeBalance = false,
+                                        onlyOutstandingDebt = false,
+                                        onlyClearedDebt = false
+                                    )
+                                },
+                                label = { Text(if (isBangla) "সকল কার্যকলাপ" else "All Activity", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = tabColor,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+
                             FilterChip(
                                 selected = tempTabFilter.onlyWithActualActivity,
                                 onClick = {
-                                    val now = !tempTabFilter.onlyWithActualActivity
-                                    tempTabFilter = tempTabFilter.copy(
-                                        onlyWithActualActivity = now,
-                                        onlyZeroActivity = if (now) false else tempTabFilter.onlyZeroActivity
-                                    )
+                                    tempTabFilter = tempTabFilter.copy(onlyWithActualActivity = !tempTabFilter.onlyWithActualActivity)
                                 },
-                                label = { Text(if (isBangla) "সক্রিয় লেনদেন রয়েছে" else "Has Active Transactions", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                label = { Text(if (isBangla) "সক্রিয় লেনদেন রয়েছে" else "Has Active Activity", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = SolidIncome,
                                     selectedLabelColor = Color.White
                                 )
                             )
+
                             FilterChip(
                                 selected = tempTabFilter.onlyZeroActivity,
                                 onClick = {
-                                    val now = !tempTabFilter.onlyZeroActivity
-                                    tempTabFilter = tempTabFilter.copy(
-                                        onlyZeroActivity = now,
-                                        onlyWithActualActivity = if (now) false else tempTabFilter.onlyWithActualActivity
-                                    )
+                                    tempTabFilter = tempTabFilter.copy(onlyZeroActivity = !tempTabFilter.onlyZeroActivity)
                                 },
                                 label = { Text(if (isBangla) "কোনো লেনদেন নেই (০)" else "Zero Activity (0)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                 shape = RoundedCornerShape(8.dp),
@@ -585,71 +803,46 @@ fun BudgetMakerFilterDialog(
                                 )
                             )
 
+                            FilterChip(
+                                selected = tempTabFilter.onlyActive3Months,
+                                onClick = {
+                                    tempTabFilter = tempTabFilter.copy(onlyActive3Months = !tempTabFilter.onlyActive3Months)
+                                },
+                                label = { Text(if (isBangla) "সক্রিয় (গত ৩ মাস)" else "Active (Last 3 Months)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = tabColor,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+
+                            FilterChip(
+                                selected = tempTabFilter.onlyFrequentlyActive,
+                                onClick = {
+                                    tempTabFilter = tempTabFilter.copy(onlyFrequentlyActive = !tempTabFilter.onlyFrequentlyActive)
+                                },
+                                label = { Text(if (isBangla) "নিয়মিত লেনদেন" else "Frequently Active", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = tabColor,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+
+                            FilterChip(
+                                selected = tempTabFilter.onlyFrequentlyBudgeted,
+                                onClick = {
+                                    tempTabFilter = tempTabFilter.copy(onlyFrequentlyBudgeted = !tempTabFilter.onlyFrequentlyBudgeted)
+                                },
+                                label = { Text(if (isBangla) "নিয়মিত বাজেটকৃত" else "Frequently Budgeted", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = tabColor,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+
                             if (tabIndex == 1 || tabIndex == 2) {
-                                FilterChip(
-                                    selected = tempTabFilter.onlyOverBudget,
-                                    onClick = {
-                                        val now = !tempTabFilter.onlyOverBudget
-                                        tempTabFilter = tempTabFilter.copy(
-                                            onlyOverBudget = now,
-                                            onlyUnderBudgetRemaining = if (now) false else tempTabFilter.onlyUnderBudgetRemaining
-                                        )
-                                    },
-                                    label = { Text(if (isBangla) "বাজেট অতিক্রান্ত (Over)" else "Over Budget / Exceeded", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SolidExpense,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
-                                FilterChip(
-                                    selected = tempTabFilter.onlyUnderBudgetRemaining,
-                                    onClick = {
-                                        val now = !tempTabFilter.onlyUnderBudgetRemaining
-                                        tempTabFilter = tempTabFilter.copy(
-                                            onlyUnderBudgetRemaining = now,
-                                            onlyOverBudget = if (now) false else tempTabFilter.onlyOverBudget
-                                        )
-                                    },
-                                    label = { Text(if (isBangla) "অবশিষ্ট ব্যালেন্স আছে" else "Under Budget / Remaining", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SolidIncome,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
-                                FilterChip(
-                                    selected = tempTabFilter.onlyTargetAchieved,
-                                    onClick = {
-                                        val now = !tempTabFilter.onlyTargetAchieved
-                                        tempTabFilter = tempTabFilter.copy(
-                                            onlyTargetAchieved = now,
-                                            onlyTargetPending = if (now) false else tempTabFilter.onlyTargetPending
-                                        )
-                                    },
-                                    label = { Text(if (isBangla) "লক্ষ্য অর্জিত" else "Target Achieved", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SolidIncome,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
-                                FilterChip(
-                                    selected = tempTabFilter.onlyTargetPending,
-                                    onClick = {
-                                        val now = !tempTabFilter.onlyTargetPending
-                                        tempTabFilter = tempTabFilter.copy(
-                                            onlyTargetPending = now,
-                                            onlyTargetAchieved = if (now) false else tempTabFilter.onlyTargetAchieved
-                                        )
-                                    },
-                                    label = { Text(if (isBangla) "লক্ষ্য বাকি আছে" else "Target Pending", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = AmberGold,
-                                        selectedLabelColor = Color.White
-                                    )
-                                )
                                 FilterChip(
                                     selected = tempTabFilter.onlyWithSuggestions,
                                     onClick = {
@@ -668,12 +861,7 @@ fun BudgetMakerFilterDialog(
                                 FilterChip(
                                     selected = tempTabFilter.onlyPositiveBalance,
                                     onClick = {
-                                        val now = !tempTabFilter.onlyPositiveBalance
-                                        tempTabFilter = tempTabFilter.copy(
-                                            onlyPositiveBalance = now,
-                                            onlyZeroBalance = if (now) false else tempTabFilter.onlyZeroBalance,
-                                            onlyNegativeBalance = if (now) false else tempTabFilter.onlyNegativeBalance
-                                        )
+                                        tempTabFilter = tempTabFilter.copy(onlyPositiveBalance = !tempTabFilter.onlyPositiveBalance)
                                     },
                                     label = { Text(if (isBangla) "পজিটিভ ব্যালেন্স (>০)" else "Positive Balance (>0)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(8.dp),
@@ -682,15 +870,11 @@ fun BudgetMakerFilterDialog(
                                         selectedLabelColor = Color.White
                                     )
                                 )
+
                                 FilterChip(
                                     selected = tempTabFilter.onlyZeroBalance,
                                     onClick = {
-                                        val now = !tempTabFilter.onlyZeroBalance
-                                        tempTabFilter = tempTabFilter.copy(
-                                            onlyZeroBalance = now,
-                                            onlyPositiveBalance = if (now) false else tempTabFilter.onlyPositiveBalance,
-                                            onlyNegativeBalance = if (now) false else tempTabFilter.onlyNegativeBalance
-                                        )
+                                        tempTabFilter = tempTabFilter.copy(onlyZeroBalance = !tempTabFilter.onlyZeroBalance)
                                     },
                                     label = { Text(if (isBangla) "জিরো ব্যালেন্স (=০)" else "Zero Balance (=0)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(8.dp),
@@ -699,15 +883,11 @@ fun BudgetMakerFilterDialog(
                                         selectedLabelColor = Color.White
                                     )
                                 )
+
                                 FilterChip(
                                     selected = tempTabFilter.onlyNegativeBalance,
                                     onClick = {
-                                        val now = !tempTabFilter.onlyNegativeBalance
-                                        tempTabFilter = tempTabFilter.copy(
-                                            onlyNegativeBalance = now,
-                                            onlyPositiveBalance = if (now) false else tempTabFilter.onlyPositiveBalance,
-                                            onlyZeroBalance = if (now) false else tempTabFilter.onlyZeroBalance
-                                        )
+                                        tempTabFilter = tempTabFilter.copy(onlyNegativeBalance = !tempTabFilter.onlyNegativeBalance)
                                     },
                                     label = { Text(if (isBangla) "নেগেটিভ ব্যালেন্স (<০)" else "Negative Balance (<0)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(8.dp),
@@ -716,15 +896,12 @@ fun BudgetMakerFilterDialog(
                                         selectedLabelColor = Color.White
                                     )
                                 )
+
                                 if (tabIndex == 4) {
                                     FilterChip(
                                         selected = tempTabFilter.onlyOutstandingDebt,
                                         onClick = {
-                                            val now = !tempTabFilter.onlyOutstandingDebt
-                                            tempTabFilter = tempTabFilter.copy(
-                                                onlyOutstandingDebt = now,
-                                                onlyClearedDebt = if (now) false else tempTabFilter.onlyClearedDebt
-                                            )
+                                            tempTabFilter = tempTabFilter.copy(onlyOutstandingDebt = !tempTabFilter.onlyOutstandingDebt)
                                         },
                                         label = { Text(if (isBangla) "বকেয়া দেনা / ঋণ" else "Outstanding Debt", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                         shape = RoundedCornerShape(8.dp),
@@ -733,14 +910,11 @@ fun BudgetMakerFilterDialog(
                                             selectedLabelColor = Color.White
                                         )
                                     )
+
                                     FilterChip(
                                         selected = tempTabFilter.onlyClearedDebt,
                                         onClick = {
-                                            val now = !tempTabFilter.onlyClearedDebt
-                                            tempTabFilter = tempTabFilter.copy(
-                                                onlyClearedDebt = now,
-                                                onlyOutstandingDebt = if (now) false else tempTabFilter.onlyOutstandingDebt
-                                            )
+                                            tempTabFilter = tempTabFilter.copy(onlyClearedDebt = !tempTabFilter.onlyClearedDebt)
                                         },
                                         label = { Text(if (isBangla) "পরিশোধিত ঋণ" else "Cleared Debt", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
                                         shape = RoundedCornerShape(8.dp),
@@ -754,7 +928,7 @@ fun BudgetMakerFilterDialog(
                         }
                     }
 
-                    // 5. Display Settings (Toggle Switches)
+                    // ── 5. Field 5: View & Cleanliness Settings ──
                     UnifiedFilterSection(
                         title = if (isBangla) "প্রদর্শন সেটিংস" else "Display Settings",
                         icon = Icons.Default.Tune
@@ -780,6 +954,57 @@ fun BudgetMakerFilterDialog(
                                     checked = tempTabFilter.hideEmptyGroups,
                                     onCheckedChange = { tempTabFilter = tempTabFilter.copy(hideEmptyGroups = it) }
                                 )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                BudgetSettingToggleRow(
+                                    title = if (isBangla) "অ্যামাউন্ট ফোকাস (প্রগ্রেস বার লুকান)" else "Amount focus (hides progress bar)",
+                                    checked = tempTabFilter.amountFocus,
+                                    onCheckedChange = { tempTabFilter = tempTabFilter.copy(amountFocus = it) }
+                                )
+                            }
+                        }
+                    }
+
+                    // ── 6. Field 6: Sort By Options inside Dialog ──
+                    if (onSortChange != null) {
+                        UnifiedFilterSection(
+                            title = if (isBangla) "সাজানোর ক্রম (Sort By)" else "Sort By",
+                            icon = Icons.Default.Sort
+                        ) {
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        BudgetSortOption.values().forEach { sortOpt ->
+                                            val isSelected = tempSort == sortOpt
+                                            FilterChip(
+                                                selected = isSelected,
+                                                onClick = {
+                                                    tempSort = sortOpt
+                                                },
+                                                label = {
+                                                    Text(
+                                                        text = sortOpt.getTitle(sectionItemType, languageMode),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = tabColor,
+                                                    selectedLabelColor = Color.White
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -796,6 +1021,7 @@ fun BudgetMakerFilterDialog(
                         tempTabFilter = BudgetMakerTabFilter()
                         minAmountText = ""
                         maxAmountText = ""
+                        tempSort = BudgetSortOption.DEFAULT
                     }
                 },
                 onDismiss = onDismiss,
@@ -803,6 +1029,7 @@ fun BudgetMakerFilterDialog(
                     if (tabIndex == 0) {
                         onApplyDashboardFilter(tempDashboardFilter)
                     } else {
+                        onSortChange?.invoke(tempSort)
                         onApplyTabFilter(tempTabFilter)
                     }
                     onDismiss()
@@ -966,6 +1193,48 @@ private fun BudgetFilterDropdownRow(
 }
 
 /**
+ * Compact removable item chip for selected category/account.
+ */
+@Composable
+private fun RemovableItemChip(
+    label: String,
+    accentColor: Color,
+    onRemove: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = accentColor.copy(alpha = 0.12f),
+        border = BorderStroke(0.8.dp, accentColor.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(18.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Remove",
+                    tint = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
  * Toggle Switch Row for Budget Settings.
  */
 @Composable
@@ -1035,12 +1304,12 @@ private fun BudgetFilterItemSelectModal(
             ) {
                 Text(
                     text = if (languageMode == LanguageMode.BANGLA) {
-                        if (isCategory) "ক্যাটাগরি নির্বাচন" else "অ্যাকাউন্ট নির্বাচন"
+                        if (isCategory) "ক্যাটাগরি বা গ্রুপ নির্বাচন" else "অ্যাকাউন্ট বা গ্রুপ নির্বাচন"
                     } else {
-                        if (isCategory) "Select Categories" else "Select Accounts"
+                        if (isCategory) "Select Categories & Groups" else "Select Accounts & Groups"
                     },
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 15.5.sp
                 )
                 if (tempIds.isNotEmpty() || tempGroups.isNotEmpty()) {
                     Surface(
@@ -1062,19 +1331,28 @@ private fun BudgetFilterItemSelectModal(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(380.dp)
+                    .height(390.dp)
             ) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = {
                         Text(
-                            if (languageMode == LanguageMode.BANGLA) "খুঁজুন..." else "Search...",
+                            if (languageMode == LanguageMode.BANGLA) "খুঁজুন (নাম বা গ্রুপ)..." else "Search name or group...",
                             fontSize = 12.sp
                         )
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(8.dp),
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", modifier = Modifier.size(14.dp))
+                            }
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -1368,7 +1646,7 @@ fun ActiveBudgetMakerFilterBar(
                 }
 
                 Text(
-                    text = if (isBangla) "সক্রিয় ফিল্টার নিয়ম" else "Active Filter Rules Applied",
+                    text = if (isBangla) "সক্রিয় ফিল্টার প্রয়োগ করা হয়েছে" else "Active Filters Applied",
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,

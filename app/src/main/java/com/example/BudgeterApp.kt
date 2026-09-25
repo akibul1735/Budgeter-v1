@@ -33,11 +33,19 @@ class BudgeterApp : Application(), ImageLoaderFactory, Configuration.Provider {
         }
 
         // Register process lifecycle observer for Foreground / Background SQLite DB backup checks
-        ProcessLifecycleOwner.get().lifecycle.addObserver(AppLifecycleObserver(applicationContext))
+        try {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(AppLifecycleObserver(applicationContext))
+        } catch (e: Exception) {
+            Log.e("BudgeterApp", "ProcessLifecycleOwner registration notice: ${e.message}")
+        }
 
         // Trigger an initial check on app boot and schedule daily auto backup
-        SyncManager.checkAndTriggerDatabaseBackup(applicationContext)
-        SyncManager.scheduleDailyAutoBackup(applicationContext)
+        try {
+            SyncManager.checkAndTriggerDatabaseBackup(applicationContext)
+            SyncManager.scheduleDailyAutoBackup(applicationContext)
+        } catch (e: Exception) {
+            Log.e("BudgeterApp", "SyncManager schedule notice: ${e.message}")
+        }
     }
 
     override fun newImageLoader(): ImageLoader {

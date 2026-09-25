@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
@@ -88,6 +89,10 @@ fun AppTabHeader(
     isFilterActive: Boolean = false,
     activeFilterCount: Int = 0,
     onFilterClick: (() -> Unit)? = null,
+    // Sort button functionality
+    showSortButton: Boolean = false,
+    isSortActive: Boolean = false,
+    onSortClick: (() -> Unit)? = null,
     // Additional actions
     actions: @Composable (RowScope.() -> Unit)? = null,
     // Auto-hiding control
@@ -275,6 +280,41 @@ fun AppTabHeader(
                             Icon(
                                 imageVector = Icons.Default.FilterList,
                                 contentDescription = "Filter",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                // Sort button if needed
+                if (showSortButton || onSortClick != null) {
+                    IconButton(
+                        onClick = { onSortClick?.invoke() },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .testTag("header_sort_btn")
+                    ) {
+                        if (isSortActive) {
+                            BadgedBox(
+                                badge = {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ) {
+                                        Text(text = "•", fontSize = 9.sp)
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sort,
+                                    contentDescription = "Sort",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Sort,
+                                contentDescription = "Sort",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }

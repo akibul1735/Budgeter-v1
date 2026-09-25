@@ -140,6 +140,7 @@ import com.example.ui.components.BudgetDateRangePreset
 import com.example.ui.components.BudgetComparisonPreset
 import com.example.ui.components.BudgetFilterDialog
 import com.example.ui.components.BudgetFilterState
+import com.example.ui.components.BudgetSortDialog
 import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.ExportMenuButton
 import com.example.ui.components.PopupCalculatorDialog
@@ -237,6 +238,7 @@ fun BudgetTrackingScreen(
     var filterState by remember { mutableStateOf(tabFilterPrefs.budgetTrackingFilterState) }
     var showTimelineScreen by remember { mutableStateOf(false) }
     var showFilterDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
     var showBaseMonthPicker by remember { mutableStateOf(false) }
     var showBaseDatePicker by remember { mutableStateOf(false) }
@@ -461,19 +463,21 @@ fun BudgetTrackingScreen(
                     matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax
                 }
 
-                val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-                val sortedTrackingItems = if (shouldSortByAmount) {
-                    trackingItems.sortedByDescending { it.spentAmount }
-                } else {
-                    when (filterState.sortOrder) {
-                        BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> trackingItems.sortedByDescending { it.spentAmount }
-                        BudgetSortOrder.AMOUNT_ASC -> trackingItems.sortedBy { it.spentAmount }
-                        BudgetSortOrder.BUDGET_DESC -> trackingItems.sortedByDescending { it.budgetLimit }
-                        BudgetSortOrder.BUDGET_ASC -> trackingItems.sortedBy { it.budgetLimit }
-                        BudgetSortOrder.UTILIZATION_DESC -> trackingItems.sortedByDescending { it.percentageInt }
-                        BudgetSortOrder.NAME_ASC -> trackingItems.sortedBy { it.category.nameEn.lowercase() }
-                        BudgetSortOrder.DEFAULT -> trackingItems
+                val sortedTrackingItems = when (filterState.sortOrder) {
+                    BudgetSortOrder.DEFAULT -> {
+                        if (filterState.sortByAmount) trackingItems.sortedByDescending { it.spentAmount }
+                        else trackingItems
                     }
+                    BudgetSortOrder.BUDGET_DESC -> trackingItems.sortedByDescending { it.budgetLimit }
+                    BudgetSortOrder.BUDGET_ASC -> trackingItems.sortedBy { it.budgetLimit }
+                    BudgetSortOrder.SPENT_DESC, BudgetSortOrder.AMOUNT_DESC -> trackingItems.sortedByDescending { it.spentAmount }
+                    BudgetSortOrder.SPENT_ASC, BudgetSortOrder.AMOUNT_ASC -> trackingItems.sortedBy { it.spentAmount }
+                    BudgetSortOrder.REMAINING_DESC -> trackingItems.sortedByDescending { it.remainingAmount }
+                    BudgetSortOrder.REMAINING_ASC -> trackingItems.sortedBy { it.remainingAmount }
+                    BudgetSortOrder.UTILIZATION_DESC -> trackingItems.sortedByDescending { it.progressRatio }
+                    BudgetSortOrder.UTILIZATION_ASC -> trackingItems.sortedBy { it.progressRatio }
+                    BudgetSortOrder.NAME_ASC -> trackingItems.sortedBy { it.category.nameEn.lowercase() }
+                    BudgetSortOrder.NAME_DESC -> trackingItems.sortedByDescending { it.category.nameEn.lowercase() }
                 }
 
                 val shouldIncludeGroup = if (filterState.excludeZeroAmounts || filterState.hideEmptyGroups) {
@@ -595,19 +599,21 @@ fun BudgetTrackingScreen(
                 matchesSearch && matchesBudgeted && matchesOver && matchesCatFilter && matchesZero && matchesMin && matchesMax
             }
 
-            val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-            val sortedOrphanItems = if (shouldSortByAmount) {
-                orphanItems.sortedByDescending { it.spentAmount }
-            } else {
-                when (filterState.sortOrder) {
-                    BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> orphanItems.sortedByDescending { it.spentAmount }
-                    BudgetSortOrder.AMOUNT_ASC -> orphanItems.sortedBy { it.spentAmount }
-                    BudgetSortOrder.BUDGET_DESC -> orphanItems.sortedByDescending { it.budgetLimit }
-                    BudgetSortOrder.BUDGET_ASC -> orphanItems.sortedBy { it.budgetLimit }
-                    BudgetSortOrder.UTILIZATION_DESC -> orphanItems.sortedByDescending { it.percentageInt }
-                    BudgetSortOrder.NAME_ASC -> orphanItems.sortedBy { it.category.nameEn.lowercase() }
-                    BudgetSortOrder.DEFAULT -> orphanItems
+            val sortedOrphanItems = when (filterState.sortOrder) {
+                BudgetSortOrder.DEFAULT -> {
+                    if (filterState.sortByAmount) orphanItems.sortedByDescending { it.spentAmount }
+                    else orphanItems
                 }
+                BudgetSortOrder.BUDGET_DESC -> orphanItems.sortedByDescending { it.budgetLimit }
+                BudgetSortOrder.BUDGET_ASC -> orphanItems.sortedBy { it.budgetLimit }
+                BudgetSortOrder.SPENT_DESC, BudgetSortOrder.AMOUNT_DESC -> orphanItems.sortedByDescending { it.spentAmount }
+                BudgetSortOrder.SPENT_ASC, BudgetSortOrder.AMOUNT_ASC -> orphanItems.sortedBy { it.spentAmount }
+                BudgetSortOrder.REMAINING_DESC -> orphanItems.sortedByDescending { it.remainingAmount }
+                BudgetSortOrder.REMAINING_ASC -> orphanItems.sortedBy { it.remainingAmount }
+                BudgetSortOrder.UTILIZATION_DESC -> orphanItems.sortedByDescending { it.progressRatio }
+                BudgetSortOrder.UTILIZATION_ASC -> orphanItems.sortedBy { it.progressRatio }
+                BudgetSortOrder.NAME_ASC -> orphanItems.sortedBy { it.category.nameEn.lowercase() }
+                BudgetSortOrder.NAME_DESC -> orphanItems.sortedByDescending { it.category.nameEn.lowercase() }
             }
 
             if (sortedOrphanItems.isNotEmpty()) {
@@ -622,13 +628,22 @@ fun BudgetTrackingScreen(
             }
         }
 
-        val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-        if (shouldSortByAmount) {
-            resultList.sortByDescending { it.totalSpent }
-        } else if (filterState.sortOrder == BudgetSortOrder.BUDGET_DESC) {
-            resultList.sortByDescending { it.totalBudget }
-        } else if (filterState.sortOrder == BudgetSortOrder.NAME_ASC) {
-            resultList.sortBy { it.groupNameEn.lowercase() }
+        when (filterState.sortOrder) {
+            BudgetSortOrder.DEFAULT -> {
+                if (filterState.sortByAmount) {
+                    resultList.sortByDescending { it.totalSpent }
+                }
+            }
+            BudgetSortOrder.BUDGET_DESC -> resultList.sortByDescending { it.totalBudget }
+            BudgetSortOrder.BUDGET_ASC -> resultList.sortBy { it.totalBudget }
+            BudgetSortOrder.SPENT_DESC, BudgetSortOrder.AMOUNT_DESC -> resultList.sortByDescending { it.totalSpent }
+            BudgetSortOrder.SPENT_ASC, BudgetSortOrder.AMOUNT_ASC -> resultList.sortBy { it.totalSpent }
+            BudgetSortOrder.REMAINING_DESC -> resultList.sortByDescending { it.remainingAmount }
+            BudgetSortOrder.REMAINING_ASC -> resultList.sortBy { it.remainingAmount }
+            BudgetSortOrder.UTILIZATION_DESC -> resultList.sortByDescending { it.progressRatio }
+            BudgetSortOrder.UTILIZATION_ASC -> resultList.sortBy { it.progressRatio }
+            BudgetSortOrder.NAME_ASC -> resultList.sortBy { it.groupNameEn.lowercase() }
+            BudgetSortOrder.NAME_DESC -> resultList.sortByDescending { it.groupNameEn.lowercase() }
         }
 
         val totalGrandSpent = resultList.sumOf { it.totalSpent }
@@ -690,6 +705,9 @@ fun BudgetTrackingScreen(
                 showFilterButton = true,
                 isFilterActive = filterState.isFilterActive,
                 onFilterClick = { showFilterDialog = true },
+                showSortButton = true,
+                isSortActive = filterState.sortOrder != BudgetSortOrder.DEFAULT,
+                onSortClick = { showSortDialog = true },
                 showTimelineButton = true,
                 onTimelineClick = { showTimelineScreen = true },
                 onOpenDrawer = onOpenDrawer,
@@ -1225,16 +1243,18 @@ fun BudgetTrackingScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        if (!filterState.amountFocus) {
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                        // Continuous Progress Bar with | TODAY Marker
-                        BudgetProgressBarWithTodayMarker(
-                            progressRatio = if (totalFlowBudget > 0) (totalFlowSpent / totalFlowBudget).toFloat() else 0f,
-                            todayPaceRatio = todayPaceRatio,
-                            isOverBudget = isOverallOver,
-                            barHeight = 4.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                            // Continuous Progress Bar with | TODAY Marker
+                            BudgetProgressBarWithTodayMarker(
+                                progressRatio = if (totalFlowBudget > 0) (totalFlowSpent / totalFlowBudget).toFloat() else 0f,
+                                todayPaceRatio = todayPaceRatio,
+                                isOverBudget = isOverallOver,
+                                barHeight = 4.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             } else {
@@ -1333,16 +1353,18 @@ fun BudgetTrackingScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(3.dp))
+                        if (!filterState.amountFocus) {
+                            Spacer(modifier = Modifier.height(3.dp))
 
-                        // Mini slim progress bar
-                        BudgetProgressBarWithTodayMarker(
-                            progressRatio = if (totalFlowBudget > 0) (totalFlowSpent / totalFlowBudget).toFloat() else 0f,
-                            todayPaceRatio = todayPaceRatio,
-                            isOverBudget = isOverallOver,
-                            barHeight = 2.5.dp,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                            // Mini slim progress bar
+                            BudgetProgressBarWithTodayMarker(
+                                progressRatio = if (totalFlowBudget > 0) (totalFlowSpent / totalFlowBudget).toFloat() else 0f,
+                                todayPaceRatio = todayPaceRatio,
+                                isOverBudget = isOverallOver,
+                                barHeight = 2.5.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -1456,19 +1478,21 @@ fun BudgetTrackingScreen(
                             val flatShare = if (totalFlowSpent > 0) (item.spentAmount / totalFlowSpent) * 100.0 else 0.0
                             item.copy(percentageShare = flatShare.coerceAtLeast(0.0))
                         }.let { list ->
-                            val shouldSortByAmount = filterState.sortByAmount || filterState.sortOrder == BudgetSortOrder.AMOUNT_DESC || filterState.sortOrder == BudgetSortOrder.SPENT_DESC
-                            if (shouldSortByAmount) {
-                                list.sortedByDescending { it.spentAmount }
-                            } else {
-                                when (filterState.sortOrder) {
-                                    BudgetSortOrder.AMOUNT_DESC, BudgetSortOrder.SPENT_DESC -> list.sortedByDescending { it.spentAmount }
-                                    BudgetSortOrder.AMOUNT_ASC -> list.sortedBy { it.spentAmount }
-                                    BudgetSortOrder.BUDGET_DESC -> list.sortedByDescending { it.budgetLimit }
-                                    BudgetSortOrder.BUDGET_ASC -> list.sortedBy { it.budgetLimit }
-                                    BudgetSortOrder.UTILIZATION_DESC -> list.sortedByDescending { it.percentageInt }
-                                    BudgetSortOrder.NAME_ASC -> list.sortedBy { it.category.nameEn.lowercase() }
-                                    BudgetSortOrder.DEFAULT -> list
+                            when (filterState.sortOrder) {
+                                BudgetSortOrder.DEFAULT -> {
+                                    if (filterState.sortByAmount) list.sortedByDescending { it.spentAmount }
+                                    else list
                                 }
+                                BudgetSortOrder.BUDGET_DESC -> list.sortedByDescending { it.budgetLimit }
+                                BudgetSortOrder.BUDGET_ASC -> list.sortedBy { it.budgetLimit }
+                                BudgetSortOrder.SPENT_DESC, BudgetSortOrder.AMOUNT_DESC -> list.sortedByDescending { it.spentAmount }
+                                BudgetSortOrder.SPENT_ASC, BudgetSortOrder.AMOUNT_ASC -> list.sortedBy { it.spentAmount }
+                                BudgetSortOrder.REMAINING_DESC -> list.sortedByDescending { it.remainingAmount }
+                                BudgetSortOrder.REMAINING_ASC -> list.sortedBy { it.remainingAmount }
+                                BudgetSortOrder.UTILIZATION_DESC -> list.sortedByDescending { it.progressRatio }
+                                BudgetSortOrder.UTILIZATION_ASC -> list.sortedBy { it.progressRatio }
+                                BudgetSortOrder.NAME_ASC -> list.sortedBy { it.category.nameEn.lowercase() }
+                                BudgetSortOrder.NAME_DESC -> list.sortedByDescending { it.category.nameEn.lowercase() }
                             }
                         }
                         items(
@@ -1481,6 +1505,7 @@ fun BudgetTrackingScreen(
                                 showComparison = filterState.comparisonEnabled && baseRange != null,
                                 todayPaceRatio = todayPaceRatio,
                                 languageMode = languageMode,
+                                amountFocus = filterState.amountFocus,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 onClick = {
                                     selectedCategoryForDetail = item
@@ -1501,6 +1526,7 @@ fun BudgetTrackingScreen(
                                 showComparison = filterState.comparisonEnabled && baseRange != null,
                                 todayPaceRatio = todayPaceRatio,
                                 languageMode = languageMode,
+                                amountFocus = filterState.amountFocus,
                                 onToggleExpand = {
                                     expandedGroups[groupKey] = !isExpanded
                                 },
@@ -2136,6 +2162,20 @@ fun BudgetTrackingScreen(
             }
         )
     }
+
+    // BUDGET SORT DIALOG
+    if (showSortDialog) {
+        BudgetSortDialog(
+            currentSortOrder = filterState.sortOrder,
+            isIncome = activeTabMode == "INCOME",
+            languageMode = languageMode,
+            onDismiss = { showSortDialog = false },
+            onSelectSort = { newSort ->
+                filterState = filterState.copy(sortOrder = newSort, sortByAmount = false)
+                showSortDialog = false
+            }
+        )
+    }
 }
 
 /**
@@ -2379,6 +2419,7 @@ private fun CategoryGroupSection(
     showComparison: Boolean,
     todayPaceRatio: Float,
     languageMode: LanguageMode,
+    amountFocus: Boolean = false,
     onToggleExpand: () -> Unit,
     onCategoryClick: (CategoryBudgetTrackingItem) -> Unit
 ) {
@@ -2671,6 +2712,7 @@ private fun CategoryGroupSection(
                             showComparison = showComparison,
                             todayPaceRatio = todayPaceRatio,
                             languageMode = languageMode,
+                            amountFocus = amountFocus,
                             onClick = { onCategoryClick(item) }
                         )
                     }
@@ -2697,6 +2739,7 @@ private fun CategoryRow(
     showComparison: Boolean,
     todayPaceRatio: Float,
     languageMode: LanguageMode,
+    amountFocus: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -2969,7 +3012,7 @@ private fun CategoryRow(
             }
 
             // Bottom Progress Bar
-            if (item.hasBudget) {
+            if (item.hasBudget && !amountFocus) {
                 Spacer(modifier = Modifier.height(5.dp))
 
                 val clampedProgress = item.progressRatio.coerceIn(0f, 1f)

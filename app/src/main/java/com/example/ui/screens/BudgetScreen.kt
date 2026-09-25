@@ -22,9 +22,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -219,10 +221,12 @@ enum class BudgetFilterOption(val group: BudgetFilterGroup) {
     ONLY_REMAINING(BudgetFilterGroup.GENERAL),
     BUDGETED_ONLY(BudgetFilterGroup.BUDGET_STATUS),
     UNBUDGETED(BudgetFilterGroup.BUDGET_STATUS),
+    OVER_BUDGET(BudgetFilterGroup.BUDGET_STATUS),
     ACTIVE_ONLY(BudgetFilterGroup.ACTIVITY),
     ACTIVE_3_MONTHS(BudgetFilterGroup.ACTIVITY),
     FREQ_ACTIVE(BudgetFilterGroup.ACTIVITY),
     FREQ_BUDGETED(BudgetFilterGroup.ACTIVITY),
+    HAS_SUGGESTIONS(BudgetFilterGroup.ACTIVITY),
     ONLY_GROUPS(BudgetFilterGroup.VIEW_HIERARCHY),
     ONLY_CATEGORIES(BudgetFilterGroup.VIEW_HIERARCHY);
 
@@ -239,6 +243,11 @@ enum class BudgetFilterOption(val group: BudgetFilterGroup) {
             UNBUDGETED -> when (itemType) {
                 "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য ছাড়া" else "No Target"
                 else -> if (isBn) "বাজেট ছাড়া" else "Unbudgeted"
+            }
+            OVER_BUDGET -> when (itemType) {
+                "EXPENSE" -> if (isBn) "বাজেট অতিক্রান্ত" else "Over Budget"
+                "INCOME" -> if (isBn) "লক্ষ্য বাকি" else "Target Pending"
+                else -> if (isBn) "ঘাটতি / অতিক্রান্ত" else "Deficit / Exceeded"
             }
             ACTIVE_ONLY -> when (itemType) {
                 "EXPENSE" -> if (isBn) "শুধু খরচ হওয়া" else "Expensed Only"
@@ -259,44 +268,93 @@ enum class BudgetFilterOption(val group: BudgetFilterGroup) {
                 "ASSET", "LIABILITY" -> if (isBn) "নিয়মিত লক্ষ্য" else "Frequently Targeted"
                 else -> if (isBn) "নিয়মিত বাজেট" else "Frequently Budgeted"
             }
+            HAS_SUGGESTIONS -> if (isBn) "পরামর্শ রয়েছে" else "Has Suggestions"
             ONLY_GROUPS -> if (isBn) "শুধু গ্রুপ" else "Only Groups"
-            ONLY_CATEGORIES -> if (isAccount) (if (isBn) "শুধু একাউন্ট" else "Only Accounts") else (if (isBn) "শুধু ক্যাটাগরি" else "Only Categories")
+            ONLY_CATEGORIES -> if (isAccount) (if (isBn) "শুধু অ্যাকাউন্ট" else "Only Accounts") else (if (isBn) "শুধু ক্যাটাগরি" else "Only Categories")
         }
     }
 }
 
 /**
  * Type-specific sort options for Budget Maker.
+ * Supports various common ways to sort budget items.
  */
 enum class BudgetSortOption {
     DEFAULT,
     BUDGET_DESC,
     BUDGET_ASC,
     ACTUAL_DESC,
+    ACTUAL_ASC,
+    REMAINING_DESC,
+    REMAINING_ASC,
+    PROGRESS_DESC,
+    PROGRESS_ASC,
+    OVER_BUDGET_FIRST,
+    NAME_ASC,
+    NAME_DESC,
     FREQUENCY_DESC,
-    NAME_ASC;
+    FREQUENCY_ASC;
 
     fun getTitle(itemType: String, languageMode: LanguageMode): String {
         val isBn = languageMode == LanguageMode.BANGLA
+        val isAccount = itemType == "ASSET" || itemType == "LIABILITY"
         return when (this) {
             DEFAULT -> if (isBn) "ডিফল্ট ক্রম" else "Default Order"
             BUDGET_DESC -> when (itemType) {
-                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য: বেশি → কম" else "Target: High → Low"
+                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য ব্যালেন্স: বেশি → কম" else "Target: High → Low"
+                "INCOME" -> if (isBn) "আয় লক্ষ্য: বেশি → কম" else "Target: High → Low"
                 else -> if (isBn) "বাজেট: বেশি → কম" else "Budget: High → Low"
             }
             BUDGET_ASC -> when (itemType) {
-                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য: কম → বেশি" else "Target: Low → High"
+                "ASSET", "LIABILITY" -> if (isBn) "লক্ষ্য ব্যালেন্স: কম → বেশি" else "Target: Low → High"
+                "INCOME" -> if (isBn) "আয় লক্ষ্য: কম → বেশি" else "Target: Low → High"
                 else -> if (isBn) "বাজেট: কম → বেশি" else "Budget: Low → High"
             }
             ACTUAL_DESC -> when (itemType) {
-                "EXPENSE" -> if (isBn) "খরচ: বেশি → কম" else "Spent: High → Low"
-                "INCOME" -> if (isBn) "আয়: বেশি → কম" else "Earned: High → Low"
-                "ASSET" -> if (isBn) "ব্যালেন্স: বেশি → কম" else "Balance: High → Low"
-                "LIABILITY" -> if (isBn) "দেনা: বেশি → কম" else "Debt: High → Low"
+                "EXPENSE" -> if (isBn) "প্রকৃত খরচ: বেশি → কম" else "Spent: High → Low"
+                "INCOME" -> if (isBn) "অর্জিত আয়: বেশি → কম" else "Earned: High → Low"
+                "ASSET" -> if (isBn) "বর্তমান ব্যালেন্স: বেশি → কম" else "Balance: High → Low"
+                "LIABILITY" -> if (isBn) "দেনা / ঋণ: বেশি → কম" else "Debt: High → Low"
                 else -> if (isBn) "প্রকৃত: বেশি → কম" else "Actual: High → Low"
             }
-            FREQUENCY_DESC -> if (isBn) "লেনদেন: সর্বোচ্চ" else "Most Active"
-            NAME_ASC -> if (isBn) "নাম: A → Z" else "Alphabetical: A → Z"
+            ACTUAL_ASC -> when (itemType) {
+                "EXPENSE" -> if (isBn) "প্রকৃত খরচ: কম → বেশি" else "Spent: Low → High"
+                "INCOME" -> if (isBn) "অর্জিত আয়: কম → বেশি" else "Earned: Low → High"
+                "ASSET" -> if (isBn) "বর্তমান ব্যালেন্স: কম → বেশি" else "Balance: Low → High"
+                "LIABILITY" -> if (isBn) "দেনা / ঋণ: কম → বেশি" else "Debt: Low → High"
+                else -> if (isBn) "প্রকৃত: কম → বেশি" else "Actual: Low → High"
+            }
+            REMAINING_DESC -> when (itemType) {
+                "EXPENSE" -> if (isBn) "অবশিষ্ট বাজেট: বেশি → কম" else "Remaining: High → Low"
+                "INCOME" -> if (isBn) "অর্জনের বাকি: বেশি → কম" else "Target Remaining: High → Low"
+                "ASSET", "LIABILITY" -> if (isBn) "টার্গেট ব্যবধান: বেশি → কম" else "Target Gap: High → Low"
+                else -> if (isBn) "অবশিষ্ট: বেশি → কম" else "Remaining: High → Low"
+            }
+            REMAINING_ASC -> when (itemType) {
+                "EXPENSE" -> if (isBn) "অবশিষ্ট বাজেট: কম → বেশি (ঘাটতি)" else "Remaining: Low → High (Deficit)"
+                "INCOME" -> if (isBn) "অর্জনের বাকি: কম → বেশি" else "Target Remaining: Low → High"
+                "ASSET", "LIABILITY" -> if (isBn) "টার্গেট ব্যবধান: কম → বেশি" else "Target Gap: Low → High"
+                else -> if (isBn) "অবশিষ্ট: কম → বেশি" else "Remaining: Low → High"
+            }
+            PROGRESS_DESC -> when (itemType) {
+                "EXPENSE" -> if (isBn) "বাজেট ব্যবহার (%): বেশি → কম" else "% Used: High → Low"
+                "INCOME" -> if (isBn) "লক্ষ্য পূরণ (%): বেশি → কম" else "% Met: High → Low"
+                else -> if (isBn) "অগ্রগতি (%): বেশি → কম" else "% Progress: High → Low"
+            }
+            PROGRESS_ASC -> when (itemType) {
+                "EXPENSE" -> if (isBn) "বাজেট ব্যবহার (%): কম → বেশি" else "% Used: Low → High"
+                "INCOME" -> if (isBn) "লক্ষ্য পূরণ (%): কম → বেশি" else "% Met: Low → High"
+                else -> if (isBn) "অগ্রগতি (%): কম → বেশি" else "% Progress: Low → High"
+            }
+            OVER_BUDGET_FIRST -> when (itemType) {
+                "EXPENSE" -> if (isBn) "বাজেট অতিক্রান্ত (Over-Budget) আগে" else "Over-Budget First"
+                "INCOME" -> if (isBn) "লক্ষ্য পূরণ বাকি আগে" else "Target Pending First"
+                else -> if (isBn) "ঘাটতি / অতিক্রান্ত আগে" else "Deficit First"
+            }
+            NAME_ASC -> if (isBn) "নাম: A → Z" else "Name: A → Z"
+            NAME_DESC -> if (isBn) "নাম: Z → A" else "Name: Z → A"
+            FREQUENCY_DESC -> if (isBn) "লেনদেন সংখ্যা: সর্বোচ্চ" else "Most Active"
+            FREQUENCY_ASC -> if (isBn) "লেনদেন সংখ্যা: সর্বনিম্ন" else "Least Active"
         }
     }
 }
@@ -406,6 +464,7 @@ fun BudgetScreen(
         }
     }
     var showFilterDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
 
     // Tab-specific filters and sorting for Budget Maker (Independent per tab)
     var expenseFilter by remember { mutableStateOf(tabFilterPrefs.budgetExpenseFilter) }
@@ -1678,6 +1737,58 @@ fun BudgetScreen(
                                 }
                             }
 
+                            // Menu-based Sort button with active badge for current tab
+                            val currentSort = when (selectedTab) {
+                                1 -> expenseSelectedSort
+                                2 -> incomeSelectedSort
+                                3 -> assetSelectedSort
+                                4 -> liabilitySelectedSort
+                                else -> BudgetSortOption.DEFAULT
+                            }
+                            IconButton(
+                                onClick = { showSortDialog = true },
+                                modifier = Modifier.size(36.dp).testTag("budget_maker_sort_btn")
+                            ) {
+                                if (currentSort != BudgetSortOption.DEFAULT) {
+                                    androidx.compose.material3.BadgedBox(
+                                        badge = {
+                                            androidx.compose.material3.Badge(
+                                                containerColor = when (selectedTab) {
+                                                    1 -> SolidExpense
+                                                    2 -> SolidIncome
+                                                    3 -> SolidPrimary
+                                                    4 -> AmberGold
+                                                    else -> MaterialTheme.colorScheme.primary
+                                                },
+                                                contentColor = Color.White
+                                            ) {
+                                                Text(text = "•", fontSize = 9.sp)
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Sort,
+                                            contentDescription = "Sort",
+                                            tint = when (selectedTab) {
+                                                1 -> SolidExpense
+                                                2 -> SolidIncome
+                                                3 -> SolidPrimary
+                                                4 -> AmberGold
+                                                else -> MaterialTheme.colorScheme.primary
+                                            },
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Sort,
+                                        contentDescription = "Sort",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
                             Box {
                                 IconButton(
                                     onClick = { showTabSettingsMenu = true },
@@ -2292,6 +2403,14 @@ fun BudgetScreen(
 
     // Tab-specific Budget Maker Filter Dialog
     if (showFilterDialog) {
+        val currentTabSort = when (selectedTab) {
+            1 -> expenseSelectedSort
+            2 -> incomeSelectedSort
+            3 -> assetSelectedSort
+            4 -> liabilitySelectedSort
+            else -> BudgetSortOption.DEFAULT
+        }
+
         BudgetMakerFilterDialog(
             tabIndex = selectedTab,
             currentTabFilter = currentTabFilter,
@@ -2301,6 +2420,15 @@ fun BudgetScreen(
             selectedYear = selectedYear,
             selectedMonth = selectedMonth,
             languageMode = languageMode,
+            currentSort = currentTabSort,
+            onSortChange = { newSort ->
+                when (selectedTab) {
+                    1 -> expenseSelectedSort = newSort
+                    2 -> incomeSelectedSort = newSort
+                    3 -> assetSelectedSort = newSort
+                    4 -> liabilitySelectedSort = newSort
+                }
+            },
             onDismiss = { showFilterDialog = false },
             onApplyTabFilter = { newTabFilter ->
                 when (selectedTab) {
@@ -2314,6 +2442,39 @@ fun BudgetScreen(
             onApplyDashboardFilter = { newDashFilter ->
                 dashboardFilter = newDashFilter
                 showFilterDialog = false
+            }
+        )
+    }
+
+    // Separate Budget Maker Sort Dialog
+    if (showSortDialog) {
+        val itemType = when (selectedTab) {
+            1 -> "EXPENSE"
+            2 -> "INCOME"
+            3 -> "ASSET"
+            4 -> "LIABILITY"
+            else -> "EXPENSE"
+        }
+        val currentTabSort = when (selectedTab) {
+            1 -> expenseSelectedSort
+            2 -> incomeSelectedSort
+            3 -> assetSelectedSort
+            4 -> liabilitySelectedSort
+            else -> BudgetSortOption.DEFAULT
+        }
+        BudgetMakerSortDialog(
+            currentSort = currentTabSort,
+            itemType = itemType,
+            languageMode = languageMode,
+            onDismiss = { showSortDialog = false },
+            onSelectSort = { newSort ->
+                when (selectedTab) {
+                    1 -> expenseSelectedSort = newSort
+                    2 -> incomeSelectedSort = newSort
+                    3 -> assetSelectedSort = newSort
+                    4 -> liabilitySelectedSort = newSort
+                }
+                showSortDialog = false
             }
         )
     }
@@ -3029,7 +3190,7 @@ private fun CategoriesBudgetEntryView(
             }
         }
 
-        // 2. Budget Maker Tab Filter - Category / Account / Group selection (OR match if both present)
+        // 2. Budget Maker Tab Filter - Category / Account / Group selection (OR match within selected items)
         if (tabFilter.selectedItemIds.isNotEmpty() || tabFilter.selectedGroupNames.isNotEmpty()) {
             list = list.filter { item ->
                 (tabFilter.selectedItemIds.isNotEmpty() && item.item.id in tabFilter.selectedItemIds) ||
@@ -3051,86 +3212,86 @@ private fun CategoriesBudgetEntryView(
             }
         }
 
-        // 4. Status and Condition filters (cumulative AND logic)
-        if (tabFilter.onlyWithBudgetOrTarget) {
-            list = list.filter { it.currentBudget > 0.0 }
-        }
-        if (tabFilter.onlyWithoutBudgetOrTarget) {
-            list = list.filter { it.currentBudget <= 0.0 }
-        }
-        if (tabFilter.onlyWithActualActivity) {
-            list = list.filter { Math.abs(it.actualSpent) > 0.0 || it.txCount > 0 }
-        }
-        if (tabFilter.onlyZeroActivity) {
-            list = list.filter { it.actualSpent == 0.0 && it.txCount == 0 }
-        }
-        if (tabFilter.onlyOverBudget) {
-            list = list.filter {
-                if (sectionItemType == "EXPENSE") {
-                    it.actualSpent > it.currentBudget && it.currentBudget > 0.0
-                } else if (sectionItemType == "INCOME") {
-                    it.actualSpent >= it.currentBudget && it.currentBudget > 0.0
-                } else {
-                    it.currentBudget > 0.0 && Math.abs(it.actualSpent) >= it.currentBudget
-                }
+        // 4. Budget & Target Status Conditions (OR match within selected status values)
+        val hasStatusFilter = tabFilter.onlyWithBudgetOrTarget ||
+                tabFilter.onlyWithoutBudgetOrTarget ||
+                tabFilter.onlyOverBudget ||
+                tabFilter.onlyUnderBudgetRemaining ||
+                tabFilter.onlyTargetAchieved ||
+                tabFilter.onlyTargetPending
+
+        if (hasStatusFilter) {
+            list = list.filter { item ->
+                val matchBudgeted = tabFilter.onlyWithBudgetOrTarget && item.currentBudget > 0.0
+                val matchUnbudgeted = tabFilter.onlyWithoutBudgetOrTarget && item.currentBudget <= 0.0
+                val matchOverBudget = tabFilter.onlyOverBudget && (
+                    if (sectionItemType == "EXPENSE") item.actualSpent > item.currentBudget && item.currentBudget > 0.0
+                    else if (sectionItemType == "INCOME") item.actualSpent < item.currentBudget && item.currentBudget > 0.0
+                    else item.currentBudget > 0.0 && Math.abs(item.actualSpent) > item.currentBudget
+                )
+                val matchUnderBudget = tabFilter.onlyUnderBudgetRemaining && (
+                    if (sectionItemType == "EXPENSE") item.currentBudget > item.actualSpent && item.currentBudget > 0.0
+                    else if (sectionItemType == "INCOME") item.actualSpent >= item.currentBudget && item.currentBudget > 0.0
+                    else item.currentBudget > 0.0 && Math.abs(item.actualSpent) < item.currentBudget
+                )
+                val matchTargetAchieved = tabFilter.onlyTargetAchieved && (
+                    if (sectionItemType == "EXPENSE") item.actualSpent <= item.currentBudget && item.currentBudget > 0.0
+                    else if (sectionItemType == "INCOME") item.actualSpent >= item.currentBudget && item.currentBudget > 0.0
+                    else Math.abs(item.actualSpent) >= item.currentBudget && item.currentBudget > 0.0
+                )
+                val matchTargetPending = tabFilter.onlyTargetPending && (
+                    if (sectionItemType == "EXPENSE") item.actualSpent > item.currentBudget && item.currentBudget > 0.0
+                    else if (sectionItemType == "INCOME") item.actualSpent < item.currentBudget && item.currentBudget > 0.0
+                    else Math.abs(item.actualSpent) < item.currentBudget && item.currentBudget > 0.0
+                )
+
+                matchBudgeted || matchUnbudgeted || matchOverBudget || matchUnderBudget || matchTargetAchieved || matchTargetPending
             }
         }
-        if (tabFilter.onlyUnderBudgetRemaining) {
-            list = list.filter {
-                if (sectionItemType == "EXPENSE") {
-                    it.currentBudget > it.actualSpent && it.currentBudget > 0.0
-                } else if (sectionItemType == "INCOME") {
-                    it.actualSpent < it.currentBudget && it.currentBudget > 0.0
-                } else {
-                    it.currentBudget > 0.0 && Math.abs(it.actualSpent) < it.currentBudget
-                }
+
+        // 5. Activity & Performance Conditions (OR match within selected activity values)
+        val hasActivityFilter = tabFilter.onlyWithActualActivity ||
+                tabFilter.onlyZeroActivity ||
+                tabFilter.onlyActive3Months ||
+                tabFilter.onlyFrequentlyActive ||
+                tabFilter.onlyFrequentlyBudgeted ||
+                tabFilter.onlyWithSuggestions ||
+                tabFilter.onlyPositiveBalance ||
+                tabFilter.onlyZeroBalance ||
+                tabFilter.onlyNegativeBalance ||
+                tabFilter.onlyOutstandingDebt ||
+                tabFilter.onlyClearedDebt
+
+        if (hasActivityFilter) {
+            list = list.filter { item ->
+                val matchActive = tabFilter.onlyWithActualActivity && (Math.abs(item.actualSpent) > 0.0 || item.txCount > 0)
+                val matchZero = tabFilter.onlyZeroActivity && (item.actualSpent == 0.0 && item.txCount == 0)
+                val match3Mo = tabFilter.onlyActive3Months && item.is3MonthsActive
+                val matchFreqActive = tabFilter.onlyFrequentlyActive && item.isFrequentlyActive
+                val matchFreqBudgeted = tabFilter.onlyFrequentlyBudgeted && item.isFrequentlyBudgeted
+                val matchSuggestions = tabFilter.onlyWithSuggestions && item.suggestions.isNotEmpty()
+                val matchPositive = tabFilter.onlyPositiveBalance && item.actualSpent > 0.0
+                val matchZeroBal = tabFilter.onlyZeroBalance && item.actualSpent == 0.0 && item.txCount == 0
+                val matchNegative = tabFilter.onlyNegativeBalance && item.actualSpent < 0.0
+                val matchDebt = tabFilter.onlyOutstandingDebt && (Math.abs(item.actualSpent) > 0.0 || item.currentBudget > 0.0)
+                val matchClearedDebt = tabFilter.onlyClearedDebt && item.actualSpent == 0.0 && item.currentBudget == 0.0
+
+                matchActive || matchZero || match3Mo || matchFreqActive || matchFreqBudgeted || matchSuggestions || matchPositive || matchZeroBal || matchNegative || matchDebt || matchClearedDebt
             }
         }
-        if (tabFilter.onlyTargetAchieved) {
-            list = list.filter {
-                if (sectionItemType == "EXPENSE") {
-                    it.actualSpent <= it.currentBudget && it.currentBudget > 0.0
-                } else {
-                    it.actualSpent >= it.currentBudget && it.currentBudget > 0.0
-                }
-            }
-        }
-        if (tabFilter.onlyTargetPending) {
-            list = list.filter {
-                if (sectionItemType == "EXPENSE") {
-                    it.actualSpent > it.currentBudget && it.currentBudget > 0.0
-                } else {
-                    it.actualSpent < it.currentBudget && it.currentBudget > 0.0
-                }
-            }
-        }
-        if (tabFilter.onlyWithSuggestions) {
-            list = list.filter { it.suggestions.isNotEmpty() }
-        }
-        if (tabFilter.onlyPositiveBalance) {
-            list = list.filter { it.actualSpent > 0.0 }
-        }
-        if (tabFilter.onlyZeroBalance) {
-            list = list.filter { it.actualSpent == 0.0 && it.txCount == 0 }
-        }
-        if (tabFilter.onlyNegativeBalance) {
-            list = list.filter { it.actualSpent < 0.0 }
-        }
-        if (tabFilter.onlyOutstandingDebt) {
-            list = list.filter { Math.abs(it.actualSpent) > 0.0 || it.currentBudget > 0.0 }
-        }
-        if (tabFilter.onlyClearedDebt) {
-            list = list.filter { it.actualSpent == 0.0 && it.currentBudget == 0.0 }
-        }
+
+        // 6. View & Cleanliness Toggles
         if (tabFilter.excludeZeroAmounts) {
             list = list.filter { it.currentBudget > 0.0 || Math.abs(it.actualSpent) > 0.0 || it.txCount > 0 }
         }
 
-        // 5. Filter Category Selection (Cumulative/AND logic across multiple active chips)
+        // 7. Filter Toolbar Selection (Cumulative / AND across toolbar chips)
         if (selectedFilters.isNotEmpty() && !selectedFilters.contains(BudgetFilterOption.ALL)) {
             if (BudgetFilterOption.ONLY_REMAINING in selectedFilters) {
                 list = list.filter {
-                    it.currentBudget > 0.0 && (it.currentBudget - it.actualSpent) > 0.0
+                    if (sectionItemType == "EXPENSE") it.currentBudget > it.actualSpent && it.currentBudget > 0.0
+                    else if (sectionItemType == "INCOME") it.actualSpent < it.currentBudget && it.currentBudget > 0.0
+                    else it.currentBudget > 0.0 && (it.currentBudget - Math.abs(it.actualSpent)) > 0.0
                 }
             }
             if (BudgetFilterOption.BUDGETED_ONLY in selectedFilters) {
@@ -3139,12 +3300,15 @@ private fun CategoriesBudgetEntryView(
             if (BudgetFilterOption.UNBUDGETED in selectedFilters) {
                 list = list.filter { it.currentBudget <= 0.0 }
             }
-            if (BudgetFilterOption.ACTIVE_ONLY in selectedFilters) {
-                list = when (sectionItemType) {
-                    "EXPENSE", "INCOME" -> list.filter { it.actualSpent > 0.0 }
-                    "ASSET", "LIABILITY" -> list.filter { it.actualSpent != 0.0 || it.txCount > 0 }
-                    else -> list.filter { it.actualSpent > 0.0 }
+            if (BudgetFilterOption.OVER_BUDGET in selectedFilters) {
+                list = list.filter {
+                    if (sectionItemType == "EXPENSE") it.actualSpent > it.currentBudget && it.currentBudget > 0.0
+                    else if (sectionItemType == "INCOME") it.actualSpent < it.currentBudget && it.currentBudget > 0.0
+                    else it.currentBudget > 0.0 && Math.abs(it.actualSpent) > it.currentBudget
                 }
+            }
+            if (BudgetFilterOption.ACTIVE_ONLY in selectedFilters) {
+                list = list.filter { Math.abs(it.actualSpent) > 0.0 || it.txCount > 0 }
             }
             if (BudgetFilterOption.ACTIVE_3_MONTHS in selectedFilters) {
                 list = list.filter { it.is3MonthsActive }
@@ -3155,16 +3319,36 @@ private fun CategoriesBudgetEntryView(
             if (BudgetFilterOption.FREQ_ACTIVE in selectedFilters) {
                 list = list.filter { it.isFrequentlyActive }
             }
+            if (BudgetFilterOption.HAS_SUGGESTIONS in selectedFilters) {
+                list = list.filter { it.suggestions.isNotEmpty() }
+            }
         }
 
-        // 6. Sorting
+        // 8. Sorting (Common sorting options)
         when (selectedSort) {
             BudgetSortOption.DEFAULT -> list
             BudgetSortOption.BUDGET_DESC -> list.sortedByDescending { it.currentBudget }
             BudgetSortOption.BUDGET_ASC -> list.sortedBy { it.currentBudget }
-            BudgetSortOption.ACTUAL_DESC -> list.sortedByDescending { it.actualSpent }
+            BudgetSortOption.ACTUAL_DESC -> list.sortedByDescending { Math.abs(it.actualSpent) }
+            BudgetSortOption.ACTUAL_ASC -> list.sortedBy { Math.abs(it.actualSpent) }
+            BudgetSortOption.REMAINING_DESC -> list.sortedByDescending { it.currentBudget - it.actualSpent }
+            BudgetSortOption.REMAINING_ASC -> list.sortedBy { it.currentBudget - it.actualSpent }
+            BudgetSortOption.PROGRESS_DESC -> list.sortedByDescending {
+                if (it.currentBudget > 0.0) (Math.abs(it.actualSpent) / it.currentBudget) else -1.0
+            }
+            BudgetSortOption.PROGRESS_ASC -> list.sortedBy {
+                if (it.currentBudget > 0.0) (Math.abs(it.actualSpent) / it.currentBudget) else 9999.0
+            }
+            BudgetSortOption.OVER_BUDGET_FIRST -> list.sortedWith(
+                compareByDescending<EnhancedBudgetItem> {
+                    if (sectionItemType == "EXPENSE") (it.actualSpent > it.currentBudget && it.currentBudget > 0.0)
+                    else (it.actualSpent < it.currentBudget && it.currentBudget > 0.0)
+                }.thenByDescending { Math.abs(it.actualSpent) }
+            )
+            BudgetSortOption.NAME_ASC -> list.sortedBy { if (languageMode == LanguageMode.BANGLA) it.item.nameBn.lowercase() else it.item.nameEn.lowercase() }
+            BudgetSortOption.NAME_DESC -> list.sortedByDescending { if (languageMode == LanguageMode.BANGLA) it.item.nameBn.lowercase() else it.item.nameEn.lowercase() }
             BudgetSortOption.FREQUENCY_DESC -> list.sortedByDescending { it.txCount }
-            BudgetSortOption.NAME_ASC -> list.sortedBy { it.item.nameEn.lowercase() }
+            BudgetSortOption.FREQUENCY_ASC -> list.sortedBy { it.txCount }
         }
     }
 
@@ -4963,6 +5147,193 @@ private fun MonthYearPickerDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(onClick = { onConfirm(selectedYear, selectedMonth) }) {
                         Text("Select")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dedicated Sort Dialog for Budget Maker tabs.
+ */
+@Composable
+private fun BudgetMakerSortDialog(
+    currentSort: BudgetSortOption,
+    itemType: String,
+    languageMode: LanguageMode,
+    onDismiss: () -> Unit,
+    onSelectSort: (BudgetSortOption) -> Unit
+) {
+    var tempSort by remember { mutableStateOf(currentSort) }
+    val isBn = languageMode == LanguageMode.BANGLA
+
+    val sortOptions = listOf(
+        BudgetSortOption.DEFAULT,
+        BudgetSortOption.BUDGET_DESC,
+        BudgetSortOption.BUDGET_ASC,
+        BudgetSortOption.ACTUAL_DESC,
+        BudgetSortOption.ACTUAL_ASC,
+        BudgetSortOption.REMAINING_DESC,
+        BudgetSortOption.REMAINING_ASC,
+        BudgetSortOption.PROGRESS_DESC,
+        BudgetSortOption.PROGRESS_ASC,
+        BudgetSortOption.OVER_BUDGET_FIRST,
+        BudgetSortOption.NAME_ASC,
+        BudgetSortOption.NAME_DESC
+    )
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 680.dp)
+                .testTag("budget_maker_sort_dialog")
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Sort,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Column {
+                            Text(
+                                text = if (isBn) "সাজানোর বিকল্প" else "Sort Items",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isBn) "বাজেট আইটেমের ক্রম নির্বাচন করুন" else "Select order for budget items",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Scrollable List
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    sortOptions.forEach { opt ->
+                        val isSelected = tempSort == opt
+                        val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                        val bgColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = bgColor,
+                            border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, borderColor),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { tempSort = opt }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = opt.getTitle(itemType, languageMode),
+                                    fontSize = 13.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                androidx.compose.material3.RadioButton(
+                                    selected = isSelected,
+                                    onClick = { tempSort = opt },
+                                    colors = androidx.compose.material3.RadioButtonDefaults.colors(
+                                        selectedColor = MaterialTheme.colorScheme.primary,
+                                        unselectedColor = MaterialTheme.colorScheme.outline
+                                    ),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Footer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            tempSort = BudgetSortOption.DEFAULT
+                            onSelectSort(BudgetSortOption.DEFAULT)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(if (isBn) "রিসেট" else "Reset")
+                    }
+
+                    Button(
+                        onClick = { onSelectSort(tempSort) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(if (isBn) "প্রয়োগ করুন" else "Apply")
                     }
                 }
             }

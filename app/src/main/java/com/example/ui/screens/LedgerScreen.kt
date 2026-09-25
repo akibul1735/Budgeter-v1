@@ -229,6 +229,8 @@ fun LedgerScreen(
     var selectedCategoryIdsFilter by remember { mutableStateOf(tabFilterPrefs.ledgerCategoryIds) }
     var selectedAccountIdsFilter by remember { mutableStateOf(tabFilterPrefs.ledgerAccountIds) }
     var selectedLabelsFilter by remember { mutableStateOf(tabFilterPrefs.ledgerLabels) }
+    var selectedPayeesFilter by remember { mutableStateOf(tabFilterPrefs.ledgerPayees) }
+    var selectedAccountTypesFilter by remember { mutableStateOf(tabFilterPrefs.ledgerAccountTypes) }
     var selectedStatusesFilter by remember { mutableStateOf(tabFilterPrefs.ledgerStatuses) }
 
     var rowStyle by remember { mutableStateOf(tabFilterPrefs.ledgerRowStyle) }
@@ -246,6 +248,8 @@ fun LedgerScreen(
         selectedCategoryIdsFilter,
         selectedAccountIdsFilter,
         selectedLabelsFilter,
+        selectedPayeesFilter,
+        selectedAccountTypesFilter,
         selectedStatusesFilter,
         rowStyle,
         displaySettings
@@ -260,6 +264,8 @@ fun LedgerScreen(
         tabFilterPrefs.ledgerCategoryIds = selectedCategoryIdsFilter
         tabFilterPrefs.ledgerAccountIds = selectedAccountIdsFilter
         tabFilterPrefs.ledgerLabels = selectedLabelsFilter
+        tabFilterPrefs.ledgerPayees = selectedPayeesFilter
+        tabFilterPrefs.ledgerAccountTypes = selectedAccountTypesFilter
         tabFilterPrefs.ledgerStatuses = selectedStatusesFilter
         tabFilterPrefs.ledgerRowStyle = rowStyle
         tabFilterPrefs.ledgerDisplaySettings = displaySettings
@@ -418,6 +424,8 @@ fun LedgerScreen(
         selectedCategoryIdsFilter,
         selectedAccountIdsFilter,
         selectedLabelsFilter,
+        selectedPayeesFilter,
+        selectedAccountTypesFilter,
         selectedStatusesFilter
     ) {
         transactions.filter { item ->
@@ -434,6 +442,17 @@ fun LedgerScreen(
             val matchesAccount = if (selectedAccountIdsFilter.isEmpty()) true else {
                 (tx.debitAccountId != null && tx.debitAccountId in selectedAccountIdsFilter) ||
                 (tx.creditAccountId != null && tx.creditAccountId in selectedAccountIdsFilter)
+            }
+
+            val matchesPayee = if (selectedPayeesFilter.isEmpty()) true else {
+                tx.payeeOrPayer.isNotBlank() && tx.payeeOrPayer in selectedPayeesFilter
+            }
+
+            val matchesAccountType = if (selectedAccountTypesFilter.isEmpty()) true else {
+                val debitType = item.debitAccount?.type
+                val creditType = item.creditAccount?.type
+                (debitType != null && debitType in selectedAccountTypesFilter) ||
+                (creditType != null && creditType in selectedAccountTypesFilter)
             }
 
             val matchesLabel = if (selectedLabelsFilter.isEmpty()) true else {
@@ -476,7 +495,7 @@ fun LedgerScreen(
                         dateStr.contains(query) ||
                         Math.abs(tx.amount).toString().contains(query)
             }
-            matchesType && matchesDate && matchesAmount && matchesCategory && matchesAccount && matchesLabel && matchesStatus && matchesSearch
+            matchesType && matchesDate && matchesAmount && matchesCategory && matchesAccount && matchesPayee && matchesAccountType && matchesLabel && matchesStatus && matchesSearch
         }
     }
 
@@ -664,13 +683,16 @@ fun LedgerScreen(
             selectedCategoryIdsFilter.isNotEmpty() ||
             selectedAccountIdsFilter.isNotEmpty() ||
             selectedLabelsFilter.isNotEmpty() ||
+            selectedPayeesFilter.isNotEmpty() ||
+            selectedAccountTypesFilter.isNotEmpty() ||
             selectedStatusesFilter.isNotEmpty() ||
             searchQuery.isNotBlank()
 
     val activeFilterSummary = remember(
         selectedDatePreset, customStartDateMs, customEndDateMs,
         selectedTypeFilters, selectedCategoryIdsFilter, selectedAccountIdsFilter,
-        selectedLabelsFilter, selectedStatusesFilter, minAmountFilter, maxAmountFilter,
+        selectedLabelsFilter, selectedPayeesFilter, selectedAccountTypesFilter,
+        selectedStatusesFilter, minAmountFilter, maxAmountFilter,
         searchQuery, allCategories, allAccounts, languageMode
     ) {
         val parts = mutableListOf<String>()
@@ -694,6 +716,19 @@ fun LedgerScreen(
             if (typeNames.isNotEmpty()) parts.add(typeNames.joinToString(", "))
         }
 
+        if (selectedAccountTypesFilter.isNotEmpty()) {
+            val classNames = selectedAccountTypesFilter.map { accType ->
+                when (accType) {
+                    AccountType.ASSET -> if (languageMode == LanguageMode.BANGLA) "সম্পদ" else "Assets"
+                    AccountType.LIABILITY -> if (languageMode == LanguageMode.BANGLA) "দায়" else "Liabilities"
+                    AccountType.EQUITY -> if (languageMode == LanguageMode.BANGLA) "ইক্যুইটি" else "Equity"
+                    AccountType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয়" else "Income"
+                    AccountType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense"
+                }
+            }
+            parts.add(classNames.joinToString(", "))
+        }
+
         if (selectedCategoryIdsFilter.isNotEmpty()) {
             val catNames = selectedCategoryIdsFilter.mapNotNull { catId ->
                 allCategories.find { it.id == catId }?.let { LanguageHelper.getLocalizedName(it.nameEn, it.nameBn, languageMode) }
@@ -712,6 +747,11 @@ fun LedgerScreen(
                 if (accNames.size <= 2) parts.add(accNames.joinToString(", "))
                 else parts.add("${accNames.size} Accounts")
             }
+        }
+
+        if (selectedPayeesFilter.isNotEmpty()) {
+            if (selectedPayeesFilter.size <= 2) parts.add(selectedPayeesFilter.joinToString(", "))
+            else parts.add("${selectedPayeesFilter.size} Payees")
         }
 
         if (selectedLabelsFilter.isNotEmpty()) {
@@ -937,6 +977,8 @@ fun LedgerScreen(
                         (if (selectedDatePreset != LedgerDatePreset.LAST_12_MONTHS) 1 else 0) +
                         (if (selectedCategoryIdsFilter.isNotEmpty()) 1 else 0) +
                         (if (selectedAccountIdsFilter.isNotEmpty()) 1 else 0) +
+                        (if (selectedAccountTypesFilter.isNotEmpty()) 1 else 0) +
+                        (if (selectedPayeesFilter.isNotEmpty()) 1 else 0) +
                         (if (selectedLabelsFilter.isNotEmpty()) 1 else 0) +
                         (if (selectedStatusesFilter.isNotEmpty()) 1 else 0) +
                         (if (minAmountFilter > 0.0 || maxAmountFilter < Double.MAX_VALUE) 1 else 0),
@@ -1428,6 +1470,8 @@ fun LedgerScreen(
             selectedCategoryIdsFilter,
             selectedAccountIdsFilter,
             selectedLabelsFilter,
+            selectedPayeesFilter,
+            selectedAccountTypesFilter,
             selectedStatusesFilter,
             rowStyle,
             displaySettings
@@ -1442,6 +1486,8 @@ fun LedgerScreen(
                 transactionTypes = selectedTypeFilters,
                 categoryIds = selectedCategoryIdsFilter,
                 accountIds = selectedAccountIdsFilter,
+                accountTypes = selectedAccountTypesFilter,
+                payees = selectedPayeesFilter,
                 labels = selectedLabelsFilter,
                 statuses = selectedStatusesFilter,
                 rowStyle = rowStyle,
@@ -1465,6 +1511,8 @@ fun LedgerScreen(
                 maxAmountFilter = newFilter.maxAmount ?: Double.MAX_VALUE
                 selectedCategoryIdsFilter = newFilter.categoryIds
                 selectedAccountIdsFilter = newFilter.accountIds
+                selectedAccountTypesFilter = newFilter.accountTypes
+                selectedPayeesFilter = newFilter.payees
                 selectedLabelsFilter = newFilter.labels
                 selectedStatusesFilter = newFilter.statuses
                 rowStyle = newFilter.rowStyle

@@ -1,8 +1,7 @@
 package com.example
 
-import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import com.example.data.model.Account
 import com.example.data.model.AccountType
@@ -27,7 +26,7 @@ import org.robolectric.annotation.Config
 class CashFlowTest {
 
     @get:Rule
-    val composeTestRule = createAndroidComposeRule<ComponentActivity>()
+    val composeTestRule = createComposeRule()
 
     @Test
     fun testCashFlowMathematicalEngine() {

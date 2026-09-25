@@ -42,13 +42,67 @@ enum class BudgetComparisonPreset(val titleEn: String, val titleBn: String) {
  */
 enum class BudgetSortOrder(val titleEn: String, val titleBn: String) {
     DEFAULT("Default Order", "ডিফল্ট ক্রম"),
+    BUDGET_DESC("Budget Amount: High → Low", "বাজেট পরিমাণ: বেশি → কম"),
+    BUDGET_ASC("Budget Amount: Low → High", "বাজেট পরিমাণ: কম → বেশি"),
+    SPENT_DESC("Actual Spent: High → Low", "প্রকৃত ব্যয়: বেশি → কম"),
+    SPENT_ASC("Actual Spent: Low → High", "প্রকৃত ব্যয়: কম → বেশি"),
+    REMAINING_DESC("Remaining: High → Low", "অবশিষ্ট: বেশি → কম"),
+    REMAINING_ASC("Remaining: Low → High", "অবশিষ্ট: কম → বেশি"),
+    UTILIZATION_DESC("Utilization %: High → Low", "ব্যবহারের হার: বেশি → কম"),
+    UTILIZATION_ASC("Utilization %: Low → High", "ব্যবহারের হার: কম → বেশি"),
     AMOUNT_DESC("Amount: High → Low", "পরিমাণ: বেশি → কম"),
     AMOUNT_ASC("Amount: Low → High", "পরিমাণ: কম → বেশি"),
-    BUDGET_DESC("Budget Limit: High → Low", "বাজেট সীমা: বেশি → কম"),
-    BUDGET_ASC("Budget Limit: Low → High", "বাজেট সীমা: কম → বেশি"),
-    SPENT_DESC("Actual Spent: High → Low", "ব্যয়: বেশি → কম"),
-    UTILIZATION_DESC("Utilization %: High → Low", "ব্যবহারের হার: বেশি → কম"),
-    NAME_ASC("Alphabetical: A → Z", "নাম: A → Z")
+    NAME_ASC("Name: A → Z", "নাম: A → Z"),
+    NAME_DESC("Name: Z → A", "নাম: Z → A");
+
+    fun getLabel(isIncome: Boolean, languageMode: LanguageMode): String {
+        val isBn = languageMode == LanguageMode.BANGLA
+        return when (this) {
+            DEFAULT -> if (isBn) "ডিফল্ট ক্রম" else "Default Order"
+            BUDGET_DESC -> if (isIncome) {
+                if (isBn) "আয় লক্ষ্য: বেশি → কম" else "Target: High → Low"
+            } else {
+                if (isBn) "বাজেট পরিমাণ: বেশি → কম" else "Budget: High → Low"
+            }
+            BUDGET_ASC -> if (isIncome) {
+                if (isBn) "আয় লক্ষ্য: কম → বেশি" else "Target: Low → High"
+            } else {
+                if (isBn) "বাজেট পরিমাণ: কম → বেশি" else "Budget: Low → High"
+            }
+            SPENT_DESC, AMOUNT_DESC -> if (isIncome) {
+                if (isBn) "অর্জিত আয়: বেশি → কম" else "Earned: High → Low"
+            } else {
+                if (isBn) "প্রকৃত ব্যয়: বেশি → কম" else "Actual Spent: High → Low"
+            }
+            SPENT_ASC, AMOUNT_ASC -> if (isIncome) {
+                if (isBn) "অর্জিত আয়: কম → বেশি" else "Earned: Low → High"
+            } else {
+                if (isBn) "প্রকৃত ব্যয়: কম → বেশি" else "Actual Spent: Low → High"
+            }
+            REMAINING_DESC -> if (isIncome) {
+                if (isBn) "অর্জনের বাকি: বেশি → কম" else "Target Remaining: High → Low"
+            } else {
+                if (isBn) "অবশিষ্ট বাজেট: বেশি → কম" else "Remaining: High → Low"
+            }
+            REMAINING_ASC -> if (isIncome) {
+                if (isBn) "অর্জনের বাকি: কম → বেশি" else "Target Remaining: Low → High"
+            } else {
+                if (isBn) "অবশিষ্ট বাজেট: কম → বেশি" else "Remaining: Low → High"
+            }
+            UTILIZATION_DESC -> if (isIncome) {
+                if (isBn) "লক্ষ্য পূরণ (%): বেশি → কম" else "% Target Met: High → Low"
+            } else {
+                if (isBn) "বাজেট ব্যবহার (%): বেশি → কম" else "% Used: High → Low"
+            }
+            UTILIZATION_ASC -> if (isIncome) {
+                if (isBn) "লক্ষ্য পূরণ (%): কম → বেশি" else "% Target Met: Low → High"
+            } else {
+                if (isBn) "বাজেট ব্যবহার (%): কম → বেশি" else "% Used: Low → High"
+            }
+            NAME_ASC -> if (isBn) "নাম: A → Z" else "Name: A → Z"
+            NAME_DESC -> if (isBn) "নাম: Z → A" else "Name: Z → A"
+        }
+    }
 }
 
 /**
@@ -84,15 +138,16 @@ data class BudgetFilterState(
     val displayCurrencySymbol: Boolean = true,
 
     // 7. Sort Options & Category order
-    val sortByAmount: Boolean = true,
+    val sortByAmount: Boolean = false,
     val showExpenseCategoriesFirst: Boolean = true,
-    val sortOrder: BudgetSortOrder = BudgetSortOrder.AMOUNT_DESC,
+    val sortOrder: BudgetSortOrder = BudgetSortOrder.DEFAULT,
 
     // 8. Other Useful Filters & Specific Toggles
     val showOnlyRemainingBalance: Boolean = false,
     val showOnlyActual: Boolean = false,
     val filterOnlyBudgeted: Boolean = false,
     val filterOnlyOverBudget: Boolean = false,
+    val amountFocus: Boolean = false,
     val minAmount: Double? = null,
     val maxAmount: Double? = null
 ) {
@@ -111,13 +166,14 @@ data class BudgetFilterState(
                 showOnlyCategoriesWithoutGroups ||
                 !displayCurrency ||
                 !displayCurrencySymbol ||
-                !sortByAmount ||
+                sortByAmount ||
                 !showExpenseCategoriesFirst ||
-                (sortOrder != BudgetSortOrder.DEFAULT && sortOrder != BudgetSortOrder.AMOUNT_DESC) ||
+                sortOrder != BudgetSortOrder.DEFAULT ||
                 showOnlyRemainingBalance ||
                 showOnlyActual ||
                 filterOnlyBudgeted ||
                 filterOnlyOverBudget ||
+                amountFocus ||
                 minAmount != null ||
                 maxAmount != null
 
@@ -133,10 +189,11 @@ data class BudgetFilterState(
             if (!excludeZeroAmounts) count++
             if (showOnlyCategoriesWithoutGroups) count++
             if (!displayCurrency || !displayCurrencySymbol) count++
-            if (!sortByAmount || !showExpenseCategoriesFirst || (sortOrder != BudgetSortOrder.DEFAULT && sortOrder != BudgetSortOrder.AMOUNT_DESC)) count++
+            if (sortByAmount || !showExpenseCategoriesFirst || sortOrder != BudgetSortOrder.DEFAULT) count++
             if (showOnlyRemainingBalance) count++
             if (showOnlyActual) count++
             if (filterOnlyBudgeted || filterOnlyOverBudget) count++
+            if (amountFocus) count++
             if (minAmount != null || maxAmount != null) count++
             return count
         }

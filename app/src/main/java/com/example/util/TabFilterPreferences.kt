@@ -153,6 +153,18 @@ class TabFilterPreferences private constructor(context: Context) {
             prefs.edit().putString(KEY_LEDGER_LABELS, serializeStringSet(value)).apply()
         }
 
+    var ledgerPayees: Set<String> = deserializeStringSet(prefs.getString(KEY_LEDGER_PAYEES, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_LEDGER_PAYEES, serializeStringSet(value)).apply()
+        }
+
+    var ledgerAccountTypes: Set<AccountType> = deserializeAccountTypes(prefs.getString(KEY_LEDGER_ACCOUNT_TYPES, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_LEDGER_ACCOUNT_TYPES, serializeAccountTypes(value)).apply()
+        }
+
     var ledgerLabel: String?
         get() = ledgerLabels.firstOrNull() ?: prefs.getString(KEY_LEDGER_LABEL, null)
         set(value) {
@@ -899,6 +911,7 @@ class TabFilterPreferences private constructor(context: Context) {
         obj.put("showOnlyActual", state.showOnlyActual)
         obj.put("filterOnlyBudgeted", state.filterOnlyBudgeted)
         obj.put("filterOnlyOverBudget", state.filterOnlyOverBudget)
+        obj.put("amountFocus", state.amountFocus)
         state.minAmount?.let { obj.put("minAmount", it) }
         state.maxAmount?.let { obj.put("maxAmount", it) }
         return obj.toString()
@@ -933,13 +946,14 @@ class TabFilterPreferences private constructor(context: Context) {
             val showOnlyCategoriesWithoutGroups = obj.optBoolean("showOnlyCategoriesWithoutGroups", false)
             val displayCurr = obj.optBoolean("displayCurrency", true)
             val displayCurrSym = obj.optBoolean("displayCurrencySymbol", true)
-            val sortByAmount = obj.optBoolean("sortByAmount", true)
+            val sortByAmount = obj.optBoolean("sortByAmount", false)
             val showExpenseFirst = obj.optBoolean("showExpenseCategoriesFirst", true)
-            val sortOrder = try { BudgetSortOrder.valueOf(obj.optString("sortOrder", BudgetSortOrder.AMOUNT_DESC.name)) } catch (_: Exception) { BudgetSortOrder.AMOUNT_DESC }
+            val sortOrder = try { BudgetSortOrder.valueOf(obj.optString("sortOrder", BudgetSortOrder.DEFAULT.name)) } catch (_: Exception) { BudgetSortOrder.DEFAULT }
             val showOnlyRemaining = obj.optBoolean("showOnlyRemainingBalance", false)
             val showOnlyActual = obj.optBoolean("showOnlyActual", false)
             val filterOnlyBudgeted = obj.optBoolean("filterOnlyBudgeted", false)
             val filterOnlyOverBudget = obj.optBoolean("filterOnlyOverBudget", false)
+            val amountFocus = obj.optBoolean("amountFocus", false)
             val minAmount = if (obj.has("minAmount")) obj.getDouble("minAmount") else null
             val maxAmount = if (obj.has("maxAmount")) obj.getDouble("maxAmount") else null
 
@@ -967,6 +981,7 @@ class TabFilterPreferences private constructor(context: Context) {
                 showOnlyActual = showOnlyActual,
                 filterOnlyBudgeted = filterOnlyBudgeted,
                 filterOnlyOverBudget = filterOnlyOverBudget,
+                amountFocus = amountFocus,
                 minAmount = minAmount,
                 maxAmount = maxAmount
             )
@@ -996,6 +1011,9 @@ class TabFilterPreferences private constructor(context: Context) {
         obj.put("onlyUnderBudgetRemaining", filter.onlyUnderBudgetRemaining)
         obj.put("onlyTargetAchieved", filter.onlyTargetAchieved)
         obj.put("onlyTargetPending", filter.onlyTargetPending)
+        obj.put("onlyActive3Months", filter.onlyActive3Months)
+        obj.put("onlyFrequentlyActive", filter.onlyFrequentlyActive)
+        obj.put("onlyFrequentlyBudgeted", filter.onlyFrequentlyBudgeted)
         obj.put("onlyWithSuggestions", filter.onlyWithSuggestions)
         obj.put("onlyPositiveBalance", filter.onlyPositiveBalance)
         obj.put("onlyZeroBalance", filter.onlyZeroBalance)
@@ -1033,6 +1051,9 @@ class TabFilterPreferences private constructor(context: Context) {
                 onlyUnderBudgetRemaining = obj.optBoolean("onlyUnderBudgetRemaining", false),
                 onlyTargetAchieved = obj.optBoolean("onlyTargetAchieved", false),
                 onlyTargetPending = obj.optBoolean("onlyTargetPending", false),
+                onlyActive3Months = obj.optBoolean("onlyActive3Months", false),
+                onlyFrequentlyActive = obj.optBoolean("onlyFrequentlyActive", false),
+                onlyFrequentlyBudgeted = obj.optBoolean("onlyFrequentlyBudgeted", false),
                 onlyWithSuggestions = obj.optBoolean("onlyWithSuggestions", false),
                 onlyPositiveBalance = obj.optBoolean("onlyPositiveBalance", false),
                 onlyZeroBalance = obj.optBoolean("onlyZeroBalance", false),
@@ -1174,6 +1195,26 @@ class TabFilterPreferences private constructor(context: Context) {
         }
     }
 
+    private fun serializeAccountTypes(types: Set<AccountType>): String {
+        val arr = JSONArray()
+        types.forEach { arr.put(it.name) }
+        return arr.toString()
+    }
+
+    private fun deserializeAccountTypes(json: String?): Set<AccountType> {
+        if (json.isNullOrBlank()) return emptySet()
+        return try {
+            val arr = JSONArray(json)
+            val set = mutableSetOf<AccountType>()
+            for (i in 0 until arr.length()) {
+                try { set.add(AccountType.valueOf(arr.getString(i))) } catch (_: Exception) {}
+            }
+            set
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
     companion object {
         private const val KEY_LEDGER_SEARCH = "ledger_search"
         private const val KEY_LEDGER_TYPE = "ledger_type"
@@ -1187,6 +1228,8 @@ class TabFilterPreferences private constructor(context: Context) {
         private const val KEY_LEDGER_CAT_IDS = "ledger_cat_ids"
         private const val KEY_LEDGER_ACC_ID = "ledger_acc_id"
         private const val KEY_LEDGER_ACC_IDS = "ledger_acc_ids"
+        private const val KEY_LEDGER_ACCOUNT_TYPES = "ledger_account_types"
+        private const val KEY_LEDGER_PAYEES = "ledger_payees"
         private const val KEY_LEDGER_LABEL = "ledger_label"
         private const val KEY_LEDGER_LABELS = "ledger_labels"
         private const val KEY_LEDGER_STATUS = "ledger_status"
