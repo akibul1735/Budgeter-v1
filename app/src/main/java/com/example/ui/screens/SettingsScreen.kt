@@ -546,11 +546,75 @@ fun SettingsScreen(
                 contentPadding = PaddingValues(bottom = 32.dp)
             ) {
                 // =========================================================================
-                // 1. SECTION: LOCALIZATION
+                // 1. SECTION: APPEARANCE & INTERFACE
+                // =========================================================================
+                item(key = "section_appearance") {
+                    SettingsSectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "রূপরেখা ও ইন্টারফেস" else "APPEARANCE & INTERFACE"
+                    )
+                }
+
+                item(key = "item_themes") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা" else "Customize Appearance",
+                        subtitle = "${themeConfig.activeThemeDisplayName} • ${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        icon = Icons.Default.Palette,
+                        onClick = { currentSubPage = SettingsSubPage.THEMES }
+                    )
+                }
+
+                item(key = "item_navigation_tabs") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব" else "Navigation Tabs",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
+                        icon = Icons.Default.ViewCarousel,
+                        onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                    )
+                }
+
+                item(key = "item_items_icon") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন ও স্টুডিও" else "Items Icon & Studio",
+                        subtitle = if (languageMode == LanguageMode.BANGLA)
+                            "অনলাইন আইকন, ইমেজ ক্রপ স্টুডিও ও কাস্টম আইকন"
+                        else
+                            "Online icons, photo cropper & custom item icons",
+                        icon = Icons.Default.Category,
+                        onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE }
+                    )
+                }
+
+                item(key = "item_widgets") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "হোম স্ক্রিন উইজেট" else "Home Screen Widgets",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "প্রিমিয়াম কুইক অ্যাকশন ও বাজেট উইজেট পিন করুন" else "Quick actions, live budget meter & live feeds",
+                        icon = Icons.Default.Widgets,
+                        onClick = { currentSubPage = SettingsSubPage.WIDGETS }
+                    )
+                }
+
+                item(key = "item_calendar") {
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার প্রদর্শন" else "Calendar Display",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের ইনডিকেটর প্রদর্শন" else "Visual indicators & fiscal calendar",
+                        icon = Icons.Default.CalendarMonth,
+                        onClick = { currentSubPage = SettingsSubPage.CALENDAR }
+                    )
+                }
+
+                item(key = "divider_1") {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+
+                // =========================================================================
+                // 2. SECTION: REGIONAL & FORMATTING
                 // =========================================================================
                 item(key = "section_localization") {
                     SettingsSectionHeader(
-                        title = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন" else "LOCALIZATION"
+                        title = if (languageMode == LanguageMode.BANGLA) "লোকালাইজেশন ও ফরম্যাটিং" else "REGIONAL & FORMATTING"
                     )
                 }
 
@@ -575,6 +639,17 @@ fun SettingsScreen(
                     )
                 }
 
+                item(key = "item_amount_format") {
+                    val presetTitle = if (languageMode == LanguageMode.BANGLA) amountFormatConfig.preset.titleBn else amountFormatConfig.preset.titleEn
+                    val sampleText = LanguageHelper.formatCurrency(1234567.89, languageMode)
+                    ModernSettingsItemRow(
+                        title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format",
+                        subtitle = "$presetTitle • $sampleText",
+                        icon = Icons.Default.Numbers,
+                        onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
+                    )
+                }
+
                 item(key = "item_date_settings") {
                     val currentFormatOption = DateFormatOption.fromPattern(displayFormatConfig.dateFormatPattern)
                     val formatDisplay = if (languageMode == LanguageMode.BANGLA) currentFormatOption.titleBn else currentFormatOption.titleEn
@@ -596,18 +671,7 @@ fun SettingsScreen(
                     )
                 }
 
-                item(key = "item_amount_format") {
-                    val presetTitle = if (languageMode == LanguageMode.BANGLA) amountFormatConfig.preset.titleBn else amountFormatConfig.preset.titleEn
-                    val sampleText = LanguageHelper.formatCurrency(1234567.89, languageMode)
-                    ModernSettingsItemRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "টাকার কমা ও সেপারেটর" else "Amount Format",
-                        subtitle = "$presetTitle • $sampleText",
-                        icon = Icons.Default.Numbers,
-                        onClick = { currentSubPage = SettingsSubPage.AMOUNT_FORMAT }
-                    )
-                }
-
-                item(key = "divider_1") {
+                item(key = "divider_2") {
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -615,29 +679,11 @@ fun SettingsScreen(
                 }
 
                 // =========================================================================
-                // 2. SECTION: GENERAL
+                // 3. SECTION: TRANSACTIONS & WORKFLOW
                 // =========================================================================
-                item(key = "section_general") {
+                item(key = "section_transactions") {
                     SettingsSectionHeader(
-                        title = if (languageMode == LanguageMode.BANGLA) "সাধারণ" else "GENERAL"
-                    )
-                }
-
-                item(key = "item_themes") {
-                    ModernSettingsItemRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "থিম ও রূপরেখা" else "Customize Appearance",
-                        subtitle = "${themeConfig.activeThemeDisplayName} • ${themeConfig.mode.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                        icon = Icons.Default.Palette,
-                        onClick = { currentSubPage = SettingsSubPage.THEMES }
-                    )
-                }
-
-                item(key = "item_navigation_tabs") {
-                    ModernSettingsItemRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "নেভিগেশন ট্যাব" else "Navigation Tabs",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "নিচের ট্যাব বারের প্রদর্শন ও অবস্থান" else "Customize visible bottom tabs & order",
-                        icon = Icons.Default.ViewCarousel,
-                        onClick = { currentSubPage = SettingsSubPage.NAVIGATION_TABS }
+                        title = if (languageMode == LanguageMode.BANGLA) "লেনদেন ও কার্যপ্রণালী" else "TRANSACTIONS & WORKFLOW"
                     )
                 }
 
@@ -650,15 +696,6 @@ fun SettingsScreen(
                     )
                 }
 
-                item(key = "item_calendar") {
-                    ModernSettingsItemRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "ক্যালেন্ডার" else "Calendar",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "আয় ও ব্যয়ের ইনডিকেটর প্রদর্শন" else "Visual indicators & fiscal calendar",
-                        icon = Icons.Default.CalendarMonth,
-                        onClick = { currentSubPage = SettingsSubPage.CALENDAR }
-                    )
-                }
-
                 item(key = "item_phone_notifications") {
                     ModernSettingsItemRow(
                         title = if (languageMode == LanguageMode.BANGLA) "ফোন নোটিফিকেশন" else "Phone Notification",
@@ -668,12 +705,19 @@ fun SettingsScreen(
                     )
                 }
 
-                item(key = "item_app_permissions") {
-                    ModernSettingsItemRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাপের অনুমতিসমূহ" else "App Permissions",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যামেরা, নোটিফিকেশন ও সিস্টেম অনুমতি নিয়ন্ত্রণ" else "Manage camera, notifications & system access",
-                        icon = Icons.Default.Security,
-                        onClick = { currentSubPage = SettingsSubPage.PERMISSIONS }
+                item(key = "divider_3") {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+
+                // =========================================================================
+                // 4. SECTION: SECURITY & PERMISSIONS
+                // =========================================================================
+                item(key = "section_security") {
+                    SettingsSectionHeader(
+                        title = if (languageMode == LanguageMode.BANGLA) "নিরাপত্তা ও অনুমতি" else "SECURITY & PERMISSIONS"
                     )
                 }
 
@@ -689,16 +733,16 @@ fun SettingsScreen(
                     )
                 }
 
-                item(key = "item_widgets") {
+                item(key = "item_app_permissions") {
                     ModernSettingsItemRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "হোম স্ক্রিন উইজেট" else "Home Screen Widgets",
-                        subtitle = if (languageMode == LanguageMode.BANGLA) "প্রিমিয়াম কুইক অ্যাকশন ও বাজেট উইজেট পিন করুন" else "Quick actions, live budget meter & live feeds",
-                        icon = Icons.Default.Widgets,
-                        onClick = { currentSubPage = SettingsSubPage.WIDGETS }
+                        title = if (languageMode == LanguageMode.BANGLA) "অ্যাপের অনুমতিসমূহ" else "App Permissions",
+                        subtitle = if (languageMode == LanguageMode.BANGLA) "ক্যামেরা, নোটিফিকেশন ও সিস্টেম অনুমতি নিয়ন্ত্রণ" else "Manage camera, notifications & system access",
+                        icon = Icons.Default.Security,
+                        onClick = { currentSubPage = SettingsSubPage.PERMISSIONS }
                     )
                 }
 
-                item(key = "divider_2") {
+                item(key = "divider_4") {
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -706,11 +750,11 @@ fun SettingsScreen(
                 }
 
                 // =========================================================================
-                // 3. SECTION: DATA & RESET
+                // 5. SECTION: DATA & STORAGE
                 // =========================================================================
-                item(key = "section_data_reset") {
+                item(key = "section_data_storage") {
                     SettingsSectionHeader(
-                        title = if (languageMode == LanguageMode.BANGLA) "ডাটা ও রিসেট" else "DATA & RESET"
+                        title = if (languageMode == LanguageMode.BANGLA) "ডাটা ও স্টোরেজ" else "DATA & STORAGE"
                     )
                 }
 
@@ -737,19 +781,6 @@ fun SettingsScreen(
                     )
                 }
 
-                item(key = "item_items_icon") {
-                    val cachedItems by viewModel.allItemImageCaches.collectAsStateWithLifecycle()
-                    ModernSettingsItemRow(
-                        title = if (languageMode == LanguageMode.BANGLA) "আইটেম আইকন" else "Items Icon",
-                        subtitle = if (languageMode == LanguageMode.BANGLA)
-                            "অনলাইন আইকন, ইমেজ সার্চ স্টুডিও ও ক্যাশ"
-                        else
-                            "Online icons, image studio & custom item icons",
-                        icon = Icons.Default.Category,
-                        onClick = { currentSubPage = SettingsSubPage.ICON_IMAGE_CACHE }
-                    )
-                }
-
                 item(key = "item_reset_wipe") {
                     ModernSettingsItemRow(
                         title = if (languageMode == LanguageMode.BANGLA) "রিসেট ও ডিলিট" else "Reset & Wipe",
@@ -760,7 +791,7 @@ fun SettingsScreen(
                     )
                 }
 
-                item(key = "divider_3") {
+                item(key = "divider_5") {
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -768,11 +799,11 @@ fun SettingsScreen(
                 }
 
                 // =========================================================================
-                // 4. SECTION: ABOUT
+                // 6. SECTION: SUPPORT & ABOUT
                 // =========================================================================
                 item(key = "section_about") {
                     SettingsSectionHeader(
-                        title = if (languageMode == LanguageMode.BANGLA) "সম্পর্কে" else "ABOUT"
+                        title = if (languageMode == LanguageMode.BANGLA) "সহায়তা ও তথ্য" else "SUPPORT & ABOUT"
                     )
                 }
 
