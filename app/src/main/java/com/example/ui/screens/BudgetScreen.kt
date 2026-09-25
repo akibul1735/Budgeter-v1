@@ -367,8 +367,13 @@ fun BudgetScreen(
     onAddTransactionWithAccount: (Account) -> Unit,
     onAccountClick: ((Account) -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
+
     // Tabs: 0 -> BM Dashboard, 1 -> Expenses, 2 -> Incomes, 3 -> Assets, 4 -> Liabilities
-    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+    var selectedTab by remember(initialTab) {
+        mutableIntStateOf(if (initialTab != 0) initialTab else tabFilterPrefs.budgetSelectedTab)
+    }
     val budgetMakerTabPosition by viewModel.budgetMakerTabPosition.collectAsStateWithLifecycle()
     val tabsAtTop = budgetMakerTabPosition == TabPosition.TOP
     var showTabSettingsMenu by remember { mutableStateOf(false) }
@@ -380,9 +385,6 @@ fun BudgetScreen(
     var showMonthYearPicker by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
     var showQuickActionSheet by remember { mutableStateOf(false) }
-
-    val context = LocalContext.current
-    val tabFilterPrefs = remember { TabFilterPreferences.getInstance(context) }
 
     // Search and Filter State
     var isSearchActive by remember(initialSearchQuery) {
@@ -406,28 +408,54 @@ fun BudgetScreen(
     var showFilterDialog by remember { mutableStateOf(false) }
 
     // Tab-specific filters and sorting for Budget Maker (Independent per tab)
-    var expenseFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var incomeFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var assetFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var liabilityFilter by remember { mutableStateOf(BudgetMakerTabFilter()) }
-    var dashboardFilter by remember { mutableStateOf(BudgetMakerDashboardFilter()) }
+    var expenseFilter by remember { mutableStateOf(tabFilterPrefs.budgetExpenseFilter) }
+    var incomeFilter by remember { mutableStateOf(tabFilterPrefs.budgetIncomeFilter) }
+    var assetFilter by remember { mutableStateOf(tabFilterPrefs.budgetAssetFilter) }
+    var liabilityFilter by remember { mutableStateOf(tabFilterPrefs.budgetLiabilityFilter) }
+    var dashboardFilter by remember { mutableStateOf(tabFilterPrefs.budgetDashboardFilter) }
 
-    var expenseSelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
-    var incomeSelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
-    var assetSelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
-    var liabilitySelectedFilters by remember { mutableStateOf<Set<BudgetFilterOption>>(emptySet()) }
+    var expenseSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetExpenseQuickFilters) }
+    var incomeSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetIncomeQuickFilters) }
+    var assetSelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetAssetQuickFilters) }
+    var liabilitySelectedFilters by remember { mutableStateOf(tabFilterPrefs.budgetLiabilityQuickFilters) }
 
     var expenseSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetExpenseSort) }
     var incomeSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetIncomeSort) }
     var assetSelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetAssetSort) }
     var liabilitySelectedSort by remember { mutableStateOf(tabFilterPrefs.budgetLiabilitySort) }
 
-    LaunchedEffect(searchQuery, expenseSelectedSort, incomeSelectedSort, assetSelectedSort, liabilitySelectedSort) {
+    LaunchedEffect(
+        selectedTab,
+        searchQuery,
+        expenseSelectedSort,
+        incomeSelectedSort,
+        assetSelectedSort,
+        liabilitySelectedSort,
+        expenseFilter,
+        incomeFilter,
+        assetFilter,
+        liabilityFilter,
+        dashboardFilter,
+        expenseSelectedFilters,
+        incomeSelectedFilters,
+        assetSelectedFilters,
+        liabilitySelectedFilters
+    ) {
+        tabFilterPrefs.budgetSelectedTab = selectedTab
         tabFilterPrefs.budgetSearchQuery = searchQuery
         tabFilterPrefs.budgetExpenseSort = expenseSelectedSort
         tabFilterPrefs.budgetIncomeSort = incomeSelectedSort
         tabFilterPrefs.budgetAssetSort = assetSelectedSort
         tabFilterPrefs.budgetLiabilitySort = liabilitySelectedSort
+        tabFilterPrefs.budgetExpenseFilter = expenseFilter
+        tabFilterPrefs.budgetIncomeFilter = incomeFilter
+        tabFilterPrefs.budgetAssetFilter = assetFilter
+        tabFilterPrefs.budgetLiabilityFilter = liabilityFilter
+        tabFilterPrefs.budgetDashboardFilter = dashboardFilter
+        tabFilterPrefs.budgetExpenseQuickFilters = expenseSelectedFilters
+        tabFilterPrefs.budgetIncomeQuickFilters = incomeSelectedFilters
+        tabFilterPrefs.budgetAssetQuickFilters = assetSelectedFilters
+        tabFilterPrefs.budgetLiabilityQuickFilters = liabilitySelectedFilters
     }
 
     val currentTabFilter = when (selectedTab) {

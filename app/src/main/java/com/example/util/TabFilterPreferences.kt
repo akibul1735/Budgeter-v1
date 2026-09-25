@@ -7,6 +7,9 @@ import com.example.data.model.CategoryType
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.ui.components.BudgetDateRangePreset
+import com.example.ui.components.BudgetComparisonPreset
+import com.example.ui.components.BudgetFilterState
+import com.example.ui.components.BudgetSortOrder
 import com.example.ui.components.NetEarningsFilterState
 import com.example.ui.dialogs.AggregatedDatePreset
 import com.example.ui.dialogs.AggregatedFilterState
@@ -29,6 +32,21 @@ import com.example.ui.screens.NetEarningsHierarchyView
 import com.example.ui.screens.NetEarningsSort
 import com.example.ui.screens.WishlistFilterTab
 import com.example.ui.screens.WishlistSort
+import com.example.util.RmManagerHelper.RmFilterCategory
+import com.example.util.RmManagerHelper.RmSortOption
+import com.example.ui.screens.RmDetailViewMode
+import com.example.ui.screens.MainPaymentSourceTab
+import com.example.ui.screens.AssignedItemSectionFilter
+import com.example.ui.screens.AssignedItemStatusFilter
+import com.example.ui.screens.AccountStatusFilter
+import com.example.ui.screens.PaymentSourceSortOption
+import com.example.ui.screens.AssignedItemSortOption
+import com.example.data.model.RequirementCalculationBasis
+import com.example.ui.screens.BalanceSheetFilterState
+import com.example.util.BalanceSheetComparisonPreset
+import com.example.util.BalanceSheetSortOrder
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * TabFilterPreferences manages in-memory and persistent storage of filter, sort, search,
@@ -497,6 +515,549 @@ class TabFilterPreferences private constructor(context: Context) {
             prefs.edit().putString(KEY_BUDGET_LIABILITY_SORT, value.name).apply()
         }
 
+    var budgetSelectedTab: Int = prefs.getInt(KEY_BUDGET_SELECTED_TAB, 0)
+        set(value) {
+            field = value
+            prefs.edit().putInt(KEY_BUDGET_SELECTED_TAB, value).apply()
+        }
+
+    var budgetExpenseFilter: BudgetMakerTabFilter = deserializeBudgetMakerTabFilter(prefs.getString(KEY_BUDGET_EXPENSE_FILTER, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_EXPENSE_FILTER, serializeBudgetMakerTabFilter(value)).apply()
+        }
+
+    var budgetIncomeFilter: BudgetMakerTabFilter = deserializeBudgetMakerTabFilter(prefs.getString(KEY_BUDGET_INCOME_FILTER, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_INCOME_FILTER, serializeBudgetMakerTabFilter(value)).apply()
+        }
+
+    var budgetAssetFilter: BudgetMakerTabFilter = deserializeBudgetMakerTabFilter(prefs.getString(KEY_BUDGET_ASSET_FILTER, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_ASSET_FILTER, serializeBudgetMakerTabFilter(value)).apply()
+        }
+
+    var budgetLiabilityFilter: BudgetMakerTabFilter = deserializeBudgetMakerTabFilter(prefs.getString(KEY_BUDGET_LIABILITY_FILTER, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_LIABILITY_FILTER, serializeBudgetMakerTabFilter(value)).apply()
+        }
+
+    var budgetDashboardFilter: BudgetMakerDashboardFilter = deserializeBudgetMakerDashboardFilter(prefs.getString(KEY_BUDGET_DASHBOARD_FILTER, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_DASHBOARD_FILTER, serializeBudgetMakerDashboardFilter(value)).apply()
+        }
+
+    var budgetExpenseQuickFilters: Set<BudgetFilterOption> = deserializeBudgetFilterOptions(prefs.getString(KEY_BUDGET_EXPENSE_QUICK, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_EXPENSE_QUICK, serializeBudgetFilterOptions(value)).apply()
+        }
+
+    var budgetIncomeQuickFilters: Set<BudgetFilterOption> = deserializeBudgetFilterOptions(prefs.getString(KEY_BUDGET_INCOME_QUICK, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_INCOME_QUICK, serializeBudgetFilterOptions(value)).apply()
+        }
+
+    var budgetAssetQuickFilters: Set<BudgetFilterOption> = deserializeBudgetFilterOptions(prefs.getString(KEY_BUDGET_ASSET_QUICK, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_ASSET_QUICK, serializeBudgetFilterOptions(value)).apply()
+        }
+
+    var budgetLiabilityQuickFilters: Set<BudgetFilterOption> = deserializeBudgetFilterOptions(prefs.getString(KEY_BUDGET_LIABILITY_QUICK, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_LIABILITY_QUICK, serializeBudgetFilterOptions(value)).apply()
+        }
+
+    // ==========================================
+    // 12. RM MANAGER
+    // ==========================================
+    var rmSearchQuery: String = prefs.getString(KEY_RM_SEARCH, "") ?: ""
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_RM_SEARCH, value).apply()
+        }
+
+    var rmFilterCategory: RmFilterCategory = try {
+        RmFilterCategory.valueOf(prefs.getString(KEY_RM_FILTER_CAT, RmFilterCategory.ALL.name) ?: RmFilterCategory.ALL.name)
+    } catch (_: Exception) {
+        RmFilterCategory.ALL
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_RM_FILTER_CAT, value.name).apply()
+        }
+
+    var rmSortOption: RmSortOption = try {
+        RmSortOption.valueOf(prefs.getString(KEY_RM_SORT, RmSortOption.HIGHEST_DUE.name) ?: RmSortOption.HIGHEST_DUE.name)
+    } catch (_: Exception) {
+        RmSortOption.HIGHEST_DUE
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_RM_SORT, value.name).apply()
+        }
+
+    var rmDetailViewMode: RmDetailViewMode = try {
+        RmDetailViewMode.valueOf(prefs.getString(KEY_RM_DETAIL_MODE, RmDetailViewMode.KHATIAN_LEDGER.name) ?: RmDetailViewMode.KHATIAN_LEDGER.name)
+    } catch (_: Exception) {
+        RmDetailViewMode.KHATIAN_LEDGER
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_RM_DETAIL_MODE, value.name).apply()
+        }
+
+    var rmTimelineFilter: Int = prefs.getInt(KEY_RM_TIMELINE_FILTER, 0)
+        set(value) {
+            field = value
+            prefs.edit().putInt(KEY_RM_TIMELINE_FILTER, value).apply()
+        }
+
+    // ==========================================
+    // 13. PAYMENT SOURCE
+    // ==========================================
+    var paymentSourceTab: MainPaymentSourceTab = try {
+        MainPaymentSourceTab.valueOf(prefs.getString(KEY_PAYMENT_SOURCE_TAB, MainPaymentSourceTab.PAYMENT_SOURCES.name) ?: MainPaymentSourceTab.PAYMENT_SOURCES.name)
+    } catch (_: Exception) {
+        MainPaymentSourceTab.PAYMENT_SOURCES
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_TAB, value.name).apply()
+        }
+
+    var paymentSourceCalculationBasis: RequirementCalculationBasis = try {
+        RequirementCalculationBasis.valueOf(prefs.getString(KEY_PAYMENT_SOURCE_BASIS, RequirementCalculationBasis.BUDGET_AMOUNT.name) ?: RequirementCalculationBasis.BUDGET_AMOUNT.name)
+    } catch (_: Exception) {
+        RequirementCalculationBasis.BUDGET_AMOUNT
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_BASIS, value.name).apply()
+        }
+
+    var paymentSourceAccountStatusFilter: AccountStatusFilter = try {
+        AccountStatusFilter.valueOf(prefs.getString(KEY_PAYMENT_SOURCE_ACC_STATUS, AccountStatusFilter.ALL.name) ?: AccountStatusFilter.ALL.name)
+    } catch (_: Exception) {
+        AccountStatusFilter.ALL
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_ACC_STATUS, value.name).apply()
+        }
+
+    var paymentSourceSortOption: PaymentSourceSortOption = try {
+        PaymentSourceSortOption.valueOf(prefs.getString(KEY_PAYMENT_SOURCE_SORT, PaymentSourceSortOption.DEFAULT.name) ?: PaymentSourceSortOption.DEFAULT.name)
+    } catch (_: Exception) {
+        PaymentSourceSortOption.DEFAULT
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_SORT, value.name).apply()
+        }
+
+    var paymentSourceAssignedSectionFilter: AssignedItemSectionFilter = try {
+        AssignedItemSectionFilter.valueOf(prefs.getString(KEY_PAYMENT_SOURCE_ASSIGNED_SECTION, AssignedItemSectionFilter.ALL.name) ?: AssignedItemSectionFilter.ALL.name)
+    } catch (_: Exception) {
+        AssignedItemSectionFilter.ALL
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_ASSIGNED_SECTION, value.name).apply()
+        }
+
+    var paymentSourceAssignedStatusFilter: AssignedItemStatusFilter = try {
+        AssignedItemStatusFilter.valueOf(prefs.getString(KEY_PAYMENT_SOURCE_ASSIGNED_STATUS, AssignedItemStatusFilter.ALL.name) ?: AssignedItemStatusFilter.ALL.name)
+    } catch (_: Exception) {
+        AssignedItemStatusFilter.ALL
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_ASSIGNED_STATUS, value.name).apply()
+        }
+
+    var paymentSourceAssignedItemSortOption: AssignedItemSortOption = try {
+        AssignedItemSortOption.valueOf(prefs.getString(KEY_PAYMENT_SOURCE_ASSIGNED_SORT, AssignedItemSortOption.DEFAULT.name) ?: AssignedItemSortOption.DEFAULT.name)
+    } catch (_: Exception) {
+        AssignedItemSortOption.DEFAULT
+    }
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_ASSIGNED_SORT, value.name).apply()
+        }
+
+    var paymentSourceSearchQuery: String = prefs.getString(KEY_PAYMENT_SOURCE_SEARCH, "") ?: ""
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_PAYMENT_SOURCE_SEARCH, value).apply()
+        }
+
+    var paymentSourceFilterAccountId: Long? = if (prefs.contains(KEY_PAYMENT_SOURCE_FILTER_ACC_ID)) prefs.getLong(KEY_PAYMENT_SOURCE_FILTER_ACC_ID, -1L).takeIf { it != -1L } else null
+        set(value) {
+            field = value
+            if (value != null) prefs.edit().putLong(KEY_PAYMENT_SOURCE_FILTER_ACC_ID, value).apply()
+            else prefs.edit().remove(KEY_PAYMENT_SOURCE_FILTER_ACC_ID).apply()
+        }
+
+    // ==========================================
+    // 14. BALANCE SHEET
+    // ==========================================
+    var balanceSheetSearchQuery: String = prefs.getString(KEY_BALANCE_SHEET_SEARCH, "") ?: ""
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BALANCE_SHEET_SEARCH, value).apply()
+        }
+
+    var balanceSheetActiveTabMode: String = prefs.getString(KEY_BALANCE_SHEET_TAB_MODE, "ASSETS") ?: "ASSETS"
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BALANCE_SHEET_TAB_MODE, value).apply()
+        }
+
+    var balanceSheetFilterState: BalanceSheetFilterState = deserializeBalanceSheetFilterState(prefs.getString(KEY_BALANCE_SHEET_FILTER_STATE, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BALANCE_SHEET_FILTER_STATE, serializeBalanceSheetFilterState(value)).apply()
+        }
+
+    var balanceSheetBaseDateMs: Long? = if (prefs.contains(KEY_BALANCE_SHEET_BASE_DATE)) prefs.getLong(KEY_BALANCE_SHEET_BASE_DATE, 0L) else null
+        set(value) {
+            field = value
+            if (value != null) prefs.edit().putLong(KEY_BALANCE_SHEET_BASE_DATE, value).apply()
+            else prefs.edit().remove(KEY_BALANCE_SHEET_BASE_DATE).apply()
+        }
+
+    var balanceSheetCompareDateMs: Long? = if (prefs.contains(KEY_BALANCE_SHEET_COMPARE_DATE)) prefs.getLong(KEY_BALANCE_SHEET_COMPARE_DATE, 0L) else null
+        set(value) {
+            field = value
+            if (value != null) prefs.edit().putLong(KEY_BALANCE_SHEET_COMPARE_DATE, value).apply()
+            else prefs.edit().remove(KEY_BALANCE_SHEET_COMPARE_DATE).apply()
+        }
+
+    // ==========================================
+    // 15. BUDGET TRACKING (BUDGET TAB)
+    // ==========================================
+    var budgetTrackingSearchQuery: String = prefs.getString(KEY_BUDGET_TRACKING_SEARCH, "") ?: ""
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_TRACKING_SEARCH, value).apply()
+        }
+
+    var budgetTrackingActiveTabMode: String = prefs.getString(KEY_BUDGET_TRACKING_TAB_MODE, "EXPENSE") ?: "EXPENSE"
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_TRACKING_TAB_MODE, value).apply()
+        }
+
+    var budgetTrackingFilterState: BudgetFilterState = deserializeBudgetFilterState(prefs.getString(KEY_BUDGET_TRACKING_FILTER_STATE, null))
+        set(value) {
+            field = value
+            prefs.edit().putString(KEY_BUDGET_TRACKING_FILTER_STATE, serializeBudgetFilterState(value)).apply()
+        }
+
+    // ==========================================
+    // HELPER SERIALIZERS / DESERIALIZERS
+    // ==========================================
+    private fun serializeBalanceSheetFilterState(state: BalanceSheetFilterState): String {
+        val obj = JSONObject()
+        obj.put("preset", state.preset.name)
+        state.customBaseDateMs?.let { obj.put("baseDate", it) }
+        state.customCompareDateMs?.let { obj.put("compareDate", it) }
+        val accArr = JSONArray()
+        state.selectedAccountIds.forEach { accArr.put(it) }
+        obj.put("accountIds", accArr)
+        val statusArr = JSONArray()
+        state.selectedStatusSet.forEach { statusArr.put(it.name) }
+        obj.put("statuses", statusArr)
+        obj.put("excludeZero", state.excludeZeroAmounts)
+        obj.put("filterNonZero", state.filterNonZeroGroups)
+        obj.put("displayCurr", state.displayCurrency)
+        obj.put("displayCurrSym", state.displayCurrencySymbol)
+        obj.put("sortOrder", state.sortOrder.name)
+        obj.put("showHidden", state.showHiddenAccounts)
+        obj.put("onlyCurrent", state.showOnlyCurrentBalance)
+        obj.put("onlyWithoutGroups", state.showOnlyAccountsWithoutGroups)
+        return obj.toString()
+    }
+
+    private fun deserializeBalanceSheetFilterState(json: String?): BalanceSheetFilterState {
+        if (json.isNullOrBlank()) return BalanceSheetFilterState()
+        return try {
+            val obj = JSONObject(json)
+            val preset = try { BalanceSheetComparisonPreset.valueOf(obj.optString("preset", BalanceSheetComparisonPreset.THIS_MONTH.name)) } catch (_: Exception) { BalanceSheetComparisonPreset.THIS_MONTH }
+            val baseDate = if (obj.has("baseDate")) obj.getLong("baseDate") else null
+            val compareDate = if (obj.has("compareDate")) obj.getLong("compareDate") else null
+            val accIds = mutableSetOf<Long>()
+            obj.optJSONArray("accountIds")?.let { for (i in 0 until it.length()) accIds.add(it.getLong(i)) }
+            val statuses = mutableSetOf<TransactionStatus>()
+            obj.optJSONArray("statuses")?.let { for (i in 0 until it.length()) try { statuses.add(TransactionStatus.valueOf(it.getString(i))) } catch (_: Exception) {} }
+            val excludeZero = obj.optBoolean("excludeZero", true)
+            val filterNonZero = obj.optBoolean("filterNonZero", false)
+            val displayCurr = obj.optBoolean("displayCurr", true)
+            val displayCurrSym = obj.optBoolean("displayCurrSym", true)
+            val sortOrder = try { BalanceSheetSortOrder.valueOf(obj.optString("sortOrder", BalanceSheetSortOrder.AMOUNT_DESC.name)) } catch (_: Exception) { BalanceSheetSortOrder.AMOUNT_DESC }
+            val showHidden = obj.optBoolean("showHidden", false)
+            val onlyCurrent = obj.optBoolean("onlyCurrent", false)
+            val onlyWithoutGroups = obj.optBoolean("onlyWithoutGroups", false)
+            BalanceSheetFilterState(
+                preset = preset,
+                customBaseDateMs = baseDate,
+                customCompareDateMs = compareDate,
+                selectedAccountIds = accIds,
+                selectedStatusSet = statuses,
+                excludeZeroAmounts = excludeZero,
+                filterNonZeroGroups = filterNonZero,
+                displayCurrency = displayCurr,
+                displayCurrencySymbol = displayCurrSym,
+                sortOrder = sortOrder,
+                showHiddenAccounts = showHidden,
+                showOnlyCurrentBalance = onlyCurrent,
+                showOnlyAccountsWithoutGroups = onlyWithoutGroups
+            )
+        } catch (_: Exception) {
+            BalanceSheetFilterState()
+        }
+    }
+
+    private fun serializeBudgetFilterState(state: BudgetFilterState): String {
+        val obj = JSONObject()
+        obj.put("datePreset", state.datePreset.name)
+        state.customStartDateMs?.let { obj.put("startDate", it) }
+        state.customEndDateMs?.let { obj.put("endDate", it) }
+        obj.put("comparisonEnabled", state.comparisonEnabled)
+        obj.put("comparisonPreset", state.comparisonPreset.name)
+        state.customCompareStartMs?.let { obj.put("compareStart", it) }
+        state.customCompareEndMs?.let { obj.put("compareEnd", it) }
+
+        val catArr = JSONArray()
+        state.selectedCategoryIds.forEach { catArr.put(it) }
+        obj.put("categoryIds", catArr)
+
+        val accArr = JSONArray()
+        state.selectedAccountIds.forEach { accArr.put(it) }
+        obj.put("accountIds", accArr)
+
+        val labelArr = JSONArray()
+        state.selectedLabels.forEach { labelArr.put(it) }
+        obj.put("labels", labelArr)
+
+        val statusArr = JSONArray()
+        state.selectedStatusSet.forEach { statusArr.put(it.name) }
+        obj.put("statuses", statusArr)
+
+        obj.put("excludeZero", state.excludeZeroAmounts)
+        obj.put("hideEmptyGroups", state.hideEmptyGroups)
+        obj.put("showOnlyCategoriesWithoutGroups", state.showOnlyCategoriesWithoutGroups)
+        obj.put("displayCurrency", state.displayCurrency)
+        obj.put("displayCurrencySymbol", state.displayCurrencySymbol)
+        obj.put("sortByAmount", state.sortByAmount)
+        obj.put("showExpenseCategoriesFirst", state.showExpenseCategoriesFirst)
+        obj.put("sortOrder", state.sortOrder.name)
+        obj.put("showOnlyRemainingBalance", state.showOnlyRemainingBalance)
+        obj.put("showOnlyActual", state.showOnlyActual)
+        obj.put("filterOnlyBudgeted", state.filterOnlyBudgeted)
+        obj.put("filterOnlyOverBudget", state.filterOnlyOverBudget)
+        state.minAmount?.let { obj.put("minAmount", it) }
+        state.maxAmount?.let { obj.put("maxAmount", it) }
+        return obj.toString()
+    }
+
+    private fun deserializeBudgetFilterState(json: String?): BudgetFilterState {
+        if (json.isNullOrBlank()) return BudgetFilterState()
+        return try {
+            val obj = JSONObject(json)
+            val datePreset = try { BudgetDateRangePreset.valueOf(obj.optString("datePreset", BudgetDateRangePreset.THIS_MONTH.name)) } catch (_: Exception) { BudgetDateRangePreset.THIS_MONTH }
+            val startDate = if (obj.has("startDate")) obj.getLong("startDate") else null
+            val endDate = if (obj.has("endDate")) obj.getLong("endDate") else null
+            val comparisonEnabled = obj.optBoolean("comparisonEnabled", false)
+            val comparisonPreset = try { BudgetComparisonPreset.valueOf(obj.optString("comparisonPreset", BudgetComparisonPreset.LAST_MONTH.name)) } catch (_: Exception) { BudgetComparisonPreset.LAST_MONTH }
+            val compareStart = if (obj.has("compareStart")) obj.getLong("compareStart") else null
+            val compareEnd = if (obj.has("compareEnd")) obj.getLong("compareEnd") else null
+
+            val catIds = mutableSetOf<Long>()
+            obj.optJSONArray("categoryIds")?.let { for (i in 0 until it.length()) catIds.add(it.getLong(i)) }
+
+            val accIds = mutableSetOf<Long>()
+            obj.optJSONArray("accountIds")?.let { for (i in 0 until it.length()) accIds.add(it.getLong(i)) }
+
+            val labels = mutableSetOf<String>()
+            obj.optJSONArray("labels")?.let { for (i in 0 until it.length()) labels.add(it.getString(i)) }
+
+            val statuses = mutableSetOf<TransactionStatus>()
+            obj.optJSONArray("statuses")?.let { for (i in 0 until it.length()) try { statuses.add(TransactionStatus.valueOf(it.getString(i))) } catch (_: Exception) {} }
+
+            val excludeZero = obj.optBoolean("excludeZero", true)
+            val hideEmptyGroups = obj.optBoolean("hideEmptyGroups", true)
+            val showOnlyCategoriesWithoutGroups = obj.optBoolean("showOnlyCategoriesWithoutGroups", false)
+            val displayCurr = obj.optBoolean("displayCurrency", true)
+            val displayCurrSym = obj.optBoolean("displayCurrencySymbol", true)
+            val sortByAmount = obj.optBoolean("sortByAmount", true)
+            val showExpenseFirst = obj.optBoolean("showExpenseCategoriesFirst", true)
+            val sortOrder = try { BudgetSortOrder.valueOf(obj.optString("sortOrder", BudgetSortOrder.AMOUNT_DESC.name)) } catch (_: Exception) { BudgetSortOrder.AMOUNT_DESC }
+            val showOnlyRemaining = obj.optBoolean("showOnlyRemainingBalance", false)
+            val showOnlyActual = obj.optBoolean("showOnlyActual", false)
+            val filterOnlyBudgeted = obj.optBoolean("filterOnlyBudgeted", false)
+            val filterOnlyOverBudget = obj.optBoolean("filterOnlyOverBudget", false)
+            val minAmount = if (obj.has("minAmount")) obj.getDouble("minAmount") else null
+            val maxAmount = if (obj.has("maxAmount")) obj.getDouble("maxAmount") else null
+
+            BudgetFilterState(
+                datePreset = datePreset,
+                customStartDateMs = startDate,
+                customEndDateMs = endDate,
+                comparisonEnabled = comparisonEnabled,
+                comparisonPreset = comparisonPreset,
+                customCompareStartMs = compareStart,
+                customCompareEndMs = compareEnd,
+                selectedCategoryIds = catIds,
+                selectedAccountIds = accIds,
+                selectedLabels = labels,
+                selectedStatusSet = statuses,
+                excludeZeroAmounts = excludeZero,
+                hideEmptyGroups = hideEmptyGroups,
+                showOnlyCategoriesWithoutGroups = showOnlyCategoriesWithoutGroups,
+                displayCurrency = displayCurr,
+                displayCurrencySymbol = displayCurrSym,
+                sortByAmount = sortByAmount,
+                showExpenseCategoriesFirst = showExpenseFirst,
+                sortOrder = sortOrder,
+                showOnlyRemainingBalance = showOnlyRemaining,
+                showOnlyActual = showOnlyActual,
+                filterOnlyBudgeted = filterOnlyBudgeted,
+                filterOnlyOverBudget = filterOnlyOverBudget,
+                minAmount = minAmount,
+                maxAmount = maxAmount
+            )
+        } catch (_: Exception) {
+            BudgetFilterState()
+        }
+    }
+
+    private fun serializeBudgetMakerTabFilter(filter: BudgetMakerTabFilter): String {
+        val obj = JSONObject()
+        val itemArr = JSONArray()
+        filter.selectedItemIds.forEach { itemArr.put(it) }
+        obj.put("itemIds", itemArr)
+
+        val groupArr = JSONArray()
+        filter.selectedGroupNames.forEach { groupArr.put(it) }
+        obj.put("groups", groupArr)
+
+        filter.minAmount?.let { obj.put("minAmount", it) }
+        filter.maxAmount?.let { obj.put("maxAmount", it) }
+
+        obj.put("onlyWithBudgetOrTarget", filter.onlyWithBudgetOrTarget)
+        obj.put("onlyWithoutBudgetOrTarget", filter.onlyWithoutBudgetOrTarget)
+        obj.put("onlyWithActualActivity", filter.onlyWithActualActivity)
+        obj.put("onlyZeroActivity", filter.onlyZeroActivity)
+        obj.put("onlyOverBudget", filter.onlyOverBudget)
+        obj.put("onlyUnderBudgetRemaining", filter.onlyUnderBudgetRemaining)
+        obj.put("onlyTargetAchieved", filter.onlyTargetAchieved)
+        obj.put("onlyTargetPending", filter.onlyTargetPending)
+        obj.put("onlyWithSuggestions", filter.onlyWithSuggestions)
+        obj.put("onlyPositiveBalance", filter.onlyPositiveBalance)
+        obj.put("onlyZeroBalance", filter.onlyZeroBalance)
+        obj.put("onlyNegativeBalance", filter.onlyNegativeBalance)
+        obj.put("onlyOutstandingDebt", filter.onlyOutstandingDebt)
+        obj.put("onlyClearedDebt", filter.onlyClearedDebt)
+        obj.put("excludeZeroAmounts", filter.excludeZeroAmounts)
+        obj.put("hideEmptyGroups", filter.hideEmptyGroups)
+        return obj.toString()
+    }
+
+    private fun deserializeBudgetMakerTabFilter(json: String?): BudgetMakerTabFilter {
+        if (json.isNullOrBlank()) return BudgetMakerTabFilter()
+        return try {
+            val obj = JSONObject(json)
+            val itemIds = mutableSetOf<Long>()
+            obj.optJSONArray("itemIds")?.let { for (i in 0 until it.length()) itemIds.add(it.getLong(i)) }
+
+            val groupNames = mutableSetOf<String>()
+            obj.optJSONArray("groups")?.let { for (i in 0 until it.length()) groupNames.add(it.getString(i)) }
+
+            val minAmount = if (obj.has("minAmount")) obj.getDouble("minAmount") else null
+            val maxAmount = if (obj.has("maxAmount")) obj.getDouble("maxAmount") else null
+
+            BudgetMakerTabFilter(
+                selectedItemIds = itemIds,
+                selectedGroupNames = groupNames,
+                minAmount = minAmount,
+                maxAmount = maxAmount,
+                onlyWithBudgetOrTarget = obj.optBoolean("onlyWithBudgetOrTarget", false),
+                onlyWithoutBudgetOrTarget = obj.optBoolean("onlyWithoutBudgetOrTarget", false),
+                onlyWithActualActivity = obj.optBoolean("onlyWithActualActivity", false),
+                onlyZeroActivity = obj.optBoolean("onlyZeroActivity", false),
+                onlyOverBudget = obj.optBoolean("onlyOverBudget", false),
+                onlyUnderBudgetRemaining = obj.optBoolean("onlyUnderBudgetRemaining", false),
+                onlyTargetAchieved = obj.optBoolean("onlyTargetAchieved", false),
+                onlyTargetPending = obj.optBoolean("onlyTargetPending", false),
+                onlyWithSuggestions = obj.optBoolean("onlyWithSuggestions", false),
+                onlyPositiveBalance = obj.optBoolean("onlyPositiveBalance", false),
+                onlyZeroBalance = obj.optBoolean("onlyZeroBalance", false),
+                onlyNegativeBalance = obj.optBoolean("onlyNegativeBalance", false),
+                onlyOutstandingDebt = obj.optBoolean("onlyOutstandingDebt", false),
+                onlyClearedDebt = obj.optBoolean("onlyClearedDebt", false),
+                excludeZeroAmounts = obj.optBoolean("excludeZeroAmounts", false),
+                hideEmptyGroups = obj.optBoolean("hideEmptyGroups", false)
+            )
+        } catch (_: Exception) {
+            BudgetMakerTabFilter()
+        }
+    }
+
+    private fun serializeBudgetMakerDashboardFilter(filter: BudgetMakerDashboardFilter): String {
+        val obj = JSONObject()
+        obj.put("includeExpenses", filter.includeExpenses)
+        obj.put("includeIncomes", filter.includeIncomes)
+        obj.put("includeAssets", filter.includeAssets)
+        obj.put("includeLiabilities", filter.includeLiabilities)
+        obj.put("onlyNonZero", filter.onlyNonZero)
+        return obj.toString()
+    }
+
+    private fun deserializeBudgetMakerDashboardFilter(json: String?): BudgetMakerDashboardFilter {
+        if (json.isNullOrBlank()) return BudgetMakerDashboardFilter()
+        return try {
+            val obj = JSONObject(json)
+            BudgetMakerDashboardFilter(
+                includeExpenses = obj.optBoolean("includeExpenses", true),
+                includeIncomes = obj.optBoolean("includeIncomes", true),
+                includeAssets = obj.optBoolean("includeAssets", true),
+                includeLiabilities = obj.optBoolean("includeLiabilities", true),
+                onlyNonZero = obj.optBoolean("onlyNonZero", false)
+            )
+        } catch (_: Exception) {
+            BudgetMakerDashboardFilter()
+        }
+    }
+
+    private fun serializeBudgetFilterOptions(options: Set<BudgetFilterOption>): String {
+        val arr = JSONArray()
+        options.forEach { arr.put(it.name) }
+        return arr.toString()
+    }
+
+    private fun deserializeBudgetFilterOptions(json: String?): Set<BudgetFilterOption> {
+        if (json.isNullOrBlank()) return emptySet()
+        return try {
+            val arr = JSONArray(json)
+            val set = mutableSetOf<BudgetFilterOption>()
+            for (i in 0 until arr.length()) {
+                try { set.add(BudgetFilterOption.valueOf(arr.getString(i))) } catch (_: Exception) {}
+            }
+            set
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
     companion object {
         private const val KEY_LEDGER_SEARCH = "ledger_search"
         private const val KEY_LEDGER_TYPE = "ledger_type"
@@ -562,6 +1123,42 @@ class TabFilterPreferences private constructor(context: Context) {
         private const val KEY_BUDGET_INCOME_SORT = "budget_income_sort"
         private const val KEY_BUDGET_ASSET_SORT = "budget_asset_sort"
         private const val KEY_BUDGET_LIABILITY_SORT = "budget_liability_sort"
+        private const val KEY_BUDGET_SELECTED_TAB = "budget_selected_tab"
+        private const val KEY_BUDGET_EXPENSE_FILTER = "budget_expense_filter"
+        private const val KEY_BUDGET_INCOME_FILTER = "budget_income_filter"
+        private const val KEY_BUDGET_ASSET_FILTER = "budget_asset_filter"
+        private const val KEY_BUDGET_LIABILITY_FILTER = "budget_liability_filter"
+        private const val KEY_BUDGET_DASHBOARD_FILTER = "budget_dashboard_filter"
+        private const val KEY_BUDGET_EXPENSE_QUICK = "budget_expense_quick"
+        private const val KEY_BUDGET_INCOME_QUICK = "budget_income_quick"
+        private const val KEY_BUDGET_ASSET_QUICK = "budget_asset_quick"
+        private const val KEY_BUDGET_LIABILITY_QUICK = "budget_liability_quick"
+
+        private const val KEY_RM_SEARCH = "rm_search"
+        private const val KEY_RM_FILTER_CAT = "rm_filter_cat"
+        private const val KEY_RM_SORT = "rm_sort"
+        private const val KEY_RM_DETAIL_MODE = "rm_detail_mode"
+        private const val KEY_RM_TIMELINE_FILTER = "rm_timeline_filter"
+
+        private const val KEY_PAYMENT_SOURCE_TAB = "payment_source_tab"
+        private const val KEY_PAYMENT_SOURCE_BASIS = "payment_source_basis"
+        private const val KEY_PAYMENT_SOURCE_ACC_STATUS = "payment_source_acc_status"
+        private const val KEY_PAYMENT_SOURCE_SORT = "payment_source_sort"
+        private const val KEY_PAYMENT_SOURCE_ASSIGNED_SECTION = "payment_source_assigned_section"
+        private const val KEY_PAYMENT_SOURCE_ASSIGNED_STATUS = "payment_source_assigned_status"
+        private const val KEY_PAYMENT_SOURCE_ASSIGNED_SORT = "payment_source_assigned_sort"
+        private const val KEY_PAYMENT_SOURCE_SEARCH = "payment_source_search"
+        private const val KEY_PAYMENT_SOURCE_FILTER_ACC_ID = "payment_source_filter_acc_id"
+
+        private const val KEY_BALANCE_SHEET_SEARCH = "balance_sheet_search"
+        private const val KEY_BALANCE_SHEET_TAB_MODE = "balance_sheet_tab_mode"
+        private const val KEY_BALANCE_SHEET_FILTER_STATE = "balance_sheet_filter_state"
+        private const val KEY_BALANCE_SHEET_BASE_DATE = "balance_sheet_base_date"
+        private const val KEY_BALANCE_SHEET_COMPARE_DATE = "balance_sheet_compare_date"
+
+        private const val KEY_BUDGET_TRACKING_SEARCH = "budget_tracking_search"
+        private const val KEY_BUDGET_TRACKING_TAB_MODE = "budget_tracking_tab_mode"
+        private const val KEY_BUDGET_TRACKING_FILTER_STATE = "budget_tracking_filter_state"
 
         @Volatile
         private var instance: TabFilterPreferences? = null

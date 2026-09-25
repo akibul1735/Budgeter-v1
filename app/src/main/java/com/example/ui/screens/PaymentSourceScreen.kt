@@ -92,6 +92,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -102,6 +103,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -172,16 +174,42 @@ fun PaymentSourceScreen(
     onDeleteAccountObligation: (String) -> Unit = {},
     onAccountClick: (Long) -> Unit = {}
 ) {
-    var selectedTab by remember { mutableStateOf(MainPaymentSourceTab.PAYMENT_SOURCES) }
-    var calculationBasis by remember { mutableStateOf(RequirementCalculationBasis.BUDGET_AMOUNT) }
-    var accountStatusFilter by remember { mutableStateOf(AccountStatusFilter.ALL) }
-    var paymentSourceSortOption by remember { mutableStateOf(PaymentSourceSortOption.DEFAULT) }
+    val context = LocalContext.current
+    val tabFilterPrefs = remember { com.example.util.TabFilterPreferences.getInstance(context) }
+
+    var selectedTab by remember { mutableStateOf(tabFilterPrefs.paymentSourceTab) }
+    var calculationBasis by remember { mutableStateOf(tabFilterPrefs.paymentSourceCalculationBasis) }
+    var accountStatusFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAccountStatusFilter) }
+    var paymentSourceSortOption by remember { mutableStateOf(tabFilterPrefs.paymentSourceSortOption) }
 
     // Assigned items tab filters and sorting
-    var assignedSectionFilter by remember { mutableStateOf(AssignedItemSectionFilter.ALL) }
-    var assignedStatusFilter by remember { mutableStateOf(AssignedItemStatusFilter.ALL) }
-    var assignedItemSortOption by remember { mutableStateOf(AssignedItemSortOption.DEFAULT) }
-    var searchQuery by remember { mutableStateOf("") }
+    var assignedSectionFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedSectionFilter) }
+    var assignedStatusFilter by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedStatusFilter) }
+    var assignedItemSortOption by remember { mutableStateOf(tabFilterPrefs.paymentSourceAssignedItemSortOption) }
+    var searchQuery by remember { mutableStateOf(tabFilterPrefs.paymentSourceSearchQuery) }
+    var filterAccountIdForAssignedItems by remember { mutableStateOf(tabFilterPrefs.paymentSourceFilterAccountId) }
+
+    LaunchedEffect(
+        selectedTab,
+        calculationBasis,
+        accountStatusFilter,
+        paymentSourceSortOption,
+        assignedSectionFilter,
+        assignedStatusFilter,
+        assignedItemSortOption,
+        searchQuery,
+        filterAccountIdForAssignedItems
+    ) {
+        tabFilterPrefs.paymentSourceTab = selectedTab
+        tabFilterPrefs.paymentSourceCalculationBasis = calculationBasis
+        tabFilterPrefs.paymentSourceAccountStatusFilter = accountStatusFilter
+        tabFilterPrefs.paymentSourceSortOption = paymentSourceSortOption
+        tabFilterPrefs.paymentSourceAssignedSectionFilter = assignedSectionFilter
+        tabFilterPrefs.paymentSourceAssignedStatusFilter = assignedStatusFilter
+        tabFilterPrefs.paymentSourceAssignedItemSortOption = assignedItemSortOption
+        tabFilterPrefs.paymentSourceSearchQuery = searchQuery
+        tabFilterPrefs.paymentSourceFilterAccountId = filterAccountIdForAssignedItems
+    }
 
     // Dialogs state
     var showSourceSelectorDialog by remember { mutableStateOf(false) }
@@ -193,7 +221,6 @@ fun PaymentSourceScreen(
     var showSelectExpenseForAccount by remember { mutableStateOf<Account?>(null) }
     var showSelectIncomeForAccount by remember { mutableStateOf<Account?>(null) }
     var showSuggestedTransfersDialog by remember { mutableStateOf(false) }
-    var filterAccountIdForAssignedItems by remember { mutableStateOf<Long?>(null) }
     var transferSuggestionToExecute by remember { mutableStateOf<FundAllocationSuggestion?>(null) }
 
     // Selected payment source account IDs
