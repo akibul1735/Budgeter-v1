@@ -172,9 +172,15 @@ object PaymentSourceCalculator {
             val totalCatRemaining = maxOf(0.0, effectiveCategoryBudget - totalCatActualSpent)
             val catSplits = mutableListOf<CategoryAccountSplit>()
 
-            if (explicitCatAllocs.isNotEmpty()) {
-                val splitCount = explicitCatAllocs.size
-                for (alloc in explicitCatAllocs) {
+            val isExplicitlyUnassigned = explicitCatAllocs.any { it.itemId == 0L }
+
+            if (isExplicitlyUnassigned) {
+                // User explicitly marked this category as having no source account
+                // catSplits remains empty; do not fall back to spent accounts
+            } else if (explicitCatAllocs.isNotEmpty()) {
+                val validExplicitAllocs = explicitCatAllocs.filter { it.itemId > 0L }
+                val splitCount = validExplicitAllocs.size
+                for (alloc in validExplicitAllocs) {
                     val accId = alloc.itemId
                     val acc = validAccountsMap[accId] ?: continue
                     val allocatedAmt = if (splitCount == 1 && effectiveCategoryBudget > 0) {
@@ -217,8 +223,8 @@ object PaymentSourceCalculator {
                     )
                 }
 
-                // Extra spent in other accounts
-                val otherAccsWithSpend = spentByCatAndAcc.keys.filter { it.first == cat.id && explicitCatAllocs.none { a -> a.itemId == it.second } }
+                // Record extra spent in other accounts for account balances, but DO NOT add to catSplits
+                val otherAccsWithSpend = spentByCatAndAcc.keys.filter { it.first == cat.id && validExplicitAllocs.none { a -> a.itemId == it.second } }
                 for ((_, otherAccId) in otherAccsWithSpend) {
                     val otherAcc = validAccountsMap[otherAccId] ?: continue
                     val extraSpent = spentByCatAndAcc[cat.id to otherAccId] ?: 0.0
@@ -238,15 +244,6 @@ object PaymentSourceCalculator {
                                 isMultiAccountSplit = true,
                                 totalCategoryBudget = effectiveCategoryBudget,
                                 splitAccountCount = splitCount + otherAccsWithSpend.size
-                            )
-                        )
-                        catSplits.add(
-                            CategoryAccountSplit(
-                                account = otherAcc,
-                                allocatedAmount = 0.0,
-                                actualSpent = extraSpent,
-                                remaining = 0.0,
-                                percentageOfCategory = 0.0
                             )
                         )
                     }
@@ -433,9 +430,15 @@ object PaymentSourceCalculator {
             val totalCatRemaining = maxOf(0.0, effectiveCategoryBudget - totalCatActualReceived)
             val incSplits = mutableListOf<CategoryAccountSplit>()
 
-            if (explicitCatAllocs.isNotEmpty()) {
-                val splitCount = explicitCatAllocs.size
-                for (alloc in explicitCatAllocs) {
+            val isExplicitlyUnassigned = explicitCatAllocs.any { it.itemId == 0L }
+
+            if (isExplicitlyUnassigned) {
+                // User explicitly marked this income category as having no source account
+                // incSplits remains empty; do not fall back to auto-resolved account
+            } else if (explicitCatAllocs.isNotEmpty()) {
+                val validExplicitAllocs = explicitCatAllocs.filter { it.itemId > 0L }
+                val splitCount = validExplicitAllocs.size
+                for (alloc in validExplicitAllocs) {
                     val accId = alloc.itemId
                     val acc = validAccountsMap[accId] ?: continue
                     val allocatedAmt = if (splitCount == 1 && effectiveCategoryBudget > 0) {
@@ -522,19 +525,18 @@ object PaymentSourceCalculator {
                 }
             }
 
-            if (effectiveCategoryBudget > 0 || totalCatActualReceived > 0 || incSplits.isNotEmpty()) {
-                incomeAllocationsList.add(
-                    CategoryAllocationAnalysis(
-                        category = cat,
-                        totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) effectiveCategoryBudget else totalCatRemaining,
-                        totalBudgeted = effectiveCategoryBudget,
-                        totalActualSpent = totalCatActualReceived,
-                        totalRemaining = totalCatRemaining,
-                        accountSplits = incSplits.sortedByDescending { it.allocatedAmount },
-                        isExpense = false
-                    )
+            // Always include all available income categories so user can view and assign them
+            incomeAllocationsList.add(
+                CategoryAllocationAnalysis(
+                    category = cat,
+                    totalBudgetOrRequired = if (basis == RequirementCalculationBasis.BUDGET_AMOUNT) effectiveCategoryBudget else totalCatRemaining,
+                    totalBudgeted = effectiveCategoryBudget,
+                    totalActualSpent = totalCatActualReceived,
+                    totalRemaining = totalCatRemaining,
+                    accountSplits = incSplits.sortedByDescending { it.allocatedAmount },
+                    isExpense = false
                 )
-            }
+            )
         }
 
         // Recurring Bills (Incomes)
@@ -661,9 +663,14 @@ object PaymentSourceCalculator {
             }
 
             val accSplits = mutableListOf<CategoryAccountSplit>()
+            val isExplicitlyUnassigned = explicitSplits.any { it.itemId == 0L }
 
-            if (explicitSplits.isNotEmpty()) {
-                for (splitEntry in explicitSplits) {
+            if (isExplicitlyUnassigned) {
+                // User explicitly marked this account as having no source account
+                // accSplits remains empty
+            } else if (explicitSplits.isNotEmpty()) {
+                val validSplits = explicitSplits.filter { it.itemId > 0L }
+                for (splitEntry in validSplits) {
                     val srcAcc = validAccountsMap[splitEntry.itemId] ?: continue
                     val allocatedAmt = splitEntry.budgetedAmount
                     val actualSettled = if (isExpense) {
@@ -695,9 +702,9 @@ object PaymentSourceCalculator {
                                     isExpense = true,
                                     iconName = otherAcc.iconName,
                                     colorHex = otherAcc.colorHex,
-                                    isMultiAccountSplit = explicitSplits.size > 1,
+                                    isMultiAccountSplit = validSplits.size > 1,
                                     totalCategoryBudget = effectiveBudget,
-                                    splitAccountCount = explicitSplits.size,
+                                    splitAccountCount = validSplits.size,
                                     isAccountObligation = true,
                                     linkedAccountId = otherAcc.id
                                 )
@@ -714,9 +721,9 @@ object PaymentSourceCalculator {
                                     isExpense = false,
                                     iconName = otherAcc.iconName,
                                     colorHex = otherAcc.colorHex,
-                                    isMultiAccountSplit = explicitSplits.size > 1,
+                                    isMultiAccountSplit = validSplits.size > 1,
                                     totalCategoryBudget = effectiveBudget,
-                                    splitAccountCount = explicitSplits.size,
+                                    splitAccountCount = validSplits.size,
                                     isAccountObligation = true,
                                     linkedAccountId = otherAcc.id
                                 )

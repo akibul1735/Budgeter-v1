@@ -36,6 +36,8 @@ import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
@@ -46,13 +48,16 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material.icons.filled.Today
@@ -65,6 +70,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -82,6 +89,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -163,6 +171,24 @@ private enum class AccountStatusFilter {
     SURPLUS_ONLY
 }
 
+private enum class PaymentSourceSortOption(val titleEn: String, val titleBn: String) {
+    DEFAULT("Default", "ডিফল্ট"),
+    BALANCE_DESC("Highest Balance", "সর্বোচ্চ ব্যালেন্স"),
+    BALANCE_ASC("Lowest Balance", "সর্বনিম্ন ব্যালেন্স"),
+    REQUIRED_DESC("Highest Required", "সর্বোচ্চ প্রয়োজন"),
+    SHORTFALL_DESC("Highest Shortfall", "সর্বোচ্চ ঘাটতি"),
+    NAME_ASC("Name (A to Z)", "নাম (অ-হ / A-Z)")
+}
+
+private enum class AssignedItemSortOption(val titleEn: String, val titleBn: String) {
+    DEFAULT("Default", "ডিফল্ট"),
+    BUDGET_DESC("Highest Budget / Target", "সর্বোচ্চ বাজেট / লক্ষ্য"),
+    BUDGET_ASC("Lowest Budget / Target", "সর্বনিম্ন বাজেট / লক্ষ্য"),
+    REMAINING_DESC("Highest Remaining", "সর্বোচ্চ অবশিষ্ট"),
+    MOST_USED("Most Frequent", "সর্বাধিক ব্যবহৃত"),
+    NAME_ASC("Name (A to Z)", "নাম (অ-হ / A-Z)")
+}
+
 @Composable
 fun PaymentSourceScreen(
     allAccounts: List<Account>,
@@ -192,10 +218,12 @@ fun PaymentSourceScreen(
     var selectedTab by remember { mutableStateOf(MainPaymentSourceTab.PAYMENT_SOURCES) }
     var calculationBasis by remember { mutableStateOf(RequirementCalculationBasis.BUDGET_AMOUNT) }
     var accountStatusFilter by remember { mutableStateOf(AccountStatusFilter.ALL) }
+    var paymentSourceSortOption by remember { mutableStateOf(PaymentSourceSortOption.DEFAULT) }
 
-    // Assigned items tab filters
+    // Assigned items tab filters and sorting
     var assignedSectionFilter by remember { mutableStateOf(AssignedItemSectionFilter.ALL) }
     var assignedStatusFilter by remember { mutableStateOf(AssignedItemStatusFilter.ALL) }
+    var assignedItemSortOption by remember { mutableStateOf(AssignedItemSortOption.DEFAULT) }
     var searchQuery by remember { mutableStateOf("") }
 
     // Dialogs state
@@ -288,38 +316,7 @@ fun PaymentSourceScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChange = { searchQuery = it },
                 showSearchButton = true,
-                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স বা আইটেম খুঁজুন..." else "Search payment sources or items...",
-                actions = {
-                    // Payment Sources Selector Action
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { showSourceSelectorDialog = true }
-                            .testTag("btn_select_payment_sources")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Sources",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = "${analysisOverview.accountAnalyses.size} ${if (languageMode == LanguageMode.BANGLA) "সোর্স" else "Sources"}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
+                searchPlaceholder = if (languageMode == LanguageMode.BANGLA) "পেমেন্ট সোর্স বা আইটেম খুঁজুন..." else "Search payment sources or items..."
             )
 
             // Month Selector Bar
@@ -435,6 +432,8 @@ fun PaymentSourceScreen(
                         searchQuery = searchQuery,
                         accountStatusFilter = accountStatusFilter,
                         onStatusFilterChange = { accountStatusFilter = it },
+                        sortOption = paymentSourceSortOption,
+                        onSortOptionChange = { paymentSourceSortOption = it },
                         onOpenSourceSelector = { showSourceSelectorDialog = true },
                         onOpenSuggestedTransfers = { showSuggestedTransfersDialog = true },
                         onOpenAddObligation = {
@@ -460,10 +459,14 @@ fun PaymentSourceScreen(
                         onClearAccountFilter = { filterAccountIdForAssignedItems = null },
                         onSelectAccountFilter = { filterAccountIdForAssignedItems = it },
                         allPaymentSourceAccounts = analysisOverview.accountAnalyses.map { it.account },
+                        allAccounts = allAccounts,
+                        allCategories = allCategories,
                         sectionFilter = assignedSectionFilter,
                         onSectionFilterChange = { assignedSectionFilter = it },
                         statusFilter = assignedStatusFilter,
                         onStatusFilterChange = { assignedStatusFilter = it },
+                        sortOption = assignedItemSortOption,
+                        onSortOptionChange = { assignedItemSortOption = it },
                         searchQuery = searchQuery,
                         onSearchChange = { searchQuery = it },
                         usageFrequencyMap = categoryUsageFrequencyMap,
@@ -660,6 +663,8 @@ private fun AccountsPaymentSourceTabContent(
     searchQuery: String = "",
     accountStatusFilter: AccountStatusFilter,
     onStatusFilterChange: (AccountStatusFilter) -> Unit,
+    sortOption: PaymentSourceSortOption,
+    onSortOptionChange: (PaymentSourceSortOption) -> Unit,
     onOpenSourceSelector: () -> Unit,
     onOpenSuggestedTransfers: () -> Unit,
     onOpenAddObligation: () -> Unit,
@@ -668,20 +673,30 @@ private fun AccountsPaymentSourceTabContent(
     onAssignItem: (Account) -> Unit,
     onDeleteObligation: (String) -> Unit
 ) {
-    val filteredAccounts = remember(overview.accountAnalyses, accountStatusFilter, searchQuery) {
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    val filteredAccounts = remember(overview.accountAnalyses, accountStatusFilter, searchQuery, sortOption) {
         val byStatus = when (accountStatusFilter) {
             AccountStatusFilter.ALL -> overview.accountAnalyses
             AccountStatusFilter.SHORTFALL_ONLY -> overview.accountAnalyses.filter { it.isShortfall }
             AccountStatusFilter.SURPLUS_ONLY -> overview.accountAnalyses.filter { it.isSurplus }
         }
         val q = searchQuery.trim().lowercase()
-        if (q.isEmpty()) {
+        val list = if (q.isEmpty()) {
             byStatus
         } else {
             byStatus.filter {
                 it.account.nameEn.lowercase().contains(q) ||
                 it.account.nameBn.lowercase().contains(q)
             }
+        }
+        when (sortOption) {
+            PaymentSourceSortOption.DEFAULT -> list
+            PaymentSourceSortOption.BALANCE_DESC -> list.sortedByDescending { it.currentBalance }
+            PaymentSourceSortOption.BALANCE_ASC -> list.sortedBy { it.currentBalance }
+            PaymentSourceSortOption.REQUIRED_DESC -> list.sortedByDescending { it.requiredExpenseAmount }
+            PaymentSourceSortOption.SHORTFALL_DESC -> list.sortedByDescending { it.shortfall }
+            PaymentSourceSortOption.NAME_ASC -> list.sortedBy { it.account.localizedName(languageMode).lowercase() }
         }
     }
 
@@ -868,29 +883,96 @@ private fun AccountsPaymentSourceTabContent(
             }
         }
 
-        // Account Status Filter Chips
+        // Account Status Filter Chips & Sort
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Sort Button with DropdownMenu
+                Box {
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showSortMenu = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (sortOption != PaymentSourceSortOption.DEFAULT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, if (sortOption != PaymentSourceSortOption.DEFAULT) SolidPrimary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sort,
+                                contentDescription = "Sort",
+                                tint = if (sortOption != PaymentSourceSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = if (languageMode == LanguageMode.BANGLA) sortOption.titleBn else sortOption.titleEn,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (sortOption != PaymentSourceSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false }
+                    ) {
+                        PaymentSourceSortOption.values().forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        if (option == sortOption) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                        } else {
+                                            Spacer(modifier = Modifier.size(16.dp))
+                                        }
+                                        Text(
+                                            text = if (languageMode == LanguageMode.BANGLA) option.titleBn else option.titleEn,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (option == sortOption) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (option == sortOption) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    onSortOptionChange(option)
+                                    showSortMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+
                 FilterChip(
                     selected = accountStatusFilter == AccountStatusFilter.ALL,
                     onClick = { onStatusFilterChange(AccountStatusFilter.ALL) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল একাউন্ট (${overview.accountAnalyses.size})" else "All (${overview.accountAnalyses.size})", fontSize = 11.sp) }
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল (${overview.accountAnalyses.size})" else "All (${overview.accountAnalyses.size})", fontSize = 11.sp) }
                 )
                 FilterChip(
                     selected = accountStatusFilter == AccountStatusFilter.SHORTFALL_ONLY,
                     onClick = { onStatusFilterChange(AccountStatusFilter.SHORTFALL_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "ঘাটতিযুক্ত (${overview.accountsNeedingFundsCount})" else "Shortfall (${overview.accountsNeedingFundsCount})", fontSize = 11.sp) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "ঘাটতি (${overview.accountsNeedingFundsCount})" else "Shortfall (${overview.accountsNeedingFundsCount})", fontSize = 11.sp) },
                     leadingIcon = { if (overview.accountsNeedingFundsCount > 0) Icon(Icons.Default.Warning, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(14.dp)) }
                 )
                 FilterChip(
                     selected = accountStatusFilter == AccountStatusFilter.SURPLUS_ONLY,
                     onClick = { onStatusFilterChange(AccountStatusFilter.SURPLUS_ONLY) },
-                    label = { Text(if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্তযুক্ত (${overview.accountsWithSurplusCount})" else "Surplus (${overview.accountsWithSurplusCount})", fontSize = 11.sp) },
+                    label = { Text(if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত (${overview.accountsWithSurplusCount})" else "Surplus (${overview.accountsWithSurplusCount})", fontSize = 11.sp) },
                     leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SolidIncome, modifier = Modifier.size(14.dp)) }
                 )
             }
@@ -929,10 +1011,14 @@ private fun AssignedItemsTabContent(
     onClearAccountFilter: () -> Unit,
     onSelectAccountFilter: (Long) -> Unit,
     allPaymentSourceAccounts: List<Account>,
+    allAccounts: List<Account>,
+    allCategories: List<Category>,
     sectionFilter: AssignedItemSectionFilter,
     onSectionFilterChange: (AssignedItemSectionFilter) -> Unit,
     statusFilter: AssignedItemStatusFilter,
     onStatusFilterChange: (AssignedItemStatusFilter) -> Unit,
+    sortOption: AssignedItemSortOption,
+    onSortOptionChange: (AssignedItemSortOption) -> Unit,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
     usageFrequencyMap: Map<Long, Int>,
@@ -1011,15 +1097,64 @@ private fun AssignedItemsTabContent(
         }
     }
 
+    // Apply Sorting Options
+    val sortedOtherAccounts = remember(filteredOtherAccounts, sortOption) {
+        when (sortOption) {
+            AssignedItemSortOption.DEFAULT -> filteredOtherAccounts
+            AssignedItemSortOption.BUDGET_DESC -> filteredOtherAccounts.sortedByDescending { it.totalBudgeted }
+            AssignedItemSortOption.BUDGET_ASC -> filteredOtherAccounts.sortedBy { it.totalBudgeted }
+            AssignedItemSortOption.REMAINING_DESC -> filteredOtherAccounts.sortedByDescending { it.totalRemaining }
+            AssignedItemSortOption.MOST_USED -> filteredOtherAccounts.sortedByDescending { usageFrequencyMap[it.account.id] ?: 0 }
+            AssignedItemSortOption.NAME_ASC -> filteredOtherAccounts.sortedBy { it.account.nameEn.lowercase() }
+        }
+    }
+
+    val sortedExpenses = remember(filteredExpenses, sortOption) {
+        when (sortOption) {
+            AssignedItemSortOption.DEFAULT -> filteredExpenses
+            AssignedItemSortOption.BUDGET_DESC -> filteredExpenses.sortedByDescending { it.totalBudgeted }
+            AssignedItemSortOption.BUDGET_ASC -> filteredExpenses.sortedBy { it.totalBudgeted }
+            AssignedItemSortOption.REMAINING_DESC -> filteredExpenses.sortedByDescending { it.totalRemaining }
+            AssignedItemSortOption.MOST_USED -> filteredExpenses.sortedByDescending { usageFrequencyMap[it.category.id] ?: 0 }
+            AssignedItemSortOption.NAME_ASC -> filteredExpenses.sortedBy { it.category.nameEn.lowercase() }
+        }
+    }
+
+    val sortedIncomes = remember(filteredIncomes, sortOption) {
+        when (sortOption) {
+            AssignedItemSortOption.DEFAULT -> filteredIncomes
+            AssignedItemSortOption.BUDGET_DESC -> filteredIncomes.sortedByDescending { it.totalBudgeted }
+            AssignedItemSortOption.BUDGET_ASC -> filteredIncomes.sortedBy { it.totalBudgeted }
+            AssignedItemSortOption.REMAINING_DESC -> filteredIncomes.sortedByDescending { it.totalRemaining }
+            AssignedItemSortOption.MOST_USED -> filteredIncomes.sortedByDescending { usageFrequencyMap[it.category.id] ?: 0 }
+            AssignedItemSortOption.NAME_ASC -> filteredIncomes.sortedBy { it.category.nameEn.lowercase() }
+        }
+    }
+
+    val parentAccountMap = remember(allAccounts) { allAccounts.associateBy { it.id } }
+    val parentCategoryMap = remember(allCategories) { allCategories.associateBy { it.id } }
+
     val totalItemsShown = when (sectionFilter) {
-        AssignedItemSectionFilter.ALL -> filteredOtherAccounts.size + filteredExpenses.size + filteredIncomes.size
-        AssignedItemSectionFilter.OTHER_ACCOUNTS -> filteredOtherAccounts.size
-        AssignedItemSectionFilter.EXPENSES -> filteredExpenses.size
-        AssignedItemSectionFilter.INCOMES -> filteredIncomes.size
+        AssignedItemSectionFilter.ALL -> sortedOtherAccounts.size + sortedExpenses.size + sortedIncomes.size
+        AssignedItemSectionFilter.OTHER_ACCOUNTS -> sortedOtherAccounts.size
+        AssignedItemSectionFilter.EXPENSES -> sortedExpenses.size
+        AssignedItemSectionFilter.INCOMES -> sortedIncomes.size
     }
 
     val selectedAccount = remember(selectedAccountId, allPaymentSourceAccounts) {
         allPaymentSourceAccounts.find { it.id == selectedAccountId }
+    }
+
+    val groupedOtherAccounts = remember(sortedOtherAccounts, parentAccountMap) {
+        sortedOtherAccounts.groupBy { it.account.parentId }
+    }
+
+    val groupedExpenses = remember(sortedExpenses, parentCategoryMap) {
+        sortedExpenses.groupBy { it.category.parentId }
+    }
+
+    val groupedIncomes = remember(sortedIncomes, parentCategoryMap) {
+        sortedIncomes.groupBy { it.category.parentId }
     }
 
     LazyColumn(
@@ -1181,13 +1316,82 @@ private fun AssignedItemsTabContent(
                     )
                 }
 
-                // 4. Status / Sort Micro-Chips Row
+                // 4. Status & Sort Micro-Chips Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    var showSortMenu by remember { mutableStateOf(false) }
+
+                    // Sorting Option Dropdown Button
+                    Box {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showSortMenu = true },
+                            color = if (sortOption != AssignedItemSortOption.DEFAULT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, if (sortOption != AssignedItemSortOption.DEFAULT) SolidPrimary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sort,
+                                    contentDescription = "Sort",
+                                    tint = if (sortOption != AssignedItemSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (languageMode == LanguageMode.BANGLA) sortOption.titleBn else sortOption.titleEn,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (sortOption != AssignedItemSortOption.DEFAULT) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            AssignedItemSortOption.values().forEach { option ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            if (option == sortOption) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                            } else {
+                                                Spacer(modifier = Modifier.size(16.dp))
+                                            }
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) option.titleBn else option.titleEn,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (option == sortOption) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (option == sortOption) SolidPrimary else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        onSortOptionChange(option)
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     CompactAssignedFilterChip(
                         selected = statusFilter == AssignedItemStatusFilter.ALL,
                         onClick = { onStatusFilterChange(AssignedItemStatusFilter.ALL) },
@@ -1247,74 +1451,197 @@ private fun AssignedItemsTabContent(
             }
         }
 
-        // 4. Section: Other Accounts
-        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) && filteredOtherAccounts.isNotEmpty()) {
+        // 4. Section: Other Accounts (Grouped by original Account Group)
+        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.OTHER_ACCOUNTS) && sortedOtherAccounts.isNotEmpty()) {
             if (sectionFilter == AssignedItemSectionFilter.ALL) {
                 item {
                     SectionHeader(
                         title = if (languageMode == LanguageMode.BANGLA) "অন্যান্য অ্যাকাউন্ট (ব্যক্তি / ঋণ / দেনা)" else "Other Accounts (Persons, Loans, Liabilities)",
-                        count = filteredOtherAccounts.size,
+                        count = sortedOtherAccounts.size,
                         icon = Icons.Default.People,
                         color = SolidTransfer
                     )
                 }
             }
 
-            items(filteredOtherAccounts, key = { "other_acc_${it.account.id}" }) { otherAccAlloc ->
-                OtherAccountAllocationCard(
-                    allocation = otherAccAlloc,
-                    languageMode = languageMode,
-                    onOpenSplit = { onOpenOtherAccountSplitDialog(otherAccAlloc) },
-                    onAddTransaction = {
-                        val txType = if (otherAccAlloc.isExpense) TransactionType.EXPENSE else TransactionType.INCOME
-                        onAddTransactionWithAccount(otherAccAlloc.account.id, txType)
-                    }
-                )
+            groupedOtherAccounts.forEach { (parentId, itemsInGroup) ->
+                val parentAccount = parentId?.let { parentAccountMap[it] }
+                val groupTitle = parentAccount?.localizedName(languageMode)
+                    ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ অ্যাকাউন্ট" else "General Accounts"
+                val groupIcon = parentAccount?.iconName ?: "account_balance"
+
+                item(key = "hdr_other_acc_group_${parentId ?: -1L}") {
+                    ItemGroupHeader(
+                        title = groupTitle,
+                        count = itemsInGroup.size,
+                        iconName = groupIcon,
+                        color = SolidTransfer
+                    )
+                }
+
+                items(itemsInGroup, key = { "other_acc_${it.account.id}" }) { otherAccAlloc ->
+                    OtherAccountAllocationCard(
+                        allocation = otherAccAlloc,
+                        languageMode = languageMode,
+                        onOpenSplit = { onOpenOtherAccountSplitDialog(otherAccAlloc) },
+                        onAddTransaction = {
+                            val txType = if (otherAccAlloc.isExpense) TransactionType.EXPENSE else TransactionType.INCOME
+                            onAddTransactionWithAccount(otherAccAlloc.account.id, txType)
+                        }
+                    )
+                }
             }
         }
 
-        // 5. Section: Expense Categories
-        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.EXPENSES) && filteredExpenses.isNotEmpty()) {
+        // 5. Section: Expense Categories (Grouped by original Category Group)
+        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.EXPENSES) && sortedExpenses.isNotEmpty()) {
             if (sectionFilter == AssignedItemSectionFilter.ALL) {
                 item {
                     SectionHeader(
                         title = if (languageMode == LanguageMode.BANGLA) "ব্যয় ক্যাটাগরি" else "Expense Categories",
-                        count = filteredExpenses.size,
+                        count = sortedExpenses.size,
                         icon = Icons.Default.MonetizationOn,
                         color = SolidExpense
                     )
                 }
             }
 
-            items(filteredExpenses, key = { "expense_${it.category.id}" }) { catAlloc ->
-                CategoryAllocationCard(
-                    allocation = catAlloc,
-                    isExpense = true,
-                    languageMode = languageMode,
-                    onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
-                )
+            groupedExpenses.forEach { (parentId, itemsInGroup) ->
+                val parentCat = parentId?.let { parentCategoryMap[it] }
+                val groupTitle = parentCat?.localizedName(languageMode)
+                    ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ ব্যয়" else "General Expenses"
+                val groupIcon = parentCat?.iconName ?: "category"
+                val groupColor = try {
+                    Color(android.graphics.Color.parseColor(parentCat?.colorHex))
+                } catch (e: Exception) {
+                    SolidExpense
+                }
+
+                item(key = "hdr_expense_group_${parentId ?: -1L}") {
+                    ItemGroupHeader(
+                        title = groupTitle,
+                        count = itemsInGroup.size,
+                        iconName = groupIcon,
+                        color = groupColor
+                    )
+                }
+
+                items(itemsInGroup, key = { "expense_${it.category.id}" }) { catAlloc ->
+                    CategoryAllocationCard(
+                        allocation = catAlloc,
+                        isExpense = true,
+                        languageMode = languageMode,
+                        onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
+                    )
+                }
             }
         }
 
-        // 6. Section: Income Categories
-        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.INCOMES) && filteredIncomes.isNotEmpty()) {
+        // 6. Section: Income Categories (Grouped by original Category Group)
+        if ((sectionFilter == AssignedItemSectionFilter.ALL || sectionFilter == AssignedItemSectionFilter.INCOMES) && sortedIncomes.isNotEmpty()) {
             if (sectionFilter == AssignedItemSectionFilter.ALL) {
                 item {
                     SectionHeader(
                         title = if (languageMode == LanguageMode.BANGLA) "আয় ক্যাটাগরি" else "Income Categories",
-                        count = filteredIncomes.size,
+                        count = sortedIncomes.size,
                         icon = Icons.Default.Category,
                         color = SolidIncome
                     )
                 }
             }
 
-            items(filteredIncomes, key = { "income_${it.category.id}" }) { catAlloc ->
-                CategoryAllocationCard(
-                    allocation = catAlloc,
-                    isExpense = false,
-                    languageMode = languageMode,
-                    onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
+            groupedIncomes.forEach { (parentId, itemsInGroup) ->
+                val parentCat = parentId?.let { parentCategoryMap[it] }
+                val groupTitle = parentCat?.localizedName(languageMode)
+                    ?: if (languageMode == LanguageMode.BANGLA) "সাধারণ আয়" else "General Income"
+                val groupIcon = parentCat?.iconName ?: "payments"
+                val groupColor = try {
+                    Color(android.graphics.Color.parseColor(parentCat?.colorHex))
+                } catch (e: Exception) {
+                    SolidIncome
+                }
+
+                item(key = "hdr_income_group_${parentId ?: -1L}") {
+                    ItemGroupHeader(
+                        title = groupTitle,
+                        count = itemsInGroup.size,
+                        iconName = groupIcon,
+                        color = groupColor
+                    )
+                }
+
+                items(itemsInGroup, key = { "income_${it.category.id}" }) { catAlloc ->
+                    CategoryAllocationCard(
+                        allocation = catAlloc,
+                        isExpense = false,
+                        languageMode = languageMode,
+                        onOpenSplit = { onOpenCategorySplitDialog(catAlloc) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ItemGroupHeader(
+    title: String,
+    count: Int,
+    iconName: String,
+    color: Color
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val isImg = IconHelper.isDrawableIcon(iconName) || IconHelper.isCustomIcon(iconName)
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(if (isImg) Color.Transparent else color.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconHelper.AppIcon(
+                        iconName = iconName,
+                        contentDescription = null,
+                        tint = color,
+                        modifier = Modifier.size(if (isImg) 22.dp else 13.dp)
+                    )
+                }
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = color.copy(alpha = 0.12f)
+            ) {
+                Text(
+                    text = "$count",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = color,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
         }
@@ -1442,6 +1769,75 @@ private fun OtherAccountAllocationCard(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
+
+                        // Accounts Icon Row Preview
+                        if (allocation.accountSplits.isNotEmpty()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(top = 3.dp)
+                            ) {
+                                allocation.accountSplits.forEach { split ->
+                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                        border = BorderStroke(0.5.dp, SolidPrimary.copy(alpha = 0.3f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (isSplitImg) Color.Transparent else SolidPrimary.copy(alpha = 0.15f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                IconHelper.AppIcon(
+                                                    iconName = split.account.iconName,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(if (isSplitImg) 14.dp else 10.dp)
+                                                )
+                                            }
+                                            Text(
+                                                text = split.account.localizedName(languageMode),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                modifier = Modifier.padding(top = 3.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Block,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নির্ধারিত নেই" else "No source account",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1500,13 +1896,22 @@ private fun OtherAccountAllocationCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(split.account.iconName),
-                                        contentDescription = null,
-                                        tint = SolidPrimary,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isSplitImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        IconHelper.AppIcon(
+                                            iconName = split.account.iconName,
+                                            contentDescription = null,
+                                            tint = SolidPrimary,
+                                            modifier = Modifier.size(if (isSplitImg) 16.dp else 12.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     Text(
                                         text = split.account.localizedName(languageMode),
                                         fontSize = 11.sp,
@@ -1886,6 +2291,75 @@ private fun CategoryAllocationCard(
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        // Accounts Icon Row Preview
+                        if (allocation.accountSplits.isNotEmpty()) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(top = 3.dp)
+                            ) {
+                                allocation.accountSplits.forEach { split ->
+                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                        border = BorderStroke(0.5.dp, SolidPrimary.copy(alpha = 0.3f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (isSplitImg) Color.Transparent else SolidPrimary.copy(alpha = 0.15f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                IconHelper.AppIcon(
+                                                    iconName = split.account.iconName,
+                                                    contentDescription = null,
+                                                    tint = SolidPrimary,
+                                                    modifier = Modifier.size(if (isSplitImg) 14.dp else 10.dp)
+                                                )
+                                            }
+                                            Text(
+                                                text = split.account.localizedName(languageMode),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                                modifier = Modifier.padding(top = 3.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Block,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Text(
+                                        text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নির্ধারিত নেই" else "No source account",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1944,13 +2418,22 @@ private fun CategoryAllocationCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = IconHelper.getIconByName(split.account.iconName),
-                                        contentDescription = null,
-                                        tint = SolidPrimary,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isSplitImg) Color.Transparent else SolidPrimary.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        IconHelper.AppIcon(
+                                            iconName = split.account.iconName,
+                                            contentDescription = null,
+                                            tint = SolidPrimary,
+                                            modifier = Modifier.size(if (isSplitImg) 16.dp else 12.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     Text(
                                         text = split.account.localizedName(languageMode),
                                         fontSize = 11.sp,
@@ -2253,6 +2736,79 @@ private fun CategoryAccountSplitDialog(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        // Option for No Source Account (Unassigned)
+                        item {
+                            val isNoneSelected = selectedSingleAccountId == 0L
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { selectedSingleAccountId = 0L },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isNoneSelected) SolidExpense.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isNoneSelected) SolidExpense else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isNoneSelected) SolidExpense.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Block,
+                                                contentDescription = null,
+                                                tint = if (isNoneSelected) SolidExpense else MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নেই (আনঅ্যাসাইন)" else "No Source Account (Unassigned)",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isNoneSelected) SolidExpense else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "এই ক্যাটাগরিতে কোনো সোর্স অ্যাকাউন্ট নির্ধারিত থাকবে না" else "No payment source account will be assigned",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+
+                                    if (isNoneSelected) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = SolidExpense,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         items(paymentSourceAccounts, key = { it.id }) { acc ->
                             val isSelected = acc.id == selectedSingleAccountId
                             val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
@@ -2553,42 +3109,66 @@ private fun CategoryAccountSplitDialog(
                 // Bottom Action Buttons (Cancel & Save)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel", fontSize = 12.sp)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    TextButton(
                         onClick = {
-                            val currBudget = getEffectiveBudget()
-                            if (assignmentMode == 0) {
-                                // Single Source mode: 100% to selected account
-                                val targetAccId = selectedSingleAccountId
-                                if (targetAccId > 0) {
-                                    val amount = if (currBudget > 0.0) currBudget else 0.001
-                                    onSave(mapOf(targetAccId to amount))
-                                }
-                            } else {
-                                // Multi-split mode
-                                val resultMap = mutableMapOf<Long, Double>()
-                                allocMap.forEach { (accId, amtStr) ->
-                                    val amt = amtStr.toDoubleOrNull() ?: 0.0
-                                    resultMap[accId] = if (amt > 0.0) amt else 0.001
-                                }
-                                onSave(resultMap)
-                            }
+                            onSave(mapOf(0L to 0.0))
                         },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                     ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দ সংরক্ষণ" else "Assign & Save", fontSize = 12.sp)
+                        Icon(Icons.Default.LinkOff, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সোর্স সরান" else "Unassign",
+                            fontSize = 12.sp,
+                            color = SolidExpense,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel", fontSize = 12.sp)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val currBudget = getEffectiveBudget()
+                                if (assignmentMode == 0) {
+                                    // Single Source mode: 100% to selected account or unassigned
+                                    val targetAccId = selectedSingleAccountId
+                                    if (targetAccId == 0L) {
+                                        onSave(mapOf(0L to 0.0))
+                                    } else {
+                                        val amount = if (currBudget > 0.0) currBudget else 0.001
+                                        onSave(mapOf(targetAccId to amount))
+                                    }
+                                } else {
+                                    // Multi-split mode
+                                    val resultMap = mutableMapOf<Long, Double>()
+                                    allocMap.forEach { (accId, amtStr) ->
+                                        val amt = amtStr.toDoubleOrNull() ?: 0.0
+                                        if (amt > 0.0) resultMap[accId] = amt
+                                    }
+                                    if (resultMap.isEmpty()) {
+                                        onSave(mapOf(0L to 0.0))
+                                    } else {
+                                        onSave(resultMap)
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
+                        ) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দ সংরক্ষণ" else "Assign & Save", fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -2795,6 +3375,79 @@ private fun OtherAccountSplitDialog(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        // Option for No Source Account (Unassigned)
+                        item {
+                            val isNoneSelected = selectedSingleAccountId == 0L
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { selectedSingleAccountId = 0L },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isNoneSelected) SolidExpense.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isNoneSelected) SolidExpense else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isNoneSelected) SolidExpense.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Block,
+                                                contentDescription = null,
+                                                tint = if (isNoneSelected) SolidExpense else MaterialTheme.colorScheme.outline,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নেই (আনঅ্যাসাইন)" else "No Source Account (Unassigned)",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isNoneSelected) SolidExpense else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = if (languageMode == LanguageMode.BANGLA) "এই একাউন্টে কোনো সোর্স অ্যাকাউন্ট নির্ধারিত থাকবে না" else "No payment source account will be assigned",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
+                                    }
+
+                                    if (isNoneSelected) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = SolidExpense,
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         items(paymentSourceAccounts, key = { it.id }) { acc ->
                             val isSelected = acc.id == selectedSingleAccountId
                             val isImg = IconHelper.isDrawableIcon(acc.iconName) || IconHelper.isCustomIcon(acc.iconName)
@@ -3092,42 +3745,69 @@ private fun OtherAccountSplitDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Bottom Action Buttons (Cancel & Save)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel", fontSize = 12.sp)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    TextButton(
                         onClick = {
-                            val currBudget = getEffectiveBudget()
-                            if (assignmentMode == 0) {
-                                val targetAccId = selectedSingleAccountId
-                                if (targetAccId > 0) {
-                                    val amount = if (currBudget > 0.0) currBudget else 0.001
-                                    onSave(mapOf(targetAccId to amount))
-                                }
-                            } else {
-                                val resultMap = mutableMapOf<Long, Double>()
-                                allocMap.forEach { (accId, amtStr) ->
-                                    val amt = amtStr.toDoubleOrNull() ?: 0.0
-                                    resultMap[accId] = if (amt > 0.0) amt else 0.001
-                                }
-                                onSave(resultMap)
-                            }
+                            onSave(mapOf(0L to 0.0))
                         },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
-                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                     ) {
-                        Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দ সংরক্ষণ" else "Assign & Save", fontSize = 12.sp)
+                        Icon(Icons.Default.LinkOff, contentDescription = null, tint = SolidExpense, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (languageMode == LanguageMode.BANGLA) "সোর্স সরান" else "Unassign",
+                            fontSize = 12.sp,
+                            color = SolidExpense,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel", fontSize = 12.sp)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val currBudget = getEffectiveBudget()
+                                if (assignmentMode == 0) {
+                                    // Single Source mode: 100% to selected account or unassigned
+                                    val targetAccId = selectedSingleAccountId
+                                    if (targetAccId == 0L) {
+                                        onSave(mapOf(0L to 0.0))
+                                    } else {
+                                        val amount = if (currBudget > 0.0) currBudget else 0.001
+                                        onSave(mapOf(targetAccId to amount))
+                                    }
+                                } else {
+                                    // Multi-split mode
+                                    val resultMap = mutableMapOf<Long, Double>()
+                                    allocMap.forEach { (accId, amtStr) ->
+                                        val amt = amtStr.toDoubleOrNull() ?: 0.0
+                                        if (amt > 0.0) resultMap[accId] = amt
+                                    }
+                                    if (resultMap.isEmpty()) {
+                                        onSave(mapOf(0L to 0.0))
+                                    } else {
+                                        onSave(resultMap)
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SolidPrimary),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
+                        ) {
+                            Text(if (languageMode == LanguageMode.BANGLA) "বরাদ্দ সংরক্ষণ" else "Assign & Save", fontSize = 12.sp)
+                        }
                     }
                 }
             }
