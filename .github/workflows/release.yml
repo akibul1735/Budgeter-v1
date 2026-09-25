@@ -2,6 +2,8 @@ name: Publish Budgeter Release
 
 on:
   push:
+    branches:
+      - '**'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -31,6 +33,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Extract App Version
+        id: get_version
+        run: |
+          VERSION=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -n 1 | cut -d'"' -f2)
+          if [ -z "$VERSION" ]; then
+            VERSION="1.0.0"
+          fi
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
@@ -43,7 +57,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Budgeter-release
-          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          tag_name: ${{ inputs.tag_name || (github.ref_type == 'tag' && github.ref_name) || steps.get_version.outputs.tag }}
           files: release-artifacts/Budgeter-release.apk
           generate_release_notes: true
         env:
