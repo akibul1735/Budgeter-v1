@@ -69,11 +69,18 @@ class TabFilterPreferences private constructor(context: Context) {
             prefs.edit().putString(KEY_LEDGER_SEARCH, value).apply()
         }
 
-    var ledgerTypeFilter: TransactionType? = prefs.getString(KEY_LEDGER_TYPE, null)?.let {
-        try { TransactionType.valueOf(it) } catch (_: Exception) { null }
-    }
+    var ledgerTypeFilters: Set<TransactionType> = deserializeTransactionTypes(prefs.getString(KEY_LEDGER_TYPE_SET, null))
         set(value) {
             field = value
+            prefs.edit().putString(KEY_LEDGER_TYPE_SET, serializeTransactionTypes(value)).apply()
+        }
+
+    var ledgerTypeFilter: TransactionType?
+        get() = ledgerTypeFilters.firstOrNull() ?: prefs.getString(KEY_LEDGER_TYPE, null)?.let {
+            try { TransactionType.valueOf(it) } catch (_: Exception) { null }
+        }
+        set(value) {
+            ledgerTypeFilters = if (value != null) setOf(value) else emptySet()
             if (value != null) prefs.edit().putString(KEY_LEDGER_TYPE, value.name).apply()
             else prefs.edit().remove(KEY_LEDGER_TYPE).apply()
         }
@@ -112,32 +119,60 @@ class TabFilterPreferences private constructor(context: Context) {
             prefs.edit().putLong(KEY_LEDGER_MAX_AMOUNT, java.lang.Double.doubleToRawLongBits(value)).apply()
         }
 
-    var ledgerCategoryId: Long? = if (prefs.contains(KEY_LEDGER_CAT_ID)) prefs.getLong(KEY_LEDGER_CAT_ID, -1L).takeIf { it != -1L } else null
+    var ledgerCategoryIds: Set<Long> = deserializeLongSet(prefs.getString(KEY_LEDGER_CAT_IDS, null))
         set(value) {
             field = value
+            prefs.edit().putString(KEY_LEDGER_CAT_IDS, serializeLongSet(value)).apply()
+        }
+
+    var ledgerCategoryId: Long?
+        get() = ledgerCategoryIds.firstOrNull() ?: if (prefs.contains(KEY_LEDGER_CAT_ID)) prefs.getLong(KEY_LEDGER_CAT_ID, -1L).takeIf { it != -1L } else null
+        set(value) {
+            ledgerCategoryIds = if (value != null) setOf(value) else emptySet()
             if (value != null) prefs.edit().putLong(KEY_LEDGER_CAT_ID, value).apply()
             else prefs.edit().remove(KEY_LEDGER_CAT_ID).apply()
         }
 
-    var ledgerAccountId: Long? = if (prefs.contains(KEY_LEDGER_ACC_ID)) prefs.getLong(KEY_LEDGER_ACC_ID, -1L).takeIf { it != -1L } else null
+    var ledgerAccountIds: Set<Long> = deserializeLongSet(prefs.getString(KEY_LEDGER_ACC_IDS, null))
         set(value) {
             field = value
+            prefs.edit().putString(KEY_LEDGER_ACC_IDS, serializeLongSet(value)).apply()
+        }
+
+    var ledgerAccountId: Long?
+        get() = ledgerAccountIds.firstOrNull() ?: if (prefs.contains(KEY_LEDGER_ACC_ID)) prefs.getLong(KEY_LEDGER_ACC_ID, -1L).takeIf { it != -1L } else null
+        set(value) {
+            ledgerAccountIds = if (value != null) setOf(value) else emptySet()
             if (value != null) prefs.edit().putLong(KEY_LEDGER_ACC_ID, value).apply()
             else prefs.edit().remove(KEY_LEDGER_ACC_ID).apply()
         }
 
-    var ledgerLabel: String? = prefs.getString(KEY_LEDGER_LABEL, null)
+    var ledgerLabels: Set<String> = deserializeStringSet(prefs.getString(KEY_LEDGER_LABELS, null))
         set(value) {
             field = value
+            prefs.edit().putString(KEY_LEDGER_LABELS, serializeStringSet(value)).apply()
+        }
+
+    var ledgerLabel: String?
+        get() = ledgerLabels.firstOrNull() ?: prefs.getString(KEY_LEDGER_LABEL, null)
+        set(value) {
+            ledgerLabels = if (value != null) setOf(value) else emptySet()
             if (value != null) prefs.edit().putString(KEY_LEDGER_LABEL, value).apply()
             else prefs.edit().remove(KEY_LEDGER_LABEL).apply()
         }
 
-    var ledgerStatus: TransactionStatus? = prefs.getString(KEY_LEDGER_STATUS, null)?.let {
-        try { TransactionStatus.valueOf(it) } catch (_: Exception) { null }
-    }
+    var ledgerStatuses: Set<TransactionStatus> = deserializeTransactionStatuses(prefs.getString(KEY_LEDGER_STATUSES, null))
         set(value) {
             field = value
+            prefs.edit().putString(KEY_LEDGER_STATUSES, serializeTransactionStatuses(value)).apply()
+        }
+
+    var ledgerStatus: TransactionStatus?
+        get() = ledgerStatuses.firstOrNull() ?: prefs.getString(KEY_LEDGER_STATUS, null)?.let {
+            try { TransactionStatus.valueOf(it) } catch (_: Exception) { null }
+        }
+        set(value) {
+            ledgerStatuses = if (value != null) setOf(value) else emptySet()
             if (value != null) prefs.edit().putString(KEY_LEDGER_STATUS, value.name).apply()
             else prefs.edit().remove(KEY_LEDGER_STATUS).apply()
         }
@@ -1058,18 +1093,104 @@ class TabFilterPreferences private constructor(context: Context) {
         }
     }
 
+    private fun serializeTransactionTypes(types: Set<TransactionType>): String {
+        val arr = JSONArray()
+        types.forEach { arr.put(it.name) }
+        return arr.toString()
+    }
+
+    private fun deserializeTransactionTypes(json: String?): Set<TransactionType> {
+        if (json.isNullOrBlank()) return emptySet()
+        return try {
+            val arr = JSONArray(json)
+            val set = mutableSetOf<TransactionType>()
+            for (i in 0 until arr.length()) {
+                try { set.add(TransactionType.valueOf(arr.getString(i))) } catch (_: Exception) {}
+            }
+            set
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    private fun serializeLongSet(set: Set<Long>): String {
+        val arr = JSONArray()
+        set.forEach { arr.put(it) }
+        return arr.toString()
+    }
+
+    private fun deserializeLongSet(json: String?): Set<Long> {
+        if (json.isNullOrBlank()) return emptySet()
+        return try {
+            val arr = JSONArray(json)
+            val set = mutableSetOf<Long>()
+            for (i in 0 until arr.length()) {
+                set.add(arr.getLong(i))
+            }
+            set
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    private fun serializeStringSet(set: Set<String>): String {
+        val arr = JSONArray()
+        set.forEach { arr.put(it) }
+        return arr.toString()
+    }
+
+    private fun deserializeStringSet(json: String?): Set<String> {
+        if (json.isNullOrBlank()) return emptySet()
+        return try {
+            val arr = JSONArray(json)
+            val set = mutableSetOf<String>()
+            for (i in 0 until arr.length()) {
+                val str = arr.getString(i)
+                if (str.isNotBlank()) set.add(str)
+            }
+            set
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    private fun serializeTransactionStatuses(statuses: Set<TransactionStatus>): String {
+        val arr = JSONArray()
+        statuses.forEach { arr.put(it.name) }
+        return arr.toString()
+    }
+
+    private fun deserializeTransactionStatuses(json: String?): Set<TransactionStatus> {
+        if (json.isNullOrBlank()) return emptySet()
+        return try {
+            val arr = JSONArray(json)
+            val set = mutableSetOf<TransactionStatus>()
+            for (i in 0 until arr.length()) {
+                try { set.add(TransactionStatus.valueOf(arr.getString(i))) } catch (_: Exception) {}
+            }
+            set
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
     companion object {
         private const val KEY_LEDGER_SEARCH = "ledger_search"
         private const val KEY_LEDGER_TYPE = "ledger_type"
+        private const val KEY_LEDGER_TYPE_SET = "ledger_type_set"
         private const val KEY_LEDGER_DATE_PRESET = "ledger_date_preset"
         private const val KEY_LEDGER_CUSTOM_START = "ledger_custom_start"
         private const val KEY_LEDGER_CUSTOM_END = "ledger_custom_end"
         private const val KEY_LEDGER_MIN_AMOUNT = "ledger_min_amount"
         private const val KEY_LEDGER_MAX_AMOUNT = "ledger_max_amount"
         private const val KEY_LEDGER_CAT_ID = "ledger_cat_id"
+        private const val KEY_LEDGER_CAT_IDS = "ledger_cat_ids"
         private const val KEY_LEDGER_ACC_ID = "ledger_acc_id"
+        private const val KEY_LEDGER_ACC_IDS = "ledger_acc_ids"
         private const val KEY_LEDGER_LABEL = "ledger_label"
+        private const val KEY_LEDGER_LABELS = "ledger_labels"
         private const val KEY_LEDGER_STATUS = "ledger_status"
+        private const val KEY_LEDGER_STATUSES = "ledger_statuses"
         private const val KEY_LEDGER_ROW_STYLE = "ledger_row_style"
         private const val KEY_LEDGER_SHOW_TOTAL_AMOUNT = "ledger_show_total_amount"
         private const val KEY_LEDGER_SHOW_TRANSFERS_TOTAL = "ledger_show_transfers_total"

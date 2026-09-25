@@ -61,6 +61,8 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -211,24 +213,31 @@ data class TransactionFilterState(
     val datePreset: LedgerDatePreset = LedgerDatePreset.LAST_12_MONTHS,
     val startDateMs: Long = 0L,
     val endDateMs: Long = System.currentTimeMillis(),
-    val transactionType: TransactionType? = null,
-    val categoryId: Long? = null,
-    val accountId: Long? = null,
-    val label: String? = null,
-    val status: TransactionStatus? = null,
+    val transactionTypes: Set<TransactionType> = emptySet(),
+    val categoryIds: Set<Long> = emptySet(),
+    val accountIds: Set<Long> = emptySet(),
+    val labels: Set<String> = emptySet(),
+    val statuses: Set<TransactionStatus> = emptySet(),
     val rowStyle: LedgerRowStyle = LedgerRowStyle.STANDARD,
     val displaySettings: TransactionDisplaySettings = TransactionDisplaySettings()
 ) {
+    // Backward compatibility helper properties
+    val transactionType: TransactionType? get() = transactionTypes.firstOrNull()
+    val categoryId: Long? get() = categoryIds.firstOrNull()
+    val accountId: Long? get() = accountIds.firstOrNull()
+    val label: String? get() = labels.firstOrNull()
+    val status: TransactionStatus? get() = statuses.firstOrNull()
+
     fun activeFilterCount(): Int {
         var count = 0
         if (searchQuery.isNotBlank()) count++
         if ((minAmount != null && minAmount > 0) || (maxAmount != null && maxAmount > 0)) count++
         if (datePreset != LedgerDatePreset.LAST_12_MONTHS) count++
-        if (transactionType != null) count++
-        if (categoryId != null) count++
-        if (accountId != null) count++
-        if (!label.isNullOrBlank()) count++
-        if (status != null) count++
+        if (transactionTypes.isNotEmpty()) count += transactionTypes.size
+        if (categoryIds.isNotEmpty()) count += categoryIds.size
+        if (accountIds.isNotEmpty()) count += accountIds.size
+        if (labels.isNotEmpty()) count += labels.size
+        if (statuses.isNotEmpty()) count += statuses.size
         return count
     }
 }
@@ -264,11 +273,27 @@ object TransactionFilterPresetsStorage {
                     put("datePreset", p.state.datePreset.name)
                     put("startDateMs", p.state.startDateMs)
                     put("endDateMs", p.state.endDateMs)
-                    put("transactionType", p.state.transactionType?.name ?: "")
-                    put("categoryId", p.state.categoryId ?: -1L)
-                    put("accountId", p.state.accountId ?: -1L)
-                    put("label", p.state.label ?: "")
-                    put("status", p.state.status?.name ?: "")
+                    
+                    val typesArr = JSONArray()
+                    p.state.transactionTypes.forEach { typesArr.put(it.name) }
+                    put("transactionTypes", typesArr)
+
+                    val catsArr = JSONArray()
+                    p.state.categoryIds.forEach { catsArr.put(it) }
+                    put("categoryIds", catsArr)
+
+                    val accsArr = JSONArray()
+                    p.state.accountIds.forEach { accsArr.put(it) }
+                    put("accountIds", accsArr)
+
+                    val labelsArr = JSONArray()
+                    p.state.labels.forEach { labelsArr.put(it) }
+                    put("labels", labelsArr)
+
+                    val statusesArr = JSONArray()
+                    p.state.statuses.forEach { statusesArr.put(it.name) }
+                    put("statuses", statusesArr)
+
                     put("rowStyle", p.state.rowStyle.name)
                     put("showTotalAmount", p.state.displaySettings.showTotalAmount)
                     put("showTransfersInTotal", p.state.displaySettings.showTransfersInTotal)
@@ -303,12 +328,63 @@ object TransactionFilterPresetsStorage {
                     LedgerDatePreset.LAST_12_MONTHS
                 }
 
-                val txType = obj.optString("transactionType").takeIf { it.isNotBlank() }?.let {
-                    try { TransactionType.valueOf(it) } catch (_: Exception) { null }
+                val typesSet = mutableSetOf<TransactionType>()
+                val typesJsonArr = obj.optJSONArray("transactionTypes")
+                if (typesJsonArr != null) {
+                    for (j in 0 until typesJsonArr.length()) {
+                        try { typesSet.add(TransactionType.valueOf(typesJsonArr.getString(j))) } catch (_: Exception) {}
+                    }
+                } else {
+                    obj.optString("transactionType").takeIf { it.isNotBlank() }?.let {
+                        try { typesSet.add(TransactionType.valueOf(it)) } catch (_: Exception) {}
+                    }
                 }
 
-                val status = obj.optString("status").takeIf { it.isNotBlank() }?.let {
-                    try { TransactionStatus.valueOf(it) } catch (_: Exception) { null }
+                val catsSet = mutableSetOf<Long>()
+                val catsJsonArr = obj.optJSONArray("categoryIds")
+                if (catsJsonArr != null) {
+                    for (j in 0 until catsJsonArr.length()) {
+                        catsSet.add(catsJsonArr.getLong(j))
+                    }
+                } else {
+                    val catId = obj.optLong("categoryId", -1L).takeIf { it != -1L }
+                    if (catId != null) catsSet.add(catId)
+                }
+
+                val accsSet = mutableSetOf<Long>()
+                val accsJsonArr = obj.optJSONArray("accountIds")
+                if (accsJsonArr != null) {
+                    for (j in 0 until accsJsonArr.length()) {
+                        accsSet.add(accsJsonArr.getLong(j))
+                    }
+                } else {
+                    val accId = obj.optLong("accountId", -1L).takeIf { it != -1L }
+                    if (accId != null) accsSet.add(accId)
+                }
+
+                val labelsSet = mutableSetOf<String>()
+                val labelsJsonArr = obj.optJSONArray("labels")
+                if (labelsJsonArr != null) {
+                    for (j in 0 until labelsJsonArr.length()) {
+                        val lbl = labelsJsonArr.getString(j)
+                        if (lbl.isNotBlank()) labelsSet.add(lbl)
+                    }
+                } else {
+                    val lbl = obj.optString("label").takeIf { it.isNotBlank() }
+                    if (lbl != null) labelsSet.add(lbl)
+                }
+
+                val statusesSet = mutableSetOf<TransactionStatus>()
+                val statusesJsonArr = obj.optJSONArray("statuses")
+                if (statusesJsonArr != null) {
+                    for (j in 0 until statusesJsonArr.length()) {
+                        try { statusesSet.add(TransactionStatus.valueOf(statusesJsonArr.getString(j))) } catch (_: Exception) {}
+                    }
+                } else {
+                    val status = obj.optString("status").takeIf { it.isNotBlank() }?.let {
+                        try { TransactionStatus.valueOf(it) } catch (_: Exception) { null }
+                    }
+                    if (status != null) statusesSet.add(status)
                 }
 
                 val rowStyle = try {
@@ -319,9 +395,6 @@ object TransactionFilterPresetsStorage {
 
                 val minAmt = obj.optDouble("minAmount", -1.0).takeIf { it >= 0.0 }
                 val maxAmt = obj.optDouble("maxAmount", -1.0).takeIf { it >= 0.0 }
-                val catId = obj.optLong("categoryId", -1L).takeIf { it != -1L }
-                val accId = obj.optLong("accountId", -1L).takeIf { it != -1L }
-                val lbl = obj.optString("label").takeIf { it.isNotBlank() }
 
                 val displaySettings = TransactionDisplaySettings(
                     showTotalAmount = obj.optBoolean("showTotalAmount", true),
@@ -338,11 +411,11 @@ object TransactionFilterPresetsStorage {
                     datePreset = datePreset,
                     startDateMs = obj.optLong("startDateMs", 0L),
                     endDateMs = obj.optLong("endDateMs", System.currentTimeMillis()),
-                    transactionType = txType,
-                    categoryId = catId,
-                    accountId = accId,
-                    label = lbl,
-                    status = status,
+                    transactionTypes = typesSet,
+                    categoryIds = catsSet,
+                    accountIds = accsSet,
+                    labels = labelsSet,
+                    statuses = statusesSet,
                     rowStyle = rowStyle,
                     displaySettings = displaySettings
                 )
@@ -832,168 +905,207 @@ fun TransactionFilterDialog(
                     }
                 }
 
-                // ── 2.4 Transaction Type Dropdown ──
-                var showTypeDropdown by remember { mutableStateOf(false) }
-                FilterDropdownSelectorRow(
-                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন" else "Transaction Type",
-                    selectedValue = when (filterState.transactionType) {
-                        null -> if (languageMode == LanguageMode.BANGLA) "সকল প্রকার (All)" else "All Types"
-                        TransactionType.EXPENSE -> if (languageMode == LanguageMode.BANGLA) "ব্যয় (Expense)" else "Expense"
-                        TransactionType.INCOME -> if (languageMode == LanguageMode.BANGLA) "আয় (Income)" else "Income"
-                        TransactionType.TRANSFER -> if (languageMode == LanguageMode.BANGLA) "স্থানান্তর (Transfer)" else "Transfer"
-                    },
-                    icon = Icons.Default.FilterList,
-                    iconTint = when (filterState.transactionType) {
-                        TransactionType.EXPENSE -> SolidExpense
-                        TransactionType.INCOME -> SolidIncome
-                        TransactionType.TRANSFER -> SolidTransfer
-                        null -> SolidPrimary
-                    },
-                    isFiltered = filterState.transactionType != null,
-                    onClear = { filterState = filterState.copy(transactionType = null) },
-                    onClick = { showTypeDropdown = true },
-                    testTag = "filter_type_dropdown"
+                // ── 2.4 Transaction Types Multi-Select ──
+                FilterSectionWrapper(
+                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেনের ধরন" else "Transaction Types",
+                    icon = Icons.Default.FilterList
                 ) {
-                    DropdownMenu(
-                        expanded = showTypeDropdown,
-                        onDismissRequest = { showTypeDropdown = false }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("All Types") },
-                            trailingIcon = { if (filterState.transactionType == null) Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary) },
-                            onClick = {
-                                filterState = filterState.copy(transactionType = null)
-                                showTypeDropdown = false
-                            }
+                        val isAllSelected = filterState.transactionTypes.isEmpty() || filterState.transactionTypes.size == 3
+
+                        FilterChip(
+                            selected = isAllSelected,
+                            onClick = { filterState = filterState.copy(transactionTypes = emptySet()) },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidPrimary,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
-                        DropdownMenuItem(
-                            text = { Text("Expense", color = SolidExpense) },
-                            trailingIcon = { if (filterState.transactionType == TransactionType.EXPENSE) Icon(Icons.Default.Check, contentDescription = null, tint = SolidExpense) },
+                        FilterChip(
+                            selected = TransactionType.EXPENSE in filterState.transactionTypes,
                             onClick = {
-                                filterState = filterState.copy(transactionType = TransactionType.EXPENSE)
-                                showTypeDropdown = false
-                            }
+                                val current = filterState.transactionTypes
+                                val updated = if (TransactionType.EXPENSE in current) current - TransactionType.EXPENSE else current + TransactionType.EXPENSE
+                                filterState = filterState.copy(transactionTypes = updated)
+                            },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "ব্যয়" else "Expense", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidExpense,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
-                        DropdownMenuItem(
-                            text = { Text("Income", color = SolidIncome) },
-                            trailingIcon = { if (filterState.transactionType == TransactionType.INCOME) Icon(Icons.Default.Check, contentDescription = null, tint = SolidIncome) },
+                        FilterChip(
+                            selected = TransactionType.INCOME in filterState.transactionTypes,
                             onClick = {
-                                filterState = filterState.copy(transactionType = TransactionType.INCOME)
-                                showTypeDropdown = false
-                            }
+                                val current = filterState.transactionTypes
+                                val updated = if (TransactionType.INCOME in current) current - TransactionType.INCOME else current + TransactionType.INCOME
+                                filterState = filterState.copy(transactionTypes = updated)
+                            },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "আয়" else "Income", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidIncome,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
-                        DropdownMenuItem(
-                            text = { Text("Transfer", color = SolidTransfer) },
-                            trailingIcon = { if (filterState.transactionType == TransactionType.TRANSFER) Icon(Icons.Default.Check, contentDescription = null, tint = SolidTransfer) },
+                        FilterChip(
+                            selected = TransactionType.TRANSFER in filterState.transactionTypes,
                             onClick = {
-                                filterState = filterState.copy(transactionType = TransactionType.TRANSFER)
-                                showTypeDropdown = false
-                            }
+                                val current = filterState.transactionTypes
+                                val updated = if (TransactionType.TRANSFER in current) current - TransactionType.TRANSFER else current + TransactionType.TRANSFER
+                                filterState = filterState.copy(transactionTypes = updated)
+                            },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "স্থানান্তর" else "Transfer", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidTransfer,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
-                // ── 2.5 Category Dropdown + Filter Options ──
-                val selectedCategory = remember(filterState.categoryId, allCategories) {
-                    allCategories.firstOrNull { it.id == filterState.categoryId }
+                // ── 2.5 Category Dropdown + Filter Options (Multi-Select) ──
+                val categoryCount = filterState.categoryIds.size
+                val categorySummaryText = when {
+                    categoryCount == 0 -> if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরি (কোনো ফিল্টার নেই)" else "All Categories (No Filter)"
+                    categoryCount == 1 -> {
+                        val cat = allCategories.firstOrNull { it.id == filterState.categoryIds.first() }
+                        cat?.localizedName(languageMode) ?: "1 Category"
+                    }
+                    else -> if (languageMode == LanguageMode.BANGLA) "$categoryCount টি ক্যাটাগরি নির্বাচিত" else "$categoryCount Categories Selected"
                 }
+
                 FilterDropdownSelectorRow(
                     title = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি" else "Category",
-                    selectedValue = selectedCategory?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরি" else "All Categories"),
+                    selectedValue = categorySummaryText,
                     icon = Icons.Default.Category,
                     iconTint = SolidPrimary,
-                    isFiltered = filterState.categoryId != null,
+                    isFiltered = filterState.categoryIds.isNotEmpty(),
                     showFilterOptionButton = true,
                     onFilterOptionClick = { showCategoryPickerModal = true },
-                    onClear = { filterState = filterState.copy(categoryId = null) },
+                    onClear = { filterState = filterState.copy(categoryIds = emptySet()) },
                     onClick = { showCategoryPickerModal = true },
                     testTag = "filter_category_dropdown"
                 )
 
-                // ── 2.6 Account Dropdown + Filter Options ──
-                val selectedAccount = remember(filterState.accountId, allAccounts) {
-                    allAccounts.firstOrNull { it.id == filterState.accountId }
+                // ── 2.6 Account Dropdown + Filter Options (Multi-Select) ──
+                val accountCount = filterState.accountIds.size
+                val accountSummaryText = when {
+                    accountCount == 0 -> if (languageMode == LanguageMode.BANGLA) "সকল অ্যাকাউন্ট (কোনো ফিল্টার নেই)" else "All Accounts (No Filter)"
+                    accountCount == 1 -> {
+                        val acc = allAccounts.firstOrNull { it.id == filterState.accountIds.first() }
+                        acc?.localizedName(languageMode) ?: "1 Account"
+                    }
+                    else -> if (languageMode == LanguageMode.BANGLA) "$accountCount টি অ্যাকাউন্ট নির্বাচিত" else "$accountCount Accounts Selected"
                 }
+
                 FilterDropdownSelectorRow(
                     title = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট" else "Account",
-                    selectedValue = selectedAccount?.localizedName(languageMode) ?: (if (languageMode == LanguageMode.BANGLA) "সকল অ্যাকাউন্ট" else "All Accounts"),
+                    selectedValue = accountSummaryText,
                     icon = Icons.Default.AccountBalance,
                     iconTint = SolidPrimary,
-                    isFiltered = filterState.accountId != null,
+                    isFiltered = filterState.accountIds.isNotEmpty(),
                     showFilterOptionButton = true,
                     onFilterOptionClick = { showAccountPickerModal = true },
-                    onClear = { filterState = filterState.copy(accountId = null) },
+                    onClear = { filterState = filterState.copy(accountIds = emptySet()) },
                     onClick = { showAccountPickerModal = true },
                     testTag = "filter_account_dropdown"
                 )
 
-                // ── 2.7 Labels Dropdown + Filter Options ──
+                // ── 2.7 Labels Dropdown + Filter Options (Multi-Select) ──
+                val labelCount = filterState.labels.size
+                val labelSummaryText = when {
+                    labelCount == 0 -> if (languageMode == LanguageMode.BANGLA) "কোনো ফিল্টার নেই" else "No Filter"
+                    labelCount == 1 -> "#${filterState.labels.first()}"
+                    else -> if (languageMode == LanguageMode.BANGLA) "$labelCount টি লেবেল নির্বাচিত" else "$labelCount Labels Selected"
+                }
+
                 FilterDropdownSelectorRow(
                     title = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ" else "Labels",
-                    selectedValue = if (!filterState.label.isNullOrBlank()) "#${filterState.label}" else (if (languageMode == LanguageMode.BANGLA) "কোনো ফিল্টার নেই" else "No Filter"),
+                    selectedValue = labelSummaryText,
                     icon = Icons.AutoMirrored.Filled.Label,
                     iconTint = SolidPrimary,
-                    isFiltered = !filterState.label.isNullOrBlank(),
+                    isFiltered = filterState.labels.isNotEmpty(),
                     showFilterOptionButton = true,
                     onFilterOptionClick = { showLabelPickerModal = true },
-                    onClear = { filterState = filterState.copy(label = null) },
+                    onClear = { filterState = filterState.copy(labels = emptySet()) },
                     onClick = { showLabelPickerModal = true },
                     testTag = "filter_labels_dropdown"
                 )
 
-                // ── 2.8 Status Dropdown + Filter Options ──
-                var showStatusDropdown by remember { mutableStateOf(false) }
-                FilterDropdownSelectorRow(
-                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেন স্ট্যাটাস" else "Status",
-                    selectedValue = when (filterState.status) {
-                        null -> if (languageMode == LanguageMode.BANGLA) "কোনো ফিল্টার নেই" else "No Filter"
-                        TransactionStatus.CLEARED -> "Cleared"
-                        TransactionStatus.RECONCILED -> "Reconciled"
-                        TransactionStatus.VOID -> "Void / Voided"
-                        TransactionStatus.NONE -> "None"
-                    },
-                    icon = Icons.Default.Tune,
-                    iconTint = SolidPrimary,
-                    isFiltered = filterState.status != null,
-                    onClear = { filterState = filterState.copy(status = null) },
-                    onClick = { showStatusDropdown = true },
-                    testTag = "filter_status_dropdown"
+                // ── 2.8 Status Multi-Select ──
+                FilterSectionWrapper(
+                    title = if (languageMode == LanguageMode.BANGLA) "লেনদেন স্ট্যাটাস" else "Transaction Status",
+                    icon = Icons.Default.Tune
                 ) {
-                    DropdownMenu(
-                        expanded = showStatusDropdown,
-                        onDismissRequest = { showStatusDropdown = false }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("No Filter (All)") },
-                            trailingIcon = { if (filterState.status == null) Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary) },
-                            onClick = {
-                                filterState = filterState.copy(status = null)
-                                showStatusDropdown = false
-                            }
+                        val isAllStatus = filterState.statuses.isEmpty()
+                        FilterChip(
+                            selected = isAllStatus,
+                            onClick = { filterState = filterState.copy(statuses = emptySet()) },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল" else "All", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidPrimary,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
-                        DropdownMenuItem(
-                            text = { Text("Cleared") },
-                            trailingIcon = { if (filterState.status == TransactionStatus.CLEARED) Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary) },
+                        FilterChip(
+                            selected = TransactionStatus.CLEARED in filterState.statuses,
                             onClick = {
-                                filterState = filterState.copy(status = TransactionStatus.CLEARED)
-                                showStatusDropdown = false
-                            }
+                                val current = filterState.statuses
+                                filterState = filterState.copy(statuses = if (TransactionStatus.CLEARED in current) current - TransactionStatus.CLEARED else current + TransactionStatus.CLEARED)
+                            },
+                            label = { Text("Cleared", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidIncome,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1f)
                         )
-                        DropdownMenuItem(
-                            text = { Text("Reconciled") },
-                            trailingIcon = { if (filterState.status == TransactionStatus.RECONCILED) Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary) },
+                        FilterChip(
+                            selected = TransactionStatus.RECONCILED in filterState.statuses,
                             onClick = {
-                                filterState = filterState.copy(status = TransactionStatus.RECONCILED)
-                                showStatusDropdown = false
-                            }
+                                val current = filterState.statuses
+                                filterState = filterState.copy(statuses = if (TransactionStatus.RECONCILED in current) current - TransactionStatus.RECONCILED else current + TransactionStatus.RECONCILED)
+                            },
+                            label = { Text("Reconciled", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidPrimary,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(1.1f)
                         )
-                        DropdownMenuItem(
-                            text = { Text("Void") },
-                            trailingIcon = { if (filterState.status == TransactionStatus.VOID) Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary) },
+                        FilterChip(
+                            selected = TransactionStatus.VOID in filterState.statuses,
                             onClick = {
-                                filterState = filterState.copy(status = TransactionStatus.VOID)
-                                showStatusDropdown = false
-                            }
+                                val current = filterState.statuses
+                                filterState = filterState.copy(statuses = if (TransactionStatus.VOID in current) current - TransactionStatus.VOID else current + TransactionStatus.VOID)
+                            },
+                            label = { Text("Void", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SolidExpense,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier.weight(0.9f)
                         )
                     }
                 }
@@ -1227,11 +1339,11 @@ fun TransactionFilterDialog(
     if (showCategoryPickerModal) {
         FilterCategorySelectModal(
             categories = allCategories,
-            selectedCategoryId = filterState.categoryId,
+            selectedCategoryIds = filterState.categoryIds,
             languageMode = languageMode,
             onDismiss = { showCategoryPickerModal = false },
-            onSelect = { selectedId ->
-                filterState = filterState.copy(categoryId = selectedId)
+            onSelect = { selectedIds ->
+                filterState = filterState.copy(categoryIds = selectedIds)
                 showCategoryPickerModal = false
             }
         )
@@ -1241,68 +1353,140 @@ fun TransactionFilterDialog(
     if (showAccountPickerModal) {
         FilterAccountSelectModal(
             accounts = allAccounts,
-            selectedAccountId = filterState.accountId,
+            selectedAccountIds = filterState.accountIds,
             languageMode = languageMode,
             onDismiss = { showAccountPickerModal = false },
-            onSelect = { selectedId ->
-                filterState = filterState.copy(accountId = selectedId)
+            onSelect = { selectedIds ->
+                filterState = filterState.copy(accountIds = selectedIds)
                 showAccountPickerModal = false
             }
         )
     }
 
-    // 5. Label Picker Modal
+    // 5. Label Picker Modal (Multi-Select)
     if (showLabelPickerModal) {
         val uniqueLabels = remember(allTransactions) {
             allTransactions.mapNotNull { it.transaction.referenceNo.takeIf { s -> s.isNotBlank() } }.distinct()
         }
+        var tempSelectedLabels by remember { mutableStateOf(filterState.labels) }
+        var labelSearchQuery by remember { mutableStateOf("") }
+        val filteredLabels = remember(uniqueLabels, labelSearchQuery) {
+            if (labelSearchQuery.isBlank()) uniqueLabels else uniqueLabels.filter { it.contains(labelSearchQuery, ignoreCase = true) }
+        }
+
         AlertDialog(
             onDismissRequest = { showLabelPickerModal = false },
             title = {
-                Text(
-                    text = if (languageMode == LanguageMode.BANGLA) "লেবেল নির্বাচন করুন" else "Select Label / Tag",
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (languageMode == LanguageMode.BANGLA) "লেবেল / ট্যাগ নির্বাচন" else "Select Labels / Tags",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    if (tempSelectedLabels.isNotEmpty()) {
+                        Surface(
+                            shape = CircleShape,
+                            color = SolidPrimary.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "${tempSelectedLabels.size}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SolidPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             },
             text = {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                        .height(360.dp)
                 ) {
-                    if (uniqueLabels.isEmpty()) {
-                        Text(
-                            text = if (languageMode == LanguageMode.BANGLA) "কোনো লেবেল পাওয়া যায়নি" else "No labels found in records.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.outline
+                    OutlinedTextField(
+                        value = labelSearchQuery,
+                        onValueChange = { labelSearchQuery = it },
+                        placeholder = { Text(if (languageMode == LanguageMode.BANGLA) "লেবেল খুঁজুন..." else "Search labels...", fontSize = 12.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = tempSelectedLabels.isEmpty(),
+                            onClick = { tempSelectedLabels = emptySet() },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল (রিসেট)" else "All (Reset)", fontSize = 11.sp) },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
                         )
-                    } else {
-                        uniqueLabels.forEach { lbl ->
-                            val isSelected = filterState.label == lbl
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        filterState = filterState.copy(label = lbl)
-                                        showLabelPickerModal = false
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                        FilterChip(
+                            selected = tempSelectedLabels.size == uniqueLabels.size && uniqueLabels.isNotEmpty(),
+                            onClick = { tempSelectedLabels = uniqueLabels.toSet() },
+                            label = { Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp) },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (filteredLabels.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "#$lbl",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium
+                                        text = if (languageMode == LanguageMode.BANGLA) "কোনো লেবেল পাওয়া যায়নি" else "No labels found.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.outline
                                     )
-                                    if (isSelected) {
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        } else {
+                            items(filteredLabels) { lbl ->
+                                val isSelected = lbl in tempSelectedLabels
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            tempSelectedLabels = if (isSelected) tempSelectedLabels - lbl else tempSelectedLabels + lbl
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "#$lbl",
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (isSelected) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
+                                        }
                                     }
                                 }
                             }
@@ -1310,7 +1494,17 @@ fun TransactionFilterDialog(
                     }
                 }
             },
-            confirmButton = {},
+            confirmButton = {
+                Button(
+                    onClick = {
+                        filterState = filterState.copy(labels = tempSelectedLabels)
+                        showLabelPickerModal = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Done")
+                }
+            },
             dismissButton = {
                 TextButton(onClick = { showLabelPickerModal = false }) {
                     Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel")
@@ -1678,27 +1872,55 @@ private fun DisplaySettingToggleRow(
 }
 
 /**
- * Category Selection modal for filter.
+ * Category Selection modal for filter (Multi-Select).
  */
 @Composable
 private fun FilterCategorySelectModal(
     categories: List<Category>,
-    selectedCategoryId: Long?,
+    selectedCategoryIds: Set<Long>,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onSelect: (Long?) -> Unit
+    onSelect: (Set<Long>) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var tempSelectedIds by remember { mutableStateOf(selectedCategoryIds) }
     val parentCategories = remember(categories) { categories.filter { it.parentId == null } }
+    val allCategoryIds = remember(categories) { categories.map { it.id }.toSet() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ফিল্টার" else "Filter by Category", fontWeight = FontWeight.Bold) },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "ক্যাটাগরি ফিল্টার" else "Filter by Category",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                if (tempSelectedIds.isNotEmpty()) {
+                    Surface(
+                        shape = CircleShape,
+                        color = SolidPrimary.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "${tempSelectedIds.size}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(360.dp)
+                    .height(380.dp)
             ) {
                 OutlinedTextField(
                     value = searchQuery,
@@ -1711,27 +1933,32 @@ private fun FilterCategorySelectModal(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = tempSelectedIds.isEmpty(),
+                        onClick = { tempSelectedIds = emptySet() },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল (রিসেট)" else "All (Reset)", fontSize = 11.sp) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = tempSelectedIds.size == allCategoryIds.size && allCategoryIds.isNotEmpty(),
+                        onClick = { tempSelectedIds = allCategoryIds },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (selectedCategoryId == null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelect(null) }
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সকল ক্যাটাগরি (All)" else "All Categories (No Filter)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                            )
-                        }
-                    }
-
                     parentCategories.forEach { parent ->
                         val subCats = categories.filter { it.parentId == parent.id }
                         val matchesSearch = searchQuery.isBlank() ||
@@ -1741,13 +1968,21 @@ private fun FilterCategorySelectModal(
 
                         if (matchesSearch) {
                             item {
-                                val isSelected = selectedCategoryId == parent.id
+                                val isParentSelected = parent.id in tempSelectedIds
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    color = if (isParentSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { onSelect(parent.id) }
+                                        .clickable {
+                                            val subIds = subCats.map { it.id }.toSet()
+                                            val allFamily = subIds + parent.id
+                                            tempSelectedIds = if (isParentSelected) {
+                                                tempSelectedIds - allFamily
+                                            } else {
+                                                tempSelectedIds + allFamily
+                                            }
+                                        }
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1764,7 +1999,7 @@ private fun FilterCategorySelectModal(
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Text(parent.localizedName(languageMode), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                         }
-                                        if (isSelected) {
+                                        if (isParentSelected) {
                                             Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
                                         }
                                     }
@@ -1774,13 +2009,15 @@ private fun FilterCategorySelectModal(
                             subCats.forEach { sub ->
                                 if (searchQuery.isBlank() || sub.nameEn.contains(searchQuery, ignoreCase = true) || sub.nameBn.contains(searchQuery, ignoreCase = true)) {
                                     item {
-                                        val isSubSelected = selectedCategoryId == sub.id
+                                        val isSubSelected = sub.id in tempSelectedIds
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
                                             color = if (isSubSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable { onSelect(sub.id) }
+                                                .clickable {
+                                                    tempSelectedIds = if (isSubSelected) tempSelectedIds - sub.id else tempSelectedIds + sub.id
+                                                }
                                                 .padding(start = 18.dp)
                                         ) {
                                             Row(
@@ -1811,7 +2048,14 @@ private fun FilterCategorySelectModal(
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            Button(
+                onClick = { onSelect(tempSelectedIds) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Done")
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel") }
         }
@@ -1819,27 +2063,55 @@ private fun FilterCategorySelectModal(
 }
 
 /**
- * Account Selection modal for filter.
+ * Account Selection modal for filter (Multi-Select).
  */
 @Composable
 private fun FilterAccountSelectModal(
     accounts: List<Account>,
-    selectedAccountId: Long?,
+    selectedAccountIds: Set<Long>,
     languageMode: LanguageMode,
     onDismiss: () -> Unit,
-    onSelect: (Long?) -> Unit
+    onSelect: (Set<Long>) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var tempSelectedIds by remember { mutableStateOf(selectedAccountIds) }
     val parentAccounts = remember(accounts) { accounts.filter { it.parentId == null } }
+    val allAccountIds = remember(accounts) { accounts.map { it.id }.toSet() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট ফিল্টার" else "Filter by Account", fontWeight = FontWeight.Bold) },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (languageMode == LanguageMode.BANGLA) "অ্যাকাউন্ট ফিল্টার" else "Filter by Account",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                if (tempSelectedIds.isNotEmpty()) {
+                    Surface(
+                        shape = CircleShape,
+                        color = SolidPrimary.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "${tempSelectedIds.size}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SolidPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(360.dp)
+                    .height(380.dp)
             ) {
                 OutlinedTextField(
                     value = searchQuery,
@@ -1852,27 +2124,32 @@ private fun FilterAccountSelectModal(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = tempSelectedIds.isEmpty(),
+                        onClick = { tempSelectedIds = emptySet() },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সকল (রিসেট)" else "All (Reset)", fontSize = 11.sp) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = tempSelectedIds.size == allAccountIds.size && allAccountIds.isNotEmpty(),
+                        onClick = { tempSelectedIds = allAccountIds },
+                        label = { Text(if (languageMode == LanguageMode.BANGLA) "সব নির্বাচন" else "Select All", fontSize = 11.sp) },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (selectedAccountId == null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelect(null) }
-                        ) {
-                            Text(
-                                text = if (languageMode == LanguageMode.BANGLA) "সকল অ্যাকাউন্ট (All)" else "All Accounts (No Filter)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                            )
-                        }
-                    }
-
                     parentAccounts.forEach { parent ->
                         val subAccs = accounts.filter { it.parentId == parent.id }
                         val matchesSearch = searchQuery.isBlank() ||
@@ -1882,13 +2159,21 @@ private fun FilterAccountSelectModal(
 
                         if (matchesSearch) {
                             item {
-                                val isSelected = selectedAccountId == parent.id
+                                val isParentSelected = parent.id in tempSelectedIds
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    color = if (isParentSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { onSelect(parent.id) }
+                                        .clickable {
+                                            val subIds = subAccs.map { it.id }.toSet()
+                                            val allFamily = subIds + parent.id
+                                            tempSelectedIds = if (isParentSelected) {
+                                                tempSelectedIds - allFamily
+                                            } else {
+                                                tempSelectedIds + allFamily
+                                            }
+                                        }
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1905,7 +2190,7 @@ private fun FilterAccountSelectModal(
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Text(parent.localizedName(languageMode), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                         }
-                                        if (isSelected) {
+                                        if (isParentSelected) {
                                             Icon(Icons.Default.Check, contentDescription = null, tint = SolidPrimary, modifier = Modifier.size(16.dp))
                                         }
                                     }
@@ -1915,13 +2200,15 @@ private fun FilterAccountSelectModal(
                             subAccs.forEach { sub ->
                                 if (searchQuery.isBlank() || sub.nameEn.contains(searchQuery, ignoreCase = true) || sub.nameBn.contains(searchQuery, ignoreCase = true)) {
                                     item {
-                                        val isSubSelected = selectedAccountId == sub.id
+                                        val isSubSelected = sub.id in tempSelectedIds
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
                                             color = if (isSubSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clickable { onSelect(sub.id) }
+                                                .clickable {
+                                                    tempSelectedIds = if (isSubSelected) tempSelectedIds - sub.id else tempSelectedIds + sub.id
+                                                }
                                                 .padding(start = 18.dp)
                                         ) {
                                             Row(
@@ -1952,7 +2239,14 @@ private fun FilterAccountSelectModal(
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            Button(
+                onClick = { onSelect(tempSelectedIds) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text(if (languageMode == LanguageMode.BANGLA) "প্রয়োগ করুন" else "Done")
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(if (languageMode == LanguageMode.BANGLA) "বাতিল" else "Cancel") }
         }

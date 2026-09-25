@@ -1,8 +1,3 @@
 <resources>
     <string name="app_name">Budgeter</string>
-    <string name="widget_quick_action_desc">Quick access to net balance, monthly stats, and rapid transaction entry.</string>
-    <string name="widget_budget_meter_desc">Live progress meter of monthly budget spending and safe-to-spend balance.</string>
-    <string name="widget_recent_transactions_desc">Scrollable live feed of your latest transactions with category icons and amounts.</string>
-    <string name="widget_savings_goal_desc">Real-time tracker for your top active savings goal progress.</string>
 </resources>
-

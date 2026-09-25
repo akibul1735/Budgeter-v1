@@ -1,44 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- Material You Themed Icon for Budgeter -->
-    <!-- Subtle Crescent Accent Contour (Representing the offset secondary coin disc) -->
     <path
-        android:strokeColor="#B3FFFFFF"
-        android:strokeWidth="3.2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M 74,32 C 83,38 88,48 88,58 C 88,68 83,78 74,84" />
-
-    <!-- Main Vertical Stem with Cane Hook -->
+        android:fillColor="#000000"
+        android:pathData="M54,26 A28,28 0 1,0 54,82 A28,28 0 1,0 54,26 Z" />
     <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M 41,31 C 38,31 35.5,34 36.5,37.5 C 37.5,41 41,42 45,42 L 49,42 L 49,70 C 49,73 47,75 44,75" />
-
-    <!-- Horizontal Crossbar of Taka (৳) Symbol -->
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,38 C45.5,38 42,41.5 42,46 C42,50.5 45.5,54 50,54 C54.5,54 58,50.5 58,46 C58,41.5 54.5,38 50,38 Z M50,42 C52.2,42 54,43.8 54,46 C54,48.2 52.2,50 50,50 C47.8,50 46,48.2 46,46 C46,43.8 47.8,42 50,42 Z" />
     <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M 34,48 L 56,48" />
-
-    <!-- Right Signature Flourish with Top Loop and Expansive Crescent Arc -->
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,48 L58,48 L58,66 C58,69 55.5,71 52.5,71 C49.5,71 47,69 47,66 L47,63 L51,63 L51,66 C51,66.8 51.7,67.5 52.5,67.5 C53.3,67.5 54,66.8 54,66 Z" />
     <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="5.2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M 59,50 C 59,44.5 62,42 66,42 C 70,42 72.5,45 72.5,48.5 C 72.5,52.5 69,55 65.5,55 C 62.5,55 60.5,52.5 62.5,50 C 64,48 67,48 69,49.5 C 74,53.5 79,61 79,69 C 79,79 71,86 61,86 C 54,86 50,81.5 48,75" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,58 L63,50 L64.5,53.5 L44.5,61.5 Z" />
 </vector>
-

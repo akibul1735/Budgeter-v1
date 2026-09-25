@@ -1,201 +1,65 @@
-import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
-import java.util.Base64
-
 plugins {
-  alias(libs.plugins.android.application)
-  alias(libs.plugins.kotlin.compose)
-  alias(libs.plugins.google.devtools.ksp)
-  alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
-  namespace = "com.example"
-  compileSdk = 36
+    namespace = "com.example.budgeter"
+    compileSdk = 35
 
-  defaultConfig {
-    applicationId = "com.budgeter.app"
-    minSdk = 24
-    targetSdk = 36
-    versionCode = 18
-    versionName = "3.6"
+    defaultConfig {
+        applicationId = "com.aistudio.budgeter.bgtxqz"
+        minSdk = 26
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0.0"
 
-    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    buildConfigField("String", "GEMINI_API_KEY", "\"\"")
-  }
-
-  val storePasswordEnv = System.getenv("STORE_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
-  val hasReleaseSecret = !storePasswordEnv.isNullOrBlank()
-
-  signingConfigs {
-    val debugKeystoreFile = file("${rootDir}/debug.keystore")
-    val debugBase64File = file("${rootDir}/debug.keystore.base64")
-    if (!debugKeystoreFile.exists() && debugBase64File.exists()) {
-      try {
-        val decoded = Base64.getMimeDecoder().decode(debugBase64File.readText().trim())
-        debugKeystoreFile.writeBytes(decoded)
-      } catch (_: Exception) {}
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary = true
+        }
     }
 
-    val releaseKeystoreFile = file("${rootDir}/release.keystore")
-    val releaseBase64File = file("${rootDir}/release.keystore.base64")
-    if (!releaseKeystoreFile.exists() && releaseBase64File.exists()) {
-      try {
-        val decoded = Base64.getMimeDecoder().decode(releaseBase64File.readText().trim())
-        releaseKeystoreFile.writeBytes(decoded)
-      } catch (_: Exception) {}
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
     }
-
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH")
-        ?: (if (file("${rootDir}/release.keystore").exists()) "${rootDir}/release.keystore"
-            else if (file("${rootDir}/budgeter-release.jks").exists()) "${rootDir}/budgeter-release.jks"
-            else "${rootDir}/release.jks")
-      val keystoreFile = file(keystorePath)
-      if (keystoreFile.exists() && hasReleaseSecret) {
-        storeFile = keystoreFile
-        storePassword = storePasswordEnv
-        keyAlias = System.getenv("KEY_ALIAS") ?: "budgeter"
-        keyPassword = System.getenv("KEY_PASSWORD") ?: storePasswordEnv
-      }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    kotlinOptions {
+        jvmTarget = "17"
     }
-  }
-
-  buildTypes {
-    release {
-      isCrunchPngs = true
-      isMinifyEnabled = false
-      isShrinkResources = false
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      val releaseKeystore = signingConfigs.findByName("release")?.storeFile
-      if (releaseKeystore != null && releaseKeystore.exists() && hasReleaseSecret) {
-        signingConfig = signingConfigs.getByName("release")
-      } else {
-        signingConfig = signingConfigs.getByName("debugConfig")
-      }
+    buildFeatures {
+        compose = true
+        buildConfig = true
     }
-    debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
-    }
-  }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-  buildFeatures {
-    compose = true
-    buildConfig = true
-  }
-  lint {
-    abortOnError = false
-    checkReleaseBuilds = false
-    ignoreWarnings = true
-  }
-  testOptions {
-    unitTests {
-      isIncludeAndroidResources = true
-      isReturnDefaultValues = true
-      all {
-        it.jvmArgs(
-          "-Xmx2048m",
-          "-Djava.awt.headless=true",
-          "--add-opens=java.base/java.lang=ALL-UNNAMED",
-          "--add-opens=java.base/java.util=ALL-UNNAMED"
-        )
-      }
-    }
-  }
-  dependenciesInfo {
-    includeInApk = false
-    includeInBundle = true
-  }
 }
 
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
-  ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
-  ignoreList.add("GEMINI_API_KEY")
-}
-
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
-
-// Some unused dependencies are commented out below instead of being removed.
-// This makes it easy to add them back in the future if needed.
 dependencies {
-  implementation(platform(libs.androidx.compose.bom))
-  // implementation(platform(libs.firebase.bom))
-  // implementation(libs.accompanist.permissions)
-  implementation(libs.androidx.activity.compose)
-  implementation(libs.androidx.biometric)
-  implementation(libs.androidx.documentfile)
-  implementation(libs.androidx.exifinterface)
-  // implementation(libs.androidx.camera.camera2)
-  // implementation(libs.androidx.camera.core)
-  // implementation(libs.androidx.camera.lifecycle)
-  // implementation(libs.androidx.camera.view)
-  implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
-  implementation(libs.androidx.compose.material3)
-  implementation(libs.androidx.compose.ui)
-  implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.ui.tooling.preview)
-  implementation(libs.androidx.core.ktx)
-  // implementation(libs.androidx.datastore.preferences)
-  implementation(libs.androidx.lifecycle.runtime.compose)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.lifecycle.process)
-  implementation(libs.androidx.lifecycle.viewmodel.compose)
-  implementation(libs.androidx.navigation.compose)
-  implementation(libs.androidx.work.runtime.ktx)
-  implementation(libs.androidx.room.ktx)
-  implementation(libs.androidx.room.runtime)
-  implementation(libs.coil.compose)
-  implementation(libs.coil.svg)
-  // implementation(libs.converter.moshi)
-  // implementation(libs.firebase.ai)
-  implementation(libs.play.services.auth)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
 
-  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
-  // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
-  // implementation(libs.firebase.appcheck.recaptcha)
-  // implementation(libs.firebase.appcheck.debug)
-  implementation(libs.kotlinx.coroutines.android)
-  implementation(libs.kotlinx.coroutines.core)
-  // implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
-  implementation(libs.okhttp)
-  // implementation(libs.play.services.location)
-  // implementation(libs.retrofit)
-  testImplementation(libs.androidx.compose.ui.test.junit4)
-  testImplementation(libs.androidx.core)
-  testImplementation(libs.androidx.junit)
-  testImplementation(libs.junit)
-  testImplementation(libs.kotlinx.coroutines.test)
-  testImplementation(libs.robolectric)
-  testImplementation(libs.roborazzi)
-  testImplementation(libs.roborazzi.compose)
-  testImplementation(libs.roborazzi.junit.rule)
-  androidTestImplementation(platform(libs.androidx.compose.bom))
-  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-  androidTestImplementation(libs.androidx.espresso.core)
-  androidTestImplementation(libs.androidx.junit)
-  androidTestImplementation(libs.androidx.runner)
-  debugImplementation(libs.androidx.compose.ui.test.manifest)
-  debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+
+    implementation(libs.kotlinx.coroutines.android)
 }

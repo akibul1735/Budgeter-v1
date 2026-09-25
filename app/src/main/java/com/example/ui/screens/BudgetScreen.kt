@@ -3029,31 +3029,25 @@ private fun CategoriesBudgetEntryView(
             }
         }
 
-        // 2. Budget Maker Tab Filter - Category / Account selection
-        if (tabFilter.selectedItemIds.isNotEmpty()) {
-            list = list.filter { it.item.id in tabFilter.selectedItemIds }
-        }
-        if (tabFilter.selectedGroupNames.isNotEmpty()) {
-            list = list.filter { it.item.groupName in tabFilter.selectedGroupNames }
+        // 2. Budget Maker Tab Filter - Category / Account / Group selection (OR match if both present)
+        if (tabFilter.selectedItemIds.isNotEmpty() || tabFilter.selectedGroupNames.isNotEmpty()) {
+            list = list.filter { item ->
+                (tabFilter.selectedItemIds.isNotEmpty() && item.item.id in tabFilter.selectedItemIds) ||
+                (tabFilter.selectedGroupNames.isNotEmpty() && item.item.groupName in tabFilter.selectedGroupNames)
+            }
         }
 
         // 3. Amount Range
         if (tabFilter.minAmount != null && tabFilter.minAmount > 0.0) {
+            val min = tabFilter.minAmount
             list = list.filter {
-                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
-                    it.actualSpent >= tabFilter.minAmount || it.currentBudget >= tabFilter.minAmount
-                } else {
-                    it.currentBudget >= tabFilter.minAmount || it.actualSpent >= tabFilter.minAmount
-                }
+                it.currentBudget >= min || Math.abs(it.actualSpent) >= min
             }
         }
         if (tabFilter.maxAmount != null && tabFilter.maxAmount > 0.0) {
+            val max = tabFilter.maxAmount
             list = list.filter {
-                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
-                    it.actualSpent <= tabFilter.maxAmount || (it.currentBudget > 0 && it.currentBudget <= tabFilter.maxAmount)
-                } else {
-                    it.currentBudget <= tabFilter.maxAmount || (it.actualSpent > 0 && it.actualSpent <= tabFilter.maxAmount)
-                }
+                (it.currentBudget in 0.001..max) || (Math.abs(it.actualSpent) in 0.001..max) || (it.currentBudget == 0.0 && Math.abs(it.actualSpent) == 0.0 && tabFilter.minAmount == null)
             }
         }
 
@@ -3065,34 +3059,50 @@ private fun CategoriesBudgetEntryView(
             list = list.filter { it.currentBudget <= 0.0 }
         }
         if (tabFilter.onlyWithActualActivity) {
-            list = list.filter {
-                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
-                    it.actualSpent != 0.0 || it.txCount > 0
-                } else {
-                    it.actualSpent > 0.0
-                }
-            }
+            list = list.filter { Math.abs(it.actualSpent) > 0.0 || it.txCount > 0 }
         }
         if (tabFilter.onlyZeroActivity) {
+            list = list.filter { it.actualSpent == 0.0 && it.txCount == 0 }
+        }
+        if (tabFilter.onlyOverBudget) {
             list = list.filter {
-                if (sectionItemType == "ASSET" || sectionItemType == "LIABILITY") {
-                    it.actualSpent == 0.0 && it.txCount == 0
+                if (sectionItemType == "EXPENSE") {
+                    it.actualSpent > it.currentBudget && it.currentBudget > 0.0
+                } else if (sectionItemType == "INCOME") {
+                    it.actualSpent >= it.currentBudget && it.currentBudget > 0.0
                 } else {
-                    it.actualSpent == 0.0
+                    it.currentBudget > 0.0 && Math.abs(it.actualSpent) >= it.currentBudget
                 }
             }
         }
-        if (tabFilter.onlyOverBudget) {
-            list = list.filter { it.actualSpent > it.currentBudget && it.currentBudget > 0.0 }
-        }
         if (tabFilter.onlyUnderBudgetRemaining) {
-            list = list.filter { it.currentBudget > it.actualSpent && it.currentBudget > 0.0 }
+            list = list.filter {
+                if (sectionItemType == "EXPENSE") {
+                    it.currentBudget > it.actualSpent && it.currentBudget > 0.0
+                } else if (sectionItemType == "INCOME") {
+                    it.actualSpent < it.currentBudget && it.currentBudget > 0.0
+                } else {
+                    it.currentBudget > 0.0 && Math.abs(it.actualSpent) < it.currentBudget
+                }
+            }
         }
         if (tabFilter.onlyTargetAchieved) {
-            list = list.filter { it.actualSpent >= it.currentBudget && it.currentBudget > 0.0 }
+            list = list.filter {
+                if (sectionItemType == "EXPENSE") {
+                    it.actualSpent <= it.currentBudget && it.currentBudget > 0.0
+                } else {
+                    it.actualSpent >= it.currentBudget && it.currentBudget > 0.0
+                }
+            }
         }
         if (tabFilter.onlyTargetPending) {
-            list = list.filter { it.actualSpent < it.currentBudget }
+            list = list.filter {
+                if (sectionItemType == "EXPENSE") {
+                    it.actualSpent > it.currentBudget && it.currentBudget > 0.0
+                } else {
+                    it.actualSpent < it.currentBudget && it.currentBudget > 0.0
+                }
+            }
         }
         if (tabFilter.onlyWithSuggestions) {
             list = list.filter { it.suggestions.isNotEmpty() }
@@ -3101,19 +3111,19 @@ private fun CategoriesBudgetEntryView(
             list = list.filter { it.actualSpent > 0.0 }
         }
         if (tabFilter.onlyZeroBalance) {
-            list = list.filter { it.actualSpent == 0.0 }
+            list = list.filter { it.actualSpent == 0.0 && it.txCount == 0 }
         }
         if (tabFilter.onlyNegativeBalance) {
             list = list.filter { it.actualSpent < 0.0 }
         }
         if (tabFilter.onlyOutstandingDebt) {
-            list = list.filter { it.actualSpent > 0.0 }
+            list = list.filter { Math.abs(it.actualSpent) > 0.0 || it.currentBudget > 0.0 }
         }
         if (tabFilter.onlyClearedDebt) {
-            list = list.filter { it.actualSpent == 0.0 }
+            list = list.filter { it.actualSpent == 0.0 && it.currentBudget == 0.0 }
         }
         if (tabFilter.excludeZeroAmounts) {
-            list = list.filter { it.currentBudget > 0.0 || it.actualSpent != 0.0 || it.txCount > 0 }
+            list = list.filter { it.currentBudget > 0.0 || Math.abs(it.actualSpent) > 0.0 || it.txCount > 0 }
         }
 
         // 5. Filter Category Selection (Cumulative/AND logic across multiple active chips)
