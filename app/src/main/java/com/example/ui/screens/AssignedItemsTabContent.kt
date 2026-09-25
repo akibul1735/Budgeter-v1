@@ -489,7 +489,7 @@ internal fun AssignedItemsTabContent(
         // Empty state check
         if (totalItemsShown == 0) {
             item {
-                EmptyStateCard(
+                PaymentSourceEmptyCard(
                     message = if (languageMode == LanguageMode.BANGLA) "এই ফিল্টারে কোনো আইটেম পাওয়া যায়নি।" else "No items match this filter."
                 )
             }

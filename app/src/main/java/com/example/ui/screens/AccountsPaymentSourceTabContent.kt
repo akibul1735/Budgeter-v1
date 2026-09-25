@@ -370,7 +370,7 @@ internal fun AccountsPaymentSourceTabContent(
         // Account List Cards
         if (filteredAccounts.isEmpty()) {
             item {
-                EmptyStateCard(
+                PaymentSourceEmptyCard(
                     message = if (languageMode == LanguageMode.BANGLA) "কোনো পেমেন্ট সোর্স একাউন্ট পাওয়া যায়নি।" else "No payment source accounts found for this filter."
                 )
             }

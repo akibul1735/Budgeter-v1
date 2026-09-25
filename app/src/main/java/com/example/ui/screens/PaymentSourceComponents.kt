@@ -812,7 +812,7 @@ internal fun BasisTabPill(
 }
 
 @Composable
-internal fun EmptyStateCard(message: String) {
+internal fun PaymentSourceEmptyCard(message: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
