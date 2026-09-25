@@ -478,37 +478,6 @@ fun PaymentSourceScreen(
             }
         }
 
-        // Floating Action Button matching Budget Tab (aligned to Bottom-End)
-        FloatingActionButton(
-            onClick = {
-                if (selectedTab == MainPaymentSourceTab.PAYMENT_SOURCES) {
-                    showSourceSelectorDialog = true
-                } else {
-                    if (analysisOverview.accountAnalyses.isNotEmpty()) {
-                        val targetAcc = filterAccountIdForAssignedItems?.let { id ->
-                            analysisOverview.accountAnalyses.find { it.account.id == id }?.account
-                        } ?: analysisOverview.accountAnalyses.first().account
-                        showAssignItemChoiceDialogForAccount = targetAcc
-                    } else {
-                        showSourceSelectorDialog = true
-                    }
-                }
-            },
-            containerColor = SolidPrimary,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 16.dp)
-                .testTag("payment_source_fab")
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Add / Assign",
-                modifier = Modifier.size(26.dp)
-            )
-        }
-
         // --- DIALOGS ---
 
         // 1. Select Payment Source Accounts Dialog (Multi-Select)
@@ -1769,75 +1738,6 @@ private fun OtherAccountAllocationCard(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
-
-                        // Accounts Icon Row Preview
-                        if (allocation.accountSplits.isNotEmpty()) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(top = 3.dp)
-                            ) {
-                                allocation.accountSplits.forEach { split ->
-                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                        border = BorderStroke(0.5.dp, SolidPrimary.copy(alpha = 0.3f))
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(14.dp)
-                                                    .clip(CircleShape)
-                                                    .background(if (isSplitImg) Color.Transparent else SolidPrimary.copy(alpha = 0.15f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                IconHelper.AppIcon(
-                                                    iconName = split.account.iconName,
-                                                    contentDescription = null,
-                                                    tint = SolidPrimary,
-                                                    modifier = Modifier.size(if (isSplitImg) 14.dp else 10.dp)
-                                                )
-                                            }
-                                            Text(
-                                                text = split.account.localizedName(languageMode),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                modifier = Modifier.padding(top = 3.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Block,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নির্ধারিত নেই" else "No source account",
-                                        fontSize = 9.sp,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -2291,75 +2191,6 @@ private fun CategoryAllocationCard(
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-
-                        // Accounts Icon Row Preview
-                        if (allocation.accountSplits.isNotEmpty()) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(top = 3.dp)
-                            ) {
-                                allocation.accountSplits.forEach { split ->
-                                    val isSplitImg = IconHelper.isDrawableIcon(split.account.iconName) || IconHelper.isCustomIcon(split.account.iconName)
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                                        border = BorderStroke(0.5.dp, SolidPrimary.copy(alpha = 0.3f))
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(14.dp)
-                                                    .clip(CircleShape)
-                                                    .background(if (isSplitImg) Color.Transparent else SolidPrimary.copy(alpha = 0.15f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                IconHelper.AppIcon(
-                                                    iconName = split.account.iconName,
-                                                    contentDescription = null,
-                                                    tint = SolidPrimary,
-                                                    modifier = Modifier.size(if (isSplitImg) 14.dp else 10.dp)
-                                                )
-                                            }
-                                            Text(
-                                                text = split.account.localizedName(languageMode),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                modifier = Modifier.padding(top = 3.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Block,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Text(
-                                        text = if (languageMode == LanguageMode.BANGLA) "কোনো সোর্স নির্ধারিত নেই" else "No source account",
-                                        fontSize = 9.sp,
-                                        color = MaterialTheme.colorScheme.outline
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
 

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -154,6 +155,11 @@ fun AccountsScreen(
     onDeleteAccounts: ((List<Account>) -> Unit)? = null
 ) {
     var isEditMode by remember { mutableStateOf(false) }
+
+    // Intercept Back press in Accounts tab when edit mode is active to exit edit mode and stay in Accounts tab
+    BackHandler(enabled = isEditMode) {
+        isEditMode = false
+    }
     var selectedTypeFilter by remember { mutableStateOf<AccountType?>(null) }
     var hierarchyFilter by remember(initialHierarchyFilter) { mutableStateOf(initialHierarchyFilter) }
     var sortFilter by remember { mutableStateOf(AccountSortFilter.DEFAULT) }

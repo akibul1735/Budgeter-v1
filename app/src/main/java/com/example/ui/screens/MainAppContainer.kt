@@ -318,6 +318,7 @@ fun MainAppContainer(
     var currentView by remember { mutableStateOf(AppView.DASHBOARD) }
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
     var isTimelineActive by remember { mutableStateOf(false) }
+    var navigatedFromAccountsToBudgetViaDrawer by remember { mutableStateOf(false) }
 
     // Dialog control states
     var showAddTransactionSheet by remember { mutableStateOf(false) }
@@ -432,6 +433,9 @@ fun MainAppContainer(
             if (isTabInVisibleTabs && page in visibleTabs.indices) {
                 val swipedTab = visibleTabs.getOrNull(page) ?: return@collect
                 val swipedView = swipedTab.toAppView()
+                if (swipedView != AppView.BUDGET) {
+                    navigatedFromAccountsToBudgetViaDrawer = false
+                }
                 if (currentView != swipedView) {
                     headerScrollState.show()
                     currentView = swipedView
@@ -458,6 +462,9 @@ fun MainAppContainer(
     val selectView: (AppView) -> Unit = { targetView ->
         headerScrollState.show()
         isTimelineActive = false
+        if (targetView != AppView.BUDGET) {
+            navigatedFromAccountsToBudgetViaDrawer = false
+        }
         if (currentView != targetView) {
             val tabIndex = visibleTabs.indexOfFirst { it.toAppView() == targetView }
             if (targetView == AppView.DASHBOARD) {
@@ -487,13 +494,25 @@ fun MainAppContainer(
                 showAppUpdatePermissionDialog = false
             }
             showTabCustomizationDialog -> showTabCustomizationDialog = false
-            showAddAccountDialog -> showAddAccountDialog = false
+            showAddAccountDialog -> {
+                showAddAccountDialog = false
+                editingAccount = null
+            }
             showAddCategoryDialog -> showAddCategoryDialog = false
             showGlobalCalculator -> showGlobalCalculator = false
             showThemeFontSettings -> showThemeFontSettings = false
             showAutofillSettingsDialog -> showAutofillSettingsDialog = false
             selectedAccountForDetail != null -> selectedAccountForDetail = null
-            drawerState.isOpen -> scope.launch { drawerState.close() }
+            navigatedFromAccountsToBudgetViaDrawer && currentView == AppView.BUDGET && !drawerState.isOpen -> {
+                scope.launch { drawerState.open() }
+            }
+            drawerState.isOpen -> {
+                scope.launch { drawerState.close() }
+                if (navigatedFromAccountsToBudgetViaDrawer) {
+                    navigatedFromAccountsToBudgetViaDrawer = false
+                    selectView(AppView.DASHBOARD)
+                }
+            }
             viewHistory.size > 1 -> {
                 viewHistory.removeAt(viewHistory.size - 1)
                 currentView = viewHistory.last()
@@ -560,6 +579,7 @@ fun MainAppContainer(
                                     viewModel = viewModel,
                                     currentView = currentView,
                                     onSelectView = {
+                                        navigatedFromAccountsToBudgetViaDrawer = (currentView == AppView.ACCOUNTS && it == AppView.BUDGET)
                                         selectView(it)
                                         scope.launch { drawerState.close() }
                                     },
@@ -924,6 +944,7 @@ fun MainAppContainer(
                                 viewModel = viewModel,
                                 currentView = currentView,
                                 onSelectView = {
+                                    navigatedFromAccountsToBudgetViaDrawer = (currentView == AppView.ACCOUNTS && it == AppView.BUDGET)
                                     selectView(it)
                                     scope.launch { drawerState.close() }
                                 },
