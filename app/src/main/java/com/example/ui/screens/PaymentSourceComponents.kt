@@ -423,7 +423,7 @@ internal fun AccountRequirementCard(
                     }
                 }
 
-                // Status Badge
+                // Status Badge (Shows concise status tag)
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = if (analysis.isShortfall) SolidExpense.copy(alpha = 0.15f)
@@ -431,9 +431,13 @@ internal fun AccountRequirementCard(
                     else MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Text(
-                        text = if (analysis.isShortfall) "Need ${LanguageHelper.formatCurrency(analysis.shortfall, languageMode)}"
-                        else if (analysis.isSurplus) "Surplus ${LanguageHelper.formatCurrency(analysis.surplus, languageMode)}"
-                        else "Balanced",
+                        text = if (analysis.isShortfall) {
+                            if (languageMode == LanguageMode.BANGLA) "ঘাটতি" else "Need Funds"
+                        } else if (analysis.isSurplus) {
+                            if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত" else "Surplus"
+                        } else {
+                            if (languageMode == LanguageMode.BANGLA) "ভারসাম্যপূর্ণ" else "Balanced"
+                        },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (analysis.isShortfall) SolidExpense else if (analysis.isSurplus) SolidIncome else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -481,8 +485,16 @@ internal fun AccountRequirementCard(
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
+                    val labelText = if (analysis.isShortfall) {
+                        if (languageMode == LanguageMode.BANGLA) "প্রয়োজন (ঘাটতি)" else "Need (Shortfall)"
+                    } else if (analysis.isSurplus) {
+                        if (languageMode == LanguageMode.BANGLA) "উদ্বৃত্ত (সারপ্লাস)" else "Surplus"
+                    } else {
+                        if (languageMode == LanguageMode.BANGLA) "প্রাক্কলিত ব্যালেন্স" else "Projected Balance"
+                    }
+
                     Text(
-                        text = if (languageMode == LanguageMode.BANGLA) "প্রাক্কলিত ব্যালেন্স" else "Projected Balance",
+                        text = labelText,
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -490,7 +502,7 @@ internal fun AccountRequirementCard(
                         text = "${if (analysis.projectedBalance > 0) "+" else ""}${LanguageHelper.formatCurrency(analysis.projectedBalance, languageMode)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (analysis.projectedBalance >= 0) SolidIncome else SolidExpense
+                        color = if (analysis.isShortfall) SolidExpense else if (analysis.isSurplus) SolidIncome else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
